@@ -1,3 +1,4 @@
+import type { ApplyOptions } from "../actions/apply.js";
 import type { Db, Queryable } from "../db/client.js";
 import { OBJECT_TABLES, ddl } from "../db/ddl.js";
 import { setMeta } from "../db/meta.js";
@@ -26,13 +27,17 @@ function joined(tx: Queryable, db: Db): Db {
  * failure or timeout rolls back cleanly. It also saves a BEGIN/COMMIT round
  * trip per seeded action.
  */
-export async function resetDemo(db: Db, now: Date = new Date()): Promise<{ firms: number }> {
+export async function resetDemo(
+  db: Db,
+  now: Date = new Date(),
+  opts: Pick<ApplyOptions, "newId"> = {},
+): Promise<{ firms: number }> {
   await db.exec(ddl());
   const universe = generateUniverse();
   await db.transaction(async (tx) => {
     await tx.query(`TRUNCATE ${[...OBJECT_TABLES, "search_list_firm"].join(", ")}`);
     await insertObjects(tx, "Firm", universe);
-    await seedHistory(joined(tx, db), new Date(now.getTime() - HISTORY_DAYS * 86_400_000));
+    await seedHistory(joined(tx, db), new Date(now.getTime() - HISTORY_DAYS * 86_400_000), opts);
   });
   await setMeta(db, "lastResetAt", now.toISOString());
   return { firms: universe.length };
