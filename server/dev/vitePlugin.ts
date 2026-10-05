@@ -22,7 +22,7 @@ async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
   });
 }
 
-/** Routes /api/<name> to api/<name>.ts during `vite dev`, mirroring Vercel Functions. */
+/** Routes /api/<name> to api/<name>.ts during `vite dev`, mirroring the Worker in worker/. */
 export function devApi(): Plugin {
   return {
     name: "beacon-dev-api",

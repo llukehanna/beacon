@@ -55,6 +55,15 @@ npm run dev       # http://localhost:8080
 
 Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_CLUSTERING=on` and provide Anthropic credentials (`ANTHROPIC_API_KEY`). The public demo allows at most one Claude call per 10 minutes and 24 per day; everything else falls back to the heuristic.
 
+## Deploy
+
+Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Production reads `DATABASE_URL` (Neon Postgres) and `CRON_SECRET` from Worker secrets.
+
+```bash
+npx wrangler secret put DATABASE_URL
+npm run deploy    # typecheck, vite build, wrangler deploy
+```
+
 ## Project layout
 
 | Path | What lives there |
@@ -64,7 +73,8 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 | `server/enrichment/` | Deterministic mock providers and evidence reconciliation |
 | `server/clustering/` | Claude and heuristic rule proposers |
 | `server/seed/` | 700-firm synthetic universe and a history built by the real actions |
-| `api/` | Vercel Functions: thin HTTP adapters |
+| `api/` | Thin HTTP adapters (`Request` → `Response`) |
+| `worker/` | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset |
 | `src/` | The React app; `src/data/` is the typed data layer |
 
 ## Data
