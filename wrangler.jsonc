@@ -2,6 +2,9 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Production: beacon.lukeghanna.com (custom domain added at DNS cutover).
   "name": "beacon",
+  "routes": [
+    { "pattern": "beacon.lukeghanna.com", "custom_domain": true }
+  ],
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   // nodejs_compat: pg's sockets, node:crypto, node:async_hooks, and process.env from vars/secrets.
