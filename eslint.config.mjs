@@ -81,6 +81,7 @@ export default tseslint.config(
       "shared/**/*.{ts,mts,cts,js,mjs,cjs}",
       "api/**/*.{ts,mts,cts,js,mjs,cjs}",
       "scripts/**/*.{ts,mts,cts,js,mjs,cjs}",
+      "worker/**/*.{ts,mts,cts,js,mjs,cjs}",
     ],
     settings: {
       "import/resolver": {
