@@ -30,8 +30,9 @@ async function throttledReset(): Promise<Response> {
 }
 
 /**
- * Vercel Cron (nightly). When CRON_SECRET is set, Vercel sends it as a bearer
- * token; requiring it keeps crawlers and link prefetchers from resetting the demo.
+ * Reset over GET (the nightly Cron Trigger calls the reset directly). When
+ * CRON_SECRET is set, GET requires it as a bearer token, which keeps crawlers
+ * and link prefetchers from resetting the demo.
  */
 export async function GET(request?: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
