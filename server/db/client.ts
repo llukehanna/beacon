@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
@@ -80,8 +81,22 @@ declare global {
   var __beaconDb: Promise<Db> | undefined;
 }
 
+const requestDb = new AsyncLocalStorage<Promise<Db>>();
+
+/**
+ * Cloudflare Workers: a socket can't be reused across requests, so the Worker
+ * opens a Db per request and scopes getDb() to it while the handler runs.
+ */
+export function withRequestDb<T>(db: Promise<Db>, fn: () => Promise<T>): Promise<T> {
+  return requestDb.run(db, fn);
+}
+
 /** DATABASE_URL → Postgres; otherwise a PGlite database persisted under .data/. */
 export function getDb(): Promise<Db> {
+  const scoped = requestDb.getStore();
+  if (scoped) {
+    return scoped;
+  }
   globalThis.__beaconDb ??= (async () => {
     const url = process.env.DATABASE_URL;
     let db: Db;

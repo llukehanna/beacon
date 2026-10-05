@@ -13,10 +13,13 @@
     "test": "vitest run",
     "lint": "eslint . --report-unused-disable-directives --max-warnings 0",
     "check": "node scripts/check-sanitized.mjs && npm run lint && npm run format:check && npm run typecheck && vitest run",
-    "format": "prettier --write src/ server/ shared/ api/ scripts/",
-    "format:check": "prettier --check src/ server/ shared/ api/ scripts/",
+    "format": "prettier --write src/ server/ shared/ api/ scripts/ worker/",
+    "format:check": "prettier --check src/ server/ shared/ api/ scripts/ worker/",
     "seed": "tsx scripts/seed.ts",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy --env=\"\"",
+    "deploy:demo": "npm run build && wrangler deploy --env demo",
+    "cf:dev": "npm run build && wrangler dev --env=\"\""
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
@@ -56,6 +59,7 @@
     "typescript": "~5.5.4",
     "typescript-eslint": "^8.43.0",
     "vite": "^7.3.1",
-    "vitest": "^3.2.4"
+    "vitest": "^3.2.4",
+    "wrangler": "^4.147.0"
   }
 }
