@@ -47,7 +47,7 @@ Requires Node 22+.
 
 ```bash
 npm install
-npm run seed      # builds the demo world in .data/pglite (in-process Postgres)
+npm run seed      # builds the demo world and its reset snapshot in .data/pglite (in-process Postgres)
 npm run dev       # http://localhost:8080
 ```
 
@@ -61,8 +61,11 @@ Beacon runs on Cloudflare Workers (free plan): the Vite build is served as stati
 
 ```bash
 npx wrangler secret put DATABASE_URL
+DATABASE_URL='<neon connection string>' npm run seed   # once, and after schema or seed changes
 npm run deploy    # typecheck, vite build, wrangler deploy
 ```
+
+`npm run seed` builds the demo through the real actions and saves it as `snapshot_*` tables. The Reset button and the nightly Cron Trigger restore that snapshot in one transaction, with timestamps moved forward to the moment of the reset, which keeps a reset within the Workers free plan's CPU budget.
 
 ## Project layout
 
