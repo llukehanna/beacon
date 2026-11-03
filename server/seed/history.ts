@@ -7,7 +7,7 @@
 import type { ActionName, ObjectOf } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { USER, axisByName } from "../../shared/vocab.js";
-import { applyAction } from "../actions/apply.js";
+import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Db } from "../db/client.js";
 import { getObject, listObjects } from "../db/repo.js";
@@ -47,12 +47,20 @@ const STRONG_VALUES = {
   feeGeneratingCount: 5,
 };
 
-export async function seedHistory(db: Db, start: Date): Promise<void> {
+export async function seedHistory(
+  db: Db,
+  start: Date,
+  opts: Pick<ApplyOptions, "newId"> = {},
+): Promise<void> {
   const r = rng("beacon-history-v1");
   let clock = start.getTime();
   const act = (name: ActionName, params: Record<string, unknown>) => {
     clock += (10 + Math.floor(r() * 40)) * 60_000;
-    return applyAction(db, name, params, { now: new Date(clock), clusterer: heuristicClusterer });
+    return applyAction(db, name, params, {
+      now: new Date(clock),
+      clusterer: heuristicClusterer,
+      newId: opts.newId,
+    });
   };
   const at = () => new Date(clock).toISOString();
   const loadFirm = async (id: string): Promise<FirmObj> => (await getObject(db, "Firm", id))!;

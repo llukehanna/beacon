@@ -12,7 +12,7 @@ Beacon was first built on Palantir Foundry. When that environment went away, the
 | AIP Logic for rejection clustering | Claude (`claude-opus-5`, structured output) behind a flag, with a grounding check and a deterministic fallback |
 | OSDK + `@osdk/react` hooks | `src/data/hooks.ts`: same hook names over TanStack Query |
 | OAuth + organization marking on every action | Open demo: single shared analyst, nightly reset, throttles and row ceilings |
-| Foundry website hosting | Vercel (static app + Functions) with Neon Postgres |
+| Foundry website hosting | Cloudflare Workers (static assets + one Worker) with Neon Postgres |
 
 ## What carried over unchanged
 

@@ -31,3 +31,5 @@ dist-ssr
 .data/
 .env*
 .vercel
+.wrangler
+.dev.vars*

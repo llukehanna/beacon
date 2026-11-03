@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Db, overrideDb } from "../server/db/client.js";
 import { setMeta } from "../server/db/meta.js";
+import { saveSnapshot } from "../server/seed/snapshot.js";
 import { STRONG_CF, createTestDb, seedFirm } from "../server/testing.js";
 import { POST as actions } from "./actions.js";
 import { POST as links } from "./links.js";
@@ -95,7 +96,24 @@ describe("/api/reset", () => {
   });
 
   it("lets exactly one of two concurrent resets through", async () => {
+    await saveSnapshot(db, new Date());
     const statuses = (await Promise.all([resetButton(), resetCron()])).map((r) => r.status).sort();
     expect(statuses).toEqual([200, 429]);
-  }, 300_000);
+  });
+
+  it("restores the snapshot, discarding what visitors changed", async () => {
+    await saveSnapshot(db, new Date());
+    await actions(post("/api/actions", { action: "qualifyFirm", params: { firm: "f1" } }));
+    const res = await resetButton();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ firms: 1 });
+    const { data } = await (await objects(req("/api/objects?type=Firm"))).json();
+    expect(data[0].lifecycleState).not.toBe("Qualified");
+  });
+
+  it("reports a missing snapshot as 503 and frees the throttle slot", async () => {
+    expect((await resetButton()).status).toBe(503);
+    await saveSnapshot(db, new Date());
+    expect((await resetButton()).status).toBe(200);
+  });
 });
