@@ -301,8 +301,8 @@ function Accuracy(): React.ReactElement {
                       color: "color-mix(in srgb, var(--color-text) 65%, transparent)",
                     }}
                   >
-                    Share of decided findings where no source had a value and Beacon recorded that
-                    instead of guessing.
+                    Share of findings where no source had a value and Beacon recorded that instead
+                    of guessing.
                   </div>
                 </div>
 
