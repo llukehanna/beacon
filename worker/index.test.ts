@@ -28,6 +28,10 @@ describe("worker fetch", () => {
     expect(assets.fetch).not.toHaveBeenCalled();
   });
 
+  it("does not reset the demo over GET (only the button's POST and the cron do)", async () => {
+    expect((await get("/api/reset")).status).toBe(405);
+  });
+
   it("reports a missing DATABASE_URL as 503", async () => {
     vi.stubEnv("DATABASE_URL", "");
     const res = await get("/api/objects?type=Firm");
