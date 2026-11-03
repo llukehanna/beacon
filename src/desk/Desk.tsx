@@ -1169,7 +1169,7 @@ function QueueSidebar({
 // Three distinct states the header must not conflate:
 //   • Hard-rejected — the *system* screened the firm out (client base rule
 //     or server-side approved HardScreenConfig row). Shows the reason.
-//   • Rejected — soft state: analyst passed (lifecycleState=Passed)
+//   • Passed — soft state: analyst passed (lifecycleState=Passed)
 //     or the weighted score fell below C. Enrichment can still move it.
 //   • Otherwise — the tier label (Strong / Moderate / Weak).
 // TIER_LABEL used to spell "Hard-rejected" for the Rejected tier, so any
@@ -1189,8 +1189,8 @@ function headerStateLabel(
   if (after.hardRejected) {
     return `Hard-rejected · ${after.rejectReason || "base rule"}`;
   }
-  // Config + disposition checks depend on the HardScreenConfig query —
-  // avoid a false "Rejected" flicker by falling back to the tier label
+  // Config checks depend on the HardScreenConfig query — avoid a false
+  // "Hard-rejected" flicker by falling back to the tier label
   // until the query resolves. Once configs land, the shared verdict wins.
   if (configsLoading) {
     return TIER_LABEL[tier] ?? tier;

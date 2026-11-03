@@ -70,7 +70,9 @@ export function normalizeLifecycle(raw: string | null | undefined): LifecycleSta
 
 /** Qualified or later: the firm has been accepted into the funnel's deal stages. */
 export function isQualifiedOrLater(state: LifecycleState): boolean {
-  return (LIFECYCLE_STAGES as readonly string[]).indexOf(state) >= 2;
+  return (
+    (LIFECYCLE_STAGES as readonly string[]).indexOf(state) >= LIFECYCLE_STAGES.indexOf("Qualified")
+  );
 }
 
 export type Provider = "beacondb" | "dealdb" | "filings" | "websearch";

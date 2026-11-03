@@ -8,64 +8,97 @@ import {
   SUCCESSION_RISKS,
   firmIdFor,
 } from "../../shared/vocab.js";
-import { gaussian, pick, rng } from "../enrichment/random.js";
+import { type Rng, gaussian, pick, rng } from "../enrichment/random.js";
 
 export const UNIVERSE_SIZE = 700;
 export const UNIVERSE_SEED = "beacon-universe-v1";
 
-const STEMS = [
-  "Brevarre",
-  "Calthorn",
-  "Dellaway",
-  "Elsworthy",
-  "Farrowgate",
-  "Gannister",
-  "Halvercroft",
-  "Istrenne",
-  "Jorvane",
-  "Kellmarsh",
-  "Loxbury",
-  "Morrendale",
-  "Nethercote",
-  "Orlanne",
-  "Pellingham",
-  "Quarrington",
-  "Rathmore",
-  "Sallowfield",
-  "Tarrenvale",
-  "Ulverdane",
-  "Vessington",
-  "Wexcombe",
-  "Yardleigh",
-  "Zennormoor",
-  "Ambercroft",
-  "Bellhaven",
-  "Corrivale",
-  "Dunstanmere",
-  "Eversholt",
-  "Fallowmere",
-  "Glenharrow",
-  "Hollinsby",
-  "Ivorwick",
-  "Kestermoor",
-  "Lanworth",
-  "Mirrowdale",
-  "Northwold",
-  "Oakenvale",
-  "Pennarth",
-  "Ravenmere",
-] as const;
-const MIDDLES = ["", " Hollis", " Maren", " Voss", " Talbot", " Quay"] as const;
-const SUFFIXES = [
-  "Partners",
+const words = (list: string): readonly string[] => list.trim().split(/\s+/);
+
+/** Invented, English- and continental-sounding family names for partnerships and eponymous firms. */
+export const SURNAMES = words(`
+  Hale Corwin Marlowe Ashby Brandt Calloway Dunmore Everly Fenwick Garrick Halloran Jessup
+  Kendrick Lorimer Maddox Norwood Pemberton Quill Rutledge Thackeray Underhill Vance Whitlock
+  Zeller Abernathy Bexley Carrow Dalrymple Eastwick Farnham Gresham Hartwell Jarrow Kessler
+  Lindqvist Merrow Nygaard Oxley Prescott Radcliffe Seward Tolliver Ulrich Vandermeer Wexler
+  Ashgrove Barlow Cavendish Delaney Ellison Fairbairn Gallagher Hargreave Iverson Kincaid
+  Langford Montrose Newcombe Ogilvie Pritchard Quennell Rowntree Sinclair Tremaine Upton
+  Vickery Wetherby Yarrow Aldous Brennick Cranmer Duchamp Eckhart Falkner Grafton Holloway
+  Ingleby Jernigan Kowalski Leclair Moreau Navarro Oberlin Petrov Quintero Rosales Santoro
+  Thorsen Urquhart Valdez Winslow Yoshida Zimmer Alder Beaumont Colby Drummond Esker Foyle
+  Gunnell Harcourt Ibsen Joyner Kestle Lockwood Merriweather Northcott Orrin Pallister Raines
+  Strickland Tennant Unwin Verity Wadsworth Ainsley Birch Craven Dorsey Elmore Fletcher Garland
+  Hobart Ives Keane Lyle Marsh Nash Osgood Penrose Rook Sutter Thorne Vail Whitcombe
+`);
+
+/** Invented place and landmark words (hills, woods, rivers, estates) for the place-style names. */
+export const PLACES = words(`
+  Larkmoor Foxwick Wrenholme Highwick Thornlea Ravenholt Kestrelmoor Harrowfell Ashmere Brindlewick
+  Coldholme Dovemoor Eldermoor Fernwick Greywick Heronholt Ironlea Junebrook Kingswick Lanternmere
+  Mallowick Nightholm Oakholt Pinewick Quarrowby Redholme Silverlea Tamarisk Uplea Wyvernhall
+  Willowick Yewmoor Zephyrlea Alderwick Bramblemoor Cedarholm Driftholm Emberwick Fallowick
+  Goldholt Hawkbrook Inglewick Jaspermoor Kinlea Lakeholm Marlbrook Northwick Orchardholt
+  Pennyfell Ridgewick Stonewick Thistlemoor Underlea Vantry Whitholm Beaconwick Crestmoor
+  Granwick Harbrook Millholme Overwick Parkwick Summerlow Tidemoor Wayfell Cobbledene Silverwick
+`);
+
+const PARTNERSHIP_SUFFIXES = ["", "", "Partners", "Advisory", "Advisors"] as const;
+const SURNAME_SUFFIXES = [
+  "Advisory",
   "Advisors",
-  "Capital Advisors",
+  "Partners",
+  "Capital Partners",
   "& Co.",
   "Group",
-  "Advisory",
   "Corporate Finance",
   "Securities",
 ] as const;
+const PLACE_SUFFIXES = [
+  "Capital Partners",
+  "Capital",
+  "Advisors",
+  "Advisory",
+  "Partners",
+  "Group",
+  "Securities",
+] as const;
+const INITIAL_SUFFIXES = ["Advisors", "Partners", "Capital", "Group"] as const;
+/** Consonants only, so the initials read as an acronym and never as a word. */
+const INITIAL_LETTERS = "BCDFGHJKLMNPRSTVWZ";
+
+const join = (...parts: readonly string[]) => parts.filter(Boolean).join(" ");
+
+/**
+ * One invented firm name in one of four house styles: two-surname partnership
+ * ("Hale & Corwin"), surname plus noun ("Marlowe Advisory"), place plus noun
+ * ("Larkspur Capital Partners"), or initials ("TKR Advisors"). Pure: the same
+ * draws always give the same name.
+ */
+export function firmNameFor(r: Rng): string {
+  const style = pick(
+    r,
+    ["partnership", "surname", "place", "initials"] as const,
+    [0.3, 0.3, 0.25, 0.15],
+  );
+  switch (style) {
+    case "partnership": {
+      const first = pick(r, SURNAMES);
+      let second = pick(r, SURNAMES);
+      while (second === first) {
+        second = pick(r, SURNAMES);
+      }
+      return join(`${first} & ${second}`, pick(r, PARTNERSHIP_SUFFIXES));
+    }
+    case "surname":
+      return join(pick(r, SURNAMES), pick(r, SURNAME_SUFFIXES));
+    case "place":
+      return join(pick(r, PLACES), pick(r, PLACE_SUFFIXES));
+    case "initials": {
+      const letters = Array.from({ length: 3 }, () => pick(r, [...INITIAL_LETTERS])).join("");
+      return join(letters, pick(r, INITIAL_SUFFIXES));
+    }
+  }
+}
 
 const COUNTRY_WEIGHTS: ReadonlyArray<readonly [string, number]> = [
   ["United States", 45],
@@ -143,10 +176,13 @@ export function profileFor(
 
 export function generateUniverse(size = UNIVERSE_SIZE, seed = UNIVERSE_SEED): Props<"Firm">[] {
   const r = rng(seed);
+  // Names draw from a stream of their own so they never shift the country,
+  // headcount and coverage draws.
+  const nameRng = rng(`${seed}:names`);
   const names = new Set<string>();
   const firms: Props<"Firm">[] = [];
   while (firms.length < size) {
-    const name = `${pick(r, STEMS)}${pick(r, MIDDLES)} ${pick(r, SUFFIXES)}`;
+    const name = firmNameFor(nameRng);
     if (names.has(name)) {
       continue;
     }

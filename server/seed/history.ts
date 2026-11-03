@@ -246,8 +246,10 @@ export async function seedHistory(
   }
 
   // 6. Observed outcomes.
-  const outcomes = ["converted_to_talks", "loi", "went_cold", "converted_to_talks"];
-  for (const [i, id] of qualified.slice(0, 4).entries()) {
+  // One per deal stage, in DEAL_STAGES order, and none ahead of the firm's stage:
+  // Outreach went quiet, NDA and IOI are in talks, LOI has an LOI, Closed closed.
+  const outcomes = ["went_cold", "converted_to_talks", "converted_to_talks", "loi", "closed"];
+  for (const [i, id] of qualified.slice(0, DEAL_STAGES.length).entries()) {
     await act("setFirmOutcome", { firm: id, outcome: outcomes[i], outcomeObservedAt: at() });
   }
   const earliestRejected = (

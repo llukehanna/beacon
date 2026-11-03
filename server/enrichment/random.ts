@@ -9,8 +9,11 @@ export function hash32(s: string): number {
   return h >>> 0;
 }
 
+/** A source of uniform draws in [0, 1). */
+export type Rng = () => number;
+
 /** mulberry32 seeded from the string. */
-export function rng(seed: string): () => number {
+export function rng(seed: string): Rng {
   let a = hash32(seed);
   return () => {
     a = (a + 0x6d2b79f5) >>> 0;
@@ -21,7 +24,7 @@ export function rng(seed: string): () => number {
   };
 }
 
-export function pick<T>(r: () => number, items: readonly T[], weights?: readonly number[]): T {
+export function pick<T>(r: Rng, items: readonly T[], weights?: readonly number[]): T {
   if (!weights) {
     return items[Math.floor(r() * items.length)];
   }
@@ -37,7 +40,7 @@ export function pick<T>(r: () => number, items: readonly T[], weights?: readonly
 }
 
 /** Standard normal via Box–Muller. */
-export function gaussian(r: () => number): number {
+export function gaussian(r: Rng): number {
   const u = Math.max(r(), 1e-12);
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r());
 }
