@@ -19,6 +19,17 @@ export type LifecycleStage = (typeof LIFECYCLE_STAGES)[number];
 export const PASSED = "Passed";
 export type LifecycleState = LifecycleStage | typeof PASSED;
 
+/** Annual revenue bands for a target firm, smallest first. */
+export const REVENUE_BANDS = ["<$10M", "$10–25M", "$25–50M", "$50–100M", ">$100M"] as const;
+export type RevenueBand = (typeof REVENUE_BANDS)[number];
+
+export const OWNERSHIP_TYPES = ["Founder-owned", "Partnership", "PE-backed", "Subsidiary"] as const;
+export type OwnershipType = (typeof OWNERSHIP_TYPES)[number];
+
+/** How exposed the firm is to a leadership transition. */
+export const SUCCESSION_RISKS = ["Low", "Medium", "High"] as const;
+export type SuccessionRisk = (typeof SUCCESSION_RISKS)[number];
+
 /** Next forward stage, or null after Closed and for Passed. */
 export function nextLifecycle(state: LifecycleState): LifecycleStage | null {
   const idx = (LIFECYCLE_STAGES as readonly string[]).indexOf(state);

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
 import { generateUniverse } from "./universe.js";
@@ -11,6 +12,38 @@ describe("generateUniverse", () => {
     const cs = a.filter((f) => f.firmType === "CS").length;
     expect(cs).toBeGreaterThan(40);
     expect(cs).toBeLessThan(110);
+  });
+});
+
+describe("generateUniverse profile fields", () => {
+  const firms = generateUniverse();
+
+  it("gives every firm a revenue band, ownership type and succession risk from the vocab", () => {
+    for (const f of firms) {
+      expect(REVENUE_BANDS).toContain(f.revenueBand);
+      expect(OWNERSHIP_TYPES).toContain(f.ownership);
+      expect(SUCCESSION_RISKS).toContain(f.successionRisk);
+    }
+  });
+
+  it("spreads ownership across all types, with subsidiaries rare", () => {
+    for (const o of OWNERSHIP_TYPES) {
+      expect(
+        firms.some((f) => f.ownership === o),
+        o,
+      ).toBe(true);
+    }
+    const subs = firms.filter((f) => f.ownership === "Subsidiary").length;
+    expect(subs / firms.length).toBeLessThanOrEqual(0.1);
+  });
+
+  it("puts larger firms in higher revenue bands", () => {
+    const large = firms.filter((f) => (f.employees ?? 0) > 200);
+    expect(large.length).toBeGreaterThanOrEqual(3);
+    const top = large.filter(
+      (f) => f.revenueBand === "$50–100M" || f.revenueBand === ">$100M",
+    ).length;
+    expect(top / large.length).toBeGreaterThanOrEqual(0.6);
   });
 });
 
