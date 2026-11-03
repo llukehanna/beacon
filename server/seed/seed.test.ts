@@ -1,8 +1,13 @@
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
+import { rng } from "../enrichment/random.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
-import { generateUniverse } from "./universe.js";
+import { PLACES, SURNAMES, firmNameFor, generateUniverse } from "./universe.js";
 
 describe("generateUniverse", () => {
   it("is deterministic, unique, and roughly 10% CS", () => {
@@ -12,6 +17,78 @@ describe("generateUniverse", () => {
     const cs = a.filter((f) => f.firmType === "CS").length;
     expect(cs).toBeGreaterThan(40);
     expect(cs).toBeLessThan(110);
+  });
+});
+
+/** The invented-word stems the first generator glued together; names must no longer look like them. */
+// prettier-ignore
+const RETIRED_STEMS = [
+  "Brevarre", "Calthorn", "Dellaway", "Elsworthy", "Farrowgate", "Gannister", "Halvercroft",
+  "Istrenne", "Jorvane", "Kellmarsh", "Loxbury", "Morrendale", "Nethercote", "Orlanne",
+  "Pellingham", "Quarrington", "Rathmore", "Sallowfield", "Tarrenvale", "Ulverdane",
+  "Vessington", "Wexcombe", "Yardleigh", "Zennormoor", "Ambercroft", "Bellhaven", "Corrivale",
+  "Dunstanmere", "Eversholt", "Fallowmere", "Glenharrow", "Hollinsby", "Ivorwick", "Kestermoor",
+  "Lanworth", "Mirrowdale", "Northwold", "Oakenvale", "Pennarth", "Ravenmere",
+];
+
+describe("firm names", () => {
+  const names = generateUniverse().map((f) => f.firmName!);
+
+  it("draws on at least 60 surnames and 30 place words", () => {
+    expect(new Set(SURNAMES).size).toBeGreaterThanOrEqual(60);
+    expect(new Set(PLACES).size).toBeGreaterThanOrEqual(30);
+  });
+
+  it("is unique across the universe", () => {
+    expect(names).toHaveLength(700);
+    expect(new Set(names).size).toBe(700);
+  });
+
+  it("uses all four styles", () => {
+    const r = rng("styles");
+    const sample = Array.from({ length: 400 }, () => firmNameFor(r));
+    expect(sample.some((n) => /^\w+ & \w+/.test(n))).toBe(true);
+    expect(sample.some((n) => /^[A-Z]{3} /.test(n))).toBe(true);
+    expect(sample.some((n) => PLACES.includes(n.split(" ")[0]))).toBe(true);
+    expect(
+      sample.some(
+        (n) => (SURNAMES.includes(n.split(" ")[0]) && !n.includes("&")) || /^\w+ & Co\./.test(n),
+      ),
+    ).toBe(true);
+  });
+
+  it("does not let any one first word dominate", () => {
+    const counts = new Map<string, number>();
+    for (const n of names) {
+      const first = n.split(" ")[0];
+      counts.set(first, (counts.get(first) ?? 0) + 1);
+    }
+    const [word, most] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
+    expect(most / names.length, word).toBeLessThanOrEqual(0.03);
+  });
+
+  it("no longer contains the retired invented stems", () => {
+    for (const n of names) {
+      for (const stem of RETIRED_STEMS) {
+        expect(n.includes(stem), `${n} / ${stem}`).toBe(false);
+      }
+    }
+  });
+
+  it("passes the repo sanitizer", () => {
+    const dir = mkdtempSync(join(tmpdir(), "beacon-names-"));
+    try {
+      writeFileSync(join(dir, "names.txt"), names.join("\n"));
+      const run = spawnSync(
+        process.execPath,
+        [join(process.cwd(), "scripts/check-sanitized.mjs")],
+        { cwd: dir, encoding: "utf8" },
+      );
+      expect(run.stderr).toBe("");
+      expect(run.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -69,6 +146,22 @@ describe("resetDemo", () => {
     expect(
       await n(`SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Passed'`),
     ).toBeGreaterThanOrEqual(20);
+    // Observed outcomes never run ahead of the funnel stage.
+    expect(
+      await n(
+        `SELECT count(*)::int AS n FROM firm WHERE outcome IN ('loi','closed') AND "lifecycleState" IN ('Qualified','Outreach','NDA','IOI')`,
+      ),
+    ).toBe(0);
+    expect(
+      await n(
+        `SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Closed' AND outcome IS DISTINCT FROM 'closed'`,
+      ),
+    ).toBe(0);
+    expect(
+      await n(
+        `SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Passed' AND outcome = 'acquired_by_competitor'`,
+      ),
+    ).toBeGreaterThanOrEqual(1);
     expect(await n(`SELECT count(*)::int AS n FROM mandate`)).toBe(3);
     expect(await n(`SELECT count(*)::int AS n FROM search`)).toBe(2);
     expect(await n(`SELECT count(*)::int AS n FROM search_list_firm`)).toBeGreaterThan(0);
