@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { HttpError } from "../errors.js";
 import { createTestDb } from "../testing.js";
-import type { Db } from "./client.js";
+import { type Db, runTransaction } from "./client.js";
 import { claimDailyQuota, claimWindow, getMeta, setMeta } from "./meta.js";
 import {
   getObject,
@@ -155,5 +155,65 @@ describe("claimDailyQuota", () => {
     await setMeta(db, "q", "2026-09-23:garbage");
     expect(await claimDailyQuota(db, "q", new Date("2026-09-23T02:00:00Z"), 3)).toBe(true);
     expect(await getMeta(db, "q")).toBe("2026-09-23:1");
+  });
+});
+
+describe("runTransaction", () => {
+  function fakeClient(failOn?: string) {
+    const sql: string[] = [];
+    const released: unknown[] = [];
+    return {
+      sql,
+      released,
+      client: {
+        async query(text: string) {
+          sql.push(text);
+          if (text === failOn) {
+            throw new Error(`${text} failed`);
+          }
+          return { rows: [] };
+        },
+        release(err?: Error | boolean) {
+          released.push(err);
+        },
+      },
+    };
+  }
+
+  it("commits and releases the client cleanly on success", async () => {
+    const { client, sql, released } = fakeClient();
+    await expect(runTransaction(client, async () => "ok")).resolves.toBe("ok");
+    expect(sql).toEqual(["BEGIN", "COMMIT"]);
+    expect(released).toEqual([undefined]);
+  });
+
+  it("rolls back and releases the client with the error when the work throws", async () => {
+    const { client, sql, released } = fakeClient();
+    const boom = new Error("boom");
+    await expect(
+      runTransaction(client, async () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(sql).toEqual(["BEGIN", "ROLLBACK"]);
+    expect(released).toEqual([boom]);
+  });
+
+  it("surfaces the original error and destroys the client when ROLLBACK itself throws", async () => {
+    const { client, released } = fakeClient("ROLLBACK");
+    const boom = new Error("boom");
+    await expect(
+      runTransaction(client, async () => {
+        throw boom;
+      }),
+    ).rejects.toBe(boom);
+    expect(released).toEqual([boom]);
+  });
+
+  it("destroys the client when COMMIT fails", async () => {
+    const { client, released } = fakeClient("COMMIT");
+    await expect(runTransaction(client, async () => 1)).rejects.toThrow("COMMIT failed");
+    expect(released).toHaveLength(1);
+    expect(released[0]).toBeInstanceOf(Error);
   });
 });

@@ -2,7 +2,7 @@ import { matchesPredicate, predicateField, ruleKey } from "../../shared/predicat
 import type { ObjectOf } from "../../shared/schema.js";
 import { DECISION, OPERATORS, REJECTED } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
-import type { RejectionRow } from "../clustering/types.js";
+import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { insertObject, listObjects, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { iso, logDecision } from "./common.js";
@@ -158,12 +158,19 @@ export const amendRuleThreshold = defineAction<{
   },
 });
 
-export const clusterRejections = defineAction<Record<string, never>>({
+interface ClusterPrep {
+  rows: RejectionRow[];
+  /** Null when there were no rejections to cluster. */
+  clustered: Awaited<ReturnType<Clusterer>> | null;
+}
+
+export const clusterRejections = defineAction<Record<string, never>, ClusterPrep>({
   params: {},
   needsClusterer: true,
-  async run(ctx) {
-    const firms = new Map((await listObjects(ctx.tx, "Firm")).map((f) => [f.$primaryKey, f]));
-    const decisions = await listObjects(ctx.tx, "ReviewDecision", {
+  // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
+  async prepare(db, _params, ctx) {
+    const firms = new Map((await listObjects(db, "Firm")).map((f) => [f.$primaryKey, f]));
+    const decisions = await listObjects(db, "ReviewDecision", {
       where: { decisionType: { $eq: DECISION.reject } },
       orderBy: { decidedAt: "asc" },
     });
@@ -176,11 +183,18 @@ export const clusterRejections = defineAction<Record<string, never>>({
         firm: firms.get(d.firmId!)!,
       }));
     if (rows.length === 0) {
+      return { rows, clustered: null };
+    }
+    return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows) };
+  },
+  // Writes only. The queue and the existing-proposal set are read here, inside
+  // the transaction, so a proposal another request landed meanwhile is not duplicated.
+  async run(ctx, _params, { rows, clustered }) {
+    if (clustered === null) {
       return { created: [], note: "No rejections to learn from yet." };
     }
-
-    const clusterer = ctx.clusterer ?? heuristicClusterer;
-    const { proposals, source } = await clusterer(rows);
+    const { proposals, source } = clustered;
+    const firms = await listObjects(ctx.tx, "Firm");
     const byId = new Map(rows.map((r) => [r.decisionId, r]));
     // Never re-propose a rule that already exists in any status (incl. dismissed).
     const seen = new Set(
@@ -188,7 +202,7 @@ export const clusterRejections = defineAction<Record<string, never>>({
         ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
       ),
     );
-    const queue = [...firms.values()].filter(
+    const queue = firms.filter(
       (f) => f.lifecycleState === "Discovered" || f.lifecycleState === "In Review",
     );
 
