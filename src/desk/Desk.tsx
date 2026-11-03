@@ -108,6 +108,9 @@ interface FirmView {
   currentStage?: string | null;
   sector?: string | null;
   employeeGroup?: string | null;
+  revenueBand?: string | null;
+  ownership?: string | null;
+  successionRisk?: string | null;
   // Read by the header/queue to detect a server-side hard screen driven by
   // an approved HardScreenConfig row (post backend fix). Any string
   // containing "reject" / "screen" / "hard" is treated as hard-screened.
@@ -1279,6 +1282,23 @@ function FirmHeader({
                 <span>{firm.hqCountry}</span>
               </>
             )}
+          </div>
+        )}
+        {(firm.revenueBand || firm.ownership || firm.successionRisk) && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 14,
+              marginTop: 6,
+              fontSize: 12,
+              color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
+            }}
+          >
+            {firm.revenueBand && <span>Revenue {firm.revenueBand}</span>}
+            {firm.ownership && <span>{firm.ownership}</span>}
+            {firm.successionRisk && <span>{firm.successionRisk} succession risk</span>}
           </div>
         )}
       </div>

@@ -2,7 +2,13 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
-import { LIFECYCLE_STAGES, PASSED } from "../../shared/vocab";
+import {
+  LIFECYCLE_STAGES,
+  OWNERSHIP_TYPES,
+  PASSED,
+  REVENUE_BANDS,
+  SUCCESSION_RISKS,
+} from "../../shared/vocab";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 // Funnel vocabulary lives in one module so the Home strip and
@@ -22,6 +28,9 @@ interface FirmView {
   sector?: string | null;
   hqCountry?: string | null;
   employees?: number | null;
+  revenueBand?: string | null;
+  ownership?: string | null;
+  successionRisk?: string | null;
   lifecycleState?: string | null;
   currentStage?: string | null;
   lastReviewed?: string | number | Date | null;
@@ -282,6 +291,56 @@ function PipelineHeader({
         + New search
       </Link>
     </header>
+  );
+}
+
+// ─── Profile filters ────────────────────────────────────────────────────
+
+interface ProfileFilter {
+  revenueBand: string;
+  ownership: string;
+  successionRisk: string;
+}
+
+const NO_PROFILE_FILTER: ProfileFilter = { revenueBand: "", ownership: "", successionRisk: "" };
+
+const PROFILE_FILTERS: readonly {
+  key: keyof ProfileFilter;
+  label: string;
+  options: readonly string[];
+}[] = [
+  { key: "revenueBand", label: "Revenue", options: REVENUE_BANDS },
+  { key: "ownership", label: "Ownership", options: OWNERSHIP_TYPES },
+  { key: "successionRisk", label: "Succession risk", options: SUCCESSION_RISKS },
+];
+
+function ProfileFilters({
+  value,
+  onChange,
+}: {
+  value: ProfileFilter;
+  onChange: (next: ProfileFilter) => void;
+}): React.ReactElement {
+  return (
+    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+      {PROFILE_FILTERS.map(({ key, label, options }) => (
+        <select
+          key={key}
+          className="input"
+          value={value[key]}
+          onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+          style={{ height: 32, width: "auto", minWidth: 150 }}
+          aria-label={label}
+        >
+          <option value="">{label}: any</option>
+          {options.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+      ))}
+    </div>
   );
 }
 
@@ -796,6 +855,15 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
   if (firm.employees !== null && firm.employees !== undefined) {
     facts.push({ k: "Employees", v: String(firm.employees) });
   }
+  if (firm.revenueBand) {
+    facts.push({ k: "Revenue", v: firm.revenueBand });
+  }
+  if (firm.ownership) {
+    facts.push({ k: "Ownership", v: firm.ownership });
+  }
+  if (firm.successionRisk) {
+    facts.push({ k: "Succession risk", v: firm.successionRisk });
+  }
   if (firm.dealsPerMdL3y !== null && firm.dealsPerMdL3y !== undefined) {
     facts.push({ k: "Deals / MD (L3Y)", v: String(firm.dealsPerMdL3y) });
   }
@@ -1020,6 +1088,7 @@ function Pipeline(): React.ReactElement {
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);
   const [query, setQuery] = React.useState("");
   const [passedOnly, setPassedOnly] = React.useState(false);
+  const [profileFilter, setProfileFilter] = React.useState<ProfileFilter>(NO_PROFILE_FILTER);
 
   const firms = React.useMemo(() => (data ?? []) as unknown as FirmView[], [data]);
 
@@ -1082,6 +1151,14 @@ function Pipeline(): React.ReactElement {
         const lastActivity = lastActivityByFirm.get(firm.firmId ?? "") ?? null;
         return { ranked: r, firm, mirror, bucket, rejectionRationale: rationale, lastActivity };
       })
+      .filter(
+        (row) =>
+          (profileFilter.revenueBand === "" ||
+            row.firm.revenueBand === profileFilter.revenueBand) &&
+          (profileFilter.ownership === "" || row.firm.ownership === profileFilter.ownership) &&
+          (profileFilter.successionRisk === "" ||
+            row.firm.successionRisk === profileFilter.successionRisk),
+      )
       .filter((row) => {
         if (query.trim() === "") {
           return true;
@@ -1094,7 +1171,7 @@ function Pipeline(): React.ReactElement {
           (row.firm.firmId ?? "").toLowerCase().includes(needle)
         );
       });
-  }, [firms, query, rejectionByFirm, lastActivityByFirm]);
+  }, [firms, query, profileFilter, rejectionByFirm, lastActivityByFirm]);
 
   const counts = React.useMemo(() => {
     const c = emptyBucketCounts();
@@ -1157,6 +1234,7 @@ function Pipeline(): React.ReactElement {
               passedOnly={passedOnly}
               onTogglePassed={() => setPassedOnly((v) => !v)}
             />
+            <ProfileFilters value={profileFilter} onChange={setProfileFilter} />
             <div
               style={{
                 display: "flex",
