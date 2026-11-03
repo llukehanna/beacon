@@ -9,24 +9,43 @@
   "compatibility_date": "2026-09-01",
   // nodejs_compat: pg's sockets, node:crypto, node:async_hooks, and process.env from vars/secrets.
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"],
   },
-  // The Worker always talks to Postgres over DATABASE_URL; keep the PGlite WASM out of the bundle.
+  // The Worker always talks to Postgres (DATABASE_URL, or Hyperdrive when bound); keep the PGlite WASM out of the bundle.
   "alias": { "@electric-sql/pglite": "./worker/no-pglite.ts" },
-  // Nightly demo reset via Cron Trigger. Secrets: DATABASE_URL, CRON_SECRET.
+  // Run the Worker near the database (Neon) instead of near the visitor: fewer round trips per request.
+  "placement": { "mode": "smart" },
+  // Per-IP limits on the two write endpoints (checked in worker/rateLimit.ts). Free plan; period is 10 or 60 s.
+  "ratelimits": [
+    { "name": "ACTIONS_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+    { "name": "RESET_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+  ],
+  // Optional Hyperdrive (connection pooling and caching in front of Neon). To enable:
+  //   npx wrangler hyperdrive create beacon-db --connection-string="<neon connection string>"
+  // then paste the id it prints below and uncomment. The Worker uses this binding when present
+  // and falls back to the DATABASE_URL secret otherwise. Repeat the block under env.presenter if wanted.
+  // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<hyperdrive-id>" }],
+  // Nightly demo reset via Cron Trigger. Secret: DATABASE_URL.
   "triggers": { "crons": ["0 4 * * *"] },
   "observability": { "enabled": true },
   "env": {
-    // Second deployment (beacon-demo): same build, no database, no cron.
-    "demo": {
-      "name": "beacon-demo",
+    // Presenter deployment (beacon-presenter): same build on a workers.dev URL, pointed at its own
+    // Neon branch via `wrangler secret put DATABASE_URL --env presenter`. No cron, no custom domain.
+    // Bindings are not inherited by named environments, so the rate limits are repeated here.
+    "presenter": {
+      "name": "beacon-presenter",
       "workers_dev": true,
+      "routes": [],
       "triggers": { "crons": [] },
+      "ratelimits": [
+        { "name": "ACTIONS_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+        { "name": "RESET_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+      ],
     },
   },
 }

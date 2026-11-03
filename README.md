@@ -59,13 +59,34 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 
 ## Deploy
 
-Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Production reads `DATABASE_URL` (Neon Postgres) and `CRON_SECRET` from Worker secrets.
+Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Smart Placement runs the Worker near the database, and `POST /api/actions` (60 per minute) and `POST /api/reset` (3 per minute) are rate limited per client IP.
+
+**Production** (`beacon.lukeghanna.com`) reads two Worker secrets: `DATABASE_URL` (Neon Postgres) and `CRON_SECRET`.
 
 ```bash
 npx wrangler secret put DATABASE_URL
+npx wrangler secret put CRON_SECRET
 DATABASE_URL='<neon connection string>' npm run seed   # once, and after schema or seed changes
 npm run deploy    # typecheck, vite build, wrangler deploy
 ```
+
+**Hyperdrive (optional).** To pool and cache connections in front of Neon, create the config once, then uncomment the `hyperdrive` block in `wrangler.jsonc` and paste the id. The Worker uses the binding when present and falls back to `DATABASE_URL` otherwise.
+
+```bash
+npx wrangler hyperdrive create beacon-db --connection-string='<neon connection string>'
+```
+
+**Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and no cron, so it can be edited live without touching production.
+
+```bash
+# 1. Create a Neon branch for it and copy its connection string.
+npx wrangler secret put DATABASE_URL --env presenter
+DATABASE_URL='<presenter branch connection string>' npm run seed
+npm run deploy:presenter
+# 2. In Cloudflare Zero Trust, add an Access application on the beacon-presenter workers.dev route.
+```
+
+**Reseeding.** The "Reseed" GitHub Actions workflow (manual dispatch, target `production` or `presenter`) runs `npm run seed` against the matching database secret (`DATABASE_URL_PRODUCTION` or `DATABASE_URL_PRESENTER`). Run it after schema or seed changes.
 
 `npm run seed` builds the demo through the real actions and saves it as `snapshot_*` tables. The Reset button and the nightly Cron Trigger restore that snapshot in one transaction, with timestamps moved forward to the moment of the reset, which keeps a reset within the Workers free plan's CPU budget.
 

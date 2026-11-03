@@ -1,12 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { type Db, overrideDb } from "../server/db/client.js";
-import { setMeta } from "../server/db/meta.js";
+import { getMeta, setMeta } from "../server/db/meta.js";
 import { saveSnapshot } from "../server/seed/snapshot.js";
 import { STRONG_CF, createTestDb, seedFirm } from "../server/testing.js";
 import { POST as actions } from "./actions.js";
 import { POST as links } from "./links.js";
 import { GET as objects } from "./objects.js";
-import { POST as resetButton, GET as resetCron } from "./reset.js";
+import { POST as resetButton } from "./reset.js";
 
 let db: Db;
 
@@ -24,8 +24,6 @@ beforeEach(async () => {
   await seedFirm(db, { firmId: "f1", firmName: "Alpha", ...STRONG_CF });
   await db.query(`INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'f1')`);
 });
-
-afterEach(() => vi.unstubAllEnvs());
 
 describe("/api/objects", () => {
   it("lists objects with identity fields", async () => {
@@ -80,24 +78,27 @@ describe("/api/links", () => {
 });
 
 describe("/api/reset", () => {
-  it("throttles both the cron and the button to one reset per window", async () => {
+  it("throttles resets to one per window", async () => {
     await setMeta(db, "lastResetAt", new Date().toISOString());
-    expect((await resetCron()).status).toBe(429);
     expect((await resetButton()).status).toBe(429);
   });
 
-  it("requires CRON_SECRET on the cron GET when it is set; the button stays public", async () => {
-    vi.stubEnv("CRON_SECRET", "s3cret");
+  it("refuses a cross-origin POST before touching the throttle", async () => {
+    const evil = req("/api/reset", { method: "POST", headers: { origin: "https://evil.example" } });
+    expect((await resetButton(evil)).status).toBe(403);
+    expect(await getMeta(db, "lastResetAt")).toBeNull();
+  });
+
+  it("lets a POST without Origin through to the throttle", async () => {
     await setMeta(db, "lastResetAt", new Date().toISOString());
-    expect((await resetCron(req("/api/reset"))).status).toBe(401);
-    const authed = req("/api/reset", { headers: { authorization: "Bearer s3cret" } });
-    expect((await resetCron(authed)).status).toBe(429); // past auth, stopped by the throttle
-    expect((await resetButton()).status).toBe(429);
+    expect((await resetButton(req("/api/reset", { method: "POST" }))).status).toBe(429);
   });
 
   it("lets exactly one of two concurrent resets through", async () => {
     await saveSnapshot(db, new Date());
-    const statuses = (await Promise.all([resetButton(), resetCron()])).map((r) => r.status).sort();
+    const statuses = (await Promise.all([resetButton(), resetButton()]))
+      .map((r) => r.status)
+      .sort();
     expect(statuses).toEqual([200, 429]);
   });
 

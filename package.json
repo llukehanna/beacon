@@ -18,7 +18,7 @@
     "seed": "tsx scripts/seed.ts",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy --env=\"\"",
-    "deploy:demo": "npm run build && wrangler deploy --env demo",
+    "deploy:presenter": "npm run build && wrangler deploy --env presenter",
     "cf:dev": "npm run build && wrangler dev --env=\"\""
   },
   "dependencies": {
