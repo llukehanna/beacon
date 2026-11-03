@@ -97,6 +97,6 @@ When a qualified or rejected firm's live score moves after its terminal decision
 ## Demo operations
 
 - **Seed through the real actions.** `server/seed/` generates the 700-firm universe, then produces a month of history (mandates, searches, enrichment, qualifications, clustered rejections, an approved rule, outcomes, and drift) by calling the same action handlers the UI calls. The seed doubles as an end-to-end test of the backend.
-- **Reset.** The whole reset runs in one transaction, so visitors see the old world or the new one, never a half-built mix. A nightly Vercel cron and the demo bar's Reset button share an atomic throttle of one reset per five minutes.
+- **Reset.** `npm run seed` builds the world once and saves it as `snapshot_*` tables. A reset restores them in one transaction (TRUNCATE, then INSERT…SELECT with every timestamp, and the dates embedded in search names and drift details, moved forward by the time since the snapshot), so visitors see the old world or the new one, never a half-built mix, and the result matches a full rebuild at that moment. A nightly Cloudflare Cron Trigger and the demo bar's Reset button share an atomic throttle of one reset per five minutes.
 - **Claude cost guard.** At most one Claude clustering call per 10 minutes and 24 per day across all visitors. Both limits are claimed atomically before the action's transaction opens, so a rollback can't refund them.
 - **Ceilings.** Parameter length and list caps, at most 25 mandates and 50 searches, and 10,000 activity rows until the next reset.

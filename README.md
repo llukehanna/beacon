@@ -47,13 +47,25 @@ Requires Node 22+.
 
 ```bash
 npm install
-npm run seed      # builds the demo world in .data/pglite (in-process Postgres)
+npm run seed      # builds the demo world and its reset snapshot in .data/pglite (in-process Postgres)
 npm run dev       # http://localhost:8080
 ```
 
 `npm run check` runs the sanitization guard, lint, the formatting check, both typechecks, and the test suite.
 
 Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_CLUSTERING=on` and provide Anthropic credentials (`ANTHROPIC_API_KEY`). The public demo allows at most one Claude call per 10 minutes and 24 per day; everything else falls back to the heuristic.
+
+## Deploy
+
+Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Production reads `DATABASE_URL` (Neon Postgres) and `CRON_SECRET` from Worker secrets.
+
+```bash
+npx wrangler secret put DATABASE_URL
+DATABASE_URL='<neon connection string>' npm run seed   # once, and after schema or seed changes
+npm run deploy    # typecheck, vite build, wrangler deploy
+```
+
+`npm run seed` builds the demo through the real actions and saves it as `snapshot_*` tables. The Reset button and the nightly Cron Trigger restore that snapshot in one transaction, with timestamps moved forward to the moment of the reset, which keeps a reset within the Workers free plan's CPU budget.
 
 ## Project layout
 
@@ -64,7 +76,8 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 | `server/enrichment/` | Deterministic mock providers and evidence reconciliation |
 | `server/clustering/` | Claude and heuristic rule proposers |
 | `server/seed/` | 700-firm synthetic universe and a history built by the real actions |
-| `api/` | Vercel Functions: thin HTTP adapters |
+| `api/` | Thin HTTP adapters (`Request` → `Response`) |
+| `worker/` | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset |
 | `src/` | The React app; `src/data/` is the typed data layer |
 
 ## Data

@@ -15,7 +15,15 @@ import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 const ROOT = process.cwd();
-const SKIP_DIRS = new Set(["node_modules", "dist", ".git", ".data", ".vercel"]);
+const SKIP_DIRS = new Set([
+  "node_modules",
+  "dist",
+  ".git",
+  ".data",
+  ".vercel",
+  ".wrangler",
+  ".claude",
+]);
 const SKIP_FILES = new Set(["scripts/check-sanitized.mjs", "package-lock.json"]);
 const TEXT_EXT = /\.(ts|tsx|js|mjs|cjs|json|md|html|css|svg|yml|yaml|txt)$/i;
 const MAX_NGRAM = 4;
