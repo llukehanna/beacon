@@ -1,14 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb, withRequestDb } from "../server/db/client.js";
 import { createTestDb } from "../server/testing.js";
-import worker from "./index.js";
+import worker, { connectionStringFor } from "./index.js";
 
 const assets = { fetch: vi.fn(async () => new Response("<!doctype html>", { status: 200 })) };
-const env = { ASSETS: assets };
+const env: Parameters<typeof worker.fetch>[1] = { ASSETS: assets };
 const waits: Promise<unknown>[] = [];
 const ctx = { waitUntil: (p: Promise<unknown>) => void waits.push(p) };
-const get = (path: string, init?: RequestInit) =>
-  worker.fetch(new Request(`https://beacon.example${path}`, init), env, ctx);
+const get = (path: string, init?: RequestInit, withEnv = env) =>
+  worker.fetch(new Request(`https://beacon.example${path}`, init), withEnv, ctx);
+const limiter = (success: boolean) => ({ limit: vi.fn(async () => ({ success })) });
 
 afterEach(async () => {
   await Promise.all(waits.splice(0));
@@ -28,11 +29,80 @@ describe("worker fetch", () => {
     expect(assets.fetch).not.toHaveBeenCalled();
   });
 
+  it("does not reset the demo over GET (only the button's POST and the cron do)", async () => {
+    expect((await get("/api/reset")).status).toBe(405);
+  });
+
   it("reports a missing DATABASE_URL as 503", async () => {
     vi.stubEnv("DATABASE_URL", "");
     const res = await get("/api/objects?type=Firm");
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "The database is not configured" });
+  });
+});
+
+describe("rate limiting", () => {
+  const post = (path: string) => ({
+    path,
+    init: {
+      method: "POST",
+      headers: { "content-type": "application/json", "CF-Connecting-IP": "203.0.113.7" },
+      body: "{}",
+    },
+  });
+
+  it("answers 429 JSON on POST /api/actions when the limiter refuses", async () => {
+    const ACTIONS_LIMITER = limiter(false);
+    const { path, init } = post("/api/actions");
+    const res = await get(path, init, { ...env, ACTIONS_LIMITER });
+    expect(res.status).toBe(429);
+    expect(typeof ((await res.json()) as { error: string }).error).toBe("string");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(ACTIONS_LIMITER.limit).toHaveBeenCalledWith({ key: "203.0.113.7" });
+  });
+
+  it("limits POST /api/reset with its own limiter", async () => {
+    const ACTIONS_LIMITER = limiter(true);
+    const RESET_LIMITER = limiter(false);
+    const { path, init } = post("/api/reset");
+    const res = await get(path, init, { ...env, ACTIONS_LIMITER, RESET_LIMITER });
+    expect(res.status).toBe(429);
+    expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
+  });
+
+  it("does not limit reads", async () => {
+    const ACTIONS_LIMITER = limiter(false);
+    vi.stubEnv("DATABASE_URL", "");
+    const res = await get("/api/objects?type=Firm", undefined, { ...env, ACTIONS_LIMITER });
+    expect(res.status).toBe(503);
+    expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
+  });
+
+  it("reaches the handler when no limiter is bound", async () => {
+    const { path, init } = post("/api/actions");
+    // The handler itself rejects the empty action body (400); 429 would mean the limiter ran.
+    expect((await get(path, init)).status).toBe(400);
+  });
+
+  it("falls back to a shared key when the client IP is unknown", async () => {
+    const ACTIONS_LIMITER = limiter(true);
+    vi.stubEnv("DATABASE_URL", "");
+    await get("/api/actions", { method: "POST", body: "{}" }, { ...env, ACTIONS_LIMITER });
+    expect(ACTIONS_LIMITER.limit).toHaveBeenCalledWith({ key: "unknown" });
+  });
+});
+
+describe("connectionStringFor", () => {
+  it("prefers the Hyperdrive binding over DATABASE_URL", () => {
+    vi.stubEnv("DATABASE_URL", "postgres://direct");
+    expect(connectionStringFor({ ...env, HYPERDRIVE: { connectionString: "postgres://hd" } })).toBe(
+      "postgres://hd",
+    );
+  });
+
+  it("falls back to DATABASE_URL without the binding", () => {
+    vi.stubEnv("DATABASE_URL", "postgres://direct");
+    expect(connectionStringFor(env)).toBe("postgres://direct");
   });
 });
 

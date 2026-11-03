@@ -32,7 +32,7 @@ export interface ApplyOptions {
 
 const defaultId = (prefix: string): string => `${prefix}-${randomUUID()}`;
 
-/** Validate and run one named action inside a single transaction. */
+/** Validate and run one named action: `prepare` (if any) first, then `run` inside a single transaction. */
 export async function applyAction(
   db: Db,
   name: string,
@@ -54,17 +54,18 @@ export async function applyAction(
   // Outside the transaction: the cost-guard claim must not roll back with the action.
   const clusterer =
     opts.clusterer ?? (def.needsClusterer ? await chooseClusterer(db, now) : undefined);
+  const base = {
+    now,
+    user: opts.user ?? USER,
+    newId: opts.newId ?? defaultId,
+    clusterer,
+  };
+  // Outside the transaction too: slow work (the Claude call) must not hold a connection open.
+  const prep = def.prepare
+    ? await def.prepare(db, await resolveParams(db, def.params, raw), base)
+    : undefined;
   return db.transaction(async (tx) => {
     const params = await resolveParams(tx, def.params, raw);
-    return def.run(
-      {
-        tx,
-        now,
-        user: opts.user ?? USER,
-        newId: opts.newId ?? defaultId,
-        clusterer,
-      },
-      params,
-    );
+    return def.run({ ...base, tx }, params, prep);
   });
 }

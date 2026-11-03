@@ -43,6 +43,47 @@ export async function createPgliteDb(dataDir?: string): Promise<Db> {
   };
 }
 
+/** The slice of a pg PoolClient that runTransaction needs. */
+export interface TxClient {
+  query(sql: string, params?: unknown[]): Promise<{ rows: unknown[] }>;
+  release(err?: Error | boolean): void;
+}
+
+/**
+ * BEGIN / COMMIT around fn on a checked-out client, then release it. On any
+ * failure the original error wins, even when ROLLBACK also throws, and the
+ * client is released with that error so pg destroys the connection rather
+ * than returning one in an unknown state to the pool.
+ */
+export async function runTransaction<T>(
+  client: TxClient,
+  fn: (tx: Queryable) => Promise<T>,
+): Promise<T> {
+  let failure: Error | undefined;
+  try {
+    await client.query("BEGIN");
+    const result = await fn({
+      async query<R>(sql: string, params: unknown[] = []) {
+        return (await client.query(sql, params)).rows as R[];
+      },
+    });
+    await client.query("COMMIT");
+    return result;
+  } catch (e) {
+    failure = toError(e);
+    try {
+      await client.query("ROLLBACK");
+    } catch {
+      // Keep the original error; the release below destroys the connection.
+    }
+    throw e;
+  } finally {
+    client.release(failure);
+  }
+}
+
+const toError = (e: unknown): Error => (e instanceof Error ? e : new Error(String(e)));
+
 /** Hosted Postgres (Neon in production) over node-postgres. */
 export function createPgDb(connectionString: string): Db {
   const pool = new pg.Pool({ connectionString, max: 3 });
@@ -54,22 +95,7 @@ export function createPgDb(connectionString: string): Db {
       await pool.query(sql);
     },
     async transaction<T>(fn: (tx: Queryable) => Promise<T>) {
-      const client = await pool.connect();
-      try {
-        await client.query("BEGIN");
-        const result = await fn({
-          async query<R>(sql: string, params: unknown[] = []) {
-            return (await client.query(sql, params)).rows as R[];
-          },
-        });
-        await client.query("COMMIT");
-        return result;
-      } catch (e) {
-        await client.query("ROLLBACK");
-        throw e;
-      } finally {
-        client.release();
-      }
+      return runTransaction(await pool.connect(), fn);
     },
     close: () => pool.end(),
   };

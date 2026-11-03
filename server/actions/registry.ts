@@ -14,7 +14,7 @@ import type { ActionDef } from "./types.js";
 
 // Each action module registers here; registry.test.ts asserts every name in ACTION_NAMES is implemented.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const ACTIONS: Partial<Record<ActionName, ActionDef<any>>> = {
+export const ACTIONS: Partial<Record<ActionName, ActionDef<any, any>>> = {
   qualifyFirm,
   rejectFirm,
   advanceStage,

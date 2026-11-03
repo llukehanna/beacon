@@ -32,9 +32,17 @@ export interface ActionResult {
   note?: string;
 }
 
-export interface ActionDef<P> {
+export interface ActionDef<P, Prep = undefined> {
   params: { [K in keyof P]-?: ParamDef };
-  run(ctx: ActionContext, params: P): Promise<ActionResult>;
+  /**
+   * Slow or network work (a Claude call) that must not hold a database
+   * transaction open. applyAction runs it on the root connection before the
+   * transaction opens and hands its result to run as `prep`. It may read, but
+   * anything it saw can be stale by the time run executes, so run re-checks
+   * whatever it relies on.
+   */
+  prepare?(db: Queryable, params: P, ctx: Omit<ActionContext, "tx">): Promise<Prep>;
+  run(ctx: ActionContext, params: P, prep: Prep): Promise<ActionResult>;
   /**
    * The action clusters rejections. applyAction chooses the clusterer on the
    * root connection before the transaction opens, so the Claude cost-guard
@@ -43,6 +51,6 @@ export interface ActionDef<P> {
   needsClusterer?: boolean;
 }
 
-export function defineAction<P>(def: ActionDef<P>): ActionDef<P> {
+export function defineAction<P, Prep = undefined>(def: ActionDef<P, Prep>): ActionDef<P, Prep> {
   return def;
 }

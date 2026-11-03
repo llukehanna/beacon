@@ -103,7 +103,9 @@ export function parseClusterResponse(message: MessageLike): RuleProposal[] {
   return ProposalsSchema.parse(JSON.parse(text)).rules;
 }
 
-export function createClaudeClusterer(client: Anthropic = new Anthropic()): Clusterer {
+export function createClaudeClusterer(
+  client: Anthropic = new Anthropic({ timeout: 30_000, maxRetries: 1 }),
+): Clusterer {
   return async (rows) => {
     const message = await client.beta.messages.create({
       model: CLUSTER_MODEL,
