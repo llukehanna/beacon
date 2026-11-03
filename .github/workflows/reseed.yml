@@ -1,0 +1,35 @@
+name: Reseed
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Database to reseed
+        type: choice
+        required: true
+        options:
+          - production
+          - presenter
+
+permissions:
+  contents: read
+
+jobs:
+  reseed:
+    runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: ${{ inputs.target == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_PRESENTER }}
+    steps:
+      - name: Require a database URL for the chosen target
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The secret for target '${{ inputs.target }}' is empty or not set (DATABASE_URL_PRODUCTION / DATABASE_URL_PRESENTER)."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run seed

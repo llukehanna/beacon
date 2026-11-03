@@ -1,5 +1,7 @@
 # Beacon
 
+[![CI](https://github.com/llukehanna/beacon/actions/workflows/ci.yml/badge.svg)](https://github.com/llukehanna/beacon/actions/workflows/ci.yml)
+
 Acquisition-target sourcing for a corporate development team. Analysts turn a mandate into a searched universe of advisory firms. An agent assembles cited evidence for each firm, a deterministic rubric scores and tiers every firm, and the reasons analysts reject firms become proposed screening rules for the next search.
 
 **Live demo:** https://beacon.lukeghanna.com (synthetic data, resets daily)
