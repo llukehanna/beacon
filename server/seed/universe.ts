@@ -1,4 +1,4 @@
-/** 700 synthetic advisory firms. Names come from invented words; any resemblance to a real firm is coincidental. */
+/** 700 synthetic advisory firms. Names combine plausible surnames and coined place words; any resemblance to a real firm is coincidental. */
 import type { Props } from "../../shared/schema.js";
 import { ALL_SECTORS, COUNTRY_GEO } from "../../shared/taxonomy.js";
 import {
@@ -15,23 +15,23 @@ export const UNIVERSE_SEED = "beacon-universe-v1";
 
 const words = (list: string): readonly string[] => list.trim().split(/\s+/);
 
-/** Invented, English- and continental-sounding family names for partnerships and eponymous firms. */
+/** Plausible English- and continental-sounding family names for partnerships and eponymous firms. */
 export const SURNAMES = words(`
   Hale Corwin Marlowe Ashby Brandt Calloway Dunmore Everly Fenwick Garrick Halloran Jessup
-  Kendrick Lorimer Maddox Norwood Pemberton Quill Rutledge Thackeray Underhill Vance Whitlock
-  Zeller Abernathy Bexley Carrow Dalrymple Eastwick Farnham Gresham Hartwell Jarrow Kessler
-  Lindqvist Merrow Nygaard Oxley Prescott Radcliffe Seward Tolliver Ulrich Vandermeer Wexler
-  Ashgrove Barlow Cavendish Delaney Ellison Fairbairn Gallagher Hargreave Iverson Kincaid
+  Lorimer Maddox Norwood Quill Thackeray Underhill Vance Whitlock
+  Zeller Abernathy Bexley Carrow Dalrymple Eastwick Farnham Hartwell Jarrow 
+  Lindqvist Merrow Nygaard Oxley Prescott Seward Tolliver Ulrich Vandermeer Wexler
+  Ashgrove Barlow Delaney Ellison Fairbairn Gallagher Iverson Kincaid
   Langford Montrose Newcombe Ogilvie Pritchard Quennell Rowntree Sinclair Tremaine Upton
   Vickery Wetherby Yarrow Aldous Brennick Cranmer Duchamp Eckhart Falkner Grafton Holloway
-  Ingleby Jernigan Kowalski Leclair Moreau Navarro Oberlin Petrov Quintero Rosales Santoro
+  Ingleby Kowalski Leclair Moreau Navarro Oberlin Petrov Quintero Rosales Santoro
   Thorsen Urquhart Valdez Winslow Yoshida Zimmer Alder Beaumont Colby Drummond Esker Foyle
   Gunnell Harcourt Ibsen Joyner Kestle Lockwood Merriweather Northcott Orrin Pallister Raines
-  Strickland Tennant Unwin Verity Wadsworth Ainsley Birch Craven Dorsey Elmore Fletcher Garland
-  Hobart Ives Keane Lyle Marsh Nash Osgood Penrose Rook Sutter Thorne Vail Whitcombe
+  Strickland Tennant Unwin Verity Wadsworth Ainsley Birch Dorsey Elmore Fletcher Garland
+  Hobart Ives Keane Lyle Nash Osgood Penrose Rook Thorne Vail Whitcombe
 `);
 
-/** Invented place and landmark words (hills, woods, rivers, estates) for the place-style names. */
+/** Coined place and landmark words (hills, woods, rivers, estates) for the place-style names. */
 export const PLACES = words(`
   Larkmoor Foxwick Wrenholme Highwick Thornlea Ravenholt Kestrelmoor Harrowfell Ashmere Brindlewick
   Coldholme Dovemoor Eldermoor Fernwick Greywick Heronholt Ironlea Junebrook Kingswick Lanternmere
@@ -43,6 +43,7 @@ export const PLACES = words(`
 `);
 
 const PARTNERSHIP_SUFFIXES = ["", "", "Partners", "Advisory", "Advisors"] as const;
+const TRIO_SUFFIXES = ["", "", "Partners"] as const;
 const SURNAME_SUFFIXES = [
   "Advisory",
   "Advisors",
@@ -62,41 +63,58 @@ const PLACE_SUFFIXES = [
   "Group",
   "Securities",
 ] as const;
-const INITIAL_SUFFIXES = ["Advisors", "Partners", "Capital", "Group"] as const;
-/** Consonants only, so the initials read as an acronym and never as a word. */
-const INITIAL_LETTERS = "BCDFGHJKLMNPRSTVWZ";
+/** `count` different items, drawn in order. */
+function distinct(r: Rng, items: readonly string[], count: number): string[] {
+  const chosen: string[] = [];
+  while (chosen.length < count) {
+    const item = pick(r, items);
+    if (!chosen.includes(item)) {
+      chosen.push(item);
+    }
+  }
+  return chosen;
+}
 
 const join = (...parts: readonly string[]) => parts.filter(Boolean).join(" ");
 
 /**
+ * Surnames of banks, brokers, advisers and insurers that people would recognise.
+ * No generated name may contain one, and neither word list may include one.
+ */
+export const RESERVED_WORDS = words(`
+  Lazard Rothschild Evercore Lokey Jefferies Moelis Perella Greenhill Piper Sandler
+  Baird Stifel Cowen Lincoln Duff Phelps Morgan Stanley Goldman Sachs Merrill Lynch Salomon
+  Lehman Warburg Schroder Fleming Kleinwort Hambro Peel Panmure Gordon Investec Canaccord
+  Berenberg Stephens Janney Oppenheimer Hambrecht Ziegler Harris Raymond James Brown Barclays
+  Nomura Macquarie Cavendish Numis Liberum Singer Cenkos Shore Evelyn Brewin Quilter Rathbone
+  Hargreaves Hargreave Lansdown Marsh McLennan Aon Willis Lockton Rutledge Gresham Mercer Sutter
+`);
+
+/**
  * One invented firm name in one of four house styles: two-surname partnership
- * ("Hale & Corwin"), surname plus noun ("Marlowe Advisory"), place plus noun
- * ("Larkspur Capital Partners"), or initials ("TKR Advisors"). Pure: the same
- * draws always give the same name.
+ * ("Hale & Corwin"), three-surname partnership ("Hale, Corwin & Ashby"),
+ * surname plus noun ("Marlowe Advisory"), or place plus noun
+ * ("Wrenholme Capital Partners"). Pure: the same draws always give the same name.
  */
 export function firmNameFor(r: Rng): string {
   const style = pick(
     r,
-    ["partnership", "surname", "place", "initials"] as const,
-    [0.3, 0.3, 0.25, 0.15],
+    ["partnership", "trio", "surname", "place"] as const,
+    [0.25, 0.2, 0.3, 0.25],
   );
   switch (style) {
     case "partnership": {
-      const first = pick(r, SURNAMES);
-      let second = pick(r, SURNAMES);
-      while (second === first) {
-        second = pick(r, SURNAMES);
-      }
+      const [first, second] = distinct(r, SURNAMES, 2);
       return join(`${first} & ${second}`, pick(r, PARTNERSHIP_SUFFIXES));
+    }
+    case "trio": {
+      const [first, second, third] = distinct(r, SURNAMES, 3);
+      return join(`${first}, ${second} & ${third}`, pick(r, TRIO_SUFFIXES));
     }
     case "surname":
       return join(pick(r, SURNAMES), pick(r, SURNAME_SUFFIXES));
     case "place":
       return join(pick(r, PLACES), pick(r, PLACE_SUFFIXES));
-    case "initials": {
-      const letters = Array.from({ length: 3 }, () => pick(r, [...INITIAL_LETTERS])).join("");
-      return join(letters, pick(r, INITIAL_SUFFIXES));
-    }
   }
 }
 
