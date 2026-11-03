@@ -261,7 +261,7 @@ export function toScreeningRules(
  * — not from a lifecycleState test done here. This module briefly owned its
  * own `isLiveState`, and it counted 674 open firms where the funnel counted
  * 441, because a base-rule hard-rejected firm keeps a "Discovered"
- * lifecycleState even after the funnel has filed it under Rejected. Screening
+ * lifecycleState even after the funnel has filed it under Passed. Screening
  * is this module's job; deciding what counts as open is not.
  */
 export function isLiveQueueFirm(

@@ -15,6 +15,7 @@
  *   abstention%  = abstain / all-findings        (denominator = everything
  *                                                 in the group)
  */
+import { PASSED, normalizeLifecycle } from "../../shared/vocab";
 import { OUTCOME_ACQUIRED } from "./tokens";
 
 export interface RatedFinding {
@@ -90,11 +91,10 @@ export interface FirmOutcomeLike {
 }
 
 // A firm counts as "passed" (we decided not to pursue) when either its
-// lifecycle landed in Rejected or the disposition string says so — matches
+// lifecycle landed in Passed or the disposition string says so — matches
 // the definition used elsewhere in the desk for "keep passed" precedent.
 export function isPassedFirm(f: FirmOutcomeLike): boolean {
-  const life = (f.lifecycleState ?? "").trim().toLowerCase();
-  if (life === "rejected") {
+  if (normalizeLifecycle(f.lifecycleState) === PASSED) {
     return true;
   }
   const disp = (f.disposition ?? "").trim().toLowerCase();

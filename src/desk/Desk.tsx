@@ -17,6 +17,7 @@ import {
   runAgentEnrichmentAction,
   verifyFindingAction,
 } from "@/data/ontology";
+import { PASSED, isQualifiedOrLater, nextLifecycle, normalizeLifecycle } from "../../shared/vocab";
 import { Segmented } from "./Segmented";
 import {
   type ScreeningRule,
@@ -107,6 +108,9 @@ interface FirmView {
   currentStage?: string | null;
   sector?: string | null;
   employeeGroup?: string | null;
+  revenueBand?: string | null;
+  ownership?: string | null;
+  successionRisk?: string | null;
   // Read by the header/queue to detect a server-side hard screen driven by
   // an approved HardScreenConfig row (post backend fix). Any string
   // containing "reject" / "screen" / "hard" is treated as hard-screened.
@@ -324,15 +328,6 @@ interface RediscoveryInfo {
   priorDecisions: number;
 }
 
-// Canonical forward-only lifecycle. Advance offers only the immediate next
-// state relative to the firm's currentStage / lifecycleState.
-// Discovered → In Review → Outreach → In Talks. Qualified and Rejected are
-// terminal, reached only via qualifyFirmAction / rejectFirmAction — never Advance.
-const LIFECYCLE_ORDER = ["Discovered", "In Review", "Outreach", "In Talks"] as const;
-type LifecycleState = (typeof LIFECYCLE_ORDER)[number];
-
-const TERMINAL_STATES = ["Qualified", "Rejected"] as const;
-
 // Render an action error as something an analyst can read and report.
 // String(err) on a server error object prints "[object Object]", which
 // hides the one thing the banner exists to show. Prefer the message,
@@ -375,52 +370,6 @@ function formatActionError(err: unknown): string {
     out = String(err);
   }
   return out.length > 400 ? `${out.slice(0, 400)}…` : out;
-}
-
-// Fold whitespace, underscores, and hyphens down to a single space so
-// backend variants ("in_review", "In-Review", "In  Review") all match the
-// canonical "In Review". Keeps the header + queue in sync with Pipeline's
-// bucket derivation — they used to require exact-lowercase match and
-// silently misclassified any snake_case lifecycleState.
-function foldLifecycle(s: string): string {
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[\s_-]+/g, " ");
-}
-
-function normalizeLifecycle(raw: string | null | undefined): LifecycleState | null {
-  if (raw === null || raw === undefined || raw === "") {
-    return null;
-  }
-  const n = foldLifecycle(raw);
-  for (const s of LIFECYCLE_ORDER) {
-    if (foldLifecycle(s) === n) {
-      return s;
-    }
-  }
-  return null;
-}
-
-function isTerminalLifecycle(raw: string | null | undefined): boolean {
-  if (raw === null || raw === undefined || raw === "") {
-    return false;
-  }
-  const n = foldLifecycle(raw);
-  return TERMINAL_STATES.some((s) => foldLifecycle(s) === n);
-}
-
-function nextLifecycle(current: string | null | undefined): LifecycleState | null {
-  if (isTerminalLifecycle(current)) {
-    return null;
-  }
-  // Unknown non-terminal states fall back to the first tracked stage.
-  const normalized = normalizeLifecycle(current) ?? "Discovered";
-  const idx = LIFECYCLE_ORDER.indexOf(normalized);
-  if (idx < 0 || idx >= LIFECYCLE_ORDER.length - 1) {
-    return null;
-  }
-  return LIFECYCLE_ORDER[idx + 1];
 }
 
 // Human-readable value per axis. Never surface rubric-band expressions
@@ -881,7 +830,7 @@ function QueueSidebar({
   }, [queue, screeningRules]);
 
   // Open per the funnel — isOpenFirm, the same derivation /pipeline and
-  // Home's strip use — so "N open" here equals Discovered + In Review there.
+  // Home's strip use — so "N open" here equals Discovered + Screening there.
   // Everything else in the header is computed against that base, so
   // live + openScreened === open, and open ⊆ database.
   const openByFirmId = React.useMemo(() => {
@@ -1220,7 +1169,7 @@ function QueueSidebar({
 // Three distinct states the header must not conflate:
 //   • Hard-rejected — the *system* screened the firm out (client base rule
 //     or server-side approved HardScreenConfig row). Shows the reason.
-//   • Rejected — soft state: analyst rejected (lifecycleState=Rejected)
+//   • Passed — soft state: analyst passed (lifecycleState=Passed)
 //     or the weighted score fell below C. Enrichment can still move it.
 //   • Otherwise — the tier label (Strong / Moderate / Weak).
 // TIER_LABEL used to spell "Hard-rejected" for the Rejected tier, so any
@@ -1240,8 +1189,8 @@ function headerStateLabel(
   if (after.hardRejected) {
     return `Hard-rejected · ${after.rejectReason || "base rule"}`;
   }
-  // Config + disposition checks depend on the HardScreenConfig query —
-  // avoid a false "Rejected" flicker by falling back to the tier label
+  // Config checks depend on the HardScreenConfig query — avoid a false
+  // "Hard-rejected" flicker by falling back to the tier label
   // until the query resolves. Once configs land, the shared verdict wins.
   if (configsLoading) {
     return TIER_LABEL[tier] ?? tier;
@@ -1272,7 +1221,7 @@ function FirmHeader({
 }): React.ReactElement {
   const tier = after.tier;
   const tierColor = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
-  const status = firm.lifecycleState ?? firm.currentStage ?? "In Review";
+  const status = normalizeLifecycle(firm.lifecycleState ?? firm.currentStage);
   const pct = after.hardRejected ? null : pctScore(after);
   const beforePct = before.hardRejected ? null : pctScore(before);
   const changed = pct !== null && beforePct !== null && pct !== beforePct;
@@ -1333,6 +1282,23 @@ function FirmHeader({
                 <span>{firm.hqCountry}</span>
               </>
             )}
+          </div>
+        )}
+        {(firm.revenueBand || firm.ownership || firm.successionRisk) && (
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 14,
+              marginTop: 6,
+              fontSize: 12,
+              color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
+            }}
+          >
+            {firm.revenueBand && <span>Revenue {firm.revenueBand}</span>}
+            {firm.ownership && <span>{firm.ownership}</span>}
+            {firm.successionRisk && <span>{firm.successionRisk} succession risk</span>}
           </div>
         )}
       </div>
@@ -1932,7 +1898,7 @@ function DecisionMemory({
         {rejects > 0 && (
           <>
             {" "}
-            <strong style={{ fontWeight: 600 }}>{rejects}</strong> rejected
+            <strong style={{ fontWeight: 600 }}>{rejects}</strong> passed
             {hasRationale && banner.topRationale ? (
               <>
                 {" "}
@@ -3382,32 +3348,23 @@ function YourCallRail({
     void observable.invalidateObjects(actionFirm as never);
   }, [observable, actionFirm]);
 
-  // Derive the advance target from lifecycleState FIRST — the same field
-  // the header chip trusts. The advance function updates lifecycleState
-  // but not currentStage, so preferring currentStage left the rail
-  // offering "Advance → In Review" on a firm already In Review (the chip
-  // and the button disagreed, and the server rightly rejected the repeat).
-  const rawStage = firm.lifecycleState ?? firm.currentStage ?? null;
-  const nextState = nextLifecycle(rawStage);
-  const stageLabel =
-    normalizeLifecycle(rawStage) ??
-    (rawStage !== null && rawStage.trim() !== "" ? rawStage.trim() : "Discovered");
-  // Firms in a terminal lifecycle (Qualified / Rejected) no longer accept
-  // Advance or Qualify — surface a muted "Terminal state · X" line instead.
-  // Terminal detection has to inspect BOTH fields (lifecycleState *and*
-  // currentStage): the firm header chip prefers lifecycleState, and in
-  // practice a firm can be Qualified in one field while currentStage still
-  // reads "In Review" (Qualify flips lifecycleState without rewinding the
-  // ordinal stage). If we only look at currentStage the rail keeps offering
-  // Advance / Qualify on a Qualified firm — exactly the bug reported.
-  const lifecycleLower = (firm.lifecycleState ?? "").trim().toLowerCase();
-  const stageLower = (firm.currentStage ?? "").trim().toLowerCase();
-  const terminalKind: "qualified" | "rejected" | null =
-    lifecycleLower === "rejected" || stageLower === "rejected"
-      ? "rejected"
-      : lifecycleLower === "qualified" || stageLower === "qualified"
-        ? "qualified"
-        : null;
+  // The stage comes from lifecycleState first, falling back to currentStage;
+  // normalizeLifecycle maps legacy names onto the funnel. Terminal means the
+  // firm was Passed (in either field) or has Closed.
+  const stage = normalizeLifecycle(firm.lifecycleState ?? firm.currentStage);
+  const passed = [firm.lifecycleState, firm.currentStage].some(
+    (raw) => normalizeLifecycle(raw) === PASSED,
+  );
+  const terminalKind: "closed" | "passed" | null = passed
+    ? "passed"
+    : stage === "Closed"
+      ? "closed"
+      : null;
+  const stageLabel: string = passed ? PASSED : stage;
+  // Advance moves a qualified firm one stage down the deal funnel. Before
+  // Qualified the move is the Qualify decision, not Advance.
+  const qualified = !passed && isQualifiedOrLater(stage);
+  const nextState = qualified ? nextLifecycle(stage) : null;
 
   const onQualify = (): void => {
     void qualify.applyAction({ firm: actionFirm } as never).then(refreshFirm);
@@ -3483,7 +3440,7 @@ function YourCallRail({
             <div style={{ marginTop: 4 }}>Advance: {formatActionError(advance.error)}</div>
           )}
           {reject.error !== undefined && (
-            <div style={{ marginTop: 4 }}>Reject: {formatActionError(reject.error)}</div>
+            <div style={{ marginTop: 4 }}>Pass: {formatActionError(reject.error)}</div>
           )}
         </div>
       )}
@@ -3524,58 +3481,62 @@ function YourCallRail({
           </button>
           {terminalKind === null ? (
             <>
-              <button
-                className="btn btn-primary btn-block"
-                style={{ justifyContent: "space-between", marginTop: 0 }}
-                disabled={advance.isPending || nextState === null}
-                onClick={onAdvance}
-                // Canonical explanation first, then the specific target the
-                // analyst is about to move this firm to.
-                title={
-                  nextState === null
-                    ? `${stageLabel} is the final tracked stage. No further advance available.`
-                    : `Move one stage down the pipeline: ${stageLabel} to ${nextState}`
-                }
-              >
-                <span>
-                  {advance.isPending
-                    ? "Advancing…"
-                    : nextState !== null
-                      ? `Advance → ${nextState}`
-                      : `${stageLabel} · no next stage`}
-                </span>
-                <kbd
-                  style={{
-                    fontSize: 10,
-                    border: "1px solid var(--color-accent)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "1px 5px",
-                    opacity: nextState === null ? 0.4 : 0.85,
-                  }}
+              {qualified && (
+                <button
+                  className="btn btn-primary btn-block"
+                  style={{ justifyContent: "space-between", marginTop: 0 }}
+                  disabled={advance.isPending || nextState === null}
+                  onClick={onAdvance}
+                  // Canonical explanation first, then the specific target the
+                  // analyst is about to move this firm to.
+                  title={
+                    nextState === null
+                      ? `${stageLabel} is the final stage. No further advance available.`
+                      : `Move one stage down the pipeline: ${stageLabel} to ${nextState}`
+                  }
                 >
-                  2
-                </kbd>
-              </button>
-              <button
-                className="btn btn-secondary btn-block"
-                style={{ marginTop: 0, justifyContent: "space-between" }}
-                disabled={qualify.isPending}
-                onClick={onQualify}
-                title="Terminal yes"
-              >
-                <span>{qualify.isPending ? "Qualifying…" : "Qualify firm"}</span>
-                <kbd
-                  style={{
-                    fontSize: 10,
-                    border: "1px solid var(--color-divider)",
-                    borderRadius: "var(--radius-sm)",
-                    padding: "1px 5px",
-                    opacity: 0.7,
-                  }}
+                  <span>
+                    {advance.isPending
+                      ? "Advancing…"
+                      : nextState !== null
+                        ? `Advance → ${nextState}`
+                        : `${stageLabel} · no next stage`}
+                  </span>
+                  <kbd
+                    style={{
+                      fontSize: 10,
+                      border: "1px solid var(--color-accent)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "1px 5px",
+                      opacity: nextState === null ? 0.4 : 0.85,
+                    }}
+                  >
+                    2
+                  </kbd>
+                </button>
+              )}
+              {!qualified && (
+                <button
+                  className="btn btn-secondary btn-block"
+                  style={{ marginTop: 0, justifyContent: "space-between" }}
+                  disabled={qualify.isPending}
+                  onClick={onQualify}
+                  title="Accept into the funnel"
                 >
-                  Q
-                </kbd>
-              </button>
+                  <span>{qualify.isPending ? "Qualifying…" : "Qualify firm"}</span>
+                  <kbd
+                    style={{
+                      fontSize: 10,
+                      border: "1px solid var(--color-divider)",
+                      borderRadius: "var(--radius-sm)",
+                      padding: "1px 5px",
+                      opacity: 0.7,
+                    }}
+                  >
+                    Q
+                  </kbd>
+                </button>
+              )}
               <button
                 className="btn btn-secondary btn-block"
                 style={{
@@ -3586,9 +3547,9 @@ function YourCallRail({
                 }}
                 disabled={!canReject}
                 onClick={onReject}
-                title={note.trim() === "" ? "A note is required to reject" : "Reject firm"}
+                title={note.trim() === "" ? "A note is required to pass" : "Pass on this firm"}
               >
-                <span>{reject.isPending ? "Rejecting…" : "Reject…"}</span>
+                <span>{reject.isPending ? "Passing…" : "Pass…"}</span>
                 <kbd
                   style={{
                     fontSize: 10,
@@ -3612,9 +3573,9 @@ function YourCallRail({
                 fontSize: 12,
                 color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
               }}
-              title="Advance, Qualify, and Reject are unavailable once a firm reaches Qualified or Rejected."
+              title="Advance, Qualify, and Pass are unavailable once a firm is Passed or Closed."
             >
-              Terminal state · {terminalKind === "qualified" ? "Qualified" : "Rejected"}
+              Terminal state · {terminalKind === "closed" ? "Closed" : PASSED}
             </div>
           )}
         </div>
@@ -3628,7 +3589,7 @@ function YourCallRail({
             onChange={(e) => setNote(e.target.value)}
             placeholder={
               terminalKind === null
-                ? "Optional for advance/qualify · required to reject…"
+                ? "Optional for advance/qualify · required to pass…"
                 : "Firm is in a terminal state. Notes here won't be attached to a decision."
             }
             style={{ minHeight: 104, lineHeight: 1.45 }}
@@ -3647,8 +3608,8 @@ function YourCallRail({
             {terminalKind !== null
               ? "No decision actions available in a terminal state."
               : note.trim() === ""
-                ? "A note is required to reject."
-                : "Note captured for reject rationale."}
+                ? "A note is required to pass."
+                : "Note captured as the pass rationale."}
           </div>
         </div>
 
@@ -4096,7 +4057,7 @@ function EmptyState(): React.ReactElement {
         >
           Sorted by expected gain: points still on the table if the remaining fields were filled.
           Firms tripping a base rule or an active approved hard-screen sink to the bottom, above
-          Qualified / analyst-rejected firms. Pending or dismissed rule proposals never screen.
+          Qualified / analyst-passed firms. Pending or dismissed rule proposals never screen.
           Approve one in /rules to see firms move.
         </p>
       </div>
@@ -4367,7 +4328,7 @@ function Desk(): React.ReactElement {
       firmId: f.firmId,
       firmName: f.firmName,
       // lifecycle/currentStage are consumed by the queue ranker to push
-      // terminal (Qualified / Rejected) firms to the bottom — the desk is a
+      // terminal (Qualified or later, or Passed) firms to the bottom — the desk is a
       // to-do list, not a leaderboard.
       lifecycleState: f.lifecycleState,
       currentStage: f.currentStage,

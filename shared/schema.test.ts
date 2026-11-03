@@ -41,4 +41,11 @@ describe("ontology schema", () => {
     expect(p.hasSTOrBalanceSheet).toBe("boolean");
     expect(p.geoScore).toBe("integer");
   });
+
+  it("declares the profile fields as strings", () => {
+    const p = OBJECT_TYPES.Firm.properties;
+    expect(p.revenueBand).toBe("string");
+    expect(p.ownership).toBe("string");
+    expect(p.successionRisk).toBe("string");
+  });
 });

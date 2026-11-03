@@ -7,6 +7,7 @@ import {
   ENRICH_AXES,
   PROVIDER_TRUST,
   axisByName,
+  normalizeLifecycle,
 } from "../../shared/vocab.js";
 import { insertObject, listObjects, updateObject } from "../db/repo.js";
 import { type Observation, observe } from "../enrichment/providers.js";
@@ -18,9 +19,9 @@ import { type ActionContext, defineAction } from "./types.js";
 
 type FindingObj = ObjectOf<"ResearchFinding">;
 
-const moveToReview = (firm: FirmObj): Props<"Firm"> =>
-  (firm.lifecycleState ?? "Discovered") === "Discovered"
-    ? { lifecycleState: "In Review", currentStage: "In Review" }
+const moveToScreening = (firm: FirmObj): Props<"Firm"> =>
+  normalizeLifecycle(firm.lifecycleState) === "Discovered"
+    ? { lifecycleState: "Screening", currentStage: "Screening" }
     : {};
 
 async function insertAnalystFinding(
@@ -96,7 +97,7 @@ export const runAgentEnrichment = defineAction<{ firm: FirmObj }>({
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
       enrichedBy: "agent",
       enrichedAt: iso(ctx.now),
-      ...moveToReview(firm),
+      ...moveToScreening(firm),
     });
     return { created, modified: [firm.$primaryKey] };
   },
@@ -293,7 +294,7 @@ export const enrichFirm = defineAction<EnrichParams>({
       enrichedBy: ctx.user,
       enrichedAt: iso(ctx.now),
       lastReviewed: iso(ctx.now),
-      ...moveToReview(firm),
+      ...moveToScreening(firm),
     });
     const fresh = await requireObject(ctx, "Firm", firm.$primaryKey);
 

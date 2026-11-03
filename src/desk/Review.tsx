@@ -7,6 +7,7 @@ import {
   keepPassedAction,
   reEngageFirmAction,
 } from "@/data/ontology";
+import { PASSED, normalizeLifecycle } from "../../shared/vocab";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import {
@@ -61,8 +62,7 @@ function rationaleMatchesAxis(rationale: string, axis: string): boolean {
 }
 
 function isPassedDisposition(firm: FirmLike): boolean {
-  const life = (firm.lifecycleState ?? "").trim().toLowerCase();
-  if (life === "rejected" || life === "passed") {
+  if (normalizeLifecycle(firm.lifecycleState) === PASSED) {
     return true;
   }
   const disp = (firm.disposition ?? "").trim().toLowerCase();

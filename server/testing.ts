@@ -42,8 +42,8 @@ export async function seedFirm(db: Db, overrides: Props<"Firm"> = {}): Promise<O
     sector: "Software",
     employees: 25,
     coverageModel: "Single-sector focus",
-    lifecycleState: "In Review",
-    currentStage: "In Review",
+    lifecycleState: "Screening",
+    currentStage: "Screening",
     ...overrides,
     firmId,
   });
