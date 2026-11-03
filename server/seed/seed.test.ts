@@ -4,10 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
-import { rng } from "../enrichment/random.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
-import { PLACES, SURNAMES, firmNameFor, generateUniverse } from "./universe.js";
+import { PLACES, RESERVED_WORDS, SURNAMES, generateUniverse } from "./universe.js";
 
 describe("generateUniverse", () => {
   it("is deterministic, unique, and roughly 10% CS", () => {
@@ -44,17 +43,42 @@ describe("firm names", () => {
     expect(new Set(names).size).toBe(700);
   });
 
-  it("uses all four styles", () => {
-    const r = rng("styles");
-    const sample = Array.from({ length: 400 }, () => firmNameFor(r));
-    expect(sample.some((n) => /^\w+ & \w+/.test(n))).toBe(true);
-    expect(sample.some((n) => /^[A-Z]{3} /.test(n))).toBe(true);
-    expect(sample.some((n) => PLACES.includes(n.split(" ")[0]))).toBe(true);
-    expect(
-      sample.some(
-        (n) => (SURNAMES.includes(n.split(" ")[0]) && !n.includes("&")) || /^\w+ & Co\./.test(n),
+  it("builds every name in exactly one of the four house styles", () => {
+    const surname = `(?:${SURNAMES.join("|")})`;
+    const place = `(?:${PLACES.join("|")})`;
+    const styles: Record<string, RegExp> = {
+      partnership: new RegExp(`^${surname} & ${surname}(?: Partners| Advisory| Advisors)?$`),
+      trio: new RegExp(`^${surname}, ${surname} & ${surname}(?: Partners)?$`),
+      surname: new RegExp(
+        `^${surname} (?:Advisory|Advisors|Partners|Capital Partners|& Co\\.|Group|Corporate Finance|Securities)$`,
       ),
-    ).toBe(true);
+      place: new RegExp(
+        `^${place} (?:Capital Partners|Capital|Advisors|Advisory|Partners|Group|Securities)$`,
+      ),
+    };
+    const counts: Record<string, number> = {};
+    for (const n of names) {
+      const matching = Object.keys(styles).filter((k) => styles[k].test(n));
+      expect(matching, n).toHaveLength(1);
+      counts[matching[0]] = (counts[matching[0]] ?? 0) + 1;
+    }
+    expect(Object.keys(counts).sort()).toEqual(["partnership", "place", "surname", "trio"]);
+    for (const [style, count] of Object.entries(counts)) {
+      expect(count, style).toBeGreaterThanOrEqual(70);
+    }
+  });
+
+  it("never uses a name belonging to a well-known bank, broker or adviser", () => {
+    const reserved = new Set(RESERVED_WORDS.map((w) => w.toLowerCase()));
+    expect(reserved.size).toBeGreaterThanOrEqual(60);
+    for (const w of [...SURNAMES, ...PLACES]) {
+      expect(reserved.has(w.toLowerCase()), w).toBe(false);
+    }
+    for (const n of names) {
+      for (const w of n.split(/[^A-Za-z]+/).filter(Boolean)) {
+        expect(reserved.has(w.toLowerCase()), `${n} / ${w}`).toBe(false);
+      }
+    }
   });
 
   it("does not let any one first word dominate", () => {
