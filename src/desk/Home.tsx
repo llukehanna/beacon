@@ -809,8 +809,8 @@ function Home(): React.ReactElement {
                         marginTop: 4,
                       }}
                     >
-                      Share of decided findings where no source had a value and Beacon recorded that
-                      instead of guessing.
+                      Share of findings where no source had a value and Beacon recorded that instead
+                      of guessing.
                     </div>
                   </Link>
 
