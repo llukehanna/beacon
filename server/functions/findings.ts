@@ -4,19 +4,26 @@
  * (functions.test.ts holds them to it).
  */
 import type { FindingCell, RateCounts } from "../../shared/trustMetrics.js";
+import { ANALYST } from "../../shared/vocab.js";
 import type { Queryable } from "../db/client.js";
 
-/** One row per finding with its class as booleans; provider and axis folded like cellsFromFindings. */
+/**
+ * One row per finding with its class as booleans; provider and axis folded like cellsFromFindings.
+ * An analyst's own verified finding is an agreement (see classify).
+ */
 const CLASSIFIED = `
   SELECT coalesce("provider", '') AS provider,
          btrim(coalesce("axis", '')) AS axis,
          abstain,
-         (NOT abstain AND coalesce("verifiedByHuman", false)) AS agree,
-         (NOT abstain AND NOT coalesce("verifiedByHuman", false)
+         (NOT abstain AND agreed) AS agree,
+         (NOT abstain AND NOT agreed
             AND lower(coalesce("findingStatus", '')) = 'rejected') AS override
     FROM (
       SELECT *, (lower(coalesce("confidenceTier", '')) = 'abstain'
-                 OR lower(coalesce("findingStatus", '')) = 'abstained') AS abstain
+                 OR lower(coalesce("findingStatus", '')) = 'abstained') AS abstain,
+                (coalesce("verifiedByHuman", false)
+                 OR (lower(btrim(coalesce("provider", ''))) = '${ANALYST}'
+                     AND lower(coalesce("findingStatus", '')) = 'verified')) AS agreed
         FROM research_finding
     ) f`;
 
