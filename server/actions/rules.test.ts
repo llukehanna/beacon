@@ -101,6 +101,44 @@ describe("clusterRejections", () => {
     expect(await listObjects(db, "ProposedRule")).toHaveLength(1);
   });
 
+  it("calls the clusterer outside the transaction", async () => {
+    const real = await createTestDb();
+    await rejectedSmallFirms(real);
+    let inTx = false;
+    const db: Db = {
+      ...real,
+      async transaction(fn) {
+        inTx = true;
+        try {
+          return await real.transaction(fn);
+        } finally {
+          inTx = false;
+        }
+      },
+    };
+    const seen: boolean[] = [];
+    const spy: Clusterer = async (rows) => {
+      seen.push(inTx);
+      return heuristicClusterer(rows);
+    };
+    await run(db, "clusterRejections", {}, { clusterer: spy });
+    expect(seen).toEqual([false]);
+    expect(await listObjects(real, "ProposedRule")).toHaveLength(1);
+  });
+
+  it("does not duplicate a proposal another run committed while the clusterer was working", async () => {
+    const real = await createTestDb();
+    await rejectedSmallFirms(real);
+    const racing: Clusterer = async (rows) => {
+      const out = await heuristicClusterer(rows);
+      // A concurrent request lands the same rule before this run's transaction opens.
+      await run(real, "clusterRejections", {}, { clusterer: heuristicClusterer });
+      return out;
+    };
+    await run(real, "clusterRejections", {}, { clusterer: racing });
+    expect(await listObjects(real, "ProposedRule")).toHaveLength(1);
+  });
+
   it("drops proposals with bad axes, bad operators, or too little real support", async () => {
     const db = await createTestDb();
     await rejectedSmallFirms(db);
