@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { ActionName, ObjectOf, Props } from "../shared/schema.js";
 import { type ApplyOptions, applyAction } from "./actions/apply.js";
 import type { ActionResult } from "./actions/types.js";
+import { WRITABLE_TABLES, typesForTable } from "./actions/writes.js";
 import { type Db, createPgliteDb } from "./db/client.js";
 import { ddl } from "./db/ddl.js";
 import { getObject, insertObject } from "./db/repo.js";
@@ -50,11 +51,41 @@ export async function seedFirm(db: Db, overrides: Props<"Firm"> = {}): Promise<O
   return (await getObject(db, "Firm", firmId))!;
 }
 
-export function run(
+/** A fingerprint of every table an action can write, to tell which ones it changed. */
+async function tableFingerprints(db: Db): Promise<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const table of WRITABLE_TABLES) {
+    const [row] = await db.query<{ h: string }>(
+      `SELECT md5(coalesce(string_agg(t::text, '|' ORDER BY t::text), '')) AS h FROM ${table} t`,
+    );
+    out[table] = row.h;
+  }
+  return out;
+}
+
+/**
+ * Applies an action and checks that the object types it reports having
+ * written cover every table whose rows actually changed (clients refresh only
+ * the reported types; an empty report means "refresh everything" and is
+ * always acceptable).
+ */
+export async function run(
   db: Db,
   name: ActionName,
   params: Record<string, unknown>,
   opts: ApplyOptions = {},
 ): Promise<ActionResult> {
-  return applyAction(db, name, params, { now: T0, ...opts });
+  const before = await tableFingerprints(db);
+  const result = await applyAction(db, name, params, { now: T0, ...opts });
+  const after = await tableFingerprints(db);
+  const reported = result.types ?? [];
+  if (reported.length > 0) {
+    for (const table of WRITABLE_TABLES) {
+      const missing = typesForTable(table).filter((t) => !reported.includes(t));
+      if (before[table] !== after[table] && missing.length > 0) {
+        throw new Error(`${name} changed ${table} but reported types [${reported.join(", ")}]`);
+      }
+    }
+  }
+  return result;
 }

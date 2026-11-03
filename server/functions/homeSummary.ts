@@ -16,9 +16,10 @@ import {
 import { bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
 import {
   type ActiveConfigRule,
+  QUEUE_FIELDS,
   type QueueFirm,
-  firmFieldNames,
   orderEnrichmentQueue,
+  toQueueFirm,
 } from "../../shared/queue.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES } from "../../shared/schema.js";
@@ -41,38 +42,11 @@ import { outcomeGroups } from "./outcomes.js";
 /** Rows in the Home inbox before "+N more". */
 export const VISIBLE_ROWS = 7;
 
-/** The Firm columns the queue, the funnel and the rule projection read; everything else stays in the table. */
-export const FIRM_COLUMNS: readonly string[] = [
-  ...new Set([
-    "firmId",
-    "firmName",
-    "lifecycleState",
-    "currentStage",
-    "disposition",
-    // ScoreInput, for mirrorScore.
-    "firmType",
-    "coverageModel",
-    "servicesFit",
-    "mdPedigree",
-    "balanceSheetPrincipal",
-    "geoScore",
-    "dealSizeMUsd",
-    "dealsPerMdL3y",
-    "firmAge",
-    "employees",
-    "feeGeneratingCount",
-    "geographicFootprint",
-    "advisoryConflict",
-    // Whatever property a hard-screen or proposed rule can name.
-    ...firmFieldNames(),
-  ]),
-];
-
 type FirmRow = QueueFirm & ScreenableFirm;
 
-async function loadFirms(q: Queryable): Promise<FirmRow[]> {
+export async function loadLeanFirms(q: Queryable): Promise<FirmRow[]> {
   const rows = await q.query(
-    `SELECT ${FIRM_COLUMNS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}`,
+    `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}`,
   );
   return rows.map((r) => toWire("Firm", r)) as unknown as FirmRow[];
 }
@@ -144,14 +118,8 @@ async function openDrifts(q: Queryable) {
   );
 }
 
-async function pendingRules(q: Queryable) {
-  return q.query<{
-    proposedRuleId: string;
-    predicateAxis: string | null;
-    ruleOperator: string | null;
-    ruleThreshold: string | null;
-    ruleModel: string | null;
-  }>(
+export async function pendingRules(q: Queryable) {
+  return q.query<PendingRule>(
     `SELECT "proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel"
        FROM proposed_rule
       WHERE lower(coalesce("ruleStatus", 'pending')) = 'pending'
@@ -160,6 +128,36 @@ async function pendingRules(q: Queryable) {
 }
 
 const orUndefined = <T>(v: T | null): T | undefined => v ?? undefined;
+
+interface PendingRule {
+  proposedRuleId: string;
+  predicateAxis: string | null;
+  ruleOperator: string | null;
+  ruleThreshold: string | null;
+  ruleModel: string | null;
+}
+
+/**
+ * How many firms a pending rule WOULD screen if approved; null when the
+ * predicate isn't numerically evaluable (a text predicate is not "screens
+ * nobody"). Computed only for the rule rows that will be shown.
+ */
+export function projectRule(r: PendingRule, firms: readonly ScreenableFirm[]): number | null {
+  const [rule] = toScreeningRules(
+    [
+      {
+        proposedRuleId: r.proposedRuleId,
+        ruleStatus: "approved", // count what it WOULD screen
+        predicateAxis: orUndefined(r.predicateAxis),
+        ruleOperator: orUndefined(r.ruleOperator),
+        ruleThreshold: orUndefined(r.ruleThreshold),
+        ruleModel: orUndefined(r.ruleModel),
+      },
+    ],
+    [],
+  );
+  return rule === undefined || !isEvaluable(rule) ? null : countScreened(firms, [rule]);
+}
 
 /**
  * Firms a mandate has scoped: SearchList ∪ SearchMembership ∪ discoveredVia,
@@ -229,7 +227,7 @@ async function activeMandates(q: Queryable): Promise<MandateSummary[]> {
 
 export async function homeSummary(q: Queryable): Promise<HomeSummary> {
   const [firms, configs, axesByFirm, drifts, rules, mandates, totals, groups] = await Promise.all([
-    loadFirms(q),
+    loadLeanFirms(q),
     loadActiveConfigs(q),
     needsYouAxes(q),
     openDrifts(q),
@@ -250,7 +248,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
   // sort would give them (the comparator is a total order).
   const firmById = new Map(firms.map((f) => [f.firmId, f]));
   const judgmentFirms: JudgmentNeedsYou[] = orderEnrichmentQueue(
-    firms.filter((f) => axesByFirm.has(f.firmId)),
+    firms.filter((f) => axesByFirm.has(f.firmId)).map(toQueueFirm),
     configs,
   )
     .filter((r) => !r.hardScreened && !r.terminal)
@@ -282,24 +280,6 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     };
   });
 
-  // Projection is only worth computing for the rule rows that will be shown.
-  const projectRule = (r: (typeof rules)[number]): number | null => {
-    const [rule] = toScreeningRules(
-      [
-        {
-          proposedRuleId: r.proposedRuleId,
-          ruleStatus: "approved", // count what it WOULD screen
-          predicateAxis: orUndefined(r.predicateAxis),
-          ruleOperator: orUndefined(r.ruleOperator),
-          ruleThreshold: orUndefined(r.ruleThreshold),
-          ruleModel: orUndefined(r.ruleModel),
-        },
-      ],
-      [],
-    );
-    // null = not computable here (text predicate), not "screens nobody".
-    return rule === undefined || !isEvaluable(rule) ? null : countScreened(firms, [rule]);
-  };
   const ruleItems = (): RuleNeedsYou[] =>
     rules.map((r) => ({
       kind: "rule",
@@ -324,7 +304,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
   const pendingById = new Map(rules.map((r) => [r.proposedRuleId, r]));
   for (const item of needsYou) {
     if (item.kind === "rule") {
-      item.screens = projectRule(pendingById.get(item.proposedRuleId)!);
+      item.screens = projectRule(pendingById.get(item.proposedRuleId)!, firms);
     }
   }
   const needsYouCounts: Record<NeedsYouDestination, number> = { review: 0, desk: 0, rules: 0 };

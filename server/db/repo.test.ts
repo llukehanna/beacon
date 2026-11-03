@@ -155,6 +155,36 @@ describe("repository", () => {
       expect(await everything({ firmName: "asc" })).toEqual(["f5", "f2", "f4", "f1", "f3"]);
     });
 
+    it("resumes correctly after a page that ends on a null sort key", async () => {
+      await seedFive();
+      await insertObject(db, "Firm", { firmId: "f6", firmType: "CF" }); // second null firmName
+      for (const dir of ["asc", "desc"] as const) {
+        const all = (await listObjects(db, "Firm", { orderBy: { firmName: dir } })).data.map(
+          (r) => r.$primaryKey,
+        );
+        // Nulls sort last in either direction, ordered by primary key.
+        expect(all.slice(-2)).toEqual(["f3", "f6"]);
+        // Page sizes 5 and 6 end a page exactly on a null row (f3, then f6) with rows still to come or not.
+        for (const pageSize of [5, 6, 1, 4]) {
+          expect(
+            (await pages({ orderBy: { firmName: dir }, pageSize })).flat(),
+            `${dir}/${pageSize}`,
+          ).toEqual(all);
+        }
+      }
+      const endsOnNull = await listObjects(db, "Firm", {
+        orderBy: { firmName: "asc" },
+        pageSize: 5,
+      });
+      expect(endsOnNull.data.at(-1)?.$primaryKey).toBe("f3");
+      const rest = await listObjects(db, "Firm", {
+        orderBy: { firmName: "asc" },
+        pageSize: 5,
+        pageToken: endsOnNull.nextPageToken!,
+      });
+      expect(rest.data.map((r) => r.$primaryKey)).toEqual(["f6"]);
+    });
+
     it("applies where together with the cursor", async () => {
       await seedFive();
       expect(

@@ -114,6 +114,56 @@ export function firmFieldNames(): string[] {
   return [...new Set(Object.values(AXIS_TO_FIRM_FIELD))];
 }
 
+/** The Firm properties mirrorScore reads. */
+export const SCORE_INPUT_FIELDS = [
+  "firmType",
+  "coverageModel",
+  "servicesFit",
+  "mdPedigree",
+  "balanceSheetPrincipal",
+  "geoScore",
+  "dealSizeMUsd",
+  "dealsPerMdL3y",
+  "firmAge",
+  "employees",
+  "feeGeneratingCount",
+  "geographicFootprint",
+  "advisoryConflict",
+] as const;
+
+/**
+ * Every Firm property the queue reads: identity and lifecycle, the score
+ * inputs, and whatever a hard-screen rule axis can name (the gate fields
+ * solvent / webActivity / hasSTOrBalanceSheet included).
+ */
+export const QUEUE_FIELDS: readonly string[] = [
+  ...new Set([
+    "firmId",
+    "firmName",
+    "lifecycleState",
+    "currentStage",
+    "disposition",
+    ...SCORE_INPUT_FIELDS,
+    ...firmFieldNames(),
+  ]),
+];
+
+/**
+ * The one way to build a queue firm from a loaded Firm object. Home, the desk
+ * and the server's homeSummary all rank through this, so a hard-screen rule on
+ * a gate axis screens the same firms everywhere.
+ */
+export function toQueueFirm(firm: object): QueueFirm & Record<string, unknown> {
+  const f = firm as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const k of QUEUE_FIELDS) {
+    out[k] = f[k];
+  }
+  out.firmId = (f.firmId as string | undefined) ?? "";
+  out.disposition = (f.disposition as string | null | undefined) ?? null;
+  return out as QueueFirm & Record<string, unknown>;
+}
+
 function firmModel(firm: QueueFirm): "cf" | "cs" {
   return (firm.firmType ?? "").trim().toLowerCase() === "cs" ? "cs" : "cf";
 }

@@ -840,15 +840,12 @@ function Rules(): React.ReactElement {
     isLoading,
     error,
   } = useOsdkObjects(ProposedRule, {
-    pageSize: 200,
     autoFetchMore: true,
   });
   const { data: decisionsData } = useOsdkObjects(ReviewDecision, {
-    pageSize: 500,
     autoFetchMore: true,
   });
   const { data: firmsData } = useOsdkObjects(Firm, {
-    pageSize: 300,
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
@@ -858,7 +855,6 @@ function Rules(): React.ReactElement {
   // deactivates all rows for the rule — both mutations invalidate this
   // query so the cards refresh on next tick.
   const { data: configsData } = useOsdkObjects(HardScreenConfig, {
-    pageSize: 500,
     autoFetchMore: true,
   });
 

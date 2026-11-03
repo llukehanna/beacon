@@ -55,10 +55,10 @@ import "./nocturne.css";
 import { isOpenFirm } from "./pipelineBuckets";
 import {
   type ActiveConfigRule,
-  type QueueFirm,
   type RankedFirm,
   computeHardScreen,
   orderEnrichmentQueue,
+  toQueueFirm,
 } from "./queue";
 import {
   MAX_POSSIBLE,
@@ -1751,7 +1751,6 @@ function DecisionMemory({
   firmsLoading: boolean;
 }): React.ReactElement | null {
   const { data: decisionData, isLoading: decisionsLoading } = useOsdkObjects(ReviewDecision, {
-    pageSize: 500,
     orderBy: { decidedAt: "desc" },
     autoFetchMore: true,
   });
@@ -2690,7 +2689,6 @@ function FindingsSection({
   const firmId = firm.firmId ?? "";
   const { data, isLoading, error } = useOsdkObjects(ResearchFinding, {
     where: { firmId: { $eq: firmId } },
-    pageSize: 100,
     autoFetchMore: true,
   });
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
@@ -3725,7 +3723,6 @@ function EnrichmentPanel({
   const firmId = firm.firmId ?? "";
   const { data: findingsData } = useOsdkObjects(ResearchFinding, {
     where: { firmId: { $eq: firmId } },
-    pageSize: 100,
     autoFetchMore: true,
   });
   const findings = React.useMemo(
@@ -4072,7 +4069,6 @@ function EmptyState(): React.ReactElement {
 
 function Desk(): React.ReactElement {
   const { data, isLoading, error } = useOsdkObjects(Firm, {
-    pageSize: 300,
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
@@ -4081,7 +4077,6 @@ function Desk(): React.ReactElement {
   // computeHardScreen. Filter to configActive === true so pending or
   // dismissed proposals cannot silently screen firms.
   const { data: configData, isLoading: configLoading } = useOsdkObjects(HardScreenConfig, {
-    pageSize: 200,
     autoFetchMore: true,
   });
   const activeConfigs = React.useMemo<ActiveConfigRule[]>(() => {
@@ -4116,7 +4111,6 @@ function Desk(): React.ReactElement {
   // rule claiming 160 firms. Config rows still win where present, because an
   // amended threshold is what the analyst sees as the effective predicate.
   const { data: proposedRuleData } = useOsdkObjects(ProposedRule, {
-    pageSize: 200,
     autoFetchMore: true,
   });
   const screeningRules = React.useMemo<ScreeningRule[]>(
@@ -4188,7 +4182,6 @@ function Desk(): React.ReactElement {
   const { data: siblingSearchesData } = useOsdkObjects(Search, {
     where: { mandateId: { $eq: pinnedMandateId } },
     orderBy: { runAt: "desc" },
-    pageSize: 20,
     autoFetchMore: true,
   });
   const searchIndex = React.useMemo<number | undefined>(() => {
@@ -4241,7 +4234,6 @@ function Desk(): React.ReactElement {
   // per-firm "N prior decisions"). Skipping the fetch when the desk is
   // unfiltered keeps the master view's request budget unchanged.
   const { data: decisionData } = useOsdkObjects(ReviewDecision, {
-    pageSize: 500,
     orderBy: { decidedAt: "desc" },
     autoFetchMore: true,
   });
@@ -4328,25 +4320,14 @@ function Desk(): React.ReactElement {
   }, [setSearchParams]);
 
   const queue = React.useMemo(() => {
-    const firms = (filteredData ?? []).map((f) => ({
-      firmId: f.firmId,
-      firmName: f.firmName,
-      // lifecycle/currentStage are consumed by the queue ranker to push
-      // terminal (Qualified or later, or Passed) firms to the bottom — the desk is a
-      // to-do list, not a leaderboard.
-      lifecycleState: f.lifecycleState,
-      currentStage: f.currentStage,
-      // Disposition tells the ranker about server-side hard screens the
-      // client mirror can't reconstruct — those firms sink even further,
-      // below terminal, so the first queue firm is always genuinely
-      // workable.
-      disposition: (f as FirmView).disposition ?? null,
-      // Carried so the sidebar's live-queue partition can screen on the
-      // same object it ranks — screening reads axis-named properties off
-      // the firm directly.
-      ...toScoreInput(f),
-    }));
-    return orderEnrichmentQueue(firms as unknown as QueueFirm[], rankingRules);
+    // toQueueFirm carries what the ranker needs: lifecycle/currentStage (to push
+    // terminal firms to the bottom — the desk is a to-do list, not a leaderboard),
+    // disposition (server-side hard screens the client mirror can't reconstruct),
+    // and the score and rule-axis properties (including the gate fields), so the
+    // sidebar's live-queue partition screens on the same object it ranks. Home and
+    // the server's homeSummary build the same input.
+    const firms = (filteredData ?? []).map(toQueueFirm);
+    return orderEnrichmentQueue(firms, rankingRules);
   }, [filteredData, rankingRules]);
 
   const selected = filteredData?.find((f) => f.firmId === selectedId);
