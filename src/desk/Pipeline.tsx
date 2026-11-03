@@ -1076,12 +1076,10 @@ const railShellStyle: React.CSSProperties = {
 
 function Pipeline(): React.ReactElement {
   const { data, isLoading, error } = useOsdkObjects(Firm, {
-    pageSize: 300,
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
   const { data: decisionsData } = useOsdkObjects(ReviewDecision, {
-    pageSize: 500,
     orderBy: { decidedAt: "desc" },
     autoFetchMore: true,
   });

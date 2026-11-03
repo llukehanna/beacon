@@ -75,7 +75,8 @@ export function useOsdkObjects<N extends ObjectTypeName>(
   }, [fetchNextPage]);
   return {
     data,
-    isLoading: q.isLoading || (autoFetchMore && more),
+    // A page that failed stops the wait; `error` carries the reason.
+    isLoading: q.isLoading || (autoFetchMore && more && !isFetchNextPageError),
     error: normalizeError(q.error),
     hasMore: more,
     fetchMore: more ? fetchMore : undefined,

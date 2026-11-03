@@ -32,7 +32,7 @@ import {
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import { LIFECYCLE_BUCKETS, type Lifecycle, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
-import { type ActiveConfigRule, orderEnrichmentQueue } from "./queue";
+import { type ActiveConfigRule, orderEnrichmentQueue, toQueueFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { type ScoreInput, mirrorScore } from "./scoreMirror";
 import {
@@ -557,12 +557,10 @@ function Home(): React.ReactElement {
     isLoading: firmsLoading,
     error: firmsError,
   } = useOsdkObjects(Firm, {
-    pageSize: 300,
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
   const { data: configData, isLoading: configsLoading } = useOsdkObjects(HardScreenConfig, {
-    pageSize: 200,
     autoFetchMore: true,
   });
   const {
@@ -570,7 +568,6 @@ function Home(): React.ReactElement {
     isLoading: driftsLoading,
     error: driftsError,
   } = useOsdkObjects(DriftEvent, {
-    pageSize: 200,
     orderBy: { detectedAt: "desc" },
     autoFetchMore: true,
   });
@@ -578,7 +575,7 @@ function Home(): React.ReactElement {
     data: ruleData,
     isLoading: rulesLoading,
     error: rulesError,
-  } = useOsdkObjects(ProposedRule, { pageSize: 200, autoFetchMore: true });
+  } = useOsdkObjects(ProposedRule, { autoFetchMore: true });
   const {
     data: findingData,
     isLoading: findingsLoading,
@@ -589,12 +586,10 @@ function Home(): React.ReactElement {
     isLoading: mandatesLoading,
     error: mandatesError,
   } = useOsdkObjects(Mandate, {
-    pageSize: 100,
     orderBy: { createdAt: "desc" },
     autoFetchMore: true,
   });
   const { data: searchData, isLoading: searchesLoading } = useOsdkObjects(Search, {
-    pageSize: 200,
     orderBy: { runAt: "desc" },
     autoFetchMore: true,
   });
@@ -610,7 +605,6 @@ function Home(): React.ReactElement {
   // each list's primary key — this is the source /mandate counts from, and
   // including it is what makes Home's number agree with that page.
   const { data: searchListData, isLoading: searchListsLoading } = useOsdkObjects(SearchList, {
-    pageSize: 200,
     orderBy: { createdAt: "desc" },
     autoFetchMore: true,
   });
@@ -680,17 +674,7 @@ function Home(): React.ReactElement {
   // The queue's workable band: not hard-screened, not terminal — the same
   // ranking the desk sidebar renders, so "first" here is first there too.
   const workable = React.useMemo(() => {
-    const ranked = orderEnrichmentQueue(
-      firms.map((f) => ({
-        firmId: f.firmId ?? "",
-        firmName: f.firmName,
-        lifecycleState: f.lifecycleState,
-        currentStage: f.currentStage,
-        disposition: f.disposition ?? null,
-        ...toScoreInput(f),
-      })),
-      activeConfigs,
-    );
+    const ranked = orderEnrichmentQueue(firms.map(toQueueFirm), activeConfigs);
     return ranked.filter((r) => !r.hardScreened && !r.terminal);
   }, [firms, activeConfigs]);
 

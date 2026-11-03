@@ -134,7 +134,6 @@ function Accuracy(): React.ReactElement {
     isLoading: firmsLoading,
     error: firmsError,
   } = useOsdkObjects(Firm, {
-    pageSize: 500,
     autoFetchMore: true,
   });
   const findings = React.useMemo(() => (data ?? []) as unknown as FindingLike[], [data]);
@@ -142,7 +141,7 @@ function Accuracy(): React.ReactElement {
 
   // Counts by outcome across all firms + headline: how many firms we
   // passed on ended up acquired by a competitor. The panel is a fixed
-  // grid of the five outcome slots (four backend enums + not-yet-observed);
+  // grid of the six outcome slots (five backend enums + not-yet-observed);
   // slots always render, even when a bucket is empty.
   const outcomeCounts = React.useMemo(() => tallyOutcomes(firms), [firms]);
 
