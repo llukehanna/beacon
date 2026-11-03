@@ -1,6 +1,6 @@
 import { getDb } from "../server/db/client.js";
 import { claimWindow, getMeta } from "../server/db/meta.js";
-import { json, jsonError } from "../server/http.js";
+import { assertSameOrigin, json, jsonError } from "../server/http.js";
 import { resetFromSnapshot } from "../server/seed/snapshot.js";
 
 const COOLDOWN_MS = 5 * 60_000;
@@ -8,10 +8,14 @@ const COOLDOWN_MS = 5 * 60_000;
 /**
  * Restore the shared demo from its snapshot (built by `npm run seed`).
  * Resetting is already public (the demo bar has a button), so there is no
- * secret; one throttle protects both callers.
+ * secret; one throttle protects the button and the nightly Cron Trigger,
+ * which calls POST directly rather than over HTTP.
  */
-async function throttledReset(): Promise<Response> {
+async function throttledReset(request?: Request): Promise<Response> {
   try {
+    if (request) {
+      assertSameOrigin(request); // Any page can POST here cross-site; the cron passes no request.
+    }
     const db = await getDb();
     // One atomic claim, before the reset: concurrent resets would interleave and half-restore the demo.
     if (!(await claimWindow(db, "lastResetAt", new Date(), COOLDOWN_MS))) {
@@ -30,20 +34,7 @@ async function throttledReset(): Promise<Response> {
   }
 }
 
-/**
- * Reset over GET (the nightly Cron Trigger calls the reset directly). When
- * CRON_SECRET is set, GET requires it as a bearer token, which keeps crawlers
- * and link prefetchers from resetting the demo.
- */
-export async function GET(request?: Request): Promise<Response> {
-  const secret = process.env.CRON_SECRET;
-  if (secret && request?.headers.get("authorization") !== `Bearer ${secret}`) {
-    return json({ error: "Unauthorized" }, 401);
-  }
-  return throttledReset();
-}
-
-/** The demo bar's Reset button. */
-export function POST(): Promise<Response> {
-  return throttledReset();
+/** The demo bar's Reset button, and the nightly Cron Trigger. */
+export function POST(request?: Request): Promise<Response> {
+  return throttledReset(request);
 }

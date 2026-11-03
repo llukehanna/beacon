@@ -9,7 +9,7 @@
   "compatibility_date": "2026-09-01",
   // nodejs_compat: pg's sockets, node:crypto, node:async_hooks, and process.env from vars/secrets.
   "compatibility_flags": ["nodejs_compat"],
-  "workers_dev": true,
+  "workers_dev": false,
   "assets": {
     "directory": "./dist",
     "binding": "ASSETS",
@@ -18,7 +18,7 @@
   },
   // The Worker always talks to Postgres over DATABASE_URL; keep the PGlite WASM out of the bundle.
   "alias": { "@electric-sql/pglite": "./worker/no-pglite.ts" },
-  // Nightly demo reset via Cron Trigger. Secrets: DATABASE_URL, CRON_SECRET.
+  // Nightly demo reset via Cron Trigger. Secret: DATABASE_URL.
   "triggers": { "crons": ["0 4 * * *"] },
   "observability": { "enabled": true },
   "env": {

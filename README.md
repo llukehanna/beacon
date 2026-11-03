@@ -59,7 +59,7 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 
 ## Deploy
 
-Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Production reads `DATABASE_URL` (Neon Postgres) and `CRON_SECRET` from Worker secrets.
+Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Production reads `DATABASE_URL` (Neon Postgres) from a Worker secret.
 
 ```bash
 npx wrangler secret put DATABASE_URL
