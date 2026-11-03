@@ -2,7 +2,7 @@ import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
 import { PASSED, firmIdFor, normalizeLifecycle } from "../../shared/vocab.js";
-import { getObject, insertObject, insertObjects, listObjects } from "../db/repo.js";
+import { getObject, insertObject, insertObjects, listAll } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { type FirmObj, iso, requireObject } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -77,7 +77,7 @@ export const runSearch = defineAction<{
 
     await assertRoom(ctx, "search", MAX_SEARCHES, "searches");
     const searchId = ctx.newId("search");
-    const all = await listObjects(ctx.tx, "Firm");
+    const all = await listAll(ctx.tx, "Firm");
     const seeds: FirmObj[] = [];
     for (const name of p.seedFirms ?? []) {
       const hit = all.find((f) => norm(f.firmName) === norm(name));
@@ -189,7 +189,7 @@ export const runMandateSearch = defineAction<{
       products: [],
       sizeMaxUsdM: p.sizeMaxUsdM,
     });
-    const firms = (await listObjects(ctx.tx, "Firm")).filter(
+    const firms = (await listAll(ctx.tx, "Firm")).filter(
       (f) => normalizeLifecycle(f.lifecycleState) !== PASSED && matchesSelection(f, sel),
     );
     const listId = ctx.newId("list");

@@ -10,7 +10,6 @@ import {
   VOID_BG,
   outcomeChipStyle,
   outcomeLabel,
-  providerLabel,
 } from "./tokens";
 // Aggregation semantics live in ./trustMetrics so the Home trust panel and
 // this page quote identical rates.
@@ -21,92 +20,10 @@ import {
   NULL_OUTCOME_KEY,
   OUTCOME_SLOTS,
   type Rates,
-  rates,
+  accuracyTables,
+  cellsFromFindings,
   tallyOutcomes,
 } from "./trustMetrics";
-
-// ─── Axis label mapping ─────────────────────────────────────────────────
-// Findings arrive with raw axis keys (either camelCase or snake_case).
-// Render human labels matching the design's dataProvider.AXES vocabulary.
-
-// Axis labels — the backend now canonicalizes to the agent vocabulary
-// (deal_size_usd_m, firm_age_years, deals_per_md_l3y, …) so the map is mostly
-// a no-op. We keep the older camelCase / short-form variants so any residual
-// legacy row still folds into the same axis bucket instead of splitting the
-// table.
-const AXIS_LABEL: Record<string, string> = {
-  coverage_model: "Sector coverage",
-  coveragemodel: "Sector coverage",
-  services_fit: "Services fit",
-  servicesfit: "Services fit",
-  md_pedigree: "MD pedigree",
-  mdpedigree: "MD pedigree",
-  balance_sheet_principal: "Balance sheet / principal",
-  balancesheetprincipal: "Balance sheet / principal",
-  deal_size: "Avg deal size",
-  dealsize: "Avg deal size",
-  dealsizemusd: "Avg deal size",
-  dealsizeusdm: "Avg deal size",
-  deals_per_md: "Deals / MD (L3Y)",
-  dealspermd: "Deals / MD (L3Y)",
-  dealspermdl3y: "Deals / MD (L3Y)",
-  firm_age: "Firm age",
-  firmage: "Firm age",
-  firmageyears: "Firm age",
-  employees: "Employees",
-  fee_generating_count: "Fee-earning heads",
-  feegeneratingcount: "Fee-earning heads",
-  geographic_footprint: "Geographic fit",
-  geographicfootprint: "Geographic fit",
-};
-
-function canonicalAxisKey(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[_\s-]+/g, "");
-}
-
-// Provider strings we discard from the BY PROVIDER breakdown — these are not
-// real data sources, so quoting a rate against them is misleading. Findings
-// with these providers still count in overall and BY AXIS metrics; they just
-// don't earn a row of their own.
-const NON_PROVIDER_VALUES = new Set(["", "none", "unknown"]);
-
-// Hard-gate axes are yes/no facts (has ST or balance sheet, advisory
-// conflict, web activity, solvent) — they're captured through Beacon's gate
-// UI, not the rubric. Aggregating agreement / override on binary gates with
-// tiny sample sizes carries no signal, so we drop them from BY AXIS. If a
-// hard-gate breakdown is ever wanted it belongs in its own table with its
-// own labels.
-const HARD_GATE_AXIS_KEYS = new Set([
-  "hasstorbalancesheet",
-  "advisoryconflict",
-  "webactivity",
-  "solvent",
-]);
-
-function axisLabel(raw: string | undefined): string {
-  if (raw === undefined || raw === "") {
-    return "unknown axis";
-  }
-  return AXIS_LABEL[canonicalAxisKey(raw)] ?? titleize(raw);
-}
-
-function titleize(raw: string): string {
-  return raw
-    .trim()
-    .split(/[_\s-]+/)
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
-    .join(" ");
-}
-
-function providerRowLabel(raw: string | undefined): string {
-  if (raw === undefined || raw === "") {
-    return "unknown";
-  }
-  return providerLabel(raw);
-}
 
 // ─── Primitives ─────────────────────────────────────────────────────────
 
@@ -229,88 +146,10 @@ function Accuracy(): React.ReactElement {
   // slots always render, even when a bucket is empty.
   const outcomeCounts = React.useMemo(() => tallyOutcomes(firms), [firms]);
 
-  const overall = React.useMemo(() => rates(findings), [findings]);
-
-  const byProvider = React.useMemo(() => {
-    const map = new Map<string, FindingLike[]>();
-    for (const f of findings) {
-      const raw = (f.provider ?? "").trim().toLowerCase();
-      // "unknown" / "none" / empty aren't providers — they'd otherwise appear
-      // as a row that carries the abstained/analyst-entered findings and
-      // publish a misleading rate against a non-source. Skip them here; they
-      // still count toward the overall abstention headline and BY AXIS.
-      if (NON_PROVIDER_VALUES.has(raw)) {
-        continue;
-      }
-      const key = f.provider!;
-      const arr = map.get(key) ?? [];
-      arr.push(f);
-      map.set(key, arr);
-    }
-    const out = [...map.entries()]
-      .map(([provider, group]) => ({
-        key: provider,
-        label: providerRowLabel(provider),
-        r: rates(group),
-      }))
-      .filter((row) => {
-        // Drop rows with no findings at all — nothing to display.
-        if (row.r.total === 0) {
-          return false;
-        }
-        // Corroboration tags (multi-provider strings like "dealdb+filings")
-        // are only meaningful once an analyst has decided on them. With zero
-        // decided findings the row publishes 0% / 0% / abstention-pct — a
-        // stat about a tag, not about a data source. Drop it. Single
-        // providers can still show a legit 100% abstention row.
-        const isCorroboration = row.key.includes("+");
-        if (isCorroboration && row.r.decided === 0) {
-          return false;
-        }
-        return true;
-      });
-    // Alphabetical by label so the display order is stable across renders.
-    out.sort((a, b) => a.label.localeCompare(b.label));
-    return out;
-  }, [findings]);
-
-  const byAxis = React.useMemo(() => {
-    // Bucket by the canonical (stripped-lowercase) axis key so residual
-    // snake_case/camelCase variants land in the same row. Since the backend
-    // canonicalizes now this is mostly a safety net, but a mixed backlog will
-    // still fold cleanly here.
-    const map = new Map<string, FindingLike[]>();
-    const labelBySlot = new Map<string, string>();
-    const rawBySlot = new Map<string, string>();
-    for (const f of findings) {
-      const raw = (f.axis ?? "").trim();
-      const slot = raw === "" ? "__unknown__" : canonicalAxisKey(raw);
-      // Hard gates are yes/no facts captured through the gates UI, not part
-      // of the rubric — showing them here would clutter the axis table with
-      // low-n rows that read as "Advisory Conflict n=1".
-      if (HARD_GATE_AXIS_KEYS.has(slot)) {
-        continue;
-      }
-      const arr = map.get(slot) ?? [];
-      arr.push(f);
-      map.set(slot, arr);
-      if (!labelBySlot.has(slot)) {
-        labelBySlot.set(slot, raw === "" ? "unknown axis" : axisLabel(raw));
-        rawBySlot.set(slot, raw === "" ? slot : raw);
-      }
-    }
-    const out = [...map.entries()]
-      .map(([slot, group]) => ({
-        key: rawBySlot.get(slot) ?? slot,
-        label: labelBySlot.get(slot) ?? slot,
-        r: rates(group),
-      }))
-      // An axis with zero findings has nothing to say — leave it off.
-      .filter((row) => row.r.total > 0);
-    // Most-signalled axes first — matches the design's ordering intent.
-    out.sort((a, b) => b.r.total - a.r.total);
-    return out;
-  }, [findings]);
+  const { overall, byProvider, byAxis } = React.useMemo(
+    () => accuracyTables(cellsFromFindings(findings)),
+    [findings],
+  );
 
   const insufficient = !isLoading && overall.decided < INSUFFICIENT_THRESHOLD;
 

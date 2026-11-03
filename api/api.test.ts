@@ -4,6 +4,7 @@ import { getMeta, setMeta } from "../server/db/meta.js";
 import { saveSnapshot } from "../server/seed/snapshot.js";
 import { STRONG_CF, createTestDb, seedFirm } from "../server/testing.js";
 import { POST as actions } from "./actions.js";
+import { GET as functions } from "./functions.js";
 import { POST as links } from "./links.js";
 import { GET as objects } from "./objects.js";
 import { POST as resetButton } from "./reset.js";
@@ -44,6 +45,29 @@ describe("/api/objects", () => {
     expect((await objects(req(`/api/objects?type=Firm&where=%7Bnot-json`))).status).toBe(400);
     const wrongType = encodeURIComponent(JSON.stringify({ employees: { $eq: "abc" } }));
     expect((await objects(req(`/api/objects?type=Firm&where=${wrongType}`))).status).toBe(400);
+  });
+});
+
+describe("/api/objects paging", () => {
+  it("returns a page and a token, and 400 for a malformed token", async () => {
+    await seedFirm(db, { firmId: "f2", firmName: "Beta" });
+    const first = await (await objects(req("/api/objects?type=Firm&pageSize=1"))).json();
+    expect(first.data.map((o: { $primaryKey: string }) => o.$primaryKey)).toEqual(["f1"]);
+    const second = await (
+      await objects(req(`/api/objects?type=Firm&pageSize=1&pageToken=${first.nextPageToken}`))
+    ).json();
+    expect(second.data.map((o: { $primaryKey: string }) => o.$primaryKey)).toEqual(["f2"]);
+    expect((await objects(req("/api/objects?type=Firm&pageToken=not-base64!"))).status).toBe(400);
+    expect((await objects(req("/api/objects?type=Firm&pageSize=abc"))).status).toBe(400);
+  });
+
+  it("clamps pageSize to 1000", async () => {
+    await db.query(
+      `INSERT INTO firm ("firmId") SELECT 'g' || lpad(i::text, 5, '0') FROM generate_series(1, 1001) i`,
+    );
+    const body = await (await objects(req("/api/objects?type=Firm&pageSize=5000"))).json();
+    expect(body.data).toHaveLength(1000);
+    expect(typeof body.nextPageToken).toBe("string");
   });
 });
 
@@ -116,5 +140,24 @@ describe("/api/reset", () => {
     expect((await resetButton()).status).toBe(503);
     await saveSnapshot(db, new Date());
     expect((await resetButton()).status).toBe(200);
+  });
+});
+
+describe("/api/functions", () => {
+  it("returns { value } for a registered function and 404 for an unknown one", async () => {
+    const { value } = await (await functions(req("/api/functions?name=homeSummary"))).json();
+    expect(value.funnel.Screening).toBeGreaterThanOrEqual(0);
+    expect(value.needsYouTotal).toBe(0);
+    expect((await functions(req("/api/functions?name=nope"))).status).toBe(404);
+    expect((await functions(req("/api/functions"))).status).toBe(404);
+  });
+
+  it("rejects params that are not a JSON object", async () => {
+    expect((await functions(req("/api/functions?name=homeSummary&params=%5B%5D"))).status).toBe(
+      400,
+    );
+    expect((await functions(req("/api/functions?name=homeSummary&params=%7Bnope"))).status).toBe(
+      400,
+    );
   });
 });

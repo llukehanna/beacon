@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ObjectOf } from "../../shared/schema.js";
 import type { Db } from "../db/client.js";
-import { listLinked, listObjects } from "../db/repo.js";
+import { listAll, listLinked } from "../db/repo.js";
 import { STRONG_CF, createTestDb, run, seedFirm } from "../testing.js";
 import { MAX_MANDATES } from "./search.js";
 
@@ -56,19 +56,26 @@ describe("runMandateSearch", () => {
       archetype: "CF",
       geographies: ["Americas"],
     });
-    const [m] = await listObjects(db, "Mandate");
+    const [m] = await listAll(db, "Mandate");
     expect(m).toMatchObject({
       title: "US software boutiques",
       archetype: "CF",
       active: true,
       geographies: ["Americas"],
     });
-    const [list] = await listObjects(db, "SearchList");
+    const [list] = await listAll(db, "SearchList");
     const members = (await listLinked(db, "SearchList", "firms", [list.$primaryKey]))[
       list.$primaryKey
     ];
     expect(members.map((f) => f.$primaryKey).sort()).toEqual(["us_retail", "us_sw_a", "us_sw_b"]);
     expect(list.resultCount).toBe(3);
+  });
+
+  it("reports the types it wrote, with the search_list_firm join counted as a SearchList write", async () => {
+    const db = await createTestDb();
+    await universe(db);
+    const result = await run(db, "runMandateSearch", { title: "M", archetype: "CF" });
+    expect(result.types).toEqual(["Mandate", "SearchList"]);
   });
 
   it("validates archetype and geography values", async () => {
@@ -99,14 +106,14 @@ describe("runSearch", () => {
     const db = await createTestDb();
     await universe(db);
     await run(db, "runMandateSearch", { title: "M", archetype: "CF" });
-    const [m] = await listObjects(db, "Mandate");
+    const [m] = await listAll(db, "Mandate");
     await run(db, "runSearch", {
       mandate: m.$primaryKey,
       geographies: ["United States"],
       industries: ["Software"],
       breadth: "exhaustive",
     });
-    const [s] = await listObjects(db, "Search");
+    const [s] = await listAll(db, "Search");
     expect(s).toMatchObject({
       mandateId: m.$primaryKey,
       status: "complete",
@@ -121,14 +128,14 @@ describe("runSearch", () => {
     const db = await createTestDb();
     await universe(db);
     await run(db, "runMandateSearch", { title: "M", archetype: "CF" });
-    const [m] = await listObjects(db, "Mandate");
+    const [m] = await listAll(db, "Mandate");
     await run(db, "runSearch", {
       mandate: m.$primaryKey,
       industries: ["Software"],
       exclusions: ["Bravo"],
       seedFirms: ["Hotel Advisors"],
     });
-    const [s] = await listObjects(db, "Search");
+    const [s] = await listAll(db, "Search");
     const ids = (
       (await listLinked(db, "Search", "firms", [s.$primaryKey]))[
         s.$primaryKey
@@ -136,7 +143,7 @@ describe("runSearch", () => {
     ).map((f) => f.firmName);
     expect(ids).toContain("Hotel Advisors");
     expect(ids).not.toContain("Bravo");
-    const [discovered] = await listObjects(db, "Firm", {
+    const [discovered] = await listAll(db, "Firm", {
       where: { firmName: { $eq: "Hotel Advisors" } },
     });
     expect(discovered).toMatchObject({
@@ -150,7 +157,7 @@ describe("runSearch", () => {
     const db = await createTestDb();
     await universe(db);
     await run(db, "runMandateSearch", { title: "M", archetype: "CF" });
-    const [m] = await listObjects(db, "Mandate");
+    const [m] = await listAll(db, "Mandate");
     await expect(
       run(db, "runSearch", { mandate: m.$primaryKey, breadth: "galactic" }),
     ).rejects.toThrow(/breadth/);
@@ -160,12 +167,12 @@ describe("runSearch", () => {
     const db = await createTestDb();
     await universe(db);
     await run(db, "runMandateSearch", { title: "M", archetype: "CF" });
-    const [m] = await listObjects(db, "Mandate");
+    const [m] = await listAll(db, "Mandate");
     await run(db, "runSearch", {
       mandate: m.$primaryKey,
       seedFirms: ["Acme Corp!", "Acme Corp?", "Acme, Corp"],
     });
-    const [s] = await listObjects(db, "Search");
+    const [s] = await listAll(db, "Search");
     const members = (
       (await listLinked(db, "Search", "firms", [s.$primaryKey]))[
         s.$primaryKey

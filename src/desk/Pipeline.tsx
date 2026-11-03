@@ -1083,6 +1083,7 @@ function Pipeline(): React.ReactElement {
   const { data: decisionsData } = useOsdkObjects(ReviewDecision, {
     pageSize: 500,
     orderBy: { decidedAt: "desc" },
+    autoFetchMore: true,
   });
 
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);

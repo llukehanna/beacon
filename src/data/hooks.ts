@@ -1,19 +1,40 @@
 /**
- * Drop-in replacements for the four OSDK React hooks the pages use, backed
- * by TanStack Query and the /api endpoints. Same names and the same return
- * fields, so page code only changes its import lines. Every successful
- * action invalidates all queries, matching OSDK's refresh-after-edit behavior.
+ * Drop-in replacements for the OSDK React hooks the pages use, backed by
+ * TanStack Query and the /api endpoints. Same names and the same return
+ * fields, so page code only changes its import lines.
+ *
+ *  - useOsdkObjects pages through /api/objects: `pageSize` sets the page,
+ *    `autoFetchMore` keeps fetching until the last one, and `hasMore` /
+ *    `fetchMore` expose the rest.
+ *  - useOsdkQuery calls a server query function (OSDK's `useOsdkFunction`).
+ *  - A successful action refreshes only what it could have changed: the
+ *    object types it wrote to, links that touch them, and every function
+ *    result. An action that names no types refreshes everything.
  */
 import React from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type QueryClient,
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { ObjectOf, ObjectTypeName } from "../../shared/schema";
-import { type ActionResponse, type ObjectQuery, fetchLinks, fetchObjects, postAction } from "./api";
+import {
+  type ActionResponse,
+  type ObjectQuery,
+  fetchFunction,
+  fetchLinks,
+  fetchObjectsPage,
+  postAction,
+} from "./api";
 import type { ActionToken, ObjectTypeToken } from "./ontology";
-import { type WireObject, normalizeError, toLinkMap } from "./wire";
+import { type WireObject, linkQueryReads, normalizeError, toLinkMap } from "./wire";
 
 export interface ObjectsOptions extends ObjectQuery {
-  /** Accepted for call-site compatibility; the API returns every matching row. */
+  /** Rows per request (the server caps it at 1000). */
   pageSize?: number;
+  /** Keep requesting pages until the last; `data` stays undefined until then. */
   autoFetchMore?: boolean;
   enabled?: boolean;
 }
@@ -22,19 +43,77 @@ export function useOsdkObjects<N extends ObjectTypeName>(
   type: ObjectTypeToken<N>,
   opts: ObjectsOptions = {},
 ) {
-  const { where, orderBy } = opts;
-  const q = useQuery({
-    queryKey: ["objects", type.apiName, where ?? null, orderBy ?? null],
-    queryFn: () => fetchObjects(type.apiName, { where, orderBy }) as Promise<ObjectOf<N>[]>,
+  const { where, orderBy, pageSize, autoFetchMore = false } = opts;
+  const q = useInfiniteQuery({
+    queryKey: ["objects", type.apiName, where ?? null, orderBy ?? null, pageSize ?? null],
+    queryFn: ({ pageParam }) =>
+      fetchObjectsPage(type.apiName, { where, orderBy, pageSize, pageToken: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (last) => last.nextPageToken ?? undefined,
     enabled: opts.enabled ?? true,
   });
+  const { hasNextPage, isFetchingNextPage, isFetching, isFetchNextPageError, fetchNextPage } = q;
+  const more = hasNextPage === true;
+  React.useEffect(() => {
+    // A failed page is not retried here (that would loop); the error is surfaced instead.
+    if (autoFetchMore && more && !isFetchingNextPage && !isFetching && !isFetchNextPageError) {
+      void fetchNextPage();
+    }
+  }, [autoFetchMore, more, isFetchingNextPage, isFetching, isFetchNextPageError, fetchNextPage]);
+
+  // With autoFetchMore the caller asked for everything, so a partial list is
+  // never exposed (counts would flicker upward); a refetch keeps the old
+  // complete list until the new one has arrived.
+  const settled = !autoFetchMore || !more;
+  const data = React.useMemo(
+    () =>
+      settled ? (q.data?.pages.flatMap((p) => p.data) as ObjectOf<N>[] | undefined) : undefined,
+    [settled, q.data],
+  );
+  const fetchMore = React.useCallback(async (): Promise<void> => {
+    await fetchNextPage();
+  }, [fetchNextPage]);
   return {
-    data: q.data,
-    isLoading: q.isLoading,
+    data,
+    isLoading: q.isLoading || (autoFetchMore && more),
     error: normalizeError(q.error),
-    hasMore: false,
-    fetchMore: undefined,
+    hasMore: more,
+    fetchMore: more ? fetchMore : undefined,
   };
+}
+
+/**
+ * A server query function (server/functions/), like OSDK's `useOsdkFunction`.
+ * Results are cached per name and params and refetched after any action.
+ */
+export function useOsdkQuery<T>(
+  name: string,
+  params: Record<string, unknown> = {},
+  opts: { enabled?: boolean } = {},
+) {
+  const q = useQuery({
+    queryKey: ["functions", name, params],
+    queryFn: () => fetchFunction<T>(name, params),
+    enabled: opts.enabled ?? true,
+  });
+  return { data: q.data, isLoading: q.isLoading, error: normalizeError(q.error) };
+}
+
+/** Refresh what an action may have changed (everything when it can't say). */
+export function invalidateAfterAction(qc: QueryClient, res: ActionResponse): Promise<unknown> {
+  const types = res.types ?? [];
+  if (types.length === 0) {
+    return qc.invalidateQueries();
+  }
+  const touched = new Set(types);
+  return Promise.all([
+    ...types.map((t) => qc.invalidateQueries({ queryKey: ["objects", t] })),
+    qc.invalidateQueries({
+      queryKey: ["links"],
+      predicate: (query) => linkQueryReads(query.queryKey, touched),
+    }),
+    qc.invalidateQueries({ queryKey: ["functions"] }),
+  ]);
 }
 
 export function useOsdkAction(action: ActionToken) {
@@ -43,7 +122,7 @@ export function useOsdkAction(action: ActionToken) {
     mutationFn: (params: Record<string, unknown>) => postAction(action.apiName, params),
     // Returning the promise makes applyAction resolve only after the
     // refetch lands, so `.then(refresh)` callers see fresh data.
-    onSuccess: () => qc.invalidateQueries(),
+    onSuccess: (res) => invalidateAfterAction(qc, res),
   });
   return {
     applyAction: (params: Record<string, unknown>): Promise<ActionResponse> =>
@@ -80,7 +159,11 @@ export function useObservableClient() {
   const qc = useQueryClient();
   return React.useMemo(
     () => ({
-      invalidateObjects: (_obj?: unknown) => qc.invalidateQueries({ queryKey: ["objects"] }),
+      invalidateObjects: (_obj?: unknown) =>
+        Promise.all([
+          qc.invalidateQueries({ queryKey: ["objects"] }),
+          qc.invalidateQueries({ queryKey: ["functions"] }),
+        ]),
     }),
     [qc],
   );
