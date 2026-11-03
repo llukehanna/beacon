@@ -92,6 +92,7 @@ export const SUCCESS_TINT_BORDER = "color-mix(in srgb, #57b98a 30%, transparent)
 export const OUTCOME_LABEL: Record<string, string> = {
   converted_to_talks: "Converted to talks",
   loi: "LOI",
+  closed: "Closed",
   went_cold: "Went cold",
   acquired_by_competitor: "Acquired by competitor",
 };

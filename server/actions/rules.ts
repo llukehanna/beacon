@@ -1,6 +1,6 @@
 import { matchesPredicate, predicateField, ruleKey } from "../../shared/predicate.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { DECISION, OPERATORS, REJECTED } from "../../shared/vocab.js";
+import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { insertObject, listObjects, updateObject } from "../db/repo.js";
@@ -175,7 +175,7 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
       orderBy: { decidedAt: "asc" },
     });
     const rows: RejectionRow[] = decisions
-      .filter((d) => firms.get(d.firmId ?? "")?.lifecycleState === REJECTED)
+      .filter((d) => normalizeLifecycle(firms.get(d.firmId ?? "")?.lifecycleState) === PASSED)
       .map((d) => ({
         decisionId: d.$primaryKey,
         firmId: d.firmId!,
@@ -202,9 +202,10 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
         ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
       ),
     );
-    const queue = firms.filter(
-      (f) => f.lifecycleState === "Discovered" || f.lifecycleState === "In Review",
-    );
+    const queue = firms.filter((f) => {
+      const state = normalizeLifecycle(f.lifecycleState);
+      return state === "Discovered" || state === "Screening";
+    });
 
     const created: string[] = [];
     for (const p of proposals) {

@@ -43,7 +43,7 @@ async function universe(db: Db) {
     firmName: "Golf",
     hqCountry: "United States",
     sector: "Software",
-    lifecycleState: "Rejected",
+    lifecycleState: "Passed",
   });
 }
 

@@ -2,18 +2,64 @@
 
 export const USER = "demo-analyst";
 
-export const LIFECYCLE_ORDER = ["Discovered", "In Review", "Outreach", "In Talks"] as const;
-export const QUALIFIED = "Qualified";
-export const REJECTED = "Rejected";
+/** The deal funnel, in order. A firm moves forward one stage at a time. */
+export const LIFECYCLE_STAGES = [
+  "Discovered",
+  "Screening",
+  "Qualified",
+  "Outreach",
+  "NDA",
+  "IOI",
+  "LOI",
+  "Closed",
+] as const;
+export type LifecycleStage = (typeof LIFECYCLE_STAGES)[number];
 
-/** Next forward stage, or null at the end / for terminal or unknown states. */
-export function nextLifecycle(state: string | null | undefined): string | null {
-  const key = (state ?? "").trim().toLowerCase();
-  const idx = LIFECYCLE_ORDER.findIndex((s) => s.toLowerCase() === key);
-  if (idx < 0 || idx >= LIFECYCLE_ORDER.length - 1) {
+/** Terminal outcome for a firm we decided not to pursue. */
+export const PASSED = "Passed";
+export type LifecycleState = LifecycleStage | typeof PASSED;
+
+/** Next forward stage, or null after Closed and for Passed. */
+export function nextLifecycle(state: LifecycleState): LifecycleStage | null {
+  const idx = (LIFECYCLE_STAGES as readonly string[]).indexOf(state);
+  if (idx < 0 || idx >= LIFECYCLE_STAGES.length - 1) {
     return null;
   }
-  return LIFECYCLE_ORDER[idx + 1];
+  return LIFECYCLE_STAGES[idx + 1];
+}
+
+const fold = (s: string): string =>
+  s
+    .toLowerCase()
+    .replace(/[\s_-]+/g, " ")
+    .trim();
+
+const LEGACY_LIFECYCLE: readonly (readonly [string, LifecycleState])[] = [
+  ["in review", "Screening"],
+  ["in talks", "Outreach"],
+  ["rejected", PASSED],
+];
+
+const LIFECYCLE_BY_FOLDED: ReadonlyMap<string, LifecycleState> = new Map([
+  ...([...LIFECYCLE_STAGES, PASSED] as const).map((s): readonly [string, LifecycleState] => [
+    fold(s),
+    s,
+  ]),
+  ...LEGACY_LIFECYCLE,
+]);
+
+/**
+ * Map any stored lifecycle value onto the current funnel: legacy names are
+ * translated, case and separators are ignored, and anything unknown or empty
+ * is a firm that has not been looked at yet.
+ */
+export function normalizeLifecycle(raw: string | null | undefined): LifecycleState {
+  return LIFECYCLE_BY_FOLDED.get(fold(raw ?? "")) ?? "Discovered";
+}
+
+/** Qualified or later: the firm has been accepted into the funnel's deal stages. */
+export function isQualifiedOrLater(state: LifecycleState): boolean {
+  return (LIFECYCLE_STAGES as readonly string[]).indexOf(state) >= 2;
 }
 
 export type Provider = "beacondb" | "dealdb" | "filings" | "websearch";

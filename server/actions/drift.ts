@@ -5,8 +5,9 @@ import {
   ACQUIRED_BY_COMPETITOR,
   DECISION,
   OUTCOMES,
-  QUALIFIED,
-  REJECTED,
+  PASSED,
+  isQualifiedOrLater,
+  normalizeLifecycle,
 } from "../../shared/vocab.js";
 import { insertObject, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
@@ -25,7 +26,8 @@ interface Snapshot {
 
 /** The score version written when the firm reached its terminal state. */
 async function terminalSnapshot(ctx: ActionContext, firm: FirmObj): Promise<Snapshot | null> {
-  const computedBy = firm.lifecycleState === QUALIFIED ? "qualifyFirm" : "rejectFirm";
+  const computedBy =
+    normalizeLifecycle(firm.lifecycleState) === PASSED ? "rejectFirm" : "qualifyFirm";
   const rows = await ctx.tx.query<{
     tier: string;
     weightedTotal: number;
@@ -78,8 +80,8 @@ export async function computeDriftForFirm(
   cause: { source?: string } = {},
 ): Promise<string | null> {
   const firm = await requireObject(ctx, "Firm", firmId);
-  const state = firm.lifecycleState;
-  if (state !== QUALIFIED && state !== REJECTED) {
+  const state = normalizeLifecycle(firm.lifecycleState);
+  if (state !== PASSED && !isQualifiedOrLater(state)) {
     return null;
   }
   const snap = await terminalSnapshot(ctx, firm);
@@ -90,7 +92,7 @@ export async function computeDriftForFirm(
   if (live.tier === snap.tier) {
     return null;
   }
-  if (state === REJECTED && (TIER_RANK[live.tier] ?? 0) <= (TIER_RANK[snap.tier] ?? 0)) {
+  if (state === PASSED && (TIER_RANK[live.tier] ?? 0) <= (TIER_RANK[snap.tier] ?? 0)) {
     return null;
   }
   const open = await ctx.tx.query(
@@ -111,7 +113,7 @@ export async function computeDriftForFirm(
     changedAxes: JSON.stringify(
       diffAxes(snap.axes, live.axisScores, cause.source ?? "rescore", iso(ctx.now)),
     ),
-    driftReason: state === REJECTED ? "pass_reason_invalidated" : "tier_moved",
+    driftReason: state === PASSED ? "pass_reason_invalidated" : "tier_moved",
     driftStatus: "open",
     detectedAt: iso(ctx.now),
   });
@@ -134,7 +136,7 @@ export const setFirmOutcome = defineAction<{
     }
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, { outcome, outcomeObservedAt });
     const created: string[] = [];
-    if (firm.lifecycleState === REJECTED && outcome === ACQUIRED_BY_COMPETITOR) {
+    if (normalizeLifecycle(firm.lifecycleState) === PASSED && outcome === ACQUIRED_BY_COMPETITOR) {
       const existing = await ctx.tx.query(
         `SELECT 1 FROM drift_event WHERE "firmId" = $1 AND "driftReason" = 'outcome_diverged' LIMIT 1`,
         [firm.$primaryKey],
@@ -186,8 +188,8 @@ export const reEngageFirm = defineAction<{ firm: FirmObj; driftEvent: DriftObj }
     }
     await resolveDrift(ctx, driftEvent, "re_engaged");
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
-      lifecycleState: "Outreach",
-      currentStage: "Outreach",
+      lifecycleState: "Screening",
+      currentStage: "Screening",
       disposition: null,
       lastReviewed: iso(ctx.now),
     });

@@ -1,7 +1,7 @@
 import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
-import { REJECTED, firmIdFor } from "../../shared/vocab.js";
+import { PASSED, firmIdFor, normalizeLifecycle } from "../../shared/vocab.js";
 import { getObject, insertObject, insertObjects, listObjects } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { type FirmObj, iso, requireObject } from "./common.js";
@@ -108,7 +108,7 @@ export const runSearch = defineAction<{
     const matches = all
       .filter(
         (f) =>
-          f.lifecycleState !== REJECTED &&
+          normalizeLifecycle(f.lifecycleState) !== PASSED &&
           !excluded.has(norm(f.firmName)) &&
           !excluded.has(norm(f.$primaryKey)) &&
           matchesSelection(f, sel),
@@ -190,7 +190,7 @@ export const runMandateSearch = defineAction<{
       sizeMaxUsdM: p.sizeMaxUsdM,
     });
     const firms = (await listObjects(ctx.tx, "Firm")).filter(
-      (f) => f.lifecycleState !== REJECTED && matchesSelection(f, sel),
+      (f) => normalizeLifecycle(f.lifecycleState) !== PASSED && matchesSelection(f, sel),
     );
     const listId = ctx.newId("list");
     await insertObject(ctx.tx, "SearchList", {

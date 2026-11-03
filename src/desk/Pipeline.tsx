@@ -2,17 +2,12 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
+import { LIFECYCLE_STAGES, PASSED } from "../../shared/vocab";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
-// Six-stage funnel vocabulary lives in one module so the Home strip and
+// Funnel vocabulary lives in one module so the Home strip and
 // this page can't disagree about which stage a firm sits in.
-import {
-  LIFECYCLE_BUCKETS,
-  type Lifecycle,
-  STATUS_CHIP,
-  bucketOf,
-  emptyBucketCounts,
-} from "./pipelineBuckets";
+import { type Lifecycle, STATUS_CHIP, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
 import { type RankedFirm, orderEnrichmentQueue } from "./queue";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
 import { TIER_COLOR, TIER_LABEL, VOID_BG, outcomeChipStyle, outcomeLabel } from "./tokens";
@@ -69,16 +64,16 @@ function toScoreInput(f: FirmView): ScoreInput {
 
 // ─── Lifecycle vocabulary ───────────────────────────────────────────────
 
-// Chips inside the detail rail read across only the tracked stages
-// (Rejected is a status-page concept, not a lifecycle step).
-const RAIL_STAGES: Lifecycle[] = ["Discovered", "In Review", "Outreach", "In Talks", "Qualified"];
+// Chips inside the detail rail read across the funnel stages. Passed is an
+// outcome, not a step, so it is shown (and filtered) separately.
+const RAIL_STAGES: readonly Lifecycle[] = LIFECYCLE_STAGES;
 
 // Human-readable label for a ReviewDecision.decisionType. Case- and separator-
 // insensitive. Unknown types fall back to a title-cased version of the raw.
 const DECISION_TYPE_LABEL: Record<string, string> = {
   accept: "Reviewed",
   enrich: "Enriched",
-  reject: "Rejected",
+  reject: "Passed",
   re_engage: "Re-engaged",
   keep_passed: "Kept passed",
   advance: "Advanced",
@@ -295,87 +290,119 @@ function PipelineHeader({
 function BucketCounts({
   counts,
   isLoading,
+  passedOnly,
+  onTogglePassed,
 }: {
   counts: Record<Lifecycle, number>;
+  // Passed is an outcome, not a funnel stage: it gets its own filter chip.
+  passedOnly: boolean;
+  onTogglePassed: () => void;
   // True while firms are still fetching. During that window every bucket
   // reads 0 (because the reducer sees no rows), so we must render a
   // skeleton — otherwise the tile falsely reads as "0 firms" for buckets
   // that actually have data on the way.
   isLoading: boolean;
 }): React.ReactElement {
+  const passed = STATUS_CHIP[PASSED];
   return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
-        gap: 12,
-      }}
-    >
-      {LIFECYCLE_BUCKETS.map((b) => {
-        const s = STATUS_CHIP[b];
-        const muted = b === "Rejected";
-        const n = counts[b];
-        return (
-          <div
-            key={b}
-            style={{
-              background: "var(--color-surface)",
-              boxShadow: "var(--shadow-sm)",
-              borderRadius: "var(--radius-md)",
-              padding: 12,
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
-              opacity: muted ? 0.72 : 1,
-            }}
-          >
-            {isLoading ? (
-              <span
-                aria-hidden
-                style={{
-                  display: "block",
-                  height: 24,
-                  width: 46,
-                  borderRadius: "var(--radius-sm)",
-                  background:
-                    "linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0%, color-mix(in srgb, var(--color-text) 16%, transparent) 50%, color-mix(in srgb, var(--color-text) 6%, transparent) 100%)",
-                  backgroundSize: "200% 100%",
-                  animation: "beacon-shimmer 1.6s linear infinite",
-                }}
-              />
-            ) : (
-              <span
-                style={{
-                  fontSize: 21,
-                  fontWeight: 600,
-                  fontVariantNumeric: "tabular-nums",
-                }}
-              >
-                {n}
-              </span>
-            )}
-            <span
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(110px, 1fr))",
+          gap: 12,
+        }}
+      >
+        {LIFECYCLE_STAGES.map((b) => {
+          const s = STATUS_CHIP[b];
+          const n = counts[b];
+          return (
+            <div
+              key={b}
               style={{
+                background: "var(--color-surface)",
+                boxShadow: "var(--shadow-sm)",
+                borderRadius: "var(--radius-md)",
+                padding: 12,
                 display: "flex",
-                alignItems: "center",
-                gap: 6,
-                fontSize: 11,
-                color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+                flexDirection: "column",
+                gap: 4,
               }}
             >
+              {isLoading ? (
+                <span
+                  aria-hidden
+                  style={{
+                    display: "block",
+                    height: 24,
+                    width: 46,
+                    borderRadius: "var(--radius-sm)",
+                    background:
+                      "linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0%, color-mix(in srgb, var(--color-text) 16%, transparent) 50%, color-mix(in srgb, var(--color-text) 6%, transparent) 100%)",
+                    backgroundSize: "200% 100%",
+                    animation: "beacon-shimmer 1.6s linear infinite",
+                  }}
+                />
+              ) : (
+                <span
+                  style={{
+                    fontSize: 21,
+                    fontWeight: 600,
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
+                  {n}
+                </span>
+              )}
               <span
                 style={{
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  background: s.dot,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontSize: 11,
+                  color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
                 }}
-              />
-              {b}
-            </span>
-          </div>
-        );
-      })}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: "50%",
+                    background: s.dot,
+                  }}
+                />
+                {b}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      <div>
+        <button
+          type="button"
+          aria-pressed={passedOnly}
+          onClick={onTogglePassed}
+          title={passedOnly ? "Show every firm" : "Show only firms we passed on"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 6,
+            fontSize: 11,
+            padding: "4px 10px",
+            borderRadius: "var(--radius-chip)",
+            border: "1px solid var(--color-divider)",
+            cursor: "pointer",
+            background: passedOnly ? "var(--color-accent)" : passed.bg,
+            color: passedOnly ? "var(--color-bg)" : passed.fg,
+          }}
+        >
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: passed.dot }} />
+          {PASSED}
+          <span style={{ fontVariantNumeric: "tabular-nums" }}>
+            {isLoading ? "–" : counts[PASSED]}
+          </span>
+        </button>
+      </div>
     </div>
   );
 }
@@ -406,7 +433,7 @@ function FirmRow({
   onSelect: (id: string) => void;
 }): React.ReactElement {
   const { firm, mirror, bucket, rejectionRationale, lastActivity } = row;
-  const isRejected = mirror.hardRejected || bucket === "Rejected";
+  const isRejected = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
   const pct = isRejected ? 0 : pctScore(mirror);
 
@@ -414,7 +441,7 @@ function FirmRow({
   const rejectLabel = mirror.hardRejected
     ? `Hard-rejected · ${mirror.rejectReason}`
     : isRejected
-      ? `Rejected · ${rejectionRationale ?? "reason not on file"}`
+      ? `Passed · ${rejectionRationale ?? "reason not on file"}`
       : null;
 
   return (
@@ -758,7 +785,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
   }
 
   const { firm, mirror, bucket, rejectionRationale } = row;
-  const isReject = mirror.hardRejected || bucket === "Rejected";
+  const isReject = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
   const pct = pctScore(mirror);
 
@@ -919,7 +946,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
         >
           {mirror.hardRejected
             ? `Hard-rejected · ${mirror.rejectReason}`
-            : `Rejected · ${rejectionRationale ?? "reason not on file"}`}
+            : `Passed · ${rejectionRationale ?? "reason not on file"}`}
         </div>
       )}
 
@@ -992,6 +1019,7 @@ function Pipeline(): React.ReactElement {
 
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);
   const [query, setQuery] = React.useState("");
+  const [passedOnly, setPassedOnly] = React.useState(false);
 
   const firms = React.useMemo(() => (data ?? []) as unknown as FirmView[], [data]);
 
@@ -1076,9 +1104,14 @@ function Pipeline(): React.ReactElement {
     return c;
   }, [rows]);
 
+  const visibleRows = React.useMemo(
+    () => (passedOnly ? rows.filter((r) => r.bucket === PASSED) : rows),
+    [rows, passedOnly],
+  );
+
   const selectedRow = React.useMemo(
-    () => rows.find((r) => r.firm.firmId === selectedId),
-    [rows, selectedId],
+    () => visibleRows.find((r) => r.firm.firmId === selectedId),
+    [visibleRows, selectedId],
   );
 
   return (
@@ -1118,7 +1151,12 @@ function Pipeline(): React.ReactElement {
               minWidth: 0,
             }}
           >
-            <BucketCounts counts={counts} isLoading={isLoading && firms.length === 0} />
+            <BucketCounts
+              counts={counts}
+              isLoading={isLoading && firms.length === 0}
+              passedOnly={passedOnly}
+              onTogglePassed={() => setPassedOnly((v) => !v)}
+            />
             <div
               style={{
                 display: "flex",
@@ -1139,7 +1177,7 @@ function Pipeline(): React.ReactElement {
                     fontVariantNumeric: "tabular-nums",
                   }}
                 >
-                  {rows.length}
+                  {visibleRows.length}
                 </span>{" "}
                 of {firms.length} <span style={{ opacity: 0.6 }}>· 679 in master database</span>
               </span>
@@ -1153,7 +1191,7 @@ function Pipeline(): React.ReactElement {
               </span>
             </div>
             <FirmsTable
-              rows={rows}
+              rows={visibleRows}
               selectedId={selectedId}
               onSelect={setSelectedId}
               isLoading={isLoading}
