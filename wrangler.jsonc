@@ -18,11 +18,11 @@
   },
   // The Worker always talks to Postgres over DATABASE_URL; keep the PGlite WASM out of the bundle.
   "alias": { "@electric-sql/pglite": "./worker/no-pglite.ts" },
-  // Nightly demo reset (was the Vercel cron on /api/reset). Secrets: DATABASE_URL, CRON_SECRET.
+  // Nightly demo reset via Cron Trigger. Secrets: DATABASE_URL, CRON_SECRET.
   "triggers": { "crons": ["0 4 * * *"] },
   "observability": { "enabled": true },
   "env": {
-    // The second Vercel project (beacon-demo-two.vercel.app): same build, no database, no cron.
+    // Second deployment (beacon-demo): same build, no database, no cron.
     "demo": {
       "name": "beacon-demo",
       "workers_dev": true,

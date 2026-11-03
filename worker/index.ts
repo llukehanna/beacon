@@ -1,7 +1,7 @@
 /**
  * Cloudflare Workers entry. Static assets (the Vite build) are served by the
- * platform with an SPA fallback; /api/* runs here through the same handlers
- * that were Vercel Functions; the nightly Cron Trigger runs the reset.
+ * platform with an SPA fallback; /api/* runs here through the handlers in
+ * api/; the nightly Cron Trigger runs the demo reset.
  */
 import * as actions from "../api/actions.js";
 import * as links from "../api/links.js";
@@ -72,7 +72,7 @@ export default {
     return withDb(ctx, () => handler(request));
   },
 
-  /** Replaces the Vercel cron on /api/reset; same throttle as the demo bar's button. */
+  /** Nightly Cron Trigger: runs the same reset (and throttle) as the demo bar's button. */
   async scheduled(_controller: unknown, _env: Env, ctx: ExecutionContext): Promise<void> {
     const res = await withDb(ctx, () => reset.POST());
     if (!res.ok) {
