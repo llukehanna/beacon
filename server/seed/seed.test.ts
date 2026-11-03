@@ -23,10 +23,18 @@ describe("resetDemo", () => {
 
     expect(await n(`SELECT count(*)::int AS n FROM firm`)).toBe(700);
     expect(
-      await n(`SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Qualified'`),
+      await n(
+        `SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" IN ('Qualified','Outreach','NDA','IOI','LOI','Closed')`,
+      ),
     ).toBeGreaterThanOrEqual(6);
+    for (const stage of ["Outreach", "NDA", "IOI", "LOI", "Closed"]) {
+      expect(
+        await n(`SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = '${stage}'`),
+        stage,
+      ).toBeGreaterThanOrEqual(1);
+    }
     expect(
-      await n(`SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Rejected'`),
+      await n(`SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Passed'`),
     ).toBeGreaterThanOrEqual(20);
     expect(await n(`SELECT count(*)::int AS n FROM mandate`)).toBe(3);
     expect(await n(`SELECT count(*)::int AS n FROM search`)).toBe(2);

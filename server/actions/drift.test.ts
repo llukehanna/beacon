@@ -107,14 +107,14 @@ describe("outcomes and resolution", () => {
     );
   });
 
-  it("re-engages a drifted firm into Outreach", async () => {
+  it("re-engages a drifted firm into Screening", async () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
     await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
     await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     await run(db, "reEngageFirm", { firm: firm.$primaryKey, driftEvent: id });
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Outreach");
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Screening");
     expect(await getObject(db, "DriftEvent", id!)).toMatchObject({
       driftStatus: "resolved",
       resolution: "re_engaged",

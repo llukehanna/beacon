@@ -12,6 +12,7 @@ import {
   SearchList,
   SearchMembership,
 } from "@/data/ontology";
+import { PASSED } from "../../shared/vocab";
 import {
   type ScreenableFirm,
   countScreened,
@@ -448,7 +449,7 @@ function FunnelStrip({
                   color: "color-mix(in srgb, var(--color-text) 24%, transparent)",
                 }}
               >
-                →
+                {b === PASSED ? "|" : "→"}
               </span>
             )}
             <span

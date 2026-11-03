@@ -1,24 +1,30 @@
 import { scoreFirm } from "../../shared/scoring.js";
-import { DECISION, QUALIFIED, REJECTED, nextLifecycle } from "../../shared/vocab.js";
+import {
+  DECISION,
+  type LifecycleState,
+  PASSED,
+  isQualifiedOrLater,
+  nextLifecycle,
+  normalizeLifecycle,
+} from "../../shared/vocab.js";
 import { updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { type FirmObj, iso, logDecision, snapshotScore } from "./common.js";
 import { defineAction } from "./types.js";
 
-const TERMINAL = new Set<string>([QUALIFIED, REJECTED]);
-const stateOf = (firm: FirmObj): string => firm.lifecycleState ?? "Discovered";
+const stateOf = (firm: FirmObj): LifecycleState => normalizeLifecycle(firm.lifecycleState);
 
 export const qualifyFirm = defineAction<{ firm: FirmObj }>({
   params: { firm: { type: { object: "Firm" } } },
   async run(ctx, { firm }) {
     const state = stateOf(firm);
-    if (TERMINAL.has(state)) {
+    if (isQualifiedOrLater(state) || state === PASSED) {
       throw new ActionError(`Firm is already ${state}`, 409);
     }
     const result = await snapshotScore(ctx, firm, "qualifyFirm");
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
-      lifecycleState: QUALIFIED,
-      currentStage: QUALIFIED, // the pipeline buckets by currentStage first
+      lifecycleState: "Qualified",
+      currentStage: "Qualified", // the pipeline buckets by currentStage first
       disposition: "qualified",
       scoreAtQualification: result.weightedTotal,
       tierAtQualification: result.tier,
@@ -42,13 +48,14 @@ export const rejectFirm = defineAction<{ firm: FirmObj; rejectionRationale: stri
     if (rationale === "") {
       throw new ActionError("A rejection needs a rationale");
     }
-    if (stateOf(firm) === REJECTED) {
-      throw new ActionError("Firm is already Rejected", 409);
+    const state = stateOf(firm);
+    if (state === PASSED || state === "Closed") {
+      throw new ActionError(`Firm is already ${state}`, 409);
     }
     const result = await snapshotScore(ctx, firm, "rejectFirm");
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
-      lifecycleState: REJECTED,
-      currentStage: REJECTED,
+      lifecycleState: PASSED,
+      currentStage: PASSED,
       disposition: "rejected",
       lastReviewed: iso(ctx.now),
     });
@@ -67,8 +74,11 @@ export const advanceStage = defineAction<{ firm: FirmObj; targetState: string }>
   params: { firm: { type: { object: "Firm" } }, targetState: { type: "string" } },
   async run(ctx, { firm, targetState }) {
     const current = stateOf(firm);
-    if (TERMINAL.has(current)) {
-      throw new ActionError(`Firm is ${current}; its pipeline is closed`, 409);
+    if (current === PASSED) {
+      throw new ActionError("Firm is Passed; its pipeline is closed", 409);
+    }
+    if (!isQualifiedOrLater(current)) {
+      throw new ActionError(`Firm is ${current}; qualify it before advancing`, 409);
     }
     const expected = nextLifecycle(current);
     if (targetState !== expected) {

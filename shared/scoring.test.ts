@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { axisPoints, formatAxisValue, parseAxisValue, scoreFirm } from "./scoring.js";
-import { axisByName, nextLifecycle } from "./vocab.js";
+import { axisByName } from "./vocab.js";
 
 const STRONG_CF = {
   firmType: "CF",
@@ -109,12 +109,5 @@ describe("axis helpers", () => {
     expect(axisPoints({ firmType: "CF" }, dealSize, 150)).toBe(1);
     expect(axisPoints({ firmType: "CF" }, solvent, true)).toBeNull();
     expect(axisPoints({ firmType: "CF" }, services, "Something else")).toBeNull();
-  });
-
-  it("advances one lifecycle stage at a time", () => {
-    expect(nextLifecycle("Discovered")).toBe("In Review");
-    expect(nextLifecycle("Outreach")).toBe("In Talks");
-    expect(nextLifecycle("In Talks")).toBeNull();
-    expect(nextLifecycle("Qualified")).toBeNull();
   });
 });

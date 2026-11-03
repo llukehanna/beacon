@@ -23,9 +23,22 @@ describe("qualifyFirm", () => {
     ]);
   });
 
-  it("refuses a terminal firm", async () => {
+  it("qualifies from Discovered or Screening, and refuses once past Qualified", async () => {
     const db = await createTestDb();
-    const firm = await seedFirm(db, { lifecycleState: "Rejected" });
+    for (const lifecycleState of ["Discovered", "Screening"]) {
+      const firm = await seedFirm(db, { lifecycleState, currentStage: lifecycleState });
+      await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+      expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Qualified");
+    }
+    const later = await seedFirm(db, { lifecycleState: "NDA", currentStage: "NDA" });
+    await expect(run(db, "qualifyFirm", { firm: later.$primaryKey })).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it("refuses a firm that is already Passed", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { lifecycleState: "Passed" });
     await expect(run(db, "qualifyFirm", { firm: firm.$primaryKey })).rejects.toMatchObject({
       status: 409,
     });
@@ -43,14 +56,14 @@ describe("rejectFirm", () => {
 
   it("rejects, snapshots, and records the rationale", async () => {
     const db = await createTestDb();
-    const firm = await seedFirm(db, { employees: 6, currentStage: "In Review" });
+    const firm = await seedFirm(db, { employees: 6, currentStage: "Screening" });
     await run(db, "rejectFirm", {
       firm: firm.$primaryKey,
       rejectionRationale: "Too small — 6 staff.",
     });
     expect(await getObject(db, "Firm", firm.$primaryKey)).toMatchObject({
-      lifecycleState: "Rejected",
-      currentStage: "Rejected",
+      lifecycleState: "Passed",
+      currentStage: "Passed",
     });
     const [d] = await listObjects(db, "ReviewDecision", byFirm(firm.$primaryKey));
     expect([d.decisionType, d.rejectionRationale]).toEqual(["reject", "Too small — 6 staff."]);
@@ -60,21 +73,78 @@ describe("rejectFirm", () => {
 });
 
 describe("advanceStage", () => {
-  it("moves exactly one stage forward", async () => {
+  it("refuses to move a firm that has not been qualified", async () => {
     const db = await createTestDb();
-    const firm = await seedFirm(db, { lifecycleState: "In Review" });
-    await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" });
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.currentStage).toBe("Outreach");
+    for (const lifecycleState of ["Discovered", "Screening"]) {
+      const firm = await seedFirm(db, { lifecycleState, currentStage: lifecycleState });
+      await expect(
+        run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" }),
+      ).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/qualif/i) });
+    }
+  });
+
+  it("walks a qualified firm one stage at a time through to Closed", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    for (const stage of ["Outreach", "NDA", "IOI", "LOI", "Closed"]) {
+      await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: stage });
+      expect(await getObject(db, "Firm", firm.$primaryKey)).toMatchObject({
+        lifecycleState: stage,
+        currentStage: stage,
+      });
+    }
+    await expect(
+      run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Closed" }),
+    ).rejects.toMatchObject({ status: 409 });
+  });
+
+  it("rejects skipping a stage", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { lifecycleState: "Qualified", currentStage: "Qualified" });
+    await expect(
+      run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "NDA" }),
+    ).rejects.toThrow(/next stage is Outreach/);
+  });
+
+  it("refuses a Passed firm", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { lifecycleState: "Passed", currentStage: "Passed" });
     await expect(
       run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" }),
-    ).rejects.toThrow(/next stage is In Talks/);
+    ).rejects.toMatchObject({ status: 409 });
   });
 
   it("does not rescore", async () => {
     const db = await createTestDb();
-    const firm = await seedFirm(db);
+    const firm = await seedFirm(db, { lifecycleState: "Qualified", currentStage: "Qualified" });
     await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" });
     expect(await listObjects(db, "QualificationScore", byFirm(firm.$primaryKey))).toHaveLength(0);
+  });
+});
+
+describe("rejectFirm from later stages", () => {
+  it("passes a firm that is already in NDA", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { lifecycleState: "NDA", currentStage: "NDA" });
+    await run(db, "rejectFirm", {
+      firm: firm.$primaryKey,
+      rejectionRationale: "Terms fell through",
+    });
+    expect(await getObject(db, "Firm", firm.$primaryKey)).toMatchObject({
+      lifecycleState: "Passed",
+      currentStage: "Passed",
+    });
+  });
+
+  it("refuses a firm that is Closed or already Passed", async () => {
+    const db = await createTestDb();
+    for (const lifecycleState of ["Closed", "Passed"]) {
+      const firm = await seedFirm(db, { lifecycleState, currentStage: lifecycleState });
+      await expect(
+        run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "No" }),
+      ).rejects.toMatchObject({ status: 409 });
+    }
   });
 });
 

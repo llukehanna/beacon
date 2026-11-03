@@ -35,7 +35,7 @@ describe("resetFromSnapshot", () => {
     await saveSnapshot(restored, takenAt);
     // Visitors change things before the next reset; the snapshot must not care.
     await restored.query(`DELETE FROM review_decision`);
-    await restored.query(`UPDATE firm SET "lifecycleState" = 'Rejected'`);
+    await restored.query(`UPDATE firm SET "lifecycleState" = 'Passed'`);
     expect(await resetFromSnapshot(restored, later)).toEqual({ firms: 700 });
 
     const rebuilt = await createTestDb();

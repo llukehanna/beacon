@@ -16,15 +16,16 @@
  *
  * Queue ranking then applies:
  *   • hard-screened → very bottom
- *   • terminal (Qualified / Rejected lifecycle) → above hard-screened
+ *   • terminal (Qualified or later, or Passed) → above hard-screened
  *   • workable → gain desc, fewer-missing tiebreak
  */
+import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab";
 import { type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
 
 export interface QueueFirm extends ScoreInput {
   firmId: string;
   firmName?: string | null;
-  // Lifecycle carried through so the ranker can push Qualified / Rejected
+  // Lifecycle carried through so the ranker can push Qualified-or-later / Passed
   // firms to the bottom — the desk is a to-do list, not a leaderboard.
   lifecycleState?: string | null;
   currentStage?: string | null;
@@ -268,8 +269,6 @@ const ENRICHABLE: { field: keyof ScoreInput; max: number; csOnly?: boolean }[] =
   { field: "feeGeneratingCount", max: 2 },
 ];
 
-const TERMINAL_STATES = new Set(["qualified", "rejected"]);
-
 // Disposition strings that indicate the firm was blocked by a hard-screen
 // rule, however encoded server-side. Matched case-insensitively as a
 // substring so variants like "hard_rejected" / "hard-screened" / "screened
@@ -280,10 +279,13 @@ function isMissing(v: unknown): boolean {
   return v === null || v === undefined || v === "";
 }
 
+// Decided: the firm is Passed or has been qualified (so it is past the
+// screening work this queue exists for).
 function isTerminal(firm: QueueFirm): boolean {
-  const life = (firm.lifecycleState ?? "").trim().toLowerCase();
-  const stage = (firm.currentStage ?? "").trim().toLowerCase();
-  return TERMINAL_STATES.has(life) || TERMINAL_STATES.has(stage);
+  return [firm.lifecycleState, firm.currentStage].some((raw) => {
+    const state = normalizeLifecycle(raw);
+    return state === PASSED || isQualifiedOrLater(state);
+  });
 }
 
 export function dispositionMarksHardScreen(disposition: string | null | undefined): boolean {
@@ -344,7 +346,7 @@ export function orderEnrichmentQueue(
       if (a.hardScreened !== b.hardScreened) {
         return a.hardScreened ? 1 : -1;
       }
-      // 2. Terminal firms (Qualified / Rejected lifecycle) drop below active
+      // 2. Terminal firms (Qualified or later, or Passed) drop below active
       //    work but above hard-screened.
       if (a.terminal !== b.terminal) {
         return a.terminal ? 1 : -1;
