@@ -4,7 +4,9 @@
  * Extracted from Accuracy.tsx so the Home trust panel quotes the same
  * numbers the /accuracy page it links to will show. A finding is:
  *   • abstain  — confidenceTier === "abstain" OR findingStatus === "abstained"
- *   • agree    — non-abstain AND verifiedByHuman === true
+ *   • agree    — non-abstain AND (verifiedByHuman === true OR an analyst-
+ *                authored finding whose findingStatus is "verified": the
+ *                analyst entered the value themselves, so it is settled)
  *   • override — non-abstain AND findingStatus === "rejected"
  *   • pending  — non-abstain, undecided (excluded from agreement/override)
  *
@@ -15,7 +17,14 @@
  *   abstention%  = abstain / all-findings        (denominator = everything
  *                                                 in the group)
  */
-import { ACQUIRED_BY_COMPETITOR, PASSED, normalizeLifecycle, providerLabel } from "./vocab.js";
+import {
+  ACQUIRED_BY_COMPETITOR,
+  AGENT,
+  ANALYST,
+  PASSED,
+  normalizeLifecycle,
+  providerLabel,
+} from "./vocab.js";
 
 export interface RatedFinding {
   findingId: string;
@@ -40,7 +49,10 @@ export function classify(f: RatedFinding): "abstain" | "agree" | "override" | "p
   if (ct === "abstain" || fs === "abstained") {
     return "abstain";
   }
-  if (f.verifiedByHuman === true) {
+  if (
+    f.verifiedByHuman === true ||
+    ((f.provider ?? "").trim().toLowerCase() === ANALYST && fs === "verified")
+  ) {
     return "agree";
   }
   if (fs === "rejected") {
@@ -225,10 +237,17 @@ export function axisLabel(raw: string | undefined): string {
   return AXIS_LABEL[canonicalAxisKey(raw)] ?? titleize(raw);
 }
 
-// Provider strings we discard from the BY PROVIDER breakdown — these are not
-// real data sources, so quoting a rate against them is misleading. Findings
-// with these providers still count in overall and BY AXIS metrics.
+// Provider strings that name no data source at all. Findings carrying them
+// are only meaningful as abstentions ("no source had it").
 const NON_PROVIDER_VALUES = new Set(["", "none", "unknown"]);
+
+// Authors rather than sources: the agent records abstentions, the analyst
+// records values they entered themselves. Neither can be right or wrong about
+// a value the way a data source can, so they get no row of their own.
+const PSEUDO_PROVIDERS = new Set([AGENT, ANALYST]);
+
+/** Key of the BY PROVIDER row that counts abstentions no real source produced. */
+export const NO_SOURCE_KEY = "__none__";
 
 // Hard-gate axes are yes/no facts captured through Beacon's gate UI, not the
 // rubric. Aggregating agreement / override on binary gates with tiny sample
@@ -300,11 +319,15 @@ function byLabel(a: RateRow, b: RateRow): number {
 
 export function accuracyTables(cells: readonly FindingCell[]): AccuracyTables {
   const providers = new Map<string, FindingCell[]>();
+  const noSource: FindingCell[] = [];
   for (const c of cells) {
-    // "unknown" / "none" / empty aren't providers — they'd otherwise appear as
-    // a row that carries abstained/analyst-entered findings and publish a
-    // misleading rate against a non-source.
-    if (NON_PROVIDER_VALUES.has(c.provider.trim().toLowerCase())) {
+    const provider = c.provider.trim().toLowerCase();
+    // Neither a missing provider nor the agent/analyst authors are data
+    // sources, so a rate against them would be misleading. Their findings
+    // still count in overall and BY AXIS; their abstentions are tallied as
+    // "No source" below.
+    if (NON_PROVIDER_VALUES.has(provider) || PSEUDO_PROVIDERS.has(provider)) {
+      noSource.push(c);
       continue;
     }
     providers.set(c.provider, [...(providers.get(c.provider) ?? []), c]);
@@ -320,6 +343,14 @@ export function accuracyTables(cells: readonly FindingCell[]): AccuracyTables {
     // decided the row would be a stat about a tag, not a data source.
     .filter((row) => row.r.total > 0 && !(row.key.includes("+") && row.r.decided === 0))
     .sort(byLabel);
+  const abstained = noSource.reduce((n, c) => n + c.abstain, 0);
+  if (abstained > 0) {
+    byProvider.push({
+      key: NO_SOURCE_KEY,
+      label: "No source",
+      r: ratesFromCounts({ agree: 0, override: 0, abstain: abstained, total: abstained }),
+    });
+  }
 
   // Bucket by the canonical (stripped-lowercase) axis key so residual
   // snake_case/camelCase variants land in the same row. The row is named

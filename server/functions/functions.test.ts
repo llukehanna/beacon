@@ -97,6 +97,10 @@ beforeAll(async () => {
     // findingStatus alone marks an abstention; a rejected one is an override.
     f("edge_status_abstained", { findingStatus: "abstained" }, "11"),
     f("edge_rejected", { findingStatus: "rejected" }, "12"),
+    // Analyst-authored: verified without verifiedByHuman, still an agreement.
+    f("edge_analyst", { provider: "analyst", findingStatus: "verified" }, "13"),
+    // Only the analyst's own value is credited by status; another provider's is merely pending.
+    f("edge_other_verified", { provider: "dealdb", findingStatus: "verified" }, "14"),
   ]);
 }, 600_000);
 
@@ -329,6 +333,19 @@ describe("accuracySummary", () => {
       byKey(a).localeCompare(byKey(b)),
     );
     expect(sql).toEqual(js);
+    // The analyst-verified edge finding is an agreement on both sides.
+    const analyst = sql.find((c) => c.axis === "edge_analyst");
+    expect(analyst).toMatchObject({ provider: "analyst", agree: 1, override: 0, total: 1 });
+    expect(sql.find((c) => c.axis === "edge_other_verified")).toMatchObject({ agree: 0 });
+  });
+
+  it("reports the agent's abstentions as 'No source' rather than a provider row", async () => {
+    const summary = (await runFunction(db, "accuracySummary")) as AccuracySummary;
+    const keys = summary.byProvider.map((r) => r.key);
+    expect(keys).not.toContain("agent");
+    expect(keys).not.toContain("analyst");
+    expect(keys.at(-1)).toBe("__none__");
+    expect(summary.byProvider.at(-1)!.r.abstention).toBe(100);
   });
 });
 
