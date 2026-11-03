@@ -9,7 +9,7 @@ import {
   axisByName,
   normalizeLifecycle,
 } from "../../shared/vocab.js";
-import { insertObject, listObjects, updateObject } from "../db/repo.js";
+import { insertObject, listAll, updateObject } from "../db/repo.js";
 import { type Observation, observe } from "../enrichment/providers.js";
 import { reconcileAxis, sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
@@ -58,7 +58,7 @@ export const runAgentEnrichment = defineAction<{ firm: FirmObj }>({
   params: { firm: { type: { object: "Firm" } } },
   async run(ctx, { firm }) {
     const model = firmModel(firm);
-    const existing = await listObjects(ctx.tx, "ResearchFinding", {
+    const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
@@ -301,7 +301,7 @@ export const enrichFirm = defineAction<EnrichParams>({
     // Record analyst evidence only for manual values no existing finding backs;
     // accepted agent findings are verified separately by the desk's flush.
     const manual = parseKeyList(p.fieldsEnteredManually);
-    const existing = await listObjects(ctx.tx, "ResearchFinding", {
+    const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getObject, listObjects } from "../db/repo.js";
+import { getObject, listAll } from "../db/repo.js";
 import { STRONG_CF, createTestDb, run, seedFirm } from "../testing.js";
 
 const byFirm = (firmId: string) => ({ where: { firmId: { $eq: firmId } } });
@@ -16,11 +16,19 @@ describe("qualifyFirm", () => {
       tierAtQualification: "A",
       scoreAtQualification: 18,
     });
-    expect(await listObjects(db, "QualificationScore", byFirm(firm.$primaryKey))).toHaveLength(1);
-    const decisions = await listObjects(db, "ReviewDecision", byFirm(firm.$primaryKey));
+    expect(await listAll(db, "QualificationScore", byFirm(firm.$primaryKey))).toHaveLength(1);
+    const decisions = await listAll(db, "ReviewDecision", byFirm(firm.$primaryKey));
     expect(decisions.map((d) => [d.decisionType, d.tierAtDecision, d.decidedBy])).toEqual([
       ["accept", "A", "demo-analyst"],
     ]);
+  });
+
+  it("names the object types it wrote to, so clients refresh only those", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    const result = await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    expect(result.types).toEqual(["Firm", "QualificationScore", "ReviewDecision"]);
+    expect(result.modified).toEqual([firm.$primaryKey]);
   });
 
   it("qualifies from Discovered or Screening, and refuses once past Qualified", async () => {
@@ -65,9 +73,9 @@ describe("rejectFirm", () => {
       lifecycleState: "Passed",
       currentStage: "Passed",
     });
-    const [d] = await listObjects(db, "ReviewDecision", byFirm(firm.$primaryKey));
+    const [d] = await listAll(db, "ReviewDecision", byFirm(firm.$primaryKey));
     expect([d.decisionType, d.rejectionRationale]).toEqual(["reject", "Too small — 6 staff."]);
-    const [s] = await listObjects(db, "QualificationScore", byFirm(firm.$primaryKey));
+    const [s] = await listAll(db, "QualificationScore", byFirm(firm.$primaryKey));
     expect(s.computedBy).toBe("rejectFirm");
   });
 });
@@ -119,7 +127,7 @@ describe("advanceStage", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { lifecycleState: "Qualified", currentStage: "Qualified" });
     await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" });
-    expect(await listObjects(db, "QualificationScore", byFirm(firm.$primaryKey))).toHaveLength(0);
+    expect(await listAll(db, "QualificationScore", byFirm(firm.$primaryKey))).toHaveLength(0);
   });
 });
 

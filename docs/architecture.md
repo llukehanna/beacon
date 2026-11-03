@@ -4,7 +4,7 @@ Beacon is a React app over a small TypeScript backend. One schema file describes
 
 ```mermaid
 flowchart LR
-  UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · reset/]
+  UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · functions · reset/]
   API --> Actions[Action handlers<br/>one transaction each]
   Actions --> Rubric[Shared rubric<br/>shared/scoreMirror.ts]
   UI --> Rubric
@@ -22,8 +22,8 @@ flowchart LR
 
 - **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
-- **API.** `GET /api/objects` lists one type with `$eq` filters and ordering, `POST /api/links` follows a link for many source objects in one query, and `POST /api/actions` applies a named action.
-- **Frontend.** `src/data/hooks.ts` exposes typed hooks keyed by the same type names. They keep the OSDK hook names the pages were written against, so the screens didn't change when the backend did.
+- **API.** `GET /api/objects` lists one type with `$eq` filters and ordering, a page at a time (`pageSize` up to 1000 and an opaque `pageToken`). `POST /api/links` follows a link for many source objects in one query, `POST /api/actions` applies a named action and reports which object types it wrote, and `GET /api/functions` runs a named query function (`homeSummary`, `accuracySummary`) that aggregates in SQL so the browser receives numbers instead of rows.
+- **Frontend.** `src/data/hooks.ts` exposes typed hooks keyed by the same type names. They keep the OSDK hook names the pages were written against, so the screens didn't change when the backend did. `useOsdkQuery` calls a query function, and a successful action refreshes only the object types it wrote, the links that touch them, and the function results.
 
 Locally the database is PGlite (Postgres compiled to WebAssembly, persisted under `.data/`). In production it is Neon Postgres. The same SQL runs on both.
 

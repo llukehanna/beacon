@@ -1753,6 +1753,7 @@ function DecisionMemory({
   const { data: decisionData, isLoading: decisionsLoading } = useOsdkObjects(ReviewDecision, {
     pageSize: 500,
     orderBy: { decidedAt: "desc" },
+    autoFetchMore: true,
   });
 
   const cohortIds = React.useMemo(() => {
@@ -2690,6 +2691,7 @@ function FindingsSection({
   const { data, isLoading, error } = useOsdkObjects(ResearchFinding, {
     where: { firmId: { $eq: firmId } },
     pageSize: 100,
+    autoFetchMore: true,
   });
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
   // resolveConflictAction now lives inside ConflictFindingCard so per-card
@@ -3724,6 +3726,7 @@ function EnrichmentPanel({
   const { data: findingsData } = useOsdkObjects(ResearchFinding, {
     where: { firmId: { $eq: firmId } },
     pageSize: 100,
+    autoFetchMore: true,
   });
   const findings = React.useMemo(
     () => (findingsData ?? []) as unknown as FindingLike[],
@@ -4186,6 +4189,7 @@ function Desk(): React.ReactElement {
     where: { mandateId: { $eq: pinnedMandateId } },
     orderBy: { runAt: "desc" },
     pageSize: 20,
+    autoFetchMore: true,
   });
   const searchIndex = React.useMemo<number | undefined>(() => {
     if (!searchActive) {

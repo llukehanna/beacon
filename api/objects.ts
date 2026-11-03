@@ -11,11 +11,16 @@ export async function GET(request: Request): Promise<Response> {
     if (!isObjectTypeName(type)) {
       throw new HttpError(`Unknown object type "${type}"`, 404);
     }
-    const data = await listObjects(await getDb(), type, {
+    const size = url.searchParams.get("pageSize");
+    const pageToken = url.searchParams.get("pageToken") ?? undefined;
+    const page = await listObjects(await getDb(), type, {
       where: jsonParam(url, "where") as ListOptions["where"],
       orderBy: jsonParam(url, "orderBy") as ListOptions["orderBy"],
+      // listObjects caps an over-large pageSize; a non-number is the caller's mistake.
+      pageSize: size === null ? undefined : Number(size),
+      pageToken,
     });
-    return json({ data });
+    return json(page);
   } catch (e) {
     return jsonError(e);
   }

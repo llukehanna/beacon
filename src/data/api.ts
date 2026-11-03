@@ -28,7 +28,18 @@ export interface ObjectQuery {
   orderBy?: Record<string, "asc" | "desc">;
 }
 
-export async function fetchObjects(type: string, q: ObjectQuery = {}): Promise<WireObject[]> {
+export interface ObjectPageQuery extends ObjectQuery {
+  pageSize?: number;
+  pageToken?: string;
+}
+
+export interface ObjectPage {
+  data: WireObject[];
+  /** Null on the last page. */
+  nextPageToken: string | null;
+}
+
+export async function fetchObjectsPage(type: string, q: ObjectPageQuery = {}): Promise<ObjectPage> {
   const params = new URLSearchParams({ type });
   if (q.where) {
     params.set("where", JSON.stringify(q.where));
@@ -36,10 +47,22 @@ export async function fetchObjects(type: string, q: ObjectQuery = {}): Promise<W
   if (q.orderBy) {
     params.set("orderBy", JSON.stringify(q.orderBy));
   }
-  const body = await readJson<{ data: WireObject[] }>(
-    await fetch(`/api/objects?${params.toString()}`),
-  );
-  return body.data;
+  if (q.pageSize !== undefined) {
+    params.set("pageSize", String(q.pageSize));
+  }
+  if (q.pageToken !== undefined) {
+    params.set("pageToken", q.pageToken);
+  }
+  return readJson<ObjectPage>(await fetch(`/api/objects?${params.toString()}`));
+}
+
+/** Runs a server query function (see server/functions/) and returns its value. */
+export async function fetchFunction<T>(name: string, params: Record<string, unknown>): Promise<T> {
+  const query = new URLSearchParams({ name });
+  if (Object.keys(params).length > 0) {
+    query.set("params", JSON.stringify(params));
+  }
+  return (await readJson<{ value: T }>(await fetch(`/api/functions?${query.toString()}`))).value;
 }
 
 export async function fetchLinks(
@@ -56,8 +79,11 @@ export async function fetchLinks(
 }
 
 export interface ActionResponse {
+  /** Primary keys of the objects the action created and modified. */
   created?: string[];
   modified?: string[];
+  /** Object types the action wrote to; absent means "unknown", and the client refreshes everything. */
+  types?: string[];
   note?: string;
 }
 

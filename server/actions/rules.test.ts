@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
-import { getObject, insertObject, listObjects } from "../db/repo.js";
+import { getObject, insertObject, listAll } from "../db/repo.js";
 import { createTestDb, run, seedFirm } from "../testing.js";
 
 async function pendingRule(db: Db, id = "r1") {
@@ -18,8 +18,7 @@ async function pendingRule(db: Db, id = "r1") {
   return id;
 }
 
-const configs = (db: Db) =>
-  listObjects(db, "HardScreenConfig", { orderBy: { configVersion: "asc" } });
+const configs = (db: Db) => listAll(db, "HardScreenConfig", { orderBy: { configVersion: "asc" } });
 
 describe("rule lifecycle", () => {
   it("approve → amend → unapprove keeps one active, versioned config", async () => {
@@ -87,7 +86,7 @@ describe("clusterRejections", () => {
     await rejectedSmallFirms(db);
     const result = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
     expect(result.note).toMatch(/heuristic/);
-    const [rule] = await listObjects(db, "ProposedRule");
+    const [rule] = await listAll(db, "ProposedRule");
     expect(rule).toMatchObject({
       predicateAxis: "employees",
       ruleOperator: "<",
@@ -98,7 +97,7 @@ describe("clusterRejections", () => {
     expect(JSON.parse(rule.supportingDecisionIds!)).toHaveLength(5);
     expect(rule.projectedScreenCount).toBe(2); // queue firms with 5 and 8 staff
     await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
-    expect(await listObjects(db, "ProposedRule")).toHaveLength(1);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(1);
   });
 
   it("calls the clusterer outside the transaction", async () => {
@@ -123,7 +122,7 @@ describe("clusterRejections", () => {
     };
     await run(db, "clusterRejections", {}, { clusterer: spy });
     expect(seen).toEqual([false]);
-    expect(await listObjects(real, "ProposedRule")).toHaveLength(1);
+    expect(await listAll(real, "ProposedRule")).toHaveLength(1);
   });
 
   it("does not duplicate a proposal another run committed while the clusterer was working", async () => {
@@ -136,13 +135,13 @@ describe("clusterRejections", () => {
       return out;
     };
     await run(real, "clusterRejections", {}, { clusterer: racing });
-    expect(await listObjects(real, "ProposedRule")).toHaveLength(1);
+    expect(await listAll(real, "ProposedRule")).toHaveLength(1);
   });
 
   it("drops proposals with bad axes, bad operators, or too little real support", async () => {
     const db = await createTestDb();
     await rejectedSmallFirms(db);
-    const decisions = await listObjects(db, "ReviewDecision", {
+    const decisions = await listAll(db, "ReviewDecision", {
       where: { decisionType: { $eq: "reject" } },
     });
     const ids = decisions.map((d) => d.$primaryKey);
@@ -184,7 +183,7 @@ describe("clusterRejections", () => {
       ],
     });
     await run(db, "clusterRejections", {}, { clusterer: fake });
-    expect(await listObjects(db, "ProposedRule")).toHaveLength(0);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(0);
   });
 
   it("counts distinct firms, not decisions", async () => {
@@ -204,7 +203,7 @@ describe("clusterRejections", () => {
       decidedAt: new Date().toISOString(),
     });
     const ids = (
-      await listObjects(db, "ReviewDecision", { where: { decisionType: { $eq: "reject" } } })
+      await listAll(db, "ReviewDecision", { where: { decisionType: { $eq: "reject" } } })
     ).map((d) => d.$primaryKey);
     expect(ids).toHaveLength(4);
     const fake: Clusterer = async () => ({
@@ -221,6 +220,6 @@ describe("clusterRejections", () => {
       ],
     });
     await run(db, "clusterRejections", {}, { clusterer: fake });
-    expect(await listObjects(db, "ProposedRule")).toHaveLength(0);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(0);
   });
 });

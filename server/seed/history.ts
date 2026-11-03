@@ -10,7 +10,7 @@ import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Db } from "../db/client.js";
-import { getObject, listObjects } from "../db/repo.js";
+import { getObject, listAll } from "../db/repo.js";
 import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
@@ -68,9 +68,9 @@ export async function seedHistory(
   async function enrichLikeAnAnalyst(id: string): Promise<void> {
     await act("runAgentEnrichment", { firm: id });
     const firm = await loadFirm(id);
-    const open = (
-      await listObjects(db, "ResearchFinding", { where: { firmId: { $eq: id } } })
-    ).filter((f) => f.findingStatus === "proposed" || f.findingStatus === "abstained");
+    const open = (await listAll(db, "ResearchFinding", { where: { firmId: { $eq: id } } })).filter(
+      (f) => f.findingStatus === "proposed" || f.findingStatus === "abstained",
+    );
     const accepted: Record<string, unknown> = {};
     const manual: string[] = [];
     const overridden: string[] = [];
@@ -133,7 +133,7 @@ export async function seedHistory(
   for (const m of MANDATES) {
     await act("runMandateSearch", m);
   }
-  const mandates = await listObjects(db, "Mandate", { orderBy: { createdAt: "asc" } });
+  const mandates = await listAll(db, "Mandate", { orderBy: { createdAt: "asc" } });
   await act("runSearch", {
     mandate: mandates[0].$primaryKey,
     geographies: ["United States", "Canada"],
@@ -148,9 +148,9 @@ export async function seedHistory(
   });
 
   // 2. Enrich the searched firms plus a few CS firms.
-  const members = (await listObjects(db, "SearchMembership")).map((m) => m.firmId!);
+  const members = (await listAll(db, "SearchMembership")).map((m) => m.firmId!);
   const csFirms = (
-    await listObjects(db, "Firm", {
+    await listAll(db, "Firm", {
       where: { firmType: { $eq: "CS" } },
       orderBy: { firmName: "asc" },
     })
@@ -163,7 +163,7 @@ export async function seedHistory(
   }
 
   // 3. Qualify the strongest; move a few through the pipeline.
-  const ranked = (await listObjects(db, "Firm"))
+  const ranked = (await listAll(db, "Firm"))
     .filter((f) => f.enrichedBy === USER)
     .map((f) => ({ f, s: scoreFirm(f) }))
     .sort((a, b) => b.s.weightedTotal - a.s.weightedTotal);
@@ -186,7 +186,7 @@ export async function seedHistory(
   // 4. Rejections that form clusters the learning loop can find.
   const taken = new Set(qualified);
   const pool = async () =>
-    (await listObjects(db, "Firm", { orderBy: { firmName: "asc" } })).filter(
+    (await listAll(db, "Firm", { orderBy: { firmName: "asc" } })).filter(
       (f) =>
         !taken.has(f.$primaryKey) &&
         ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
@@ -238,9 +238,7 @@ export async function seedHistory(
 
   // 5. Learn from the rejections; approve the clearest rule.
   await act("clusterRejections", {});
-  const small = (await listObjects(db, "ProposedRule")).find(
-    (x) => x.predicateAxis === "employees",
-  );
+  const small = (await listAll(db, "ProposedRule")).find((x) => x.predicateAxis === "employees");
   if (small) {
     await act("approveRule", { proposedRule: small.$primaryKey });
   }
@@ -253,7 +251,7 @@ export async function seedHistory(
     await act("setFirmOutcome", { firm: id, outcome: outcomes[i], outcomeObservedAt: at() });
   }
   const earliestRejected = (
-    await listObjects(db, "ReviewDecision", {
+    await listAll(db, "ReviewDecision", {
       where: { decisionType: { $eq: "reject" } },
       orderBy: { decidedAt: "asc" },
     })
@@ -295,7 +293,7 @@ export async function seedHistory(
 
   // 8. One resolved drift so the history shows both states.
   const outcomeDrift = (
-    await listObjects(db, "DriftEvent", { where: { driftReason: { $eq: "outcome_diverged" } } })
+    await listAll(db, "DriftEvent", { where: { driftReason: { $eq: "outcome_diverged" } } })
   )[0];
   if (outcomeDrift) {
     await act("keepPassed", {

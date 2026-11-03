@@ -4,6 +4,7 @@
  * api/; the nightly Cron Trigger runs the demo reset.
  */
 import * as actions from "../api/actions.js";
+import * as functions from "../api/functions.js";
 import * as links from "../api/links.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
@@ -30,6 +31,7 @@ type Handler = (request: Request) => Promise<Response>;
 
 const ROUTES: Record<string, Partial<Record<string, Handler>>> = {
   actions,
+  functions,
   links,
   objects,
   reset,

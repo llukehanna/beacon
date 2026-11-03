@@ -408,6 +408,7 @@ function SearchPage(): React.ReactElement {
     where: { mandateId: { $eq: mandateId ?? "" } },
     orderBy: { runAt: "desc" },
     pageSize: 10,
+    autoFetchMore: true,
   });
   const searches = React.useMemo(
     () => (searchesData ?? []) as unknown as SearchShape[],

@@ -5,6 +5,7 @@
  * badges, band chips, confidence chips). Layout tokens are read from CSS
  * variables (see nocturne.css) via var(--color-*), var(--space-*), etc.
  */
+import { ACQUIRED_BY_COMPETITOR } from "../../shared/vocab";
 
 // Tier palette — matches dataProvider.tierFromScore output.
 export const TIER_COLOR: Record<string, string> = {
@@ -49,23 +50,8 @@ export const FINDING_CHIP: Record<string, { label: string; fg: string; bg: strin
   rejected: { label: "Rejected", fg: "#aab0bd", bg: "rgba(120,125,140,.18)" },
 };
 
-// Human-readable provider labels — keys match server/enrichment/providers.ts.
-export const PROVIDER_LABEL: Record<string, string> = {
-  beacondb: "BeaconDB",
-  dealdb: "Deal DB",
-  filings: "Filings",
-  websearch: "Web search",
-  analyst: "Analyst",
-  agent: "Agent",
-};
-
-/** Label a provider key, including corroboration keys like "dealdb+websearch". */
-export function providerLabel(raw: string): string {
-  return raw
-    .split("+")
-    .map((k) => PROVIDER_LABEL[k] ?? k)
-    .join(" + ");
-}
+// Provider labels live in shared/vocab (the server's accuracySummary sorts by them).
+export { PROVIDER_LABEL, providerLabel } from "../../shared/vocab";
 
 // Body-void background — the design paints the outer void one step darker
 // than the surface token (--color-bg #161826). Everything inside the desk
@@ -99,7 +85,7 @@ export const OUTCOME_LABEL: Record<string, string> = {
 
 // The one outcome that reads as a miss for a firm we passed — carries a
 // muted red tint on chips and drives the /accuracy headline count.
-export const OUTCOME_ACQUIRED = "acquired_by_competitor";
+export const OUTCOME_ACQUIRED = ACQUIRED_BY_COMPETITOR;
 
 export function outcomeLabel(raw: string | null | undefined): string {
   if (raw === null || raw === undefined) {
