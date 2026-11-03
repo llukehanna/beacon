@@ -6,7 +6,7 @@
  */
 import type { ActionName, ObjectOf } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
-import { USER, axisByName } from "../../shared/vocab.js";
+import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Db } from "../db/client.js";
@@ -174,28 +174,22 @@ export async function seedHistory(
   for (const id of qualified) {
     await act("qualifyFirm", { firm: id });
   }
-  const inPlay = ranked
-    .filter((x) => !qualified.includes(x.f.$primaryKey) && !x.s.hardRejected)
-    .slice(0, 3)
-    .map((x) => x.f.$primaryKey);
-  if (inPlay[0]) {
-    await act("advanceStage", { firm: inPlay[0], targetState: "Outreach" });
-  }
-  if (inPlay[1]) {
-    await act("advanceStage", { firm: inPlay[1], targetState: "Outreach" });
-    await act("advanceStage", { firm: inPlay[1], targetState: "In Talks" });
-  }
-  if (inPlay[2]) {
-    await act("advanceStage", { firm: inPlay[2], targetState: "Outreach" });
+  // Deals in flight: the strongest qualified firms, one at each later stage
+  // (Outreach, NDA, IOI, LOI, Closed).
+  const DEAL_STAGES = ["Outreach", "NDA", "IOI", "LOI", "Closed"];
+  for (const [i, firm] of qualified.slice(0, DEAL_STAGES.length).entries()) {
+    for (const targetState of DEAL_STAGES.slice(0, i + 1)) {
+      await act("advanceStage", { firm, targetState });
+    }
   }
 
   // 4. Rejections that form clusters the learning loop can find.
-  const taken = new Set([...qualified, ...inPlay]);
+  const taken = new Set(qualified);
   const pool = async () =>
     (await listObjects(db, "Firm", { orderBy: { firmName: "asc" } })).filter(
       (f) =>
         !taken.has(f.$primaryKey) &&
-        (f.lifecycleState === "Discovered" || f.lifecycleState === "In Review") &&
+        ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
         (f.firmType ?? "CF") === "CF",
     );
   const reject = async (id: string, why: string) => {
@@ -252,8 +246,10 @@ export async function seedHistory(
   }
 
   // 6. Observed outcomes.
-  const outcomes = ["converted_to_talks", "loi", "went_cold", "converted_to_talks"];
-  for (const [i, id] of qualified.slice(0, 4).entries()) {
+  // One per deal stage, in DEAL_STAGES order, and none ahead of the firm's stage:
+  // Outreach went quiet, NDA and IOI are in talks, LOI has an LOI, Closed closed.
+  const outcomes = ["went_cold", "converted_to_talks", "converted_to_talks", "loi", "closed"];
+  for (const [i, id] of qualified.slice(0, DEAL_STAGES.length).entries()) {
     await act("setFirmOutcome", { firm: id, outcome: outcomes[i], outcomeObservedAt: at() });
   }
   const earliestRejected = (

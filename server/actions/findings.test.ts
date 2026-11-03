@@ -24,7 +24,7 @@ async function addFinding(
 }
 
 describe("runAgentEnrichment", () => {
-  it("proposes or abstains on every axis for the firm's model and moves it to In Review", async () => {
+  it("proposes or abstains on every axis for the firm's model and moves it to Screening", async () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { lifecycleState: "Discovered" });
     await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
@@ -32,7 +32,7 @@ describe("runAgentEnrichment", () => {
     const axes = new Set(findings.map((f) => f.axis));
     expect(axes.size).toBe(10); // 11 axes minus CS-only balance_sheet_principal
     expect(findings.every((f) => ["proposed", "abstained"].includes(f.findingStatus!))).toBe(true);
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("In Review");
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Screening");
   });
 
   it("supersedes stale proposals on re-run and never touches verified axes", async () => {
@@ -156,7 +156,7 @@ describe("enrichFirm", () => {
       dealSizeMUsd: 150,
       firmAge: 12,
       hasSTOrBalanceSheet: false,
-      lifecycleState: "In Review",
+      lifecycleState: "Screening",
     });
     const analyst = (await findingsOf(db, firm.$primaryKey))
       .filter((f) => f.provider === "analyst")

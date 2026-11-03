@@ -348,12 +348,32 @@ describe("orderEnrichmentQueue", () => {
     expect(q[2].hardScreened).toBe(true);
   });
 
+  it("treats Qualified and every later deal stage, and Passed, as decided", () => {
+    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
+    const q = orderEnrichmentQueue(
+      ["Discovered", "Screening", "Qualified", "NDA", "Closed", "Passed"].map((lifecycleState) => ({
+        ...base,
+        firmId: lifecycleState,
+        lifecycleState,
+      })),
+    );
+    const terminal = Object.fromEntries(q.map((r) => [r.firm.firmId, r.terminal]));
+    expect(terminal).toEqual({
+      Discovered: false,
+      Screening: false,
+      Qualified: true,
+      NDA: true,
+      Closed: true,
+      Passed: true,
+    });
+  });
+
   it("snake_case lifecycle folds into the terminal bucket", () => {
-    // Backend can return "in_review", "in-review", or "In Review" — all
+    // Backend can return "in_review", "in-review", or the legacy "In Review" — all
     // must land in the same bucket so the funnel tiles and the queue's
     // terminal sink stay accurate. Here we test the terminal side:
-    // "qualified" (already single-word) works, and snake_case Rejected
-    // ("rejected") must also fold via foldLifecycle. The Pipeline test
+    // "qualified" (already single-word) works, and legacy snake_case
+    // ("rejected") must also fold via normalizeLifecycle. The Pipeline test
     // for middle stages lives at the component layer.
     const q = orderEnrichmentQueue([
       {
@@ -697,22 +717,32 @@ describe("displayFindingValue — gate cards read Pass/Fail, never raw booleans"
 // shared modules it reads them from, so a number on the home page can't
 // silently disagree with the page it links to.
 
-describe("pipelineBuckets — six-stage funnel", () => {
+describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   const mirrorOf = (input: Parameters<typeof mirrorScore>[0]) => mirrorScore(input);
 
-  it("hard-rejected firms land in Rejected regardless of lifecycle", () => {
-    const firm = { firmType: "CF", coverageModel: "Generalist Focus", lifecycleState: "In Talks" };
+  it("hard-rejected firms land in Passed regardless of lifecycle", () => {
+    const firm = { firmType: "CF", coverageModel: "Generalist Focus", lifecycleState: "NDA" };
     const m = mirrorOf(firm);
     expect(m.hardRejected).toBe(true);
-    expect(bucketOf(firm, m)).toBe("Rejected");
+    expect(bucketOf(firm, m)).toBe("Passed");
   });
 
   it("snake_case and hyphenated lifecycle values fold into the tracked stage", () => {
     const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
     const m = mirrorOf(base);
-    expect(bucketOf({ ...base, lifecycleState: "in_review" }, m)).toBe("In Review");
-    expect(bucketOf({ ...base, lifecycleState: "In-Talks" }, m)).toBe("In Talks");
+    expect(bucketOf({ ...base, lifecycleState: "in_review" }, m)).toBe("Screening");
+    expect(bucketOf({ ...base, lifecycleState: "In-Talks" }, m)).toBe("Outreach");
     expect(bucketOf({ ...base, currentStage: "OUTREACH" }, m)).toBe("Outreach");
+  });
+
+  it("files each deal stage under its own bucket, and legacy names under their successors", () => {
+    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
+    const m = mirrorOf(base);
+    for (const stage of ["Qualified", "Outreach", "NDA", "IOI", "LOI", "Closed", "Passed"]) {
+      expect(bucketOf({ ...base, lifecycleState: stage }, m)).toBe(stage);
+    }
+    expect(bucketOf({ ...base, lifecycleState: "In Review" }, m)).toBe("Screening");
+    expect(bucketOf({ ...base, lifecycleState: "Rejected" }, m)).toBe("Passed");
   });
 
   it("currentStage wins over lifecycleState, and disposition is the last resort", () => {
@@ -721,7 +751,7 @@ describe("pipelineBuckets — six-stage funnel", () => {
     expect(bucketOf({ ...base, currentStage: "Qualified", lifecycleState: "Discovered" }, m)).toBe(
       "Qualified",
     );
-    expect(bucketOf({ ...base, disposition: "hard_rejected" }, m)).toBe("Rejected");
+    expect(bucketOf({ ...base, disposition: "hard_rejected" }, m)).toBe("Passed");
     // No lifecycle signal at all — the funnel's entry stage, not a hole.
     expect(bucketOf({ lifecycleState: null, currentStage: null, disposition: null }, m)).toBe(
       "Discovered",
@@ -843,12 +873,12 @@ describe("trustMetrics — rates and outcome tally", () => {
 
   it("tallies outcomes and the passed-then-acquired headline", () => {
     const t = tallyOutcomes([
-      { firmId: "a", lifecycleState: "Rejected", outcome: "acquired_by_competitor" },
+      { firmId: "a", lifecycleState: "Passed", outcome: "acquired_by_competitor" },
       { firmId: "b", disposition: "hard_screened", outcome: "acquired_by_competitor" },
       { firmId: "c", lifecycleState: "Qualified", outcome: "loi" },
-      { firmId: "d", lifecycleState: "In Review", outcome: null },
+      { firmId: "d", lifecycleState: "Screening", outcome: null },
       // Unknown enum folds into not-yet-observed rather than breaking the grid.
-      { firmId: "e", lifecycleState: "In Review", outcome: "some_new_value" },
+      { firmId: "e", lifecycleState: "Screening", outcome: "some_new_value" },
     ]);
     expect(t.counts.acquired_by_competitor).toBe(2);
     expect(t.counts.loi).toBe(1);
@@ -1060,17 +1090,17 @@ describe("isLiveQueueFirm — the desk's default view", () => {
   const live = (firm: Record<string, unknown>, rules: ScreeningRule[], hardRejected = false) =>
     isLiveQueueFirm(firm, rules, isOpenFirm(firm, hardRejected));
 
-  it("admits Discovered and In Review, tolerating separator spellings", () => {
+  it("admits Discovered and Screening, tolerating separator spellings", () => {
     expect(isOpenFirm({ lifecycleState: "Discovered" }, false)).toBe(true);
-    expect(isOpenFirm({ lifecycleState: "In Review" }, false)).toBe(true);
+    expect(isOpenFirm({ lifecycleState: "Screening" }, false)).toBe(true);
     expect(isOpenFirm({ lifecycleState: "in_review" }, false)).toBe(true);
     expect(isOpenFirm({ lifecycleState: "In-Review" }, false)).toBe(true);
   });
 
   it("excludes decided lifecycle states", () => {
     expect(isOpenFirm({ lifecycleState: "Qualified" }, false)).toBe(false);
-    expect(isOpenFirm({ lifecycleState: "Rejected" }, false)).toBe(false);
-    expect(isOpenFirm({ lifecycleState: "In Talks" }, false)).toBe(false);
+    expect(isOpenFirm({ lifecycleState: "Passed" }, false)).toBe(false);
+    expect(isOpenFirm({ lifecycleState: "NDA" }, false)).toBe(false);
     // No lifecycle signal at all is the funnel's entry stage, not a hole —
     // bucketOf defaults to Discovered, so the firm is open and workable.
     expect(isOpenFirm({ lifecycleState: null }, false)).toBe(true);
@@ -1078,7 +1108,7 @@ describe("isLiveQueueFirm — the desk's default view", () => {
 
   it("excludes base-rule hard-rejected firms even while lifecycle reads Discovered", () => {
     // The 674-vs-441 bug: this firm's lifecycleState still says Discovered,
-    // but the funnel filed it under Rejected the moment a base rule fired.
+    // but the funnel filed it under Passed the moment a base rule fired.
     expect(isOpenFirm({ lifecycleState: "Discovered" }, true)).toBe(false);
     expect(live({ lifecycleState: "Discovered", employees: 40 }, [employeesRule], true)).toBe(
       false,
@@ -1152,18 +1182,18 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
   // 9 firms: 3 screened, 4 live, 2 decided.
   const population = [
     { firmName: "Tiny A", lifecycleState: "Discovered", employees: 3 },
-    { firmName: "Tiny B", lifecycleState: "In Review", employees: 9 },
+    { firmName: "Tiny B", lifecycleState: "Screening", employees: 9 },
     { firmName: "Tiny C", lifecycleState: "Discovered", employees: 1 },
     { firmName: "Big A", lifecycleState: "Discovered", employees: 300 },
-    { firmName: "Big B", lifecycleState: "In Review", employees: 42 },
+    { firmName: "Big B", lifecycleState: "Screening", employees: 42 },
     {
       firmName: "Ravenmere Credit Advisors",
       lifecycleState: "Discovered",
       discoveredViaSearchId: "S-1",
     },
-    { firmName: "Unknown headcount", lifecycleState: "In Review", employees: null },
+    { firmName: "Unknown headcount", lifecycleState: "Screening", employees: null },
     { firmName: "Closed won", lifecycleState: "Qualified", employees: 500 },
-    { firmName: "Closed lost", lifecycleState: "Rejected", employees: 500 },
+    { firmName: "Closed lost", lifecycleState: "Passed", employees: 500 },
   ];
 
   it("the rule card's count and the header's screened term are one number", () => {
@@ -1207,9 +1237,9 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
   });
 });
 
-describe("desk open === pipeline Discovered + In Review", () => {
+describe("desk open === pipeline Discovered + Screening", () => {
   // The 674-vs-441 contradiction: /pipeline and Home's funnel counted
-  // Discovered + In Review via bucketOf, while the desk header ran its own
+  // Discovered + Screening via bucketOf, while the desk header ran its own
   // lifecycleState test that couldn't see base-rule hard-rejects. Both now
   // derive from pipelineBuckets, so this equality is structural — it holds
   // for any firm set, not just the fixture below.
@@ -1229,7 +1259,7 @@ describe("desk open === pipeline Discovered + In Review", () => {
       coverageModel: "Single Coverage Focus",
       geoScore: 2,
       employees: 40,
-      lifecycleState: "In Review",
+      lifecycleState: "Screening",
     },
     {
       firmId: "3",
@@ -1240,7 +1270,7 @@ describe("desk open === pipeline Discovered + In Review", () => {
       lifecycleState: "in_review",
     },
     // Lifecycle says Discovered, but a base rule (generalist coverage) fired.
-    // The funnel calls this Rejected; the desk must agree.
+    // The funnel calls this Passed; the desk must agree.
     {
       firmId: "4",
       firmType: "CF",
@@ -1282,7 +1312,7 @@ describe("desk open === pipeline Discovered + In Review", () => {
       coverageModel: "Single Coverage Focus",
       geoScore: 2,
       employees: 40,
-      lifecycleState: "Rejected",
+      lifecycleState: "Passed",
     },
     // Server-flagged via disposition.
     {
@@ -1301,7 +1331,7 @@ describe("desk open === pipeline Discovered + In Review", () => {
     for (const f of population) {
       counts[bucketOf(f, mirrorScore(f))] += 1;
     }
-    return counts.Discovered + counts["In Review"];
+    return counts.Discovered + counts.Screening;
   };
 
   // What the desk header renders, via the ranker's hardRejected verdict.
@@ -1313,7 +1343,7 @@ describe("desk open === pipeline Discovered + In Review", () => {
     expect(deskOpen()).toBe(3);
   });
 
-  it("all six buckets still sum to the whole database", () => {
+  it("all nine buckets still sum to the whole database", () => {
     const counts = emptyBucketCounts();
     for (const f of population) {
       counts[bucketOf(f, mirrorScore(f))] += 1;

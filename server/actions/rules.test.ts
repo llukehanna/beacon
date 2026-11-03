@@ -78,7 +78,7 @@ describe("clusterRejections", () => {
       rejectionRationale: "Too small a franchise for us.",
     });
     for (const employees of [5, 8, 40]) {
-      await seedFirm(db, { employees, lifecycleState: "In Review" });
+      await seedFirm(db, { employees, lifecycleState: "Screening" });
     }
   }
 
