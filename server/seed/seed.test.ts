@@ -3,15 +3,17 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
 import { type ClusteringFixture, fixtureClusterer, hashRejections } from "../clustering/fixture.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
+import { listAll } from "../db/repo.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
-import { SHOWCASE_COUNT, pickShowcaseFirms } from "./showcase.js";
+import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms } from "./showcase.js";
 import { PLACES, RESERVED_WORDS, SURNAMES, generateUniverse } from "./universe.js";
 
 describe("generateUniverse", () => {
@@ -283,6 +285,19 @@ describe("showcase seed", () => {
       [[...byFirm.keys()]],
     );
     expect(n).toBe(0);
+    // And not screened by the desk's own queue logic (base rules plus the approved rules), so
+    // none sinks to the bottom of the queue.
+    const rules = toScreeningRules(
+      (await listAll(db, "ProposedRule")).map((p) => ({ ...p, proposedRuleId: p.$primaryKey })),
+      await listAll(db, "HardScreenConfig"),
+    );
+    expect(rules.length).toBeGreaterThan(0);
+    const firms = await listAll(db, "Firm");
+    expect(byFirm.size).toBeGreaterThan(0);
+    for (const id of byFirm.keys()) {
+      const firm = firms.find((f) => f.$primaryKey === id)!;
+      expect(isScreened(firm, rules), `${id} is hard-screened`).toBe(false);
+    }
   }, 300_000);
 
   it("approves the best-supported rule when the clusterer proposes no employees rule", async () => {
@@ -391,6 +406,29 @@ describe("pickShowcaseFirms", () => {
       "only-abstains": [abstain],
     };
     expect(pickShowcaseFirms(candidates, (f) => plans[f.$primaryKey])).toEqual(["ok"]);
+  });
+
+  it("skips firms the desk's queue would hard-screen", () => {
+    const both = [plan({}), abstain];
+    const rules = [
+      {
+        ruleId: "r1",
+        axis: "employees",
+        operator: "<",
+        threshold: "40",
+        model: "both",
+        label: "employees < 40",
+      },
+    ];
+    const candidates = [
+      firm("ok", { employees: 50 }),
+      firm("rule-screened", { employees: 20 }),
+      firm("generalist", { employees: 50, coverageModel: "Generalist" }),
+    ];
+    const pick = (r: typeof rules) => pickShowcaseFirms(candidates, () => both, 12, r);
+    expect(pick(rules)).toEqual(["ok"]);
+    // The generalist base rule applies with or without approved rules.
+    expect(pick([])).toEqual(["ok", "rule-screened"]);
   });
 
   it("includes at least three CS firms when that many are eligible", () => {

@@ -20,7 +20,13 @@ import {
   runAgentEnrichmentAction,
   verifyFindingAction,
 } from "@/data/ontology";
-import { PASSED, isQualifiedOrLater, nextLifecycle, normalizeLifecycle } from "../../shared/vocab";
+import {
+  AGENT,
+  PASSED,
+  isQualifiedOrLater,
+  nextLifecycle,
+  normalizeLifecycle,
+} from "../../shared/vocab";
 import { Segmented } from "./Segmented";
 import {
   type ScreeningRule,
@@ -38,7 +44,7 @@ import {
   pickAuthoritative,
   retrievedMs,
 } from "./axisState";
-import { defaultDeskFirmId, openAgentFirmIds } from "./deskDefaults";
+import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
 import { deskPanelState } from "./deskPanelState";
 import {
   type AcceptDecision,
@@ -4236,7 +4242,7 @@ function Desk(): React.ReactElement {
   // is what let the header read "711 of 711" while /rules showed an approved
   // rule claiming 160 firms. Config rows still win where present, because an
   // amended threshold is what the analyst sees as the effective predicate.
-  const { data: proposedRuleData } = useOsdkObjects(ProposedRule, {
+  const { data: proposedRuleData, isLoading: proposedRulesLoading } = useOsdkObjects(ProposedRule, {
     autoFetchMore: true,
   });
   const screeningRules = React.useMemo<ScreeningRule[]>(
@@ -4464,51 +4470,41 @@ function Desk(): React.ReactElement {
     return orderEnrichmentQueue(firms, rankingRules);
   }, [filteredData, rankingRules]);
 
-  // With no firm in the URL, open on the first queue firm that has an agent run waiting for
-  // review. The desk loads no findings for the queue, so this reads the open ones (the API
-  // filters on equality only, hence one query per status) and only while nothing is selected.
-  const pickDefault = selectedId === undefined;
-  const { data: proposedData, isLoading: proposedLoading } = useOsdkObjects(ResearchFinding, {
-    where: { findingStatus: { $eq: "proposed" } },
-    autoFetchMore: true,
-    enabled: pickDefault,
-  });
-  const { data: abstainedData, isLoading: abstainedLoading } = useOsdkObjects(ResearchFinding, {
-    where: { findingStatus: { $eq: "abstained" } },
-    autoFetchMore: true,
-    enabled: pickDefault,
-  });
-  const defaultTried = React.useRef(false);
-  const resolvingDefault =
-    pickDefault &&
-    !defaultTried.current &&
-    (isLoading || membershipLoading || proposedLoading || abstainedLoading || data === undefined);
+  // With no firm in the URL, open on the first queue firm whose agent run is still open: the
+  // firms `runAgentEnrichment` touched and no analyst has acted on yet (`enrichedBy` is the
+  // agent until `enrichFirm` replaces it). Chosen on the screened queue order, so it waits for
+  // the rules. `effectiveId` makes the pick visible in the same render; the URL follows.
+  const openRunFirmIds = React.useMemo(
+    () => agentRunFirmIds(filteredData ?? [], AGENT),
+    [filteredData],
+  );
+  const defaultReady = !isLoading && !membershipLoading && !configLoading && !proposedRulesLoading;
+  const defaultId =
+    selectedId === undefined && defaultReady
+      ? defaultDeskFirmId(
+          queue.map((r) => r.firm.firmId),
+          openRunFirmIds,
+        )
+      : undefined;
+  const effectiveId = selectedId ?? defaultId;
   React.useEffect(() => {
-    if (!pickDefault || defaultTried.current || resolvingDefault) {
-      return;
+    if (defaultId !== undefined) {
+      setSelectedId(defaultId);
     }
-    defaultTried.current = true;
-    const open = openAgentFirmIds([...(proposedData ?? []), ...(abstainedData ?? [])]);
-    const id = defaultDeskFirmId(
-      queue.map((r) => r.firm.firmId),
-      open,
-    );
-    if (id !== undefined) {
-      setSelectedId(id);
-    }
-  }, [pickDefault, resolvingDefault, proposedData, abstainedData, queue, setSelectedId]);
+  }, [defaultId, setSelectedId]);
+  const resolvingDefault = selectedId === undefined && !defaultReady;
 
   const selected =
-    selectedId === undefined ? undefined : filteredData?.find((f) => f.firmId === selectedId);
+    effectiveId === undefined ? undefined : filteredData?.find((f) => f.firmId === effectiveId);
   const loadError = error ?? membership.error;
   const panelState = deskPanelState({
-    selectedId,
+    selectedId: effectiveId,
     firmsLoading: isLoading,
     membershipLoading,
     hasError: loadError !== undefined,
     searchActive,
     inView: selected !== undefined,
-    inDatabase: selectedId !== undefined && (data ?? []).some((f) => f.firmId === selectedId),
+    inDatabase: effectiveId !== undefined && (data ?? []).some((f) => f.firmId === effectiveId),
     viewCount: filteredData?.length ?? 0,
   });
 
@@ -4526,7 +4522,7 @@ function Desk(): React.ReactElement {
         <QueueSidebar
           queue={queue}
           isLoading={isLoading}
-          selectedId={selectedId}
+          selectedId={effectiveId}
           onSelect={setSelectedId}
           screeningRules={screeningRules}
           scopeLabel={searchActive ? "in search" : "in database"}
@@ -4571,8 +4567,8 @@ function Desk(): React.ReactElement {
             />
           )}
           {panelState === "skeleton" && <FirmSkeleton />}
-          {panelState === "not-found" && selectedId !== undefined && (
-            <FirmNotFound firmId={selectedId} />
+          {panelState === "not-found" && effectiveId !== undefined && (
+            <FirmNotFound firmId={effectiveId} />
           )}
           {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
           {panelState === "search-empty" && (

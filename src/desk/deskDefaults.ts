@@ -1,6 +1,6 @@
 /**
- * Which firm the desk opens on when the URL names none: the first firm in queue order that has
- * an agent run waiting for the analyst, so the demo lands on cited findings, not an empty panel.
+ * Which firm the desk opens on when the URL names none: the first firm in queue order with an
+ * agent run waiting for the analyst, so the demo lands on cited findings, not an empty panel.
  */
 export function defaultDeskFirmId(
   queueIds: readonly string[],
@@ -9,16 +9,16 @@ export function defaultDeskFirmId(
   return queueIds.find((id) => openAgentFirmIds.has(id));
 }
 
-interface OpenRunFinding {
+interface FirmLike {
   firmId?: string | null;
-  provider?: string | null;
+  enrichedBy?: string | null;
 }
 
-/** Firm ids with at least one agent finding (analyst entries are not agent runs). */
-export function openAgentFirmIds(findings: readonly OpenRunFinding[]): Set<string> {
+/** Firm ids whose agent run is open: the agent touched the firm and no analyst has since. */
+export function agentRunFirmIds(firms: readonly FirmLike[], agent: string): Set<string> {
   const ids = new Set<string>();
-  for (const f of findings) {
-    if (f.firmId && f.provider !== "analyst") {
+  for (const f of firms) {
+    if (f.firmId && f.enrichedBy === agent) {
       ids.add(f.firmId);
     }
   }
