@@ -16,9 +16,12 @@ import { EXTRACTION_PROMPT_VERSION, ruleBasedExtraction } from "./contract.js";
 import { documentsHash, firmDocuments } from "./documents.js";
 import {
   type FixtureRecord,
+  firmsMissingCurrent,
+  fixtureStatus,
   fixtureToExtractionRows,
   parseFixtureLines,
   planFixtureRepair,
+  summarizeFixtures,
 } from "./fixtures.js";
 
 const firm = generateUniverse(5)[0];
@@ -166,4 +169,58 @@ describe("resetDemo with fixtures", () => {
     expect(rows).toHaveLength(rec.output!.items.length);
     expect(rows.every((r) => r.firmId === firm.firmId && r.grounded)).toBe(true);
   }, 300_000);
+});
+
+describe("fixtureStatus and summarizeFixtures", () => {
+  it("tells current, stale (hash, prompt version, unknown firm) and unusable records apart", () => {
+    expect(fixtureStatus(record(), firm)).toBe("current");
+    expect(fixtureStatus(record({ documentsHash: "old" }), firm)).toBe("stale");
+    expect(fixtureStatus(record({ promptVersion: "old" }), firm)).toBe("stale");
+    expect(fixtureStatus(record(), undefined)).toBe("stale");
+    expect(fixtureStatus(record({ output: null }), firm)).toBe("unusable");
+    const counts = summarizeFixtures(
+      [record(), record({ documentsHash: "old" }), record({ output: null })],
+      new Map([[firm.firmId!, firm]]),
+    );
+    expect(counts).toEqual({ current: 1, stale: 1, unusable: 1 });
+  });
+});
+
+describe("firmsMissingCurrent", () => {
+  const firms = generateUniverse(3);
+  const forFirm = (f: (typeof firms)[number], over: Partial<FixtureRecord> = {}): FixtureRecord =>
+    record({
+      firmId: f.firmId!,
+      documentsHash: documentsHash(firmDocuments(f)),
+      output: ruleBasedExtraction(firmDocuments(f)),
+      ...over,
+    });
+
+  it("has no model when there are no records", () => {
+    expect(firmsMissingCurrent([], firms)).toEqual({ model: null, missing: [] });
+  });
+
+  it("lists the firms the newest model has no current record for", () => {
+    const records = [
+      forFirm(firms[0]),
+      forFirm(firms[1], { documentsHash: "old" }),
+      // An older model's complete set does not count.
+      ...firms.map((f) =>
+        forFirm(f, { model: "claude-old", createdAt: "2026-01-01T00:00:00.000Z" }),
+      ),
+    ];
+    expect(firmsMissingCurrent(records, firms)).toEqual({
+      model: MODEL,
+      missing: [firms[1].firmId, firms[2].firmId].sort(),
+    });
+  });
+
+  it("is empty once every firm has a current record", () => {
+    expect(
+      firmsMissingCurrent(
+        firms.map((f) => forFirm(f)),
+        firms,
+      ).missing,
+    ).toEqual([]);
+  });
 });
