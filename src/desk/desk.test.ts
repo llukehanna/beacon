@@ -9,6 +9,7 @@ import {
   toScreeningRules,
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
+import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
@@ -51,6 +52,7 @@ import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
 import { formatScore, queueRowTier, scoreFraction, shownScore } from "./scoreFormat";
 import { mirrorScore } from "./scoreMirror";
+import { excerptText, highlightQuote, modelLabel } from "./sourceHighlight";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
 
@@ -2177,5 +2179,80 @@ describe("RESOLUTION_LABEL", () => {
     expect(resolutionLabel("kept_passed")).toBe("Kept passed");
     expect(resolutionLabel("some_new_value")).toBe("Some new value");
     expect(resolutionLabel(undefined)).toBe("Resolved");
+  });
+});
+
+describe("highlightQuote", () => {
+  const body = "Intro line.\nThe firm averaged 4.3 closed deals\n   per managing director.\nOutro.";
+
+  it("finds an exact quote and splits the body around it", () => {
+    expect(highlightQuote(body, "Intro line.")).toEqual({
+      before: "",
+      match: "Intro line.",
+      after: body.slice("Intro line.".length),
+    });
+  });
+
+  it("finds a quote across whitespace differences and returns null when absent", () => {
+    const hit = highlightQuote(body, "averaged 4.3 closed deals per managing director.");
+    expect(hit?.match).toBe("averaged 4.3 closed deals\n   per managing director.");
+    expect(hit && hit.before + hit.match + hit.after).toBe(body);
+    expect(highlightQuote(body, "averaged 9 closed deals")).toBeNull();
+    expect(highlightQuote(body, "")).toBeNull();
+    expect(highlightQuote(body, "   ")).toBeNull();
+  });
+});
+
+describe("modelLabel", () => {
+  it("maps known ids", () => {
+    expect(modelLabel("claude-haiku-4-5")).toBe("Claude Haiku 4.5");
+    expect(modelLabel("claude-sonnet-5-5")).toBe("Claude Sonnet 5.5");
+    expect(modelLabel("rule-based")).toBe("Rule-based extractor");
+    expect(modelLabel("gpt-something")).toBe("gpt-something");
+    expect(modelLabel(null)).toBeNull();
+    expect(modelLabel(undefined)).toBeNull();
+    expect(modelLabel("")).toBeNull();
+  });
+});
+
+describe("excerptText", () => {
+  it("quotes only an excerpt backed by a source document", () => {
+    expect(excerptText({ sourceExcerpt: "averaged 4.3", sourceDocumentId: "dealdb:f1" })).toBe(
+      "\u201caveraged 4.3\u201d",
+    );
+    expect(
+      excerptText({ sourceExcerpt: "Analyst entered 200, replacing the Deal DB value 60." }),
+    ).toBe("Analyst entered 200, replacing the Deal DB value 60.");
+    expect(
+      excerptText({ sourceExcerpt: "No provider grounded this value.", sourceDocumentId: null }),
+    ).toBe("No provider grounded this value.");
+    expect(excerptText({ sourceExcerpt: "", sourceDocumentId: "dealdb:f1" })).toBeNull();
+    expect(excerptText({})).toBeNull();
+  });
+});
+
+describe("defaultDeskFirmId", () => {
+  it("picks the first queue firm with an open agent run", () => {
+    const open = new Set(["c", "b"]);
+    expect(defaultDeskFirmId(["a", "b", "c"], open)).toBe("b");
+    expect(defaultDeskFirmId(["a", "x"], open)).toBeUndefined();
+    expect(defaultDeskFirmId([], open)).toBeUndefined();
+    expect(defaultDeskFirmId(["a"], new Set())).toBeUndefined();
+  });
+
+  it("counts firms the agent touched and no analyst has acted on", () => {
+    const ids = agentRunFirmIds(
+      [
+        { firmId: "showcase", enrichedBy: "agent" },
+        { firmId: "acted-on", enrichedBy: "demo-analyst" },
+        { firmId: "untouched", enrichedBy: null },
+        { firmId: "bare" },
+        { firmId: null, enrichedBy: "agent" },
+      ],
+      "agent",
+    );
+    expect([...ids]).toEqual(["showcase"]);
+    // Queue order decides among them: the analyst-touched firm ranked first is skipped.
+    expect(defaultDeskFirmId(["acted-on", "showcase"], ids)).toBe("showcase");
   });
 });

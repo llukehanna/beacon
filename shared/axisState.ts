@@ -23,6 +23,10 @@ export interface FindingLike {
   sourceType?: string;
   sourceUrl?: string;
   sourceExcerpt?: string;
+  // Set when the value was extracted from a mock source document; absent on analyst entries.
+  sourceDocumentId?: string | null;
+  sourceQuote?: string | null;
+  extractionModel?: string | null;
   conflictGroupId?: string;
   findingStatus?: string;
   verifiedByHuman?: boolean;

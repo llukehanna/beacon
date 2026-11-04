@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import DemoFooter from "@/components/DemoFooter";
+import { SourceDrawerProvider, ViewSourceButton } from "@/components/SourceDrawer";
 import { Term } from "@/components/Term";
 import { useLinks, useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
@@ -19,7 +20,13 @@ import {
   runAgentEnrichmentAction,
   verifyFindingAction,
 } from "@/data/ontology";
-import { PASSED, isQualifiedOrLater, nextLifecycle, normalizeLifecycle } from "../../shared/vocab";
+import {
+  AGENT,
+  PASSED,
+  isQualifiedOrLater,
+  nextLifecycle,
+  normalizeLifecycle,
+} from "../../shared/vocab";
 import { Segmented } from "./Segmented";
 import {
   type ScreeningRule,
@@ -37,6 +44,7 @@ import {
   pickAuthoritative,
   retrievedMs,
 } from "./axisState";
+import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
 import { deskPanelState } from "./deskPanelState";
 import {
   type AcceptDecision,
@@ -66,6 +74,7 @@ import {
 } from "./queue";
 import { formatScore, queueRowTier, scoreFraction } from "./scoreFormat";
 import { type MirrorResult, type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
+import { excerptText, modelLabel } from "./sourceHighlight";
 import {
   BAND_COLOR,
   CONFIDENCE_CHIP,
@@ -583,6 +592,29 @@ function ProviderChip({ provider }: { provider?: string }): React.ReactElement {
         borderRadius: "var(--radius-chip)",
         color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
         background: "var(--color-neutral-800)",
+      }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function ModelChip({ model }: { model?: string | null }): React.ReactElement | null {
+  const label = modelLabel(model);
+  if (label === null) {
+    return null;
+  }
+  return (
+    <span
+      title="Model that read the source document"
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        fontSize: 10,
+        padding: "2px 7px",
+        borderRadius: "var(--radius-chip)",
+        color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
+        border: "1px solid var(--color-divider)",
       }}
     >
       {label}
@@ -2149,6 +2181,7 @@ function AxisCard({
       <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
         <ProviderChip provider={f.provider} />
         <ConfidenceChip tier={f.confidenceTier} />
+        <ModelChip model={f.extractionModel} />
       </div>
       {f.sourceExcerpt && (
         <div
@@ -2159,23 +2192,12 @@ function AxisCard({
             overflowWrap: "anywhere",
           }}
         >
-          “{f.sourceExcerpt}”
+          {excerptText(f)}
         </div>
       )}
       <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
         {verified ? (
-          <>
-            {f.sourceUrl && (
-              <a
-                href={f.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 12, alignSelf: "center", color: "var(--color-accent)" }}
-              >
-                source ↗
-              </a>
-            )}
-          </>
+          <ViewSourceButton finding={f} />
         ) : (
           <>
             <button
@@ -2196,16 +2218,7 @@ function AxisCard({
             >
               {verifying ? "Verifying…" : "Verify"}
             </button>
-            {f.sourceUrl && (
-              <a
-                href={f.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                style={{ fontSize: 12, alignSelf: "center", color: "var(--color-accent)" }}
-              >
-                source ↗
-              </a>
-            )}
+            <ViewSourceButton finding={f} />
           </>
         )}
       </div>
@@ -2583,61 +2596,66 @@ function ConflictFindingCard({
           const other = i === 0 ? b : a;
           const disabled = resolve.isPending || !other;
           return (
-            <button
-              key={f.findingId}
-              type="button"
-              onClick={() => {
-                if (other) {
-                  void pick(f, other);
-                }
-              }}
-              disabled={disabled}
-              style={{
-                flex: 1,
-                border: "1px solid var(--color-divider)",
-                borderRadius: "var(--radius-chip)",
-                padding: 8,
-                background: "none",
-                color: "inherit",
-                cursor: disabled ? "default" : "pointer",
-                textAlign: "left",
-                font: "inherit",
-              }}
-              title={`Accept ${f.provider ? providerLabel(f.provider) : "this source"} and mark the other as rejected`}
-            >
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "color-mix(in srgb, var(--color-text) 50%, transparent)",
+            <div key={f.findingId} style={{ flex: 1, display: "flex", flexDirection: "column" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (other) {
+                    void pick(f, other);
+                  }
                 }}
-              >
-                {f.provider ? providerLabel(f.provider) : "—"}
-              </div>
-              <div
+                disabled={disabled}
                 style={{
-                  fontSize: 16,
-                  fontWeight: 600,
-                  color: "#e6c878",
-                  overflowWrap: "anywhere",
+                  flex: 1,
+                  border: "1px solid var(--color-divider)",
+                  borderRadius: "var(--radius-chip)",
+                  padding: 8,
+                  background: "none",
+                  color: "inherit",
+                  cursor: disabled ? "default" : "pointer",
+                  textAlign: "left",
+                  font: "inherit",
                 }}
+                title={`Accept ${f.provider ? providerLabel(f.provider) : "this source"} and mark the other as rejected`}
               >
-                {/* Route through the shared vocab so gate conflicts read
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "color-mix(in srgb, var(--color-text) 50%, transparent)",
+                  }}
+                >
+                  {f.provider ? providerLabel(f.provider) : "—"}
+                </div>
+                <div
+                  style={{
+                    fontSize: 16,
+                    fontWeight: 600,
+                    color: "#e6c878",
+                    overflowWrap: "anywhere",
+                  }}
+                >
+                  {/* Route through the shared vocab so gate conflicts read
                     Pass / Fail (matching the gates row + conflict prompt)
                     instead of leaking raw "true" / "false" strings. */}
-                {displayFindingValue(f.axis, f.value)}
+                  {displayFindingValue(f.axis, f.value)}
+                </div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "var(--color-accent)",
+                    marginTop: 4,
+                  }}
+                >
+                  {resolve.isPending
+                    ? "Resolving…"
+                    : `Accept ${f.provider ? providerLabel(f.provider) : ""} →`}
+                </div>
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
+                <ViewSourceButton finding={f} />
+                <ModelChip model={f.extractionModel} />
               </div>
-              <div
-                style={{
-                  fontSize: 10,
-                  color: "var(--color-accent)",
-                  marginTop: 4,
-                }}
-              >
-                {resolve.isPending
-                  ? "Resolving…"
-                  : `Accept ${f.provider ? providerLabel(f.provider) : ""} →`}
-              </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -3270,8 +3288,14 @@ function ConfirmChecklist({
 // ─── Source excerpts ────────────────────────────────────────────────────
 
 function SourceExcerpts({ findings }: { findings: FindingLike[] }): React.ReactElement | null {
+  // Cited values only: abstentions and analyst entries have no document to open.
   const withExcerpts = findings
-    .filter((f) => f.sourceExcerpt && f.sourceExcerpt !== "")
+    .filter(
+      (f) =>
+        f.sourceDocumentId &&
+        f.sourceExcerpt &&
+        ["proposed", "verified"].includes((f.findingStatus ?? "").toLowerCase()),
+    )
     .slice(0, 4);
   if (withExcerpts.length === 0) {
     return null;
@@ -3295,7 +3319,7 @@ function SourceExcerpts({ findings }: { findings: FindingLike[] }): React.ReactE
                 fontStyle: "italic",
               }}
             >
-              &ldquo;{f.sourceExcerpt}&rdquo;
+              {excerptText(f)}
             </div>
             <div
               style={{
@@ -3314,6 +3338,7 @@ function SourceExcerpts({ findings }: { findings: FindingLike[] }): React.ReactE
               >
                 {f.axis ?? ""}
               </span>
+              <ViewSourceButton finding={f} />
             </div>
           </div>
         ))}
@@ -4217,7 +4242,7 @@ function Desk(): React.ReactElement {
   // is what let the header read "711 of 711" while /rules showed an approved
   // rule claiming 160 firms. Config rows still win where present, because an
   // amended threshold is what the analyst sees as the effective predicate.
-  const { data: proposedRuleData } = useOsdkObjects(ProposedRule, {
+  const { data: proposedRuleData, isLoading: proposedRulesLoading } = useOsdkObjects(ProposedRule, {
     autoFetchMore: true,
   });
   const screeningRules = React.useMemo<ScreeningRule[]>(
@@ -4445,105 +4470,131 @@ function Desk(): React.ReactElement {
     return orderEnrichmentQueue(firms, rankingRules);
   }, [filteredData, rankingRules]);
 
+  // With no firm in the URL, open on the first queue firm whose agent run is still open: the
+  // firms `runAgentEnrichment` touched and no analyst has acted on yet (`enrichedBy` is the
+  // agent until `enrichFirm` replaces it). Chosen on the screened queue order, so it waits for
+  // the rules. `effectiveId` makes the pick visible in the same render; the URL follows.
+  const openRunFirmIds = React.useMemo(
+    () => agentRunFirmIds(filteredData ?? [], AGENT),
+    [filteredData],
+  );
+  const defaultReady = !isLoading && !membershipLoading && !configLoading && !proposedRulesLoading;
+  const defaultId =
+    selectedId === undefined && defaultReady
+      ? defaultDeskFirmId(
+          queue.map((r) => r.firm.firmId),
+          openRunFirmIds,
+        )
+      : undefined;
+  const effectiveId = selectedId ?? defaultId;
+  React.useEffect(() => {
+    if (defaultId !== undefined) {
+      setSelectedId(defaultId);
+    }
+  }, [defaultId, setSelectedId]);
+  const resolvingDefault = selectedId === undefined && !defaultReady;
+
   const selected =
-    selectedId === undefined ? undefined : filteredData?.find((f) => f.firmId === selectedId);
+    effectiveId === undefined ? undefined : filteredData?.find((f) => f.firmId === effectiveId);
   const loadError = error ?? membership.error;
   const panelState = deskPanelState({
-    selectedId,
+    selectedId: effectiveId,
     firmsLoading: isLoading,
     membershipLoading,
     hasError: loadError !== undefined,
     searchActive,
     inView: selected !== undefined,
-    inDatabase: selectedId !== undefined && (data ?? []).some((f) => f.firmId === selectedId),
+    inDatabase: effectiveId !== undefined && (data ?? []).some((f) => f.firmId === effectiveId),
     viewCount: filteredData?.length ?? 0,
   });
 
   return (
-    <div
-      className="dsn"
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
-        display: "flex",
-      }}
-    >
-      <QueueSidebar
-        queue={queue}
-        isLoading={isLoading}
-        selectedId={selectedId}
-        onSelect={setSelectedId}
-        screeningRules={screeningRules}
-        scopeLabel={searchActive ? "in search" : "in database"}
-        membershipPinned={searchActive}
-        rediscoveryByFirmId={rediscoveryByFirmId}
-      />
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        {searchActive && (
-          <SearchFilterBar
-            intentText={pinnedIntent}
-            searchName={pinnedSearch?.name ?? null}
-            searchIndex={searchIndex}
-            memberCount={filteredData?.length ?? 0}
-            loading={memberFirmIds === null}
-            onClear={onClearSearchFilter}
-          />
-        )}
-        {loadError && (
-          <div
-            role="alert"
-            style={{
-              padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
-              fontSize: 12,
-            }}
-          >
-            {String(loadError)}
-          </div>
-        )}
-        {panelState === "firm" && selected !== undefined && (
-          <EnrichmentPanel
-            firm={selected}
-            actionFirm={selected}
-            allFirms={(filteredData ?? []) as unknown as FirmView[]}
-            firmsLoading={isLoading}
-            // Same rule list the queue ranks and partitions on, so the firm
-            // header's hard-screen chip can't call a firm workable while the
-            // sidebar shows it screened.
-            activeConfigs={rankingRules}
-            configsLoading={configLoading}
-          />
-        )}
-        {panelState === "skeleton" && <FirmSkeleton />}
-        {panelState === "not-found" && selectedId !== undefined && (
-          <FirmNotFound firmId={selectedId} />
-        )}
-        {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
-        {panelState === "search-empty" && (
-          <div
-            style={{
-              flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: 32,
-              textAlign: "center",
-              color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
-              fontSize: 13,
-              lineHeight: 1.55,
-            }}
-          >
-            {memberFirmIds === null
-              ? "Loading search membership…"
-              : "This search returned no firms yet. If it just launched, give the backend a moment to attach dedupes and create discoveries. The queue populates as membership lands."}
-          </div>
-        )}
-        {panelState === "empty" && <EmptyState />}
-        {panelState === "error" && <div style={{ flex: 1 }} />}
+    <SourceDrawerProvider>
+      <div
+        className="dsn"
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: VOID_BG,
+          display: "flex",
+        }}
+      >
+        <QueueSidebar
+          queue={queue}
+          isLoading={isLoading}
+          selectedId={effectiveId}
+          onSelect={setSelectedId}
+          screeningRules={screeningRules}
+          scopeLabel={searchActive ? "in search" : "in database"}
+          membershipPinned={searchActive}
+          rediscoveryByFirmId={rediscoveryByFirmId}
+        />
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+          {searchActive && (
+            <SearchFilterBar
+              intentText={pinnedIntent}
+              searchName={pinnedSearch?.name ?? null}
+              searchIndex={searchIndex}
+              memberCount={filteredData?.length ?? 0}
+              loading={memberFirmIds === null}
+              onClear={onClearSearchFilter}
+            />
+          )}
+          {loadError && (
+            <div
+              role="alert"
+              style={{
+                padding: "8px 24px",
+                background: "rgba(207,112,112,.12)",
+                color: "#e79191",
+                fontSize: 12,
+              }}
+            >
+              {String(loadError)}
+            </div>
+          )}
+          {panelState === "firm" && selected !== undefined && (
+            <EnrichmentPanel
+              firm={selected}
+              actionFirm={selected}
+              allFirms={(filteredData ?? []) as unknown as FirmView[]}
+              firmsLoading={isLoading}
+              // Same rule list the queue ranks and partitions on, so the firm
+              // header's hard-screen chip can't call a firm workable while the
+              // sidebar shows it screened.
+              activeConfigs={rankingRules}
+              configsLoading={configLoading}
+            />
+          )}
+          {panelState === "skeleton" && <FirmSkeleton />}
+          {panelState === "not-found" && effectiveId !== undefined && (
+            <FirmNotFound firmId={effectiveId} />
+          )}
+          {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
+          {panelState === "search-empty" && (
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: 32,
+                textAlign: "center",
+                color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
+                fontSize: 13,
+                lineHeight: 1.55,
+              }}
+            >
+              {memberFirmIds === null
+                ? "Loading search membership…"
+                : "This search returned no firms yet. If it just launched, give the backend a moment to attach dedupes and create discoveries. The queue populates as membership lands."}
+            </div>
+          )}
+          {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <EmptyState />)}
+          {panelState === "error" && <div style={{ flex: 1 }} />}
+        </div>
       </div>
-    </div>
+    </SourceDrawerProvider>
   );
 }
 

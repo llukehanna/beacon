@@ -1,0 +1,65 @@
+.drawer {
+  background: var(--color-bg, #161826);
+  color: var(--color-text, #e9e9ed);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 24px;
+  overflow-y: auto;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text, #e9e9ed) 68%, transparent);
+}
+
+.provider {
+  font-weight: 600;
+  color: var(--color-text, #e9e9ed);
+}
+
+.docTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.body {
+  margin: 0;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 12px 14px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--color-surface, #232532);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.body mark {
+  background: color-mix(in srgb, #cba24f 38%, transparent);
+  color: inherit;
+  padding: 1px 2px;
+  border-radius: 2px;
+}
+
+.note {
+  margin: 0;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text, #e9e9ed) 62%, transparent);
+}
+
+.status {
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-text, #e9e9ed) 68%, transparent);
+}

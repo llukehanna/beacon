@@ -5,7 +5,7 @@
  * clustered rejections, an approved rule, outcomes, and open drift. It ends with a few firms
  * whose agent runs are left open for the analyst.
  */
-import { matchesPredicate } from "../../shared/predicate.js";
+import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
@@ -345,19 +345,13 @@ export async function seedHistory(
   }
 
   // 9. Showcase: the agent runs the demo opens on, left open. The picker skips firms an earlier
-  // step touched; firms an approved screen removes are dropped here, so all stay in the live queue.
-  const screens = (await all(db, "HardScreenConfig")).filter((c) => c.configActive);
-  const candidates = (await all(db, "Firm")).filter(
-    (f) =>
-      !screens.some((c) =>
-        matchesPredicate(f, {
-          axis: c.configAxis ?? "",
-          operator: c.configOperator ?? "",
-          threshold: c.configThreshold ?? "",
-          model: c.configModel,
-        }),
-      ),
+  // step touched, and firms the desk's own queue would hard-screen under the approved rules
+  // (base rules included), so all stay in the live queue.
+  const rules = toScreeningRules(
+    (await all(db, "ProposedRule")).map((p) => ({ ...p, proposedRuleId: p.$primaryKey })),
+    await all(db, "HardScreenConfig"),
   );
+  const candidates = await all(db, "Firm");
   const stored = new Map<string, ObjectOf<"Extraction">[]>();
   for (const row of await all(db, "Extraction")) {
     stored.set(row.firmId ?? "", [...(stored.get(row.firmId ?? "") ?? []), row]);
@@ -369,7 +363,7 @@ export async function seedHistory(
       (a) => a.plans,
     );
   };
-  for (const id of pickShowcaseFirms(candidates, plansFor)) {
+  for (const id of pickShowcaseFirms(candidates, plansFor, undefined, rules)) {
     await act("runAgentEnrichment", { firm: id });
   }
 }
