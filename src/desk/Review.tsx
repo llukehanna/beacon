@@ -10,6 +10,7 @@ import {
 import { PASSED, normalizeLifecycle } from "../../shared/vocab";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
+import { formatScore } from "./scoreFormat";
 import {
   DIVERGENCE_FG,
   type DriftReasonStyle,
@@ -129,7 +130,7 @@ function TierBadge({
   score: number | null | undefined;
 }): React.ReactElement {
   const c = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
-  const label = score !== null && score !== undefined ? `${tier} ${score}` : tier;
+  const label = score !== null && score !== undefined ? formatScore(score, tier) : tier;
   return (
     <span
       style={{

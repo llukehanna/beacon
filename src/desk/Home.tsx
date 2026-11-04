@@ -12,6 +12,7 @@ import { formatMandateFirmCounts } from "./mandateFirms";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import { LIFECYCLE_BUCKETS, type Lifecycle } from "./pipelineBuckets";
+import { formatScore } from "./scoreFormat";
 import {
   DIVERGENCE_BG,
   DIVERGENCE_BORDER,
@@ -144,6 +145,10 @@ interface InboxItem {
   typeLabel: string;
 }
 
+function tierWithScore(tier: string, score: number | undefined): string {
+  return score === undefined ? tier : formatScore(score, tier);
+}
+
 function toInboxItem(item: NeedsYouItem): InboxItem {
   switch (item.kind) {
     case "drift": {
@@ -151,10 +156,7 @@ function toInboxItem(item: NeedsYouItem): InboxItem {
       const rank = item.rank;
       const tierMove =
         item.priorTier && item.newTier
-          ? `${item.priorTier} ${item.priorScore ?? ""} → ${item.newTier} ${item.newScore ?? ""}`.replace(
-              /\s+/g,
-              " ",
-            )
+          ? `${tierWithScore(item.priorTier, item.priorScore)} → ${tierWithScore(item.newTier, item.newScore)}`
           : null;
       return {
         key: item.key,
