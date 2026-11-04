@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
-import { ddl } from "./ddl.js";
+import { ensureSchema } from "./ddl.js";
 
 export interface Queryable {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
@@ -133,7 +133,7 @@ export function getDb(): Promise<Db> {
       await mkdir(path.dirname(dir), { recursive: true }); // PGlite creates only the leaf directory
       db = await createPgliteDb(dir);
     }
-    await db.exec(ddl());
+    await ensureSchema(db);
     return db;
   })();
   return globalThis.__beaconDb;
