@@ -260,10 +260,7 @@ function DriftCard({
         >
           {firmName}
         </span>
-        <div
-          style={{ display: "flex", alignItems: "center", gap: 6 }}
-          title="tier · score at decision time → tier · score now"
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <span
             style={{
               fontSize: 10,
@@ -282,7 +279,10 @@ function DriftCard({
             fill="none"
             stroke="color-mix(in srgb, var(--color-text) 45%, transparent)"
             strokeWidth={2}
+            role="img"
+            aria-label="at decision time, then now"
           >
+            <title>Tier and score at decision time, then now</title>
             <path d="M5 12h14M13 6l6 6-6 6" />
           </svg>
           <TierBadge tier={newTierName} score={drift.newScore ?? null} />
