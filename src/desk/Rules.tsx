@@ -1132,8 +1132,9 @@ function Rules(): React.ReactElement {
                   maxWidth: "44ch",
                 }}
               >
-                Proposed hard-screen rules appear once you&rsquo;ve rejected roughly five similar
-                firms. Beacon clusters the reasons and drafts a predicate for you to approve.
+                Proposed hard-screen rules appear once at least four different firms you&rsquo;ve
+                passed on share a reason. Beacon clusters the reasons and drafts a predicate for you
+                to approve.
               </p>
             </div>
           )}
