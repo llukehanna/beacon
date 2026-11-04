@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, truncateSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
@@ -19,7 +19,7 @@ import { documentsHash, firmDocuments } from "../server/extraction/documents.js"
 import {
   type FixtureRecord,
   parseFixtureLines,
-  repairFixtureText,
+  planFixtureRepair,
 } from "../server/extraction/fixtures.js";
 import { groundExtraction } from "../server/extraction/grounding.js";
 import {
@@ -121,11 +121,15 @@ mkdirSync(fileURLToPath(new URL("../fixtures/extraction/", import.meta.url)), { 
 
 // A run killed mid-write can leave a partial last line; repair it so the next append is clean.
 let fixtureText = existsSync(fixtureFile) ? readFileSync(fixtureFile, "utf8") : "";
-const repaired = repairFixtureText(fixtureText);
-if (repaired !== fixtureText) {
-  writeFileSync(fixtureFile, repaired);
-  console.log("Repaired an incomplete last line in the fixture file.");
-  fixtureText = repaired;
+const repair = planFixtureRepair(fixtureText);
+if (repair.keepBytes !== null) {
+  truncateSync(fixtureFile, repair.keepBytes); // drop the fragment; never rewrite the file
+  fixtureText = fixtureText.slice(0, fixtureText.lastIndexOf("\n") + 1);
+  console.log("Dropped an incomplete last line from the fixture file.");
+} else if (repair.addNewline) {
+  appendFileSync(fixtureFile, "\n");
+  fixtureText += "\n";
+  console.log("Added the missing newline after the last fixture line.");
 }
 const existing = parseFixtureLines(fixtureText);
 const selectNow = (): string[] =>
@@ -223,6 +227,7 @@ function record(id: string, reply: Reply): number {
   };
   appendFileSync(fixtureFile, `${JSON.stringify(line)}\n`);
   existing.push(line);
+  spent += costUsd; // counted as soon as the line is written, so an abort still reports it
   extracted++;
   if (output) {
     parsed++;
@@ -282,6 +287,12 @@ async function collectBatch(
         continue;
       }
       const message = entry.result.message;
+      // The API may return a dated id for an alias, so match on the prefix.
+      if (!message.model.startsWith(model)) {
+        throw new Error(
+          `Batch ${batchId} was made with ${message.model}, not ${model}. Rerun with the --model it was made with; nothing was written.`,
+        );
+      }
       replies.set(firmId, {
         text: textOf(message),
         usage: usageOf(message.usage),
@@ -348,7 +359,6 @@ try {
     const replies = await collectBatch(resumeBatch, assignCustomIds([...prepared.keys()]));
     const missing = selectFirmsToExtract([...prepared.keys()], existing, { model, hashes });
     const cost = recordReplies(replies, missing);
-    spent += cost;
     pendingBatch = null;
     console.log(`  wrote ${extracted} lines from the batch; cost $${cost.toFixed(4)}.`);
     selected = selectNow();
@@ -385,7 +395,6 @@ try {
     if (replied > 0) {
       calibration = Math.max(1, chunkCost / ((estimated * replied) / chunk.length));
     }
-    spent += chunkCost;
     chunksDone++;
     remaining = remaining.slice(chunk.length);
     console.log(

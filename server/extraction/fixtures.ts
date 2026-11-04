@@ -85,17 +85,22 @@ export function parseFixtureLines(text: string): FixtureRecord[] {
 }
 
 /**
- * Make fixture text safe to append to. A run killed mid-write can leave a last line with no
- * newline: if it is a whole record, the newline is added; if it is a fragment, it is dropped.
+ * How to make fixture text safe to append to, without rewriting it. A run killed mid-write can
+ * leave a last line with no newline: if it is a whole record, append the newline; if it is a
+ * fragment, truncate the file to `keepBytes`, the byte length of everything up to the last newline.
  */
-export function repairFixtureText(text: string): string {
+export function planFixtureRepair(text: string): {
+  addNewline: boolean;
+  keepBytes: number | null;
+} {
   if (text === "" || text.endsWith("\n")) {
-    return text;
+    return { addNewline: false, keepBytes: null };
   }
-  const lastLine = text.slice(text.lastIndexOf("\n") + 1);
-  return parseFixtureLines(lastLine).length > 0
-    ? `${text}\n`
-    : text.slice(0, text.length - lastLine.length);
+  const cut = text.lastIndexOf("\n") + 1;
+  if (parseFixtureLines(text.slice(cut)).length > 0) {
+    return { addNewline: true, keepBytes: null };
+  }
+  return { addNewline: false, keepBytes: Buffer.byteLength(text.slice(0, cut)) };
 }
 
 /**

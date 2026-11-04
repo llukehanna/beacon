@@ -1,3 +1,13 @@
+import {
+  appendFileSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  truncateSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { resetDemo } from "../seed/reset.js";
 import { generateUniverse } from "../seed/universe.js";
@@ -8,7 +18,7 @@ import {
   type FixtureRecord,
   fixtureToExtractionRows,
   parseFixtureLines,
-  repairFixtureText,
+  planFixtureRepair,
 } from "./fixtures.js";
 
 const firm = generateUniverse(5)[0];
@@ -50,24 +60,45 @@ describe("parseFixtureLines", () => {
   });
 });
 
-describe("repairFixtureText", () => {
-  const line = JSON.stringify(record());
+describe("planFixtureRepair", () => {
+  const line = JSON.stringify(record({ batchId: "msgbatch_é" })); // multi-byte, to check byte offsets
 
   it("leaves empty text and text ending in a newline alone", () => {
-    expect(repairFixtureText("")).toBe("");
-    expect(repairFixtureText(`${line}\n`)).toBe(`${line}\n`);
+    expect(planFixtureRepair("")).toEqual({ addNewline: false, keepBytes: null });
+    expect(planFixtureRepair(`${line}\n`)).toEqual({ addNewline: false, keepBytes: null });
   });
 
-  it("adds the missing newline after a whole record", () => {
-    expect(repairFixtureText(line)).toBe(`${line}\n`);
+  it("asks for the missing newline after a whole record", () => {
+    expect(planFixtureRepair(line)).toEqual({ addNewline: true, keepBytes: null });
   });
 
-  it("drops a partial last line, so the next append cannot glue onto it", () => {
-    const repaired = repairFixtureText(`${line}\n${line.slice(0, 40)}`);
-    expect(repaired).toBe(`${line}\n`);
-    expect(repairFixtureText(line.slice(0, 40))).toBe("");
-    const appended = parseFixtureLines(`${repaired}${line}\n`);
-    expect(appended).toHaveLength(2);
+  it("truncates to the last newline, in bytes, when the last line is a fragment", () => {
+    const whole = `${line}\n`;
+    expect(planFixtureRepair(`${whole}${line.slice(0, 40)}`)).toEqual({
+      addNewline: false,
+      keepBytes: Buffer.byteLength(whole),
+    });
+    expect(planFixtureRepair(line.slice(0, 40))).toEqual({ addNewline: false, keepBytes: 0 });
+  });
+
+  it("leaves a file that the next append parses cleanly, on disk", () => {
+    const dir = mkdtempSync(join(tmpdir(), "fixture-repair-"));
+    try {
+      const path = join(dir, "m.jsonl");
+      writeFileSync(path, `${line}\n${line.slice(0, 40)}`);
+      const plan = planFixtureRepair(readFileSync(path, "utf8"));
+      truncateSync(path, plan.keepBytes!);
+      appendFileSync(path, `${line}\n`);
+      expect(parseFixtureLines(readFileSync(path, "utf8"))).toHaveLength(2);
+
+      writeFileSync(path, line); // whole record, no newline
+      expect(planFixtureRepair(readFileSync(path, "utf8")).addNewline).toBe(true);
+      appendFileSync(path, "\n");
+      appendFileSync(path, `${line}\n`);
+      expect(parseFixtureLines(readFileSync(path, "utf8"))).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true });
+    }
   });
 });
 
