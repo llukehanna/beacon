@@ -194,6 +194,18 @@ describe("acknowledgeDrift", () => {
     });
   });
 
+  it("refuses a Passed firm's drift", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { employees: 6 });
+    await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
+    await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
+    const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
+    await expect(run(db, "acknowledgeDrift", { driftEvent: id, note: null })).rejects.toMatchObject(
+      { status: 409 },
+    );
+    expect((await getObject(db, "DriftEvent", id!))?.driftStatus).toBe("open");
+  });
+
   it("accepts a missing note", async () => {
     const { db, id } = await driftedQualifiedFirm();
     await run(db, "acknowledgeDrift", { driftEvent: id, note: null });
@@ -220,7 +232,11 @@ describe("rejectFirm and open drift", () => {
       firmAge: 2,
     });
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
-    await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Moved too far" });
+    const result = await run(db, "rejectFirm", {
+      firm: firm.$primaryKey,
+      rejectionRationale: "Moved too far",
+    });
+    expect(result.types).toContain("DriftEvent");
     expect(await getObject(db, "DriftEvent", id!)).toMatchObject({
       driftStatus: "resolved",
       resolution: "passed",

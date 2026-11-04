@@ -108,6 +108,7 @@ const DECISION_TYPE_LABEL: Record<string, string> = {
   reject: "Passed",
   re_engage: "Re-engaged",
   keep_passed: "Kept passed",
+  acknowledge_drift: "Kept in pipeline",
   advance: "Advanced",
   activity: "Logged activity",
   qualify: "Qualified",
