@@ -3,6 +3,8 @@
  * open on firms whose runs show cited values, a real conflict between sources, and an honest
  * abstention, so these are the richest runs among firms nothing else in the seed has touched.
  */
+import { type ScreeningRule, screenFirm } from "../../shared/activeScreening.js";
+import { computeHardScreen, toQueueFirm } from "../../shared/queue.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { normalizeLifecycle } from "../../shared/vocab.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
@@ -41,19 +43,23 @@ function rank(firm: FirmObj, plans: readonly FindingPlan[]): Ranked | null {
  * The firm ids to show, richest first. Eligible firms are still in the queue (Discovered, not yet
  * enriched, large enough to clear the employees screen) and have both a value to review and an
  * abstention. Rank is conflict groups, then distinct cited providers, then firm id; the result
- * holds at least `MIN_CS` CS firms when that many are eligible.
+ * holds at least `MIN_CS` CS firms when that many are eligible. A firm the desk's queue would
+ * hard-screen under `rules` (the shared verdict the queue ranks with) is never picked, so every
+ * showcase firm stays in the live queue.
  */
 export function pickShowcaseFirms(
   candidates: readonly FirmObj[],
   plansFor: (firm: FirmObj) => FindingPlan[],
   n: number = SHOWCASE_COUNT,
+  rules: readonly ScreeningRule[] = [],
 ): string[] {
   const ranked = candidates
     .filter(
       (f) =>
         normalizeLifecycle(f.lifecycleState) === "Discovered" &&
         f.enrichedBy == null &&
-        (f.employees ?? 0) >= MIN_EMPLOYEES,
+        (f.employees ?? 0) >= MIN_EMPLOYEES &&
+        !isScreened(f, rules),
     )
     .flatMap((f) => rank(f, plansFor(f)) ?? [])
     .sort(
@@ -73,6 +79,13 @@ export function pickShowcaseFirms(
     return ranked.filter((r) => final.includes(r)).map((r) => r.firmId);
   }
   return chosen.map((r) => r.firmId);
+}
+
+/** The desk's verdicts: the queue's hard-screen (base rules and approved rules) and its sidebar screen. */
+export function isScreened(firm: FirmObj, rules: readonly ScreeningRule[]): boolean {
+  return (
+    computeHardScreen(toQueueFirm(firm), rules).hardScreened || screenFirm(firm, rules).screened
+  );
 }
 
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);

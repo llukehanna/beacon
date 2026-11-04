@@ -45,7 +45,14 @@ function Quoted({ body, quote }: { body: string; quote: string }): React.ReactEl
     }
   }, [split]);
   if (split === null) {
-    return <pre className={styles.body}>{body}</pre>;
+    return (
+      <>
+        <p role="status" className={styles.note}>
+          The cited passage is not in the current version of this record.
+        </p>
+        <pre className={styles.body}>{body}</pre>
+      </>
+    );
   }
   return (
     <pre className={styles.body}>

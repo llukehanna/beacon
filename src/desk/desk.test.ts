@@ -9,7 +9,7 @@ import {
   toScreeningRules,
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
-import { defaultDeskFirmId, openAgentFirmIds } from "./deskDefaults";
+import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
@@ -2240,13 +2240,19 @@ describe("defaultDeskFirmId", () => {
     expect(defaultDeskFirmId(["a"], new Set())).toBeUndefined();
   });
 
-  it("counts agent findings, not analyst entries", () => {
-    const ids = openAgentFirmIds([
-      { firmId: "f1", provider: "dealdb" },
-      { firmId: "f2", provider: "analyst" },
-      { firmId: "f3", provider: "beacondb+dealdb" },
-      { firmId: null, provider: "dealdb" },
-    ]);
-    expect([...ids].sort()).toEqual(["f1", "f3"]);
+  it("counts firms the agent touched and no analyst has acted on", () => {
+    const ids = agentRunFirmIds(
+      [
+        { firmId: "showcase", enrichedBy: "agent" },
+        { firmId: "acted-on", enrichedBy: "demo-analyst" },
+        { firmId: "untouched", enrichedBy: null },
+        { firmId: "bare" },
+        { firmId: null, enrichedBy: "agent" },
+      ],
+      "agent",
+    );
+    expect([...ids]).toEqual(["showcase"]);
+    // Queue order decides among them: the analyst-touched firm ranked first is skipped.
+    expect(defaultDeskFirmId(["acted-on", "showcase"], ids)).toBe("showcase");
   });
 });
