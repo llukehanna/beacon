@@ -121,6 +121,31 @@ export const COUNTRY_GEO: Readonly<Record<string, CountryGeo>> = {
   "Hong Kong": { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", geoScore: 1 },
 };
 
+/** ISO 3166-1 alpha-2 code for each country in COUNTRY_GEO, for compact HQ cells. */
+export const COUNTRY_CODE: Readonly<Record<string, string>> = {
+  "United States": "US",
+  Canada: "CA",
+  Mexico: "MX",
+  Brazil: "BR",
+  "United Kingdom": "GB",
+  Germany: "DE",
+  France: "FR",
+  Netherlands: "NL",
+  Switzerland: "CH",
+  Sweden: "SE",
+  Spain: "ES",
+  Italy: "IT",
+  "United Arab Emirates": "AE",
+  "Saudi Arabia": "SA",
+  "South Africa": "ZA",
+  Nigeria: "NG",
+  Australia: "AU",
+  Japan: "JP",
+  Singapore: "SG",
+  India: "IN",
+  "Hong Kong": "HK",
+};
+
 export interface Selection {
   countries: Set<string>;
   firmTypes: Set<"CF" | "CS">;

@@ -1,5 +1,7 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useLinks, useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -30,10 +32,12 @@ import {
 import {
   type AxisGroup,
   type FindingLike,
+  axisBadge,
   classifyAxis,
   pickAuthoritative,
   retrievedMs,
 } from "./axisState";
+import { deskPanelState } from "./deskPanelState";
 import {
   type AcceptDecision,
   FINDING_AXIS_TO_KEY,
@@ -60,19 +64,15 @@ import {
   orderEnrichmentQueue,
   toQueueFirm,
 } from "./queue";
-import {
-  MAX_POSSIBLE,
-  type MirrorResult,
-  type Model,
-  type ScoreInput,
-  mirrorScore,
-} from "./scoreMirror";
+import { formatScore, queueRowTier, scoreFraction } from "./scoreFormat";
+import { type MirrorResult, type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
 import {
   BAND_COLOR,
   CONFIDENCE_CHIP,
   FINDING_CHIP,
   REJECT_BORDER,
   REJECT_TEXT,
+  SIDEBAR_STYLE,
   TIER_COLOR,
   TIER_LABEL,
   VOID_BG,
@@ -276,7 +276,7 @@ interface HardGate {
   editKey: string;
   readKey: keyof FirmView;
   label: string;
-  helper?: string;
+  helper?: React.ReactNode;
   // Which stored boolean reads as "cleared" for this gate. Analyst-facing
   // copy is Pass/Fail (uniform "Pass = cleared"); storage stays the same
   // boolean the ontology already speaks. Two of the four gates invert:
@@ -293,7 +293,11 @@ const HARD_GATES: HardGate[] = [
     editKey: "advisoryConflict",
     readKey: "advisoryConflict",
     label: "Advisory conflict",
-    helper: "CS hard-reject",
+    helper: (
+      <>
+        <Term id="CS">CS</Term> hard-reject
+      </>
+    ),
     passWhen: HARD_GATE_PASS_WHEN.advisoryConflict,
   },
   {
@@ -642,12 +646,6 @@ function FindingStatusChip({ status }: { status?: string }): React.ReactElement 
   );
 }
 
-// Score->pct helper — mirrorScore reports weightedTotal/maxPossible (MAX_POSSIBLE),
-// design shows a 0-100 percentage.
-function pctScore(m: MirrorResult): number {
-  return Math.round(m.pct * 100);
-}
-
 // Compact per-firm rediscovery badge for the queue row. "new" = firm was
 // created by the current search; "rediscovered" = firm already existed
 // and was attached (dedupe hit), with N prior decisions in the ontology.
@@ -878,32 +876,39 @@ function QueueSidebar({
   }, [queue, q, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
 
   return (
-    <aside
-      style={{
-        width: 280,
-        flex: "0 0 280px",
-        borderRight: "1px solid var(--color-divider)",
-        display: "flex",
-        flexDirection: "column",
-        padding: 16,
-        gap: 12,
-        minHeight: 0,
-      }}
-    >
+    <aside style={SIDEBAR_STYLE}>
       <BrandMark section="Enrichment Desk" />
       <WorkspaceNavLinks />
 
-      <div style={{ padding: "0 4px", marginTop: 4 }}>
+      <div
+        style={{
+          padding: "0 4px",
+          marginTop: 4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
         <Kicker>Queue</Kicker>
-        <div
+        <label
           style={{
-            fontSize: 10,
-            marginTop: 4,
-            color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
           }}
         >
-          sorted by expected gain
-        </div>
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(e) => setShowAll(e.target.checked)}
+            style={{ accentColor: "var(--color-accent)", cursor: "pointer" }}
+          />
+          Show all firms
+        </label>
       </div>
 
       {/* Search */}
@@ -951,30 +956,14 @@ function QueueSidebar({
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{queue.length}</span> {scopeLabel}
             {": "}
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{openScreenedCount}</span> open
-            firm{openScreenedCount === 1 ? "" : "s"} screened by approved rules
+            firm{openScreenedCount === 1 ? "" : "s"} screened by{" "}
+            <Link to="/rules" style={{ color: "var(--color-accent)" }}>
+              approved rules
+            </Link>
+            {" · "}sorted by expected gain
           </>
         )}
       </div>
-
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "0 4px",
-          fontSize: 11,
-          cursor: "pointer",
-          color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={showAll}
-          onChange={(e) => setShowAll(e.target.checked)}
-          style={{ accentColor: "var(--color-accent)", cursor: "pointer" }}
-        />
-        Show all firms
-      </label>
 
       {/* Only shown when the view is narrower or wider than the header's
           headline number, so the list count is never ambiguous. */}
@@ -1029,18 +1018,10 @@ function QueueSidebar({
         )}
         {filtered.map((r) => {
           const selected = r.firm.firmId === selectedId;
-          // R-badge decision now reads from the shared hard-screen verdict
-          // (r.hardScreened) rather than the client mirror alone. A firm
-          // whose tier is Rejected via low score but hasn't tripped any
-          // rule stays workable — we don't wear an R at the top of the
-          // queue for those firms; the score row already conveys the
-          // low current standing.
-          const displayTier: string = r.hardScreened
-            ? "Rejected"
-            : r.tier === "Rejected"
-              ? "C"
-              : r.tier;
-          const pct = r.hardScreened ? 0 : Math.round((r.currentScore / MAX_POSSIBLE) * 100);
+          // A firm an approved rule screened out wears an R; every other
+          // firm shows its own score tier, the same as the header and Pipeline.
+          const displayTier = queueRowTier(r.hardScreened, r.tier);
+          const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
           // An approved rule took this firm off the live queue. Named, not
           // just dimmed — "why is this firm greyed out" should be readable
           // from the row without opening it.
@@ -1130,9 +1111,9 @@ function QueueSidebar({
                   <>
                     <span
                       style={{ fontVariantNumeric: "tabular-nums" }}
-                      title={`${r.currentScore} of ${MAX_POSSIBLE} signal points known → ${r.ceiling} reachable if the remaining fields were filled`}
+                      title={`${formatScore(r.currentScore)} known → ${formatScore(r.ceiling)} reachable if the remaining fields were filled`}
                     >
-                      {r.currentScore}/{MAX_POSSIBLE} → {r.ceiling}
+                      {formatScore(r.currentScore)} → {formatScore(r.ceiling)}
                     </span>
                     <span
                       style={{
@@ -1147,12 +1128,17 @@ function QueueSidebar({
                         style={{
                           display: "block",
                           height: "100%",
-                          width: `${pct}%`,
+                          width: `calc(100% * ${barFill})`,
                           background: TIER_COLOR[r.tier] ?? "var(--color-neutral-500)",
                         }}
                       />
                     </span>
-                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{r.missingCount}m</span>
+                    <span
+                      title="Rubric axes with no value yet"
+                      style={{ fontVariantNumeric: "tabular-nums" }}
+                    >
+                      {r.missingCount} missing
+                    </span>
                   </>
                 )}
               </div>
@@ -1160,6 +1146,7 @@ function QueueSidebar({
           );
         })}
       </div>
+      <DemoFooter />
     </aside>
   );
 }
@@ -1222,9 +1209,10 @@ function FirmHeader({
   const tier = after.tier;
   const tierColor = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
   const status = normalizeLifecycle(firm.lifecycleState ?? firm.currentStage);
-  const pct = after.hardRejected ? null : pctScore(after);
-  const beforePct = before.hardRejected ? null : pctScore(before);
-  const changed = pct !== null && beforePct !== null && pct !== beforePct;
+  // A hard reject scores 0 (the mirror's weightedTotal), shown muted beside the R tag.
+  const score = after.weightedTotal;
+  const beforeScore = before.weightedTotal;
+  const changed = score !== beforeScore;
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -1317,7 +1305,7 @@ function FirmHeader({
                 : tierColor,
             }}
           >
-            {pct ?? "—"}
+            {formatScore(score)}
           </span>
           <TierTag tier={tier} />
         </div>
@@ -1369,7 +1357,7 @@ function FirmHeader({
                   background: "currentColor",
                 }}
               />
-              {beforePct} → {pct}
+              {formatScore(beforeScore)} → {formatScore(score)}
             </span>
           )}
           <span
@@ -1443,7 +1431,13 @@ function AxisBreakdown({
       {mirror.axisScores.map((axis) => {
         const ed = editorForAxis(axis.axis, model);
         const editing = ed !== undefined && focused === `axis:${axis.axis}`;
-        const finding = findingsByAxisKey.get(ed?.editKey ?? "")?.[0];
+        const axisFindings = findingsByAxisKey.get(ed?.editKey ?? "");
+        const finding =
+          axisFindings !== undefined && axisFindings.length > 0
+            ? pickAuthoritative(axisFindings)
+            : undefined;
+        const badge =
+          finding !== undefined ? axisBadge(classifyAxis(finding), axis.known) : undefined;
         const bandInt = Number.isInteger(axis.score) ? (axis.score as 0 | 1 | 2) : null;
         const editValue = ed ? edits[ed.editKey] : undefined;
         const onFile = ed ? firmRecord[ed.editKey] : undefined;
@@ -1532,7 +1526,7 @@ function AxisBreakdown({
                       pending: {String(editValue)}
                     </div>
                   )}
-                  {!axis.known && !editValue && (
+                  {!axis.known && !editValue && !(canEdit && badge?.label != null) && (
                     <div
                       style={{
                         fontSize: 11,
@@ -1622,11 +1616,16 @@ function AxisBreakdown({
               }}
             >
               <BandChip band={bandInt} />
-              {finding && (
-                <>
-                  <ProviderChip provider={finding.provider} />
-                  <ConfidenceChip tier={finding.confidenceTier} />
-                </>
+              {badge?.label != null && (
+                <span style={{ fontSize: 11, fontWeight: 500, color: "#e79191" }}>
+                  {badge.label}
+                </span>
+              )}
+              {finding !== undefined && badge?.showProvider === true && (
+                <ProviderChip provider={finding.provider} />
+              )}
+              {finding !== undefined && badge?.showConfidence === true && (
+                <ConfidenceChip tier={finding.confidenceTier} />
               )}
             </div>
           </div>
@@ -1668,7 +1667,9 @@ function HardGates({
 }): React.ReactElement {
   return (
     <div>
-      <Kicker style={{ marginBottom: 8 }}>Hard gates</Kicker>
+      <Kicker style={{ marginBottom: 8 }}>
+        <Term id="Hard gate">Hard gates</Term>
+      </Kicker>
       <div
         style={{
           display: "grid",
@@ -1698,7 +1699,13 @@ function HardGates({
               onFocus={() => setFocused(`gate:${g.editKey}`)}
             >
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{g.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>
+                  {g.label === "S&T / balance sheet" ? (
+                    <Term id="S&T / balance sheet">{g.label}</Term>
+                  ) : (
+                    g.label
+                  )}
+                </div>
                 {g.helper && (
                   <div
                     style={{
@@ -3337,6 +3344,12 @@ function YourCallRail({
   const advance = useOsdkAction(advanceStageAction);
   const observable = useObservableClient();
   const [note, setNote] = React.useState("");
+  // The missing-note error waits for a Pass attempt; it isn't shown on first sight of the form.
+  const [attemptedPass, setAttemptedPass] = React.useState(false);
+  const firmKey = firm.firmId;
+  React.useEffect(() => {
+    setAttemptedPass(false);
+  }, [firmKey]);
 
   // Function-backed actions report their created objects (the ReviewDecision)
   // but not reliably the firm they modified, so the automatic cache
@@ -3378,16 +3391,21 @@ function YourCallRail({
       .then(refreshFirm);
   };
   const onReject = (): void => {
+    if (note.trim().length === 0) {
+      setAttemptedPass(true);
+      return;
+    }
     // Note preserved if reject fails (only cleared on success).
     void reject
       .applyAction({ firm: actionFirm, rejectionRationale: note.trim() } as never)
       .then(() => {
         setNote("");
+        setAttemptedPass(false);
         refreshFirm();
       });
   };
 
-  const canReject = note.trim().length > 0 && !reject.isPending;
+  const noteMissing = attemptedPass && note.trim() === "";
   const anyError =
     enrichError !== undefined ||
     qualify.error !== undefined ||
@@ -3545,9 +3563,9 @@ function YourCallRail({
                   color: REJECT_TEXT,
                   borderColor: REJECT_BORDER,
                 }}
-                disabled={!canReject}
+                disabled={reject.isPending}
                 onClick={onReject}
-                title={note.trim() === "" ? "A note is required to pass" : "Pass on this firm"}
+                title="Pass on this firm. A decision note is required."
               >
                 <span>{reject.isPending ? "Passing…" : "Pass…"}</span>
                 <kbd
@@ -3587,6 +3605,8 @@ function YourCallRail({
             className="input"
             value={note}
             onChange={(e) => setNote(e.target.value)}
+            aria-invalid={noteMissing}
+            aria-describedby={noteMissing ? "decision-note-error" : undefined}
             placeholder={
               terminalKind === null
                 ? "Optional for advance/qualify · required to pass…"
@@ -3595,21 +3615,25 @@ function YourCallRail({
             style={{ minHeight: 104, lineHeight: 1.45 }}
           />
           <div
+            id={noteMissing ? "decision-note-error" : undefined}
+            role={noteMissing ? "alert" : undefined}
             style={{
               fontSize: 11,
               color:
                 terminalKind !== null
                   ? "color-mix(in srgb, var(--color-text) 45%, transparent)"
-                  : note.trim() === ""
+                  : noteMissing
                     ? "#e79191"
                     : "color-mix(in srgb, var(--color-text) 45%, transparent)",
             }}
           >
             {terminalKind !== null
               ? "No decision actions available in a terminal state."
-              : note.trim() === ""
+              : noteMissing
                 ? "A note is required to pass."
-                : "Note captured as the pass rationale."}
+                : note.trim() === ""
+                  ? "Add a note to pass on this firm."
+                  : "Note captured as the pass rationale."}
           </div>
         </div>
 
@@ -3868,6 +3892,10 @@ function EnrichmentPanel({
 
   React.useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
+      // A popover dialog (demo reset confirm) owns the keyboard while it is open.
+      if (document.querySelector('[role="dialog"]') !== null) {
+        return;
+      }
       const tag = (e.target as HTMLElement | null)?.tagName;
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         commitRef.current();
@@ -4044,9 +4072,7 @@ function EmptyState(): React.ReactElement {
         >
           B
         </span>
-        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>
-          Pick a firm from the queue
-        </div>
+        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>Pick a firm</div>
         <p
           style={{
             margin: 0,
@@ -4055,10 +4081,91 @@ function EmptyState(): React.ReactElement {
             lineHeight: 1.55,
           }}
         >
-          Sorted by expected gain: points still on the table if the remaining fields were filled.
-          Firms tripping a base rule or an active approved hard-screen sink to the bottom, above
-          Qualified / analyst-passed firms. Pending or dismissed rule proposals never screen.
-          Approve one in /rules to see firms move.
+          Choose a firm from the queue on the left. Firms are ordered by how much a decision would
+          change their score. Firms screened out by approved rules are hidden unless you turn on
+          Show all firms.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/** Placeholder while a deep-linked firm is still loading; shaped like the firm header and axis list. */
+function FirmSkeleton(): React.ReactElement {
+  const bar = (width: number | string, height: number): React.CSSProperties => ({
+    width,
+    height,
+    borderRadius: "var(--radius-sm)",
+    background:
+      "linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0%, color-mix(in srgb, var(--color-text) 18%, transparent) 50%, color-mix(in srgb, var(--color-text) 6%, transparent) 100%)",
+    backgroundSize: "200% 100%",
+    animation: "beacon-shimmer 1.6s linear infinite",
+  });
+  return (
+    <div
+      role="status"
+      aria-label="Loading firm"
+      style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={bar(280, 26)} />
+          <div style={bar(200, 13)} />
+        </div>
+        <div style={bar(96, 44)} />
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {Array.from({ length: 9 }, (_, i) => (
+          <div key={i} style={bar("100%", 36)} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** A deep-linked firm that exists but is outside the pinned search's membership. */
+function FirmNotInSearch({ onClear }: { onClear: () => void }): React.ReactElement {
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
+        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>
+          {"This firm isn't in the current search"}
+        </div>
+        <p
+          style={{
+            margin: "0 0 16px",
+            fontSize: 13,
+            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
+            lineHeight: 1.55,
+          }}
+        >
+          The queue is limited to the firms this search found. Clear the search filter to see every
+          firm.
+        </p>
+        <button type="button" className="btn btn-secondary" onClick={onClear}>
+          Clear search filter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A deep-linked firm id that is not in the database. */
+function FirmNotFound({ firmId }: { firmId: string }): React.ReactElement {
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
+        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>Firm not found</div>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 13,
+            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
+            lineHeight: 1.55,
+            overflowWrap: "anywhere",
+          }}
+        >
+          No firm with id {firmId} is in the database. Choose one from the queue on the left.
         </p>
       </div>
     </div>
@@ -4161,7 +4268,7 @@ function Desk(): React.ReactElement {
   const searchIdParam = searchParams.get("search") ?? "";
   const searchActive = searchIdParam !== "";
 
-  const { data: pinnedSearchData } = useOsdkObjects(Search, {
+  const { data: pinnedSearchData, isLoading: pinnedSearchLoading } = useOsdkObjects(Search, {
     where: { searchId: { $eq: searchIdParam } },
     pageSize: 1,
   });
@@ -4215,8 +4322,13 @@ function Desk(): React.ReactElement {
   const membership = useLinks(pinnedSearchInstance as never, "firms", {
     pageSize: 500,
   });
+  // Null while a pinned search's membership is unresolved. An empty Set would read as "this
+  // search has no firms" and filter every firm out before the links arrive.
+  const membershipLoading =
+    searchActive &&
+    (pinnedSearchLoading || (pinnedSearchInstance !== undefined && membership.isLoading));
   const memberFirmIds = React.useMemo(() => {
-    if (!searchActive) {
+    if (!searchActive || membershipLoading) {
       return null;
     }
     const arr = membership.linkedObjectsBySourcePrimaryKey.get(searchIdParam);
@@ -4228,7 +4340,7 @@ function Desk(): React.ReactElement {
       }
     }
     return set;
-  }, [searchActive, membership.linkedObjectsBySourcePrimaryKey, searchIdParam]);
+  }, [searchActive, membershipLoading, membership.linkedObjectsBySourcePrimaryKey, searchIdParam]);
 
   // Decisions load-bearing only when the filter is active (to compute
   // per-firm "N prior decisions"). Skipping the fetch when the desk is
@@ -4281,8 +4393,11 @@ function Desk(): React.ReactElement {
   }, [searchActive, decisionData, pinnedSearch?.runAt]);
 
   const filteredData = React.useMemo(() => {
-    if (!searchActive || memberFirmIds === null) {
+    if (!searchActive) {
       return (data ?? []) as typeof data;
+    }
+    if (memberFirmIds === null) {
+      return [] as unknown as typeof data;
     }
     return (data ?? []).filter((f) => memberFirmIds.has(f.firmId ?? ""));
   }, [searchActive, memberFirmIds, data]);
@@ -4330,7 +4445,19 @@ function Desk(): React.ReactElement {
     return orderEnrichmentQueue(firms, rankingRules);
   }, [filteredData, rankingRules]);
 
-  const selected = filteredData?.find((f) => f.firmId === selectedId);
+  const selected =
+    selectedId === undefined ? undefined : filteredData?.find((f) => f.firmId === selectedId);
+  const loadError = error ?? membership.error;
+  const panelState = deskPanelState({
+    selectedId,
+    firmsLoading: isLoading,
+    membershipLoading,
+    hasError: loadError !== undefined,
+    searchActive,
+    inView: selected !== undefined,
+    inDatabase: selectedId !== undefined && (data ?? []).some((f) => f.firmId === selectedId),
+    viewCount: filteredData?.length ?? 0,
+  });
 
   return (
     <div
@@ -4363,8 +4490,9 @@ function Desk(): React.ReactElement {
             onClear={onClearSearchFilter}
           />
         )}
-        {error && (
+        {loadError && (
           <div
+            role="alert"
             style={{
               padding: "8px 24px",
               background: "rgba(207,112,112,.12)",
@@ -4372,10 +4500,28 @@ function Desk(): React.ReactElement {
               fontSize: 12,
             }}
           >
-            {String(error)}
+            {String(loadError)}
           </div>
         )}
-        {searchActive && !isLoading && (filteredData?.length ?? 0) === 0 && (
+        {panelState === "firm" && selected !== undefined && (
+          <EnrichmentPanel
+            firm={selected}
+            actionFirm={selected}
+            allFirms={(filteredData ?? []) as unknown as FirmView[]}
+            firmsLoading={isLoading}
+            // Same rule list the queue ranks and partitions on, so the firm
+            // header's hard-screen chip can't call a firm workable while the
+            // sidebar shows it screened.
+            activeConfigs={rankingRules}
+            configsLoading={configLoading}
+          />
+        )}
+        {panelState === "skeleton" && <FirmSkeleton />}
+        {panelState === "not-found" && selectedId !== undefined && (
+          <FirmNotFound firmId={selectedId} />
+        )}
+        {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
+        {panelState === "search-empty" && (
           <div
             style={{
               flex: 1,
@@ -4394,21 +4540,8 @@ function Desk(): React.ReactElement {
               : "This search returned no firms yet. If it just launched, give the backend a moment to attach dedupes and create discoveries. The queue populates as membership lands."}
           </div>
         )}
-        {selected ? (
-          <EnrichmentPanel
-            firm={selected}
-            actionFirm={selected}
-            allFirms={(filteredData ?? []) as unknown as FirmView[]}
-            firmsLoading={isLoading}
-            // Same rule list the queue ranks and partitions on, so the firm
-            // header's hard-screen chip can't call a firm workable while the
-            // sidebar shows it screened.
-            activeConfigs={rankingRules}
-            configsLoading={configLoading}
-          />
-        ) : (
-          !(searchActive && !isLoading && (filteredData?.length ?? 0) === 0) && <EmptyState />
-        )}
+        {panelState === "empty" && <EmptyState />}
+        {panelState === "error" && <div style={{ flex: 1 }} />}
       </div>
     </div>
   );

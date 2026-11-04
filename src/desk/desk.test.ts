@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { COUNTRY_GEO } from "../../shared/taxonomy";
 import {
   type ScreeningRule,
   countScreened,
@@ -7,7 +8,9 @@ import {
   screenFirm,
   toScreeningRules,
 } from "./activeScreening";
-import { type FindingLike, needsYouAxisCountByFirm } from "./axisState";
+import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
+import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
+import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
   ENUM_EDIT_KEYS,
   FINDING_AXIS_TO_KEY,
@@ -30,9 +33,23 @@ import {
   searchListFirmIds,
 } from "./mandateFirms";
 import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pipelineBuckets";
+import {
+  DEFAULT_SORT,
+  hqCode,
+  latestRejection,
+  navTarget,
+  nextSort,
+  pipelineSort,
+  rejectDecisionByFirm,
+  revealScrollTop,
+  sortDirection,
+  windowRange,
+  windowSegments,
+} from "./pipelineRows";
 import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
+import { formatScore, queueRowTier, scoreFraction, shownScore } from "./scoreFormat";
 import { mirrorScore } from "./scoreMirror";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
@@ -1625,5 +1642,540 @@ describe("providerLabel", () => {
     expect(providerLabel("dealdb+websearch")).toBe("Deal DB + Web search");
     expect(providerLabel("beacondb+dealdb+filings")).toBe("BeaconDB + Deal DB + Filings");
     expect(providerLabel("mystery")).toBe("mystery");
+  });
+});
+
+describe("formatScore — one 18-point scale everywhere", () => {
+  it("formats the total over 18 with the tier letter", () => {
+    expect(formatScore(13, "B")).toBe("13/18 · B");
+  });
+
+  it("omits the tier when none is given", () => {
+    expect(formatScore(13)).toBe("13/18");
+    expect(formatScore(13, null)).toBe("13/18");
+  });
+
+  it("shows an em dash for a missing or non-finite score", () => {
+    expect(formatScore(null)).toBe("—/18");
+    expect(formatScore(undefined, "A")).toBe("—/18 · A");
+    expect(formatScore(Number.NaN)).toBe("—/18");
+  });
+
+  it("reads a hard reject as 0/18 · Rejected", () => {
+    const r = mirrorScore({ firmType: "CS", advisoryConflict: true });
+    expect(r.hardRejected).toBe(true);
+    expect(formatScore(r.weightedTotal, r.tier)).toBe("0/18 · Rejected");
+  });
+
+  it("scoreFraction is a 0-1 bar width, clamped", () => {
+    expect(scoreFraction(9)).toBe(0.5);
+    expect(scoreFraction(18)).toBe(1);
+    expect(scoreFraction(0)).toBe(0);
+    expect(scoreFraction(null)).toBe(0);
+    expect(scoreFraction(40)).toBe(1);
+    expect(scoreFraction(-3)).toBe(0);
+  });
+});
+
+describe("shownScore — a passed firm shows the score it was passed at", () => {
+  const live = { weightedTotal: 12, tier: "B" };
+
+  it("uses the reject decision's score and tier for a passed firm", () => {
+    expect(shownScore(live, true, { scoreAtDecision: 8, tierAtDecision: "C" })).toEqual({
+      total: 8,
+      tier: "C",
+    });
+  });
+
+  it("uses the live score for a firm that has not been passed", () => {
+    expect(shownScore(live, false, { scoreAtDecision: 8, tierAtDecision: "C" })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+  });
+
+  it("falls back to the live score when no decision score is on file", () => {
+    expect(shownScore(live, true, undefined)).toEqual({ total: 12, tier: "B" });
+    expect(shownScore(live, true, { scoreAtDecision: null, tierAtDecision: "C" })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+    expect(shownScore(live, true, { scoreAtDecision: 8, tierAtDecision: null })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+  });
+
+  it("keeps a recorded score of zero", () => {
+    expect(shownScore(live, true, { scoreAtDecision: 0, tierAtDecision: "Rejected" })).toEqual({
+      total: 0,
+      tier: "Rejected",
+    });
+  });
+});
+
+describe("queueRowTier — queue, header and Pipeline agree", () => {
+  it("shows R for a screened firm whatever its score tier", () => {
+    expect(queueRowTier(true, "A")).toBe("Rejected");
+    expect(queueRowTier(true, "Rejected")).toBe("Rejected");
+  });
+
+  it("shows the score tier otherwise, including a soft Rejected", () => {
+    expect(queueRowTier(false, "B")).toBe("B");
+    expect(queueRowTier(false, "Rejected")).toBe("Rejected");
+  });
+});
+
+describe("pipelineSort", () => {
+  const r = (id: string, bucket: string, total: number) => ({
+    bucket,
+    score: { total },
+    firm: { firmId: id, firmName: id },
+  });
+  const ids = (rows: { firm: { firmId: string } }[]) => rows.map((x) => x.firm.firmId);
+
+  it("defaults to stage: Closed first, Discovered last, Passed after everything", () => {
+    const rows = [
+      r("d", "Discovered", 18),
+      r("p", "Passed", 18),
+      r("c", "Closed", 2),
+      r("n", "NDA", 9),
+      r("s", "Screening", 12),
+    ];
+    expect(ids(pipelineSort(rows))).toEqual(["c", "n", "s", "d", "p"]);
+  });
+
+  it("breaks stage ties by score descending, then name", () => {
+    const rows = [
+      r("b-low", "Screening", 5),
+      r("z-high", "Screening", 14),
+      r("a-high", "Screening", 14),
+    ];
+    expect(ids(pipelineSort(rows, "stage"))).toEqual(["a-high", "z-high", "b-low"]);
+  });
+
+  it("orders passed firms by their shown score among themselves", () => {
+    const rows = [r("p-low", "Passed", 3), r("p-high", "Passed", 11), r("d", "Discovered", 0)];
+    expect(ids(pipelineSort(rows))).toEqual(["d", "p-high", "p-low"]);
+  });
+
+  it("sorts by score or by name on request, and does not mutate its input", () => {
+    const rows = [r("b", "Closed", 4), r("a", "Discovered", 9), r("c", "NDA", 9)];
+    const before = ids(rows);
+    expect(ids(pipelineSort(rows, "score"))).toEqual(["a", "c", "b"]);
+    expect(ids(pipelineSort(rows, "name"))).toEqual(["a", "b", "c"]);
+    expect(ids(rows)).toEqual(before);
+  });
+});
+
+describe("rejectDecisionByFirm", () => {
+  it("keeps the newest reject decision per firm with its rationale and score in one pass", () => {
+    // Decisions arrive newest first.
+    const m = rejectDecisionByFirm([
+      { firmId: "f1", decisionType: "advance" },
+      {
+        firmId: "f1",
+        decisionType: "reject",
+        rejectionRationale: " Too small ",
+        scoreAtDecision: 7,
+        tierAtDecision: "C",
+      },
+      {
+        firmId: "f1",
+        decisionType: "reject",
+        rejectionRationale: "older",
+        scoreAtDecision: 12,
+        tierAtDecision: "B",
+      },
+      { firmId: "f2", decisionType: "Reject_Firm", scoreAtDecision: 0, tierAtDecision: "Rejected" },
+      { firmId: "", decisionType: "reject", rejectionRationale: "no firm" },
+      { firmId: null, decisionType: "reject" },
+    ]);
+    expect([...m.keys()]).toEqual(["f1", "f2"]);
+    expect(m.get("f1")).toEqual({
+      rationale: "Too small",
+      scoreAtDecision: 7,
+      tierAtDecision: "C",
+    });
+    expect(m.get("f2")).toEqual({
+      rationale: null,
+      scoreAtDecision: 0,
+      tierAtDecision: "Rejected",
+    });
+  });
+});
+
+describe("hqCode", () => {
+  it("maps every seeded country to a code and falls back to the name", () => {
+    for (const country of Object.keys(COUNTRY_GEO)) {
+      expect(hqCode(country)).toMatch(/^[A-Z]{2}$/);
+    }
+    expect(hqCode("United States")).toBe("US");
+    expect(hqCode("Atlantis")).toBe("Atlantis");
+    expect(hqCode(null)).toBe("—");
+    expect(hqCode("")).toBe("—");
+  });
+});
+
+describe("windowRange", () => {
+  const base = { rowHeight: 50, count: 700, overscan: 3 };
+
+  it("renders the visible rows plus overscan", () => {
+    expect(windowRange({ ...base, scrollTop: 0, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 13,
+    });
+    expect(windowRange({ ...base, scrollTop: 1000, viewportHeight: 500 })).toEqual({
+      start: 17,
+      end: 33,
+    });
+  });
+
+  it("clamps to the row count and handles a table scrolled out of view", () => {
+    expect(windowRange({ ...base, scrollTop: 999_999, viewportHeight: 500 })).toEqual({
+      start: 697,
+      end: 700,
+    });
+    expect(windowRange({ ...base, scrollTop: -400, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 5,
+    });
+    expect(windowRange({ ...base, count: 0, scrollTop: 0, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 0,
+    });
+  });
+});
+
+describe("revealScrollTop", () => {
+  // Rows are 50px; a 40px sticky header sits above row 0, so row i spans 40 + 50i .. 90 + 50i.
+  const base = { rowHeight: 50, headerHeight: 40, viewportHeight: 400 };
+
+  it("leaves the scroll alone when the row is already visible", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 0, index: 3 })).toBe(0);
+    expect(revealScrollTop({ ...base, scrollTop: -80, index: 0 })).toBe(-80);
+  });
+
+  it("scrolls up so the row clears the sticky header", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 500, index: 9 })).toBe(450);
+  });
+
+  it("scrolls down so the row ends at the bottom edge", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 0, index: 10 })).toBe(190);
+  });
+});
+
+describe("pipelineSort reversal and header clicks", () => {
+  const r = (id: string, bucket: string, total: number) => ({
+    bucket,
+    score: { total },
+    firm: { firmId: id, firmName: id },
+  });
+  const ids = (rows: { firm: { firmId: string } }[]) => rows.map((x) => x.firm.firmId);
+
+  it("reverses the whole order, Passed first when stage is flipped", () => {
+    const rows = [r("d", "Discovered", 1), r("p", "Passed", 1), r("c", "Closed", 1)];
+    expect(ids(pipelineSort(rows, "stage", true))).toEqual(["p", "d", "c"]);
+    expect(ids(pipelineSort(rows, "name", true))).toEqual(["p", "d", "c"]);
+  });
+
+  it("a new key starts in its natural direction; the same key flips it, then flips back", () => {
+    expect(sortDirection(DEFAULT_SORT)).toBe("descending");
+    const flipped = nextSort(DEFAULT_SORT, "stage");
+    expect(flipped).toEqual({ key: "stage", reversed: true });
+    expect(sortDirection(flipped)).toBe("ascending");
+    expect(nextSort(flipped, "stage")).toEqual(DEFAULT_SORT);
+    const byName = nextSort(flipped, "name");
+    expect(byName).toEqual({ key: "name", reversed: false });
+    expect(sortDirection(byName)).toBe("ascending");
+    expect(sortDirection({ key: "name", reversed: true })).toBe("descending");
+  });
+});
+
+describe("navTarget", () => {
+  it("maps navigation keys and clamps at the edges", () => {
+    expect(navTarget("ArrowDown", 3, 10, 5)).toBe(4);
+    expect(navTarget("ArrowUp", 3, 10, 5)).toBe(2);
+    expect(navTarget("PageDown", 3, 10, 5)).toBe(8);
+    expect(navTarget("PageDown", 8, 10, 5)).toBe(9);
+    expect(navTarget("PageUp", 3, 10, 5)).toBe(0);
+    expect(navTarget("Home", 7, 10, 5)).toBe(0);
+    expect(navTarget("End", 3, 10, 5)).toBe(9);
+  });
+
+  it("returns the current index for a no-op at an edge and null for other keys", () => {
+    expect(navTarget("ArrowUp", 0, 10, 5)).toBe(0);
+    expect(navTarget("Home", 0, 10, 5)).toBe(0);
+    expect(navTarget("ArrowDown", 9, 10, 5)).toBe(9);
+    expect(navTarget("End", 9, 10, 5)).toBe(9);
+    expect(navTarget("Enter", 3, 10, 5)).toBeNull();
+    expect(navTarget("a", 3, 10, 5)).toBeNull();
+  });
+});
+
+describe("windowSegments", () => {
+  const rowsOf = (segs: ReturnType<typeof windowSegments>) =>
+    segs.map((s) => (s.kind === "row" ? s.index : `s${s.rows}`));
+
+  it("is the window between two spacers", () => {
+    expect(rowsOf(windowSegments({ start: 4, end: 7, count: 10, pinned: null }))).toEqual([
+      "s4",
+      4,
+      5,
+      6,
+      "s3",
+    ]);
+    expect(rowsOf(windowSegments({ start: 0, end: 3, count: 3, pinned: null }))).toEqual([0, 1, 2]);
+    expect(rowsOf(windowSegments({ start: 0, end: 0, count: 0, pinned: null }))).toEqual([]);
+  });
+
+  it("keeps a focused row that scrolled above or below the window, spacing around it", () => {
+    expect(rowsOf(windowSegments({ start: 6, end: 8, count: 12, pinned: 2 }))).toEqual([
+      "s2",
+      2,
+      "s3",
+      6,
+      7,
+      "s4",
+    ]);
+    expect(rowsOf(windowSegments({ start: 1, end: 3, count: 12, pinned: 9 }))).toEqual([
+      "s1",
+      1,
+      2,
+      "s6",
+      9,
+      "s2",
+    ]);
+    expect(rowsOf(windowSegments({ start: 0, end: 2, count: 5, pinned: 4 }))).toEqual([
+      0,
+      1,
+      "s2",
+      4,
+    ]);
+  });
+
+  it("ignores a pinned row already in the window or out of range", () => {
+    expect(rowsOf(windowSegments({ start: 2, end: 5, count: 8, pinned: 3 }))).toEqual([
+      "s2",
+      2,
+      3,
+      4,
+      "s3",
+    ]);
+    expect(rowsOf(windowSegments({ start: 2, end: 5, count: 8, pinned: 20 }))).toEqual([
+      "s2",
+      2,
+      3,
+      4,
+      "s3",
+    ]);
+  });
+});
+
+describe("axisBadge — what an axis row shows beside its finding", () => {
+  it("an abstained axis reads 'No source — needs you' with no provider or confidence chip", () => {
+    const finding = { findingId: "1", provider: "exa", confidenceTier: "abstain" };
+    expect(axisBadge(classifyAxis(finding), false)).toEqual({
+      label: "No source \u2014 needs you",
+      showProvider: false,
+      showConfidence: false,
+    });
+  });
+
+  it("an abstained axis that already has a value shows the value, not 'needs you'", () => {
+    const finding = { findingId: "1", provider: "exa", confidenceTier: "abstain" };
+    expect(axisBadge(classifyAxis(finding), true)).toEqual({
+      label: null,
+      showProvider: false,
+      showConfidence: false,
+    });
+  });
+
+  it("only a proposed value carries a confidence chip", () => {
+    expect(axisBadge("proposed", false)).toMatchObject({
+      label: null,
+      showProvider: true,
+      showConfidence: true,
+    });
+    expect(axisBadge("verified", true)).toMatchObject({
+      label: null,
+      showProvider: true,
+      showConfidence: false,
+    });
+  });
+});
+
+describe("deskPanelState — one panel state at a time", () => {
+  const base: DeskPanelInputs = {
+    selectedId: undefined,
+    firmsLoading: false,
+    membershipLoading: false,
+    hasError: false,
+    searchActive: false,
+    inView: false,
+    inDatabase: false,
+    viewCount: 10,
+  };
+
+  it("shows the skeleton, not 'Pick a firm', while a deep-linked firm loads", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", firmsLoading: true })).toBe("skeleton");
+  });
+
+  it("shows the empty prompt for no firmId, loading or not", () => {
+    expect(deskPanelState(base)).toBe("empty");
+    expect(deskPanelState({ ...base, firmsLoading: true })).toBe("empty");
+  });
+
+  it("renders the firm once it is in the view", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", inView: true, inDatabase: true })).toBe(
+      "firm",
+    );
+  });
+
+  it("calls an id not in the full list not-found only after loading, with no error", () => {
+    expect(deskPanelState({ ...base, selectedId: "nope" })).toBe("not-found");
+    expect(deskPanelState({ ...base, selectedId: "nope", firmsLoading: true })).toBe("skeleton");
+  });
+
+  it("a failed query reports the error, never not-found", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", hasError: true })).toBe("error");
+    expect(deskPanelState({ ...base, hasError: true })).toBe("error");
+  });
+
+  it("holds the skeleton while search membership loads, even for a real firm", () => {
+    expect(
+      deskPanelState({
+        ...base,
+        selectedId: "f1",
+        searchActive: true,
+        membershipLoading: true,
+        inDatabase: true,
+      }),
+    ).toBe("skeleton");
+  });
+
+  it("a real firm outside the active search is not-in-search", () => {
+    expect(
+      deskPanelState({ ...base, selectedId: "f1", searchActive: true, inDatabase: true }),
+    ).toBe("not-in-search");
+  });
+
+  it("a member of the active search renders the firm", () => {
+    expect(
+      deskPanelState({
+        ...base,
+        selectedId: "f1",
+        searchActive: true,
+        inDatabase: true,
+        inView: true,
+      }),
+    ).toBe("firm");
+  });
+
+  it("an empty active search shows only the search-empty panel", () => {
+    expect(deskPanelState({ ...base, searchActive: true, viewCount: 0 })).toBe("search-empty");
+    expect(
+      deskPanelState({ ...base, searchActive: true, viewCount: 0, membershipLoading: true }),
+    ).toBe("search-empty");
+    expect(deskPanelState({ ...base, searchActive: true, viewCount: 0, firmsLoading: true })).toBe(
+      "empty",
+    );
+  });
+});
+
+describe("latestRejection", () => {
+  it("keeps only reject decisions, newest first per firm, so keep_passed never becomes the reason", () => {
+    const m = latestRejection([
+      { decisionId: "d4", firmId: "f1", decisionType: "keep_passed", rejectionRationale: "kept" },
+      { decisionId: "d3", firmId: "f1", decisionType: "reject", rejectionRationale: "Deal size" },
+      {
+        decisionId: "d2",
+        firmId: "f2",
+        decisionType: "acknowledge_drift",
+        rejectionRationale: "x",
+      },
+      { decisionId: "d1", firmId: "f1", decisionType: "reject", rejectionRationale: "older" },
+    ]);
+    expect([...m.keys()]).toEqual(["f1"]);
+    expect(m.get("f1")?.decisionId).toBe("d3");
+  });
+});
+
+describe("lookalikesFor", () => {
+  const drift = {
+    firmId: "self",
+    changedAxes: JSON.stringify([
+      { axis: "Deal Size", old: ">$150m", new: "<$25m" },
+      { axis: "Firm Age", old: "<5y", new: "15y" },
+    ]),
+  };
+  const firm = (firmId: string) => ({ firmId, firmName: firmId });
+  const reasons = new Map([
+    ["self", { rejectionRationale: "Deal size too small" }],
+    ["a", { rejectionRationale: "Deal size below our floor" }],
+    ["b", { rejectionRationale: "Bench too thin" }],
+    ["c", { rejectionRationale: "", analystCategorization: "deal size" }],
+    ["age", { rejectionRationale: "Firm age is too young" }],
+  ]);
+  const all = ["self", "a", "b", "c", "age"].map(firm);
+
+  it("returns firms passed for the axis that invalidated this firm's reason, never itself", () => {
+    const { firms, total } = lookalikesFor(drift, all, reasons);
+    expect(firms.map((f) => f.firmId)).toEqual(["a", "c"]);
+    expect(total).toBe(2);
+  });
+
+  it("does not count a firm passed for an unrelated changed axis", () => {
+    const { firms } = lookalikesFor(drift, all, reasons);
+    expect(firms.map((f) => f.firmId)).not.toContain("age");
+  });
+
+  it("is empty when the drifted firm's own reason matches no changed axis, or no passed firm shares it", () => {
+    const empty = { firms: [], total: 0 };
+    expect(
+      lookalikesFor(
+        drift,
+        all,
+        new Map([...reasons, ["self", { rejectionRationale: "Bench thin" }]]),
+      ),
+    ).toEqual(empty);
+    expect(lookalikesFor(drift, all, new Map([...reasons].filter(([k]) => k !== "self")))).toEqual(
+      empty,
+    );
+    expect(lookalikesFor(drift, [firm("self"), firm("b")], reasons)).toEqual(empty);
+    expect(lookalikesFor({ firmId: "self", changedAxes: "[]" }, all, reasons)).toEqual(empty);
+  });
+
+  it("keeps the true total past nine, listing the nine newest", () => {
+    const many = new Map<string, { rejectionRationale: string }>([
+      ["self", { rejectionRationale: "Deal size" }],
+    ]);
+    const firms = [];
+    for (let i = 0; i < 12; i++) {
+      many.set(`f${i}`, { rejectionRationale: "Deal size" });
+      firms.push(firm(`f${i}`));
+    }
+    const { firms: listed, total } = lookalikesFor(
+      drift,
+      [firm("self"), ...[...firms].reverse()],
+      many,
+    );
+    expect(total).toBe(12);
+    expect(listed.map((f) => f.firmId)).toEqual(firms.slice(0, 9).map((f) => f.firmId));
+  });
+});
+
+describe("RESOLUTION_LABEL", () => {
+  it("names every resolution an action writes and falls back to a readable form", () => {
+    expect(RESOLUTION_LABEL).toEqual({
+      re_engaged: "Re-engaged",
+      kept_passed: "Kept passed",
+      kept_in_pipeline: "Kept in pipeline",
+      passed: "Passed",
+    });
+    expect(resolutionLabel("constructor")).toBe("Constructor");
+    expect(resolutionLabel("kept_passed")).toBe("Kept passed");
+    expect(resolutionLabel("some_new_value")).toBe("Some new value");
+    expect(resolutionLabel(undefined)).toBe("Resolved");
   });
 });

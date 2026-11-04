@@ -227,6 +227,7 @@ export const DECISION = {
   reEngage: "re_engage",
   advance: "advance",
   keepPassed: "keep_passed",
+  acknowledgeDrift: "acknowledge_drift",
   activity: "activity",
 } as const;
 
