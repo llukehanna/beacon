@@ -8,6 +8,9 @@ export interface FindingPlan {
   sourceType: string;
   sourceUrl: string | null;
   sourceExcerpt: string;
+  sourceDocumentId: string | null;
+  sourceQuote: string | null;
+  extractionModel: string | null;
   confidence: number;
   confidenceTier: "high" | "low" | "abstain";
   findingStatus: "proposed" | "abstained";
@@ -20,6 +23,10 @@ const SOURCE_TYPE: Readonly<Record<string, string>> = {
   filings: "regulatory_filing",
   websearch: "web",
 };
+
+/** Abstention excerpt when the model answered but no quote in the source supported it. */
+export const UNGROUNDED_EXCERPT =
+  "The model's answer for this axis was not supported by a quote in the source, so Beacon recorded no value.";
 
 export function sameValue(axis: AxisDef, a: string, b: string): boolean {
   if (axis.kind === "number") {
@@ -37,6 +44,7 @@ export function reconcileAxis(
   axis: AxisDef,
   observations: readonly Observation[],
   newConflictId: () => string,
+  opts: { groundingRejected?: boolean } = {},
 ): FindingPlan[] {
   if (observations.length === 0) {
     return [
@@ -46,7 +54,12 @@ export function reconcileAxis(
         provider: "agent",
         sourceType: "agent",
         sourceUrl: null,
-        sourceExcerpt: "No source returned a value for this axis.",
+        sourceExcerpt: opts.groundingRejected
+          ? UNGROUNDED_EXCERPT
+          : "No source returned a value for this axis.",
+        sourceDocumentId: null,
+        sourceQuote: null,
+        extractionModel: null,
         confidence: 0,
         confidenceTier: "abstain",
         findingStatus: "abstained",
@@ -74,8 +87,11 @@ export function reconcileAxis(
       value: lead.value,
       provider: g.map((o) => o.provider).join("+"),
       sourceType: SOURCE_TYPE[lead.provider],
-      sourceUrl: lead.sourceUrl,
+      sourceUrl: lead.sourceDocumentId ? null : lead.sourceUrl,
       sourceExcerpt: lead.sourceExcerpt,
+      sourceDocumentId: lead.sourceDocumentId ?? null,
+      sourceQuote: lead.sourceQuote ?? null,
+      extractionModel: lead.model ?? null,
       confidence,
       confidenceTier:
         conflictGroupId === null && (g.length > 1 || confidence >= 0.8) ? "high" : "low",
