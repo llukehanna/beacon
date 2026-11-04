@@ -24,7 +24,11 @@ import type { ExtractionOutput } from "./contract.js";
 import type { SourceDocument } from "./documents.js";
 
 export type RejectReason =
-  "quote_not_in_document" | "value_not_in_quote" | "invalid_value" | "axis_not_covered";
+  | "quote_not_in_document"
+  | "quote_too_short"
+  | "value_not_in_quote"
+  | "invalid_value"
+  | "axis_not_covered";
 
 export interface GroundingResult {
   observations: Observation[];
@@ -50,8 +54,50 @@ function labelsFor(firm: FirmRef, axis: AxisDef): readonly string[] {
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
 
-/** Standalone numbers: not glued to letters or digits, so "$85" yields 85 but never 5. */
-const NUMBER_TOKEN = /(?<![\w.])\d+(?:\.\d+)?(?!\w)/g;
+/**
+ * Whitespace-collapsed text, with `rawStart[i]` the raw index of collapsed character i.
+ * A collapsed space maps to the start of its whitespace run.
+ */
+function collapseWithMap(raw: string): { text: string; rawStart: number[] } {
+  let text = "";
+  const rawStart: number[] = [];
+  let pendingSpace = -1;
+  for (let i = 0; i < raw.length; i++) {
+    if (/\s/.test(raw[i])) {
+      if (pendingSpace < 0) {
+        pendingSpace = i;
+      }
+      continue;
+    }
+    if (pendingSpace >= 0 && text !== "") {
+      text += " ";
+      rawStart.push(pendingSpace);
+    }
+    pendingSpace = -1;
+    text += raw[i];
+    rawStart.push(i);
+  }
+  return { text, rawStart };
+}
+
+/** The exact slice of `raw` that matches `quote` once whitespace is collapsed, or null. */
+function rawSlice(raw: string, quote: string): string | null {
+  const { text, rawStart } = collapseWithMap(raw);
+  const at = text.indexOf(quote);
+  if (at < 0) {
+    return null;
+  }
+  return raw.slice(rawStart[at], rawStart[at + quote.length - 1] + 1);
+}
+
+/** A quote shorter than this many words is a fragment, not a sentence that states a fact. */
+const MIN_QUOTE_WORDS = 4;
+const wordCount = (s: string): number => (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
+
+/** Standalone numbers: not glued to letters, digits or separators, so "$85" yields 85 and "1,200" yields none. */
+const NUMBER_TOKEN = /(?<![\w.,])\d+(?:\.\d+)?(?![\w,]|\.\d)/g;
+
+const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
 
 function quoteHasNumber(quote: string, value: number): boolean {
   return (quote.match(NUMBER_TOKEN) ?? []).some((t) => Number(t) === value);
@@ -59,6 +105,9 @@ function quoteHasNumber(quote: string, value: number): boolean {
 
 /** The canonical string for an accepted value, or null when the value is not valid for the axis. */
 function validValue(firm: FirmRef, axis: AxisDef, raw: string): string | null {
+  if (axis.kind === "number" && !PLAIN_NUMBER.test(raw.trim())) {
+    return null;
+  }
   const parsed = parseAxisValue(axis, raw);
   if (parsed === null) {
     return null;
@@ -102,9 +151,14 @@ export function groundExtraction(
       continue;
     }
 
-    const quote = item.quote === null ? "" : collapse(item.quote);
-    if (quote === "" || !collapse(doc.body).includes(quote)) {
+    const modelQuote = item.quote === null ? "" : collapse(item.quote);
+    const quote = modelQuote === "" ? null : rawSlice(doc.body, modelQuote);
+    if (quote === null) {
       reject("quote_not_in_document");
+      continue;
+    }
+    if (wordCount(quote) < MIN_QUOTE_WORDS) {
+      reject("quote_too_short");
       continue;
     }
 
