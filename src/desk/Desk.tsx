@@ -1,5 +1,6 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
 import { useLinks, useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -68,6 +69,7 @@ import {
   FINDING_CHIP,
   REJECT_BORDER,
   REJECT_TEXT,
+  SIDEBAR_STYLE,
   TIER_COLOR,
   TIER_LABEL,
   VOID_BG,
@@ -867,18 +869,7 @@ function QueueSidebar({
   }, [queue, q, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
 
   return (
-    <aside
-      style={{
-        width: 280,
-        flex: "0 0 280px",
-        borderRight: "1px solid var(--color-divider)",
-        display: "flex",
-        flexDirection: "column",
-        padding: 16,
-        gap: 12,
-        minHeight: 0,
-      }}
-    >
+    <aside style={SIDEBAR_STYLE}>
       <BrandMark section="Enrichment Desk" />
       <WorkspaceNavLinks />
 
@@ -1141,6 +1132,7 @@ function QueueSidebar({
           );
         })}
       </div>
+      <DemoFooter />
     </aside>
   );
 }

@@ -1,11 +1,12 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { Mandate, Search, runSearchAction } from "@/data/ontology";
 import { type FacetGroup, INDUSTRY_GROUPS, PRODUCT_GROUPS, REGIONS } from "../../shared/taxonomy";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
-import { VOID_BG } from "./tokens";
+import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
 
 // /search/:mandateId — where a mandate's intent sentence becomes a Search.
 // The analyst's picks on this page ARE the interpretation of the mandate;
@@ -492,20 +493,10 @@ function SearchPage(): React.ReactElement {
         display: "flex",
       }}
     >
-      <aside
-        style={{
-          width: 240,
-          flex: "0 0 240px",
-          borderRight: "1px solid var(--color-divider)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={SIDEBAR_STYLE}>
         <BrandMark section="Mandates" />
         <WorkspaceNavLinks />
+        <DemoFooter />
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>

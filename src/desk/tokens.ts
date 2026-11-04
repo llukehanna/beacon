@@ -5,6 +5,7 @@
  * badges, band chips, confidence chips). Layout tokens are read from CSS
  * variables (see nocturne.css) via var(--color-*), var(--space-*), etc.
  */
+import type { CSSProperties } from "react";
 import { ACQUIRED_BY_COMPETITOR } from "../../shared/vocab";
 
 // Tier palette — matches dataProvider.tierFromScore output.
@@ -188,3 +189,15 @@ export function outcomeChipStyle(raw: string | null | undefined): {
     border: "color-mix(in srgb, var(--color-text) 18%, transparent)",
   };
 }
+
+/** One sidebar frame for every screen, so the rail is the same width on every route. */
+export const SIDEBAR_STYLE: CSSProperties = {
+  width: 240,
+  flex: "0 0 240px",
+  borderRight: "1px solid var(--color-divider)",
+  display: "flex",
+  flexDirection: "column",
+  padding: 16,
+  gap: 12,
+  minHeight: 0,
+};
