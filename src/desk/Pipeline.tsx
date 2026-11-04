@@ -15,6 +15,7 @@ import "./nocturne.css";
 // this page can't disagree about which stage a firm sits in.
 import { type Lifecycle, STATUS_CHIP, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
 import { type RankedFirm, orderEnrichmentQueue } from "./queue";
+import { formatScore, scoreFraction } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
 import { TIER_COLOR, TIER_LABEL, VOID_BG, outcomeChipStyle, outcomeLabel } from "./tokens";
 
@@ -180,10 +181,6 @@ function TierTag({ tier }: { tier: string }): React.ReactElement {
       {tier === "Rejected" ? "R" : tier}
     </span>
   );
-}
-
-function pctScore(m: MirrorResult): number {
-  return Math.round(m.pct * 100);
 }
 
 function relativeTime(ts: unknown): string {
@@ -494,13 +491,14 @@ function FirmRow({
   const { firm, mirror, bucket, rejectionRationale, lastActivity } = row;
   const isRejected = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
-  const pct = isRejected ? 0 : pctScore(mirror);
+  const scoreText = formatScore(mirror.weightedTotal);
+  const barFill = scoreFraction(mirror.weightedTotal);
 
   // Hard-rejects (algorithmic) vs analyst rejections carry different verbs.
   const rejectLabel = mirror.hardRejected
     ? `Hard-rejected · ${mirror.rejectReason}`
     : isRejected
-      ? `Passed · ${rejectionRationale ?? "reason not on file"}`
+      ? `Pass reason · ${rejectionRationale ?? "not on file"}`
       : null;
 
   return (
@@ -568,15 +566,25 @@ function FirmRow({
       </td>
       <td>
         {isRejected ? (
-          <span
+          <div
             style={{
               fontSize: 11,
               color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
-            title={rejectLabel ?? undefined}
+            title={
+              rejectLabel
+                ? `${formatScore(mirror.weightedTotal, mirror.tier)} · ${rejectLabel}`
+                : undefined
+            }
           >
-            {rejectLabel}
-          </span>
+            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{scoreText}</span>
+            {rejectLabel
+              ? ` · ${mirror.hardRejected ? rejectLabel : (rejectionRationale ?? "reason not on file")}`
+              : null}
+          </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span
@@ -584,10 +592,9 @@ function FirmRow({
                 fontVariantNumeric: "tabular-nums",
                 fontWeight: 600,
                 color: tierColor,
-                minWidth: 26,
               }}
             >
-              {pct}
+              {scoreText}
             </span>
             <TierTag tier={mirror.tier} />
             <span
@@ -604,7 +611,7 @@ function FirmRow({
                 style={{
                   position: "absolute",
                   inset: "0 auto 0 0",
-                  width: `${pct}%`,
+                  width: `calc(100% * ${barFill})`,
                   background: tierColor,
                   borderRadius: "var(--radius-xs)",
                 }}
@@ -741,14 +748,14 @@ function FirmsTable({
           collapses to a hairline, making downstream cells look like they
           landed under the wrong header. */}
       <colgroup>
-        <col style={{ width: "22%" }} />
+        <col style={{ width: "21%" }} />
         <col style={{ width: "6%" }} />
-        <col style={{ width: "14%" }} />
-        <col style={{ width: "9%" }} />
-        <col style={{ width: "15%" }} />
+        <col style={{ width: "13%" }} />
+        <col style={{ width: "12%" }} />
+        <col style={{ width: "16%" }} />
         <col style={{ width: "6%" }} />
         <col style={{ width: "10%" }} />
-        <col style={{ width: "18%" }} />
+        <col style={{ width: "16%" }} />
       </colgroup>
       <thead>
         <tr>
@@ -846,7 +853,12 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
   const { firm, mirror, bucket, rejectionRationale } = row;
   const isReject = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
-  const pct = pctScore(mirror);
+  const barFill = scoreFraction(mirror.weightedTotal);
+  const tierNote = mirror.hardRejected
+    ? "Hard-rejected, so the fit score is zero"
+    : mirror.tier === "Rejected"
+      ? "Below the C threshold"
+      : (TIER_LABEL[mirror.tier] ?? "");
 
   const facts: { k: string; v: string }[] = [];
   if (firm.coverageModel) {
@@ -949,57 +961,63 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
         </div>
       </div>
 
-      {!isReject && (
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 12,
-            padding: 12,
-            background: "var(--color-surface)",
-            borderRadius: "var(--radius-md)",
-            boxShadow: "var(--shadow-sm)",
-          }}
-        >
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.05 }}>
-            <span
-              style={{
-                fontSize: 32,
-                fontWeight: 600,
-                fontVariantNumeric: "tabular-nums",
-                color: tierColor,
-              }}
-            >
-              {pct}
-            </span>
-            <Kicker>Fit score</Kicker>
-          </div>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
-            <span
-              style={{
-                height: 6,
-                borderRadius: "var(--radius-xs)",
-                background: "var(--color-neutral-800)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <span
-                style={{
-                  position: "absolute",
-                  inset: "0 auto 0 0",
-                  width: `${pct}%`,
-                  background: tierColor,
-                  borderRadius: "var(--radius-xs)",
-                }}
-              />
-            </span>
-            <span style={{ fontSize: 11, color: tierColor }}>
-              {mirror.tier} · {TIER_LABEL[mirror.tier] ?? ""}
-            </span>
-          </div>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: 12,
+          background: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
+          boxShadow: "var(--shadow-sm)",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.05 }}>
+          <span
+            style={{
+              fontSize: 32,
+              fontWeight: 600,
+              fontVariantNumeric: "tabular-nums",
+              color: tierColor,
+            }}
+          >
+            {formatScore(mirror.weightedTotal)}
+          </span>
+          <Kicker>Fit score</Kicker>
         </div>
-      )}
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+          <span
+            style={{
+              height: 6,
+              borderRadius: "var(--radius-xs)",
+              background: "var(--color-neutral-800)",
+              position: "relative",
+              overflow: "hidden",
+            }}
+          >
+            <span
+              style={{
+                position: "absolute",
+                inset: "0 auto 0 0",
+                width: `calc(100% * ${barFill})`,
+                background: tierColor,
+                borderRadius: "var(--radius-xs)",
+              }}
+            />
+          </span>
+          <span style={{ fontSize: 11, color: tierColor }}>
+            {bucket} · {formatScore(mirror.weightedTotal, mirror.tier)}
+          </span>
+          <span
+            style={{
+              fontSize: 11,
+              color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
+            }}
+          >
+            {tierNote}
+          </span>
+        </div>
+      </div>
 
       {isReject && (
         <div
@@ -1014,7 +1032,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
         >
           {mirror.hardRejected
             ? `Hard-rejected · ${mirror.rejectReason}`
-            : `Passed · ${rejectionRationale ?? "reason not on file"}`}
+            : `Pass reason · ${rejectionRationale ?? "not on file"}`}
         </div>
       )}
 

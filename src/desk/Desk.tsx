@@ -60,13 +60,8 @@ import {
   orderEnrichmentQueue,
   toQueueFirm,
 } from "./queue";
-import {
-  MAX_POSSIBLE,
-  type MirrorResult,
-  type Model,
-  type ScoreInput,
-  mirrorScore,
-} from "./scoreMirror";
+import { formatScore, scoreFraction } from "./scoreFormat";
+import { type MirrorResult, type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
 import {
   BAND_COLOR,
   CONFIDENCE_CHIP,
@@ -642,12 +637,6 @@ function FindingStatusChip({ status }: { status?: string }): React.ReactElement 
   );
 }
 
-// Score->pct helper — mirrorScore reports weightedTotal/maxPossible (MAX_POSSIBLE),
-// design shows a 0-100 percentage.
-function pctScore(m: MirrorResult): number {
-  return Math.round(m.pct * 100);
-}
-
 // Compact per-firm rediscovery badge for the queue row. "new" = firm was
 // created by the current search; "rediscovered" = firm already existed
 // and was attached (dedupe hit), with N prior decisions in the ontology.
@@ -1040,7 +1029,7 @@ function QueueSidebar({
             : r.tier === "Rejected"
               ? "C"
               : r.tier;
-          const pct = r.hardScreened ? 0 : Math.round((r.currentScore / MAX_POSSIBLE) * 100);
+          const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
           // An approved rule took this firm off the live queue. Named, not
           // just dimmed — "why is this firm greyed out" should be readable
           // from the row without opening it.
@@ -1130,9 +1119,9 @@ function QueueSidebar({
                   <>
                     <span
                       style={{ fontVariantNumeric: "tabular-nums" }}
-                      title={`${r.currentScore} of ${MAX_POSSIBLE} signal points known → ${r.ceiling} reachable if the remaining fields were filled`}
+                      title={`${formatScore(r.currentScore)} known → ${formatScore(r.ceiling)} reachable if the remaining fields were filled`}
                     >
-                      {r.currentScore}/{MAX_POSSIBLE} → {r.ceiling}
+                      {formatScore(r.currentScore)} → {formatScore(r.ceiling)}
                     </span>
                     <span
                       style={{
@@ -1147,7 +1136,7 @@ function QueueSidebar({
                         style={{
                           display: "block",
                           height: "100%",
-                          width: `${pct}%`,
+                          width: `calc(100% * ${barFill})`,
                           background: TIER_COLOR[r.tier] ?? "var(--color-neutral-500)",
                         }}
                       />
@@ -1222,9 +1211,9 @@ function FirmHeader({
   const tier = after.tier;
   const tierColor = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
   const status = normalizeLifecycle(firm.lifecycleState ?? firm.currentStage);
-  const pct = after.hardRejected ? null : pctScore(after);
-  const beforePct = before.hardRejected ? null : pctScore(before);
-  const changed = pct !== null && beforePct !== null && pct !== beforePct;
+  const score = after.hardRejected ? null : after.weightedTotal;
+  const beforeScore = before.hardRejected ? null : before.weightedTotal;
+  const changed = score !== null && beforeScore !== null && score !== beforeScore;
 
   return (
     <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
@@ -1317,7 +1306,7 @@ function FirmHeader({
                 : tierColor,
             }}
           >
-            {pct ?? "—"}
+            {formatScore(score)}
           </span>
           <TierTag tier={tier} />
         </div>
@@ -1369,7 +1358,7 @@ function FirmHeader({
                   background: "currentColor",
                 }}
               />
-              {beforePct} → {pct}
+              {formatScore(beforeScore)} → {formatScore(score)}
             </span>
           )}
           <span

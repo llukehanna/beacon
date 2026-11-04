@@ -33,6 +33,7 @@ import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pi
 import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
+import { formatScore, scoreFraction } from "./scoreFormat";
 import { mirrorScore } from "./scoreMirror";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
@@ -1625,5 +1626,37 @@ describe("providerLabel", () => {
     expect(providerLabel("dealdb+websearch")).toBe("Deal DB + Web search");
     expect(providerLabel("beacondb+dealdb+filings")).toBe("BeaconDB + Deal DB + Filings");
     expect(providerLabel("mystery")).toBe("mystery");
+  });
+});
+
+describe("formatScore — one 18-point scale everywhere", () => {
+  it("formats the total over 18 with the tier letter", () => {
+    expect(formatScore(13, "B")).toBe("13/18 · B");
+  });
+
+  it("omits the tier when none is given", () => {
+    expect(formatScore(13)).toBe("13/18");
+    expect(formatScore(13, null)).toBe("13/18");
+  });
+
+  it("shows an em dash for a missing or non-finite score", () => {
+    expect(formatScore(null)).toBe("—/18");
+    expect(formatScore(undefined, "A")).toBe("—/18 · A");
+    expect(formatScore(Number.NaN)).toBe("—/18");
+  });
+
+  it("reads a hard reject as 0/18 · Rejected", () => {
+    const r = mirrorScore({ firmType: "CS", advisoryConflict: true });
+    expect(r.hardRejected).toBe(true);
+    expect(formatScore(r.weightedTotal, r.tier)).toBe("0/18 · Rejected");
+  });
+
+  it("scoreFraction is a 0-1 bar width, clamped", () => {
+    expect(scoreFraction(9)).toBe(0.5);
+    expect(scoreFraction(18)).toBe(1);
+    expect(scoreFraction(0)).toBe(0);
+    expect(scoreFraction(null)).toBe(0);
+    expect(scoreFraction(40)).toBe(1);
+    expect(scoreFraction(-3)).toBe(0);
   });
 });
