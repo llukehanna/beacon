@@ -28,6 +28,8 @@ export interface ActionContext {
 export interface ActionResult {
   created?: string[];
   modified?: string[];
+  /** Object types the action wrote to (filled in by applyAction), so clients can refresh just those. */
+  types?: ObjectTypeName[];
   /** Human-readable context for the UI (e.g. which clusterer proposed rules). */
   note?: string;
 }

@@ -27,7 +27,7 @@ See [docs/architecture.md](docs/architecture.md).
 
 ```mermaid
 flowchart LR
-  UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · reset/]
+  UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · functions · reset/]
   API --> Actions[Action handlers<br/>one transaction each]
   Actions --> Rubric[Shared rubric<br/>shared/scoreMirror.ts]
   UI --> Rubric

@@ -3,7 +3,7 @@ import type { ObjectOf } from "../../shared/schema.js";
 import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
-import { insertObject, listObjects, updateObject } from "../db/repo.js";
+import { insertObject, listAll, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { iso, logDecision } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -140,7 +140,7 @@ export const amendRuleThreshold = defineAction<{
       throw new ActionError("A new threshold is required");
     }
     const active = (
-      await listObjects(ctx.tx, "HardScreenConfig", {
+      await listAll(ctx.tx, "HardScreenConfig", {
         where: { sourceProposedRuleId: { $eq: rule.$primaryKey } },
       })
     ).find((c) => c.configActive);
@@ -169,8 +169,8 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
   needsClusterer: true,
   // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
   async prepare(db, _params, ctx) {
-    const firms = new Map((await listObjects(db, "Firm")).map((f) => [f.$primaryKey, f]));
-    const decisions = await listObjects(db, "ReviewDecision", {
+    const firms = new Map((await listAll(db, "Firm")).map((f) => [f.$primaryKey, f]));
+    const decisions = await listAll(db, "ReviewDecision", {
       where: { decisionType: { $eq: DECISION.reject } },
       orderBy: { decidedAt: "asc" },
     });
@@ -194,11 +194,11 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
       return { created: [], note: "No rejections to learn from yet." };
     }
     const { proposals, source } = clustered;
-    const firms = await listObjects(ctx.tx, "Firm");
+    const firms = await listAll(ctx.tx, "Firm");
     const byId = new Map(rows.map((r) => [r.decisionId, r]));
     // Never re-propose a rule that already exists in any status (incl. dismissed).
     const seen = new Set(
-      (await listObjects(ctx.tx, "ProposedRule")).map((r) =>
+      (await listAll(ctx.tx, "ProposedRule")).map((r) =>
         ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
       ),
     );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getObject, listObjects, updateObject } from "../db/repo.js";
+import { getObject, listAll, updateObject } from "../db/repo.js";
 import { STRONG_CF, T0, createTestDb, run, seedFirm } from "../testing.js";
 import { computeDriftForFirm } from "./drift.js";
 import type { ActionContext } from "./types.js";
@@ -82,7 +82,7 @@ describe("computeDriftForFirm", () => {
     expect(
       await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey)),
     ).toBeNull();
-    expect(await listObjects(db, "DriftEvent")).toHaveLength(0);
+    expect(await listAll(db, "DriftEvent")).toHaveLength(0);
   });
 });
 
@@ -98,7 +98,7 @@ describe("outcomes and resolution", () => {
     };
     await run(db, "setFirmOutcome", params);
     await run(db, "setFirmOutcome", params);
-    const drifts = await listObjects(db, "DriftEvent", {
+    const drifts = await listAll(db, "DriftEvent", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     expect(drifts.map((d) => d.driftReason)).toEqual(["outcome_diverged"]);
@@ -135,7 +135,7 @@ describe("outcomes and resolution", () => {
     );
     await run(db, "keepPassed", { driftEvent: id, rationale: "Still too small to integrate." });
     expect((await getObject(db, "DriftEvent", id!))?.resolution).toBe("kept_passed");
-    const decisions = await listObjects(db, "ReviewDecision", {
+    const decisions = await listAll(db, "ReviewDecision", {
       where: { decisionType: { $eq: "keep_passed" } },
     });
     expect(decisions[0].rejectionRationale).toBe("Still too small to integrate.");

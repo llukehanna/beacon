@@ -1,40 +1,17 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import { useLinks, useOsdkObjects } from "@/data/hooks";
-import {
-  DriftEvent,
-  Firm,
-  HardScreenConfig,
-  Mandate,
-  ProposedRule,
-  ResearchFinding,
-  Search,
-  SearchList,
-  SearchMembership,
-} from "@/data/ontology";
+import { useOsdkQuery } from "@/data/hooks";
+import type {
+  HomeSummary,
+  MandateSummary,
+  NeedsYouDestination,
+  NeedsYouItem,
+} from "../../shared/summaries";
 import { PASSED } from "../../shared/vocab";
-import {
-  type ScreenableFirm,
-  countScreened,
-  isEvaluable,
-  toScreeningRules,
-} from "./activeScreening";
-import { needsYouAxisCountByFirm } from "./axisState";
-import {
-  type FirmLike,
-  type MembershipLike,
-  type SearchLike,
-  type SearchListLike,
-  formatMandateFirmCounts,
-  mandateFirmCounts,
-  searchListFirmIds,
-} from "./mandateFirms";
+import { formatMandateFirmCounts } from "./mandateFirms";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
-import { LIFECYCLE_BUCKETS, type Lifecycle, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
-import { type ActiveConfigRule, orderEnrichmentQueue } from "./queue";
-import { summarizePredicate } from "./rulePredicate";
-import { type ScoreInput, mirrorScore } from "./scoreMirror";
+import { LIFECYCLE_BUCKETS, type Lifecycle } from "./pipelineBuckets";
 import {
   DIVERGENCE_BG,
   DIVERGENCE_BORDER,
@@ -43,17 +20,9 @@ import {
   OUTCOME_ACQUIRED,
   VOID_BG,
   driftReasonPresentation,
-  isOutcomeDivergence,
   outcomeLabel,
 } from "./tokens";
-import {
-  type FirmOutcomeLike,
-  INSUFFICIENT_THRESHOLD,
-  OUTCOME_SLOTS,
-  type RatedFinding,
-  rates,
-  tallyOutcomes,
-} from "./trustMetrics";
+import { INSUFFICIENT_THRESHOLD, OUTCOME_SLOTS } from "./trustMetrics";
 
 /**
  * Home — the start-of-day operations page.
@@ -63,74 +32,13 @@ import {
  * to the surface where that work happens; nothing here is render-only, and
  * the funnel strip is the only visualization.
  *
- * Each figure comes from the SAME shared module the destination page uses
- * — queue.ts for the workable band, pipelineBuckets.ts for the funnel,
- * trustMetrics.ts for abstention/agreement, axisState.ts for needs-you
- * axes. Home must never promise work the page it links to doesn't show.
+ * Every figure comes from the `homeSummary` query function, which applies
+ * the SAME shared rules the destination pages use — queue.ts for the
+ * workable band, pipelineBuckets.ts for the funnel, trustMetrics.ts for
+ * abstention/agreement, axisState.ts for needs-you axes. Home must never
+ * promise work the page it links to doesn't show. This file only decides
+ * how the numbers look.
  */
-
-// ─── Shapes ─────────────────────────────────────────────────────────────
-
-interface FirmRow extends ScoreInput {
-  firmId?: string;
-  firmName?: string | null;
-  lifecycleState?: string | null;
-  currentStage?: string | null;
-  disposition?: string | null;
-  outcome?: string | null;
-  discoveredViaSearchId?: string | null;
-}
-
-interface DriftLike {
-  driftEventId: string;
-  firmId?: string;
-  driftReason?: string;
-  driftStatus?: string;
-  detectedAt?: unknown;
-  priorTier?: string;
-  priorScore?: number;
-  newTier?: string;
-  newScore?: number;
-}
-
-interface RuleLike {
-  proposedRuleId: string;
-  predicateAxis?: string;
-  ruleOperator?: string;
-  ruleThreshold?: string;
-  ruleStatus?: string;
-  // Scopes the rule to one model; screening honours it so a CF-only rule
-  // isn't counted against CS firms.
-  ruleModel?: string;
-  projectedScreenCount?: number;
-}
-
-interface MandateLike {
-  mandateId: string;
-  title?: string | null;
-  intentStatement?: string | null;
-  archetype?: string | null;
-  priority?: string | null;
-  active?: boolean | null;
-}
-
-function toScoreInput(f: FirmRow): ScoreInput {
-  return {
-    firmType: f.firmType,
-    coverageModel: f.coverageModel,
-    servicesFit: f.servicesFit,
-    mdPedigree: f.mdPedigree,
-    balanceSheetPrincipal: f.balanceSheetPrincipal,
-    geoScore: f.geoScore,
-    dealSizeMUsd: f.dealSizeMUsd,
-    dealsPerMdL3y: f.dealsPerMdL3y,
-    firmAge: f.firmAge,
-    employees: f.employees,
-    feeGeneratingCount: f.feeGeneratingCount,
-    geographicFootprint: f.geographicFootprint,
-    advisoryConflict: f.advisoryConflict,
-  };
-}
 
 // ─── Primitives ─────────────────────────────────────────────────────────
 
@@ -208,7 +116,7 @@ function Shimmer({ w, h }: { w: number; h: number }): React.ReactElement {
 // ─── Triage inbox ───────────────────────────────────────────────────────
 
 // One destination per item type — also decides where "+N more" points.
-type Destination = "review" | "desk" | "rules";
+type Destination = NeedsYouDestination;
 
 const DESTINATION_PATH: Record<Destination, string> = {
   review: "/review",
@@ -225,14 +133,10 @@ const JUDGMENT_FG = "var(--color-accent-300)";
 const RULE_RAIL = "color-mix(in srgb, #4a90d9 55%, transparent)";
 const RULE_FG = "#8ec1ee";
 
+/** How one needs-you item reads on screen; the summary carries only the data. */
 interface InboxItem {
   key: string;
-  // Urgency rank: 0 divergence · 1 pass reason invalidated · 2 other drift
-  // · 3 needs-you firm · 4 pending rule. Ties break on the per-type order
-  // the destination page already uses.
-  rank: number;
   to: string;
-  destination: Destination;
   rail: string;
   name: string;
   story: React.ReactNode;
@@ -240,7 +144,63 @@ interface InboxItem {
   typeLabel: string;
 }
 
-const VISIBLE_ROWS = 7;
+function toInboxItem(item: NeedsYouItem): InboxItem {
+  switch (item.kind) {
+    case "drift": {
+      const reason = driftReasonPresentation(item.driftReason);
+      const rank = item.rank;
+      const tierMove =
+        item.priorTier && item.newTier
+          ? `${item.priorTier} ${item.priorScore ?? ""} → ${item.newTier} ${item.newScore ?? ""}`.replace(
+              /\s+/g,
+              " ",
+            )
+          : null;
+      return {
+        key: item.key,
+        to: "/review",
+        rail: reason.border,
+        name: item.name,
+        story:
+          rank === 0
+            ? DIVERGENCE_PHRASE
+            : rank === 1
+              ? "pass reason invalidated"
+              : tierMove !== null
+                ? `tier moved · ${tierMove}`
+                : reason.label.toLowerCase(),
+        storyColor: reason.fg,
+        typeLabel: rank === 0 ? "Divergence" : rank === 1 ? "Pass reason" : "Tier moved",
+      };
+    }
+    case "judgment":
+      return {
+        key: item.key,
+        // /desk reads ?firmId and opens that firm's panel, so the click
+        // lands on the work rather than near it.
+        to: `/desk?firmId=${encodeURIComponent(item.firmId)}`,
+        rail: JUDGMENT_RAIL,
+        name: item.name,
+        story: `${item.axes} ${item.axes === 1 ? "axis" : "axes"} with no source`,
+        storyColor: JUDGMENT_FG,
+        typeLabel: "Judgment",
+      };
+    case "rule":
+      return {
+        key: item.key,
+        to: "/rules",
+        rail: RULE_RAIL,
+        name: item.name,
+        // null = not computable (a text predicate), not "screens nobody".
+        story:
+          item.screens === null
+            ? "projection not computed yet"
+            : `would screen ${item.screens} firm${item.screens === 1 ? "" : "s"}`,
+        storyColor: RULE_FG,
+        typeLabel: "Rule",
+      };
+  }
+}
 
 function InboxRow({ item, last }: { item: InboxItem; last: boolean }): React.ReactElement {
   return (
@@ -326,17 +286,7 @@ function QuietLine({ children }: { children: React.ReactNode }): React.ReactElem
 
 // ─── Mandate row ────────────────────────────────────────────────────────
 
-function MandateRow({
-  mandate,
-  scoped,
-  fromSearches,
-  loading,
-}: {
-  mandate: MandateLike;
-  scoped: number;
-  fromSearches: number;
-  loading: boolean;
-}): React.ReactElement {
+function MandateRow({ mandate }: { mandate: MandateSummary }): React.ReactElement {
   const headline =
     (mandate.intentStatement ?? "").trim() || (mandate.title ?? "").trim() || mandate.mandateId;
   return (
@@ -377,7 +327,7 @@ function MandateRow({
         }}
         title="Scoped = every firm in this mandate's lists and searches. From searches = the subset a Search run attached."
       >
-        {loading ? <Shimmer w={86} h={11} /> : formatMandateFirmCounts({ scoped, fromSearches })}
+        {formatMandateFirmCounts(mandate)}
       </Link>
       <Link
         to={`/search/${encodeURIComponent(mandate.mandateId)}`}
@@ -412,11 +362,11 @@ function MandateRow({
 
 function FunnelStrip({
   counts,
-  loading,
 }: {
-  counts: Record<Lifecycle, number>;
-  loading: boolean;
+  /** Undefined while the summary is in flight. */
+  counts: Record<Lifecycle, number> | undefined;
 }): React.ReactElement {
+  const loading = counts === undefined;
   return (
     <Link
       to="/pipeline"
@@ -434,7 +384,7 @@ function FunnelStrip({
       }}
     >
       {LIFECYCLE_BUCKETS.map((b, i) => {
-        const n = counts[b];
+        const n = counts?.[b] ?? 0;
         // A zero stage still holds its place in the funnel — dimmed, not
         // dropped, so the shape of the pipeline stays readable.
         const dim = !loading && n === 0;
@@ -550,342 +500,40 @@ function OutcomeCell({
 // ─── Root ───────────────────────────────────────────────────────────────
 
 function Home(): React.ReactElement {
-  // Query shapes deliberately mirror the destination pages so the query
-  // cache is warm on navigation and both surfaces see identical rows.
-  const {
-    data: firmData,
-    isLoading: firmsLoading,
-    error: firmsError,
-  } = useOsdkObjects(Firm, {
-    pageSize: 300,
-    orderBy: { firmName: "asc" },
-    autoFetchMore: true,
-  });
-  const { data: configData, isLoading: configsLoading } = useOsdkObjects(HardScreenConfig, {
-    pageSize: 200,
-    autoFetchMore: true,
-  });
-  const {
-    data: driftData,
-    isLoading: driftsLoading,
-    error: driftsError,
-  } = useOsdkObjects(DriftEvent, {
-    pageSize: 200,
-    orderBy: { detectedAt: "desc" },
-    autoFetchMore: true,
-  });
-  const {
-    data: ruleData,
-    isLoading: rulesLoading,
-    error: rulesError,
-  } = useOsdkObjects(ProposedRule, { pageSize: 200, autoFetchMore: true });
-  const {
-    data: findingData,
-    isLoading: findingsLoading,
-    error: findingsError,
-  } = useOsdkObjects(ResearchFinding, { pageSize: 1000, autoFetchMore: true });
-  const {
-    data: mandateData,
-    isLoading: mandatesLoading,
-    error: mandatesError,
-  } = useOsdkObjects(Mandate, {
-    pageSize: 100,
-    orderBy: { createdAt: "desc" },
-    autoFetchMore: true,
-  });
-  const { data: searchData, isLoading: searchesLoading } = useOsdkObjects(Search, {
-    pageSize: 200,
-    orderBy: { runAt: "desc" },
-    autoFetchMore: true,
-  });
-  // Flat join table behind the Search↔firms link — three string columns, so
-  // a wide page is cheap.
-  const { data: membershipData, isLoading: membershipsLoading } = useOsdkObjects(SearchMembership, {
-    pageSize: 1000,
-    autoFetchMore: true,
-  });
-  // SearchList is the assembled candidate universe for a mandate and has no
-  // flat join table, so its membership comes through the M2M link. useLinks
-  // takes the whole array of lists in ONE traversal and keys the result by
-  // each list's primary key — this is the source /mandate counts from, and
-  // including it is what makes Home's number agree with that page.
-  const { data: searchListData, isLoading: searchListsLoading } = useOsdkObjects(SearchList, {
-    pageSize: 200,
-    orderBy: { createdAt: "desc" },
-    autoFetchMore: true,
-  });
-  const searchListInstances = React.useMemo(
-    () => (searchListData ?? []) as never[],
-    [searchListData],
-  );
-  const searchListLinks = useLinks(searchListInstances, "firms", {
-    pageSize: 500,
-    $select: ["firmId"] as never,
-  });
+  // One server-computed summary instead of every firm, finding and drift row.
+  const { data, isLoading, error } = useOsdkQuery<HomeSummary>("homeSummary");
 
-  const firms = React.useMemo(() => (firmData ?? []) as unknown as FirmRow[], [firmData]);
-  const drifts = React.useMemo(() => (driftData ?? []) as unknown as DriftLike[], [driftData]);
-  const rules = React.useMemo(() => (ruleData ?? []) as unknown as RuleLike[], [ruleData]);
-  const findings = React.useMemo(
-    () => (findingData ?? []) as unknown as RatedFinding[],
-    [findingData],
-  );
-  const mandates = React.useMemo(
-    () => (mandateData ?? []) as unknown as MandateLike[],
-    [mandateData],
-  );
-
-  const activeConfigs = React.useMemo<ActiveConfigRule[]>(() => {
-    return (
-      (configData ?? []) as unknown as Array<{
-        configRuleId: string;
-        configActive?: boolean;
-        configAxis?: string;
-        configOperator?: string;
-        configThreshold?: string;
-        configModel?: string;
-      }>
-    )
-      .filter((r) => r.configActive === true)
-      .map((r) => ({
-        ruleId: r.configRuleId,
-        axis: r.configAxis ?? "",
-        operator: r.configOperator ?? "",
-        threshold: r.configThreshold ?? "",
-        model: r.configModel ?? "both",
-      }))
-      .filter((r) => r.axis !== "" && r.operator !== "" && r.threshold !== "");
-  }, [configData]);
-
-  const firmNameById = React.useMemo(() => {
-    const m = new Map<string, string>();
-    for (const f of firms) {
-      if (f.firmId !== undefined && f.firmId !== "") {
-        m.set(f.firmId, f.firmName ?? f.firmId);
-      }
-    }
-    return m;
-  }, [firms]);
-
-  // ── Inbox sources ──────────────────────────────────────────────────
-  const openDrifts = React.useMemo(
-    () => drifts.filter((d) => (d.driftStatus ?? "").toLowerCase() !== "resolved"),
-    [drifts],
-  );
-  const pendingRules = React.useMemo(
-    () => rules.filter((r) => (r.ruleStatus ?? "pending").toLowerCase() === "pending"),
-    [rules],
-  );
-
-  // The queue's workable band: not hard-screened, not terminal — the same
-  // ranking the desk sidebar renders, so "first" here is first there too.
-  const workable = React.useMemo(() => {
-    const ranked = orderEnrichmentQueue(
-      firms.map((f) => ({
-        firmId: f.firmId ?? "",
-        firmName: f.firmName,
-        lifecycleState: f.lifecycleState,
-        currentStage: f.currentStage,
-        disposition: f.disposition ?? null,
-        ...toScoreInput(f),
-      })),
-      activeConfigs,
-    );
-    return ranked.filter((r) => !r.hardScreened && !r.terminal);
-  }, [firms, activeConfigs]);
-
-  const needsYouByFirm = React.useMemo(
-    () =>
-      needsYouAxisCountByFirm(
-        (findingData ?? []) as unknown as Array<{ findingId: string; firmId?: string }>,
-      ),
-    [findingData],
-  );
-
-  const judgmentFirms = React.useMemo(
-    () =>
-      workable
-        .map((r) => ({
-          firmId: r.firm.firmId,
-          firmName: r.firm.firmName ?? r.firm.firmId,
-          axes: needsYouByFirm.get(r.firm.firmId) ?? 0,
-        }))
-        .filter((r) => r.axes > 0),
-    [workable, needsYouByFirm],
-  );
-
-  // ── Merged, urgency-sorted inbox ───────────────────────────────────
-  const inbox = React.useMemo<InboxItem[]>(() => {
-    const items: InboxItem[] = [];
-
-    for (const d of openDrifts) {
-      const reason = driftReasonPresentation(d.driftReason);
-      const diverged = isOutcomeDivergence(d.driftReason);
-      const invalidated = (d.driftReason ?? "").toLowerCase() === "pass_reason_invalidated";
-      const tierMove =
-        d.priorTier && d.newTier
-          ? `${d.priorTier} ${d.priorScore ?? ""} → ${d.newTier} ${d.newScore ?? ""}`.replace(
-              /\s+/g,
-              " ",
-            )
-          : null;
-      items.push({
-        key: `drift:${d.driftEventId}`,
-        rank: diverged ? 0 : invalidated ? 1 : 2,
-        to: "/review",
-        destination: "review",
-        rail: reason.border,
-        name: firmNameById.get(d.firmId ?? "") ?? d.firmId ?? "Unknown firm",
-        story: diverged
-          ? DIVERGENCE_PHRASE
-          : invalidated
-            ? "pass reason invalidated"
-            : tierMove !== null
-              ? `tier moved · ${tierMove}`
-              : reason.label.toLowerCase(),
-        storyColor: reason.fg,
-        typeLabel: diverged ? "Divergence" : invalidated ? "Pass reason" : "Tier moved",
-      });
-    }
-
-    for (const f of judgmentFirms) {
-      items.push({
-        key: `firm:${f.firmId}`,
-        rank: 3,
-        // /desk reads ?firmId and opens that firm's panel, so the click
-        // lands on the work rather than near it.
-        to: f.firmId ? `/desk?firmId=${encodeURIComponent(f.firmId)}` : "/desk",
-        destination: "desk",
-        rail: JUDGMENT_RAIL,
-        name: f.firmName ?? "Unknown firm",
-        story: `${f.axes} ${f.axes === 1 ? "axis" : "axes"} with no source`,
-        storyColor: JUDGMENT_FG,
-        typeLabel: "Judgment",
-      });
-    }
-
-    for (const r of pendingRules) {
-      const predicate = summarizePredicate(r.predicateAxis, r.ruleOperator, r.ruleThreshold);
-      // Computed against the loaded firms with the same evaluator /rules and
-      // the desk use — the server's projectedScreenCount is a draft-time
-      // snapshot, and quoting it here would put a third number on a third
-      // screen for the same rule.
-      const screenRules = toScreeningRules(
-        [
-          {
-            proposedRuleId: r.proposedRuleId,
-            ruleStatus: "approved", // count what it WOULD screen
-            predicateAxis: r.predicateAxis,
-            ruleOperator: r.ruleOperator,
-            ruleThreshold: r.ruleThreshold,
-            ruleModel: r.ruleModel,
-          },
-        ],
-        [],
-      );
-      // null = not computable here (text predicate), not "screens nobody".
-      const projected =
-        screenRules.length === 0 || !isEvaluable(screenRules[0])
-          ? null
-          : countScreened(firms as unknown as ScreenableFirm[], screenRules);
-      items.push({
-        key: `rule:${r.proposedRuleId}`,
-        rank: 4,
-        to: "/rules",
-        destination: "rules",
-        rail: RULE_RAIL,
-        name: predicate ?? "malformed proposal",
-        story:
-          projected === null
-            ? "projection not computed yet"
-            : `would screen ${projected} firm${projected === 1 ? "" : "s"}`,
-        storyColor: RULE_FG,
-        typeLabel: "Rule",
-      });
-    }
-
-    // Stable sort — within a rank the per-type order is already the one the
-    // destination page uses (drifts detectedAt desc, firms by queue rank,
-    // rules in query order).
-    return items.sort((a, b) => a.rank - b.rank);
-  }, [openDrifts, judgmentFirms, pendingRules, firmNameById, firms]);
-
-  const visibleInbox = inbox.slice(0, VISIBLE_ROWS);
+  const inbox = React.useMemo(() => (data?.needsYou ?? []).map(toInboxItem), [data]);
+  const inboxTotal = data?.needsYouTotal ?? 0;
+  const counts = data?.needsYouCounts;
   // "+N more" points at whichever destination owns the most hidden rows.
   const overflowDestination = React.useMemo<Destination>(() => {
-    const tally: Record<Destination, number> = { review: 0, desk: 0, rules: 0 };
-    for (const item of inbox.slice(VISIBLE_ROWS)) {
-      tally[item.destination] += 1;
+    const hidden: Record<Destination, number> = { review: 0, desk: 0, rules: 0 };
+    for (const d of Object.keys(hidden) as Destination[]) {
+      hidden[d] =
+        (data?.needsYouCounts[d] ?? 0) -
+        (data?.needsYou ?? []).filter((i) => i.destination === d).length;
     }
-    return (Object.keys(tally) as Destination[]).reduce((best, k) =>
-      tally[k] > tally[best] ? k : best,
+    return (Object.keys(hidden) as Destination[]).reduce((best, k) =>
+      hidden[k] > hidden[best] ? k : best,
     );
-  }, [inbox]);
+  }, [data]);
 
-  const inboxLoading =
-    (driftsLoading || rulesLoading || findingsLoading || firmsLoading || configsLoading) &&
-    inbox.length === 0;
+  const trust = data?.trust;
+  const decided = trust?.decidedFindings ?? 0;
+  const trustReady = decided >= INSUFFICIENT_THRESHOLD;
+  const passed = trust?.passed ?? 0;
+  const passedAndAcquired = trust?.passedAndAcquired ?? 0;
 
-  // ── Mandate firm counts ────────────────────────────────────────────
-  // Shared with /mandate — see mandateFirms.ts for why the union has three
-  // legs. Both pages call this one function and print one string.
-  const mandateCounts = React.useMemo(
-    () =>
-      mandateFirmCounts({
-        searches: (searchData ?? []) as unknown as SearchLike[],
-        memberships: (membershipData ?? []) as unknown as MembershipLike[],
-        firms: firms as unknown as FirmLike[],
-        searchLists: (searchListData ?? []) as unknown as SearchListLike[],
-        searchListFirmIds: searchListFirmIds(searchListLinks.linkedObjectsBySourcePrimaryKey),
-      }),
-    [
-      searchData,
-      membershipData,
-      firms,
-      searchListData,
-      searchListLinks.linkedObjectsBySourcePrimaryKey,
-    ],
-  );
-
-  // A mandate with active === false is explicitly retired; null/undefined
-  // predates the flag and still counts as active.
-  const activeMandates = React.useMemo(
-    () => mandates.filter((m) => m.active !== false),
-    [mandates],
-  );
-  const countsLoading =
-    searchesLoading ||
-    membershipsLoading ||
-    firmsLoading ||
-    searchListsLoading ||
-    searchListLinks.isLoading;
-
-  // ── Funnel ─────────────────────────────────────────────────────────
-  const bucketCounts = React.useMemo(() => {
-    const c = emptyBucketCounts();
-    for (const f of firms) {
-      c[bucketOf(f, mirrorScore(toScoreInput(f)))] += 1;
-    }
-    return c;
-  }, [firms]);
-
-  // ── Trust ──────────────────────────────────────────────────────────
-  const overall = React.useMemo(() => rates(findings), [findings]);
-  const outcomes = React.useMemo(
-    () => tallyOutcomes(firms as unknown as FirmOutcomeLike[]),
-    [firms],
-  );
-  const trustReady = !findingsLoading && overall.decided >= INSUFFICIENT_THRESHOLD;
-
-  const headline = inboxLoading
+  const headline = isLoading
     ? "Reading the ontology…"
-    : inbox.length === 0
+    : inboxTotal === 0
       ? "Nothing needs you. Queue is clear."
-      : `${inbox.length} thing${inbox.length === 1 ? "" : "s"} need${
-          inbox.length === 1 ? "s" : ""
+      : `${inboxTotal} thing${inboxTotal === 1 ? "" : "s"} need${
+          inboxTotal === 1 ? "s" : ""
         } you · every number below opens where the work happens`;
 
-  const anyError = firmsError ?? driftsError ?? rulesError ?? findingsError ?? mandatesError;
+  const anyError = error;
 
   return (
     <div
@@ -993,7 +641,7 @@ function Home(): React.ReactElement {
                     <span
                       style={{ color: "color-mix(in srgb, var(--color-text) 70%, transparent)" }}
                     >
-                      ({inboxLoading ? "…" : inbox.length})
+                      ({isLoading ? "…" : inboxTotal})
                     </span>
                   </>
                 }
@@ -1008,7 +656,7 @@ function Home(): React.ReactElement {
                   overflow: "hidden",
                 }}
               >
-                {inboxLoading && (
+                {isLoading && (
                   <div
                     style={{
                       padding: 12,
@@ -1020,15 +668,15 @@ function Home(): React.ReactElement {
                   </div>
                 )}
 
-                {visibleInbox.map((item, i) => (
+                {inbox.map((item, i) => (
                   <InboxRow
                     key={item.key}
                     item={item}
-                    last={i === visibleInbox.length - 1 && inbox.length <= VISIBLE_ROWS}
+                    last={i === inbox.length - 1 && inboxTotal <= inbox.length}
                   />
                 ))}
 
-                {inbox.length > VISIBLE_ROWS && (
+                {inboxTotal > inbox.length && (
                   <Link
                     to={DESTINATION_PATH[overflowDestination]}
                     className="home-row"
@@ -1041,22 +689,22 @@ function Home(): React.ReactElement {
                       borderTop: "1px solid var(--color-divider)",
                     }}
                   >
-                    +{inbox.length - VISIBLE_ROWS} more →
+                    +{inboxTotal - inbox.length} more →
                   </Link>
                 )}
 
                 {/* Zero-states: one quiet line per empty type, pinned to the
                     stack's foot so they read as a footnote to the work
                     above rather than competing with it. */}
-                {!inboxLoading && (
+                {counts !== undefined && (
                   <div>
-                    {openDrifts.length === 0 && (
+                    {counts.review === 0 && (
                       <QuietLine>No open review entries. No passed firm has moved.</QuietLine>
                     )}
-                    {judgmentFirms.length === 0 && (
+                    {counts.desk === 0 && (
                       <QuietLine>No abstentions in the queue. Every axis has a source.</QuietLine>
                     )}
-                    {pendingRules.length === 0 && (
+                    {counts.rules === 0 && (
                       <QuietLine>
                         No pending rules. A rule drafts itself after ~5 similar rejections.
                       </QuietLine>
@@ -1077,7 +725,7 @@ function Home(): React.ReactElement {
                   overflow: "hidden",
                 }}
               >
-                {mandatesLoading && activeMandates.length === 0 && (
+                {isLoading && (
                   <div
                     style={{
                       padding: 12,
@@ -1089,7 +737,7 @@ function Home(): React.ReactElement {
                     Loading mandates…
                   </div>
                 )}
-                {!mandatesLoading && activeMandates.length === 0 && (
+                {data !== undefined && data.mandates.length === 0 && (
                   <div
                     style={{
                       padding: 12,
@@ -1101,18 +749,9 @@ function Home(): React.ReactElement {
                     No active mandates. Nothing is feeding the queue.
                   </div>
                 )}
-                {activeMandates.map((m) => {
-                  const c = mandateCounts.get(m.mandateId);
-                  return (
-                    <MandateRow
-                      key={m.mandateId}
-                      mandate={m}
-                      scoped={c?.scoped ?? 0}
-                      fromSearches={c?.fromSearches ?? 0}
-                      loading={countsLoading && c === undefined}
-                    />
-                  );
-                })}
+                {(data?.mandates ?? []).map((m) => (
+                  <MandateRow key={m.mandateId} mandate={m} />
+                ))}
                 {/* Ghost row — the way a new mandate starts. */}
                 <Link
                   to="/mandate"
@@ -1133,7 +772,7 @@ function Home(): React.ReactElement {
             {/* Funnel */}
             <section style={{ minWidth: 0 }}>
               <SectionHead title="Pipeline" href="/pipeline" linkLabel="Open pipeline" />
-              <FunnelStrip counts={bucketCounts} loading={firmsLoading && firms.length === 0} />
+              <FunnelStrip counts={data?.funnel} />
             </section>
           </div>
 
@@ -1160,8 +799,7 @@ function Home(): React.ReactElement {
                     style={{ textDecoration: "none", color: "inherit", display: "block" }}
                   >
                     <div style={{ fontSize: 21, fontWeight: 600, lineHeight: 1.2 }}>
-                      Honest abstention rate:{" "}
-                      <span style={{ color: "var(--color-accent)" }}>{overall.abstention}%</span>
+                      Abstention rate: <span>{trust?.abstentionRate}%</span>
                     </div>
                     <div
                       style={{
@@ -1171,7 +809,8 @@ function Home(): React.ReactElement {
                         marginTop: 4,
                       }}
                     >
-                      When no source had it, Beacon said so instead of guessing.
+                      Share of findings where no source had a value and Beacon recorded that instead
+                      of guessing.
                     </div>
                   </Link>
 
@@ -1195,12 +834,12 @@ function Home(): React.ReactElement {
                         color: "var(--color-text)",
                       }}
                     >
-                      {overall.agreement ?? "—"}
-                      {overall.agreement !== null && "%"}
+                      {trust?.agreementRate ?? "—"}
+                      {trust?.agreementRate != null && "%"}
                     </span>
                     <span>
-                      agreement across {overall.decided} decided finding
-                      {overall.decided === 1 ? "" : "s"}
+                      agreement across {decided} decided finding
+                      {decided === 1 ? "" : "s"}
                     </span>
                   </Link>
                 </>
@@ -1220,9 +859,9 @@ function Home(): React.ReactElement {
                       marginTop: 4,
                     }}
                   >
-                    {findingsLoading
+                    {isLoading
                       ? "Counting decided findings…"
-                      : `${overall.decided} decided so far. Keep reviewing.`}
+                      : `${decided} decided so far. Keep reviewing.`}
                   </div>
                 </Link>
               )}
@@ -1243,8 +882,8 @@ function Home(): React.ReactElement {
                     <OutcomeCell
                       key={slot}
                       slot={slot}
-                      count={outcomes.counts[slot] ?? 0}
-                      loading={firmsLoading && firms.length === 0}
+                      count={trust?.outcomes[slot] ?? 0}
+                      loading={isLoading}
                     />
                   ))}
                 </Link>
@@ -1253,7 +892,7 @@ function Home(): React.ReactElement {
               {/* The causal line — why any of the above matters. Pinned to
                   the rail's foot so the trust column reads top-down as
                   measurement → observation → consequence. */}
-              {!firmsLoading && outcomes.passed > 0 && (
+              {!isLoading && passed > 0 && (
                 <div
                   style={{
                     marginTop: "auto",
@@ -1266,9 +905,9 @@ function Home(): React.ReactElement {
                 >
                   Of firms we passed,{" "}
                   <strong style={{ color: DIVERGENCE_FG, fontWeight: 600 }}>
-                    {outcomes.passedAndAcquired}
+                    {passedAndAcquired}
                   </strong>{" "}
-                  {outcomes.passedAndAcquired === 1 ? "was" : "were"} later acquired.{" "}
+                  {passedAndAcquired === 1 ? "was" : "were"} later acquired.{" "}
                   <Link to="/review" style={{ color: "var(--color-accent)" }}>
                     The review loop exists to catch these →
                   </Link>

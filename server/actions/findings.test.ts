@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { ObjectOf } from "../../shared/schema.js";
 import type { Db } from "../db/client.js";
-import { getObject, insertObject, listObjects } from "../db/repo.js";
+import { getObject, insertObject, listAll } from "../db/repo.js";
 import { STRONG_CF, T0, createTestDb, run, seedFirm } from "../testing.js";
 
 const findingsOf = (db: Db, firmId: string) =>
-  listObjects(db, "ResearchFinding", { where: { firmId: { $eq: firmId } } });
+  listAll(db, "ResearchFinding", { where: { firmId: { $eq: firmId } } });
 
 async function addFinding(
   db: Db,
@@ -132,7 +132,7 @@ describe("resolveConflict", () => {
     });
     expect((await getObject(db, "ResearchFinding", "c1"))?.verifiedByHuman).toBe(true);
     expect((await getObject(db, "ResearchFinding", "c2"))?.findingStatus).toBe("rejected");
-    const [d] = await listObjects(db, "ReviewDecision", {
+    const [d] = await listAll(db, "ReviewDecision", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     expect(d.decisionType).toBe("adjust");
@@ -164,9 +164,9 @@ describe("enrichFirm", () => {
       .sort();
     expect(analyst).toEqual(["firm_age", "has_st_or_balance_sheet"]); // deal size is already backed by f1
     expect(
-      await listObjects(db, "QualificationScore", { where: { firmId: { $eq: firm.$primaryKey } } }),
+      await listAll(db, "QualificationScore", { where: { firmId: { $eq: firm.$primaryKey } } }),
     ).toHaveLength(1);
-    const [d] = await listObjects(db, "ReviewDecision", {
+    const [d] = await listAll(db, "ReviewDecision", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     expect(d.decisionType).toBe("enrich");
@@ -185,7 +185,7 @@ describe("enrichFirm", () => {
       dealsPerMdL3y: 0.5,
       firmAge: 2,
     });
-    const drifts = await listObjects(db, "DriftEvent", {
+    const drifts = await listAll(db, "DriftEvent", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     expect(drifts.map((d) => d.driftReason)).toEqual(["tier_moved"]);

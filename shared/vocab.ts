@@ -78,6 +78,24 @@ export function isQualifiedOrLater(state: LifecycleState): boolean {
 export type Provider = "beacondb" | "dealdb" | "filings" | "websearch";
 /** Most- to least-trusted. Reconciliation orders evidence by this. */
 export const PROVIDER_TRUST: readonly Provider[] = ["beacondb", "dealdb", "filings", "websearch"];
+/** Human-readable provider labels; keys match server/enrichment/providers.ts. */
+export const PROVIDER_LABEL: Record<string, string> = {
+  beacondb: "BeaconDB",
+  dealdb: "Deal DB",
+  filings: "Filings",
+  websearch: "Web search",
+  analyst: "Analyst",
+  agent: "Agent",
+};
+
+/** Label a provider key, including corroboration keys like "dealdb+websearch". */
+export function providerLabel(raw: string): string {
+  return raw
+    .split("+")
+    .map((k) => PROVIDER_LABEL[k] ?? k)
+    .join(" + ");
+}
+
 export const ANALYST = "analyst";
 export const AGENT = "agent";
 

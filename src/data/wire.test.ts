@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeError, serializeParams, toLinkMap } from "./wire";
+import { linkQueryReads, normalizeError, serializeParams, toLinkMap } from "./wire";
 
 describe("serializeParams", () => {
   it("sends objects as primary keys, drops undefined, keeps everything else", () => {
@@ -29,5 +29,20 @@ describe("normalizeError", () => {
     expect(normalizeError(null)).toBeUndefined();
     const e = new Error("boom");
     expect(normalizeError(e)).toBe(e);
+  });
+});
+
+describe("linkQueryReads", () => {
+  const key = ["links", "SearchList", "firms", ["L1"]];
+  it("is stale when either end of the link changed", () => {
+    expect(linkQueryReads(key, new Set(["Firm"]))).toBe(true);
+    expect(linkQueryReads(key, new Set(["SearchList"]))).toBe(true);
+  });
+  it("is fresh when the action touched neither end", () => {
+    expect(linkQueryReads(key, new Set(["ReviewDecision", "ProposedRule"]))).toBe(false);
+  });
+  it("refetches a link it does not recognise", () => {
+    expect(linkQueryReads(["links", "Nope", "x", []], new Set(["Firm"]))).toBe(true);
+    expect(linkQueryReads(["links"], new Set(["Firm"]))).toBe(true);
   });
 });

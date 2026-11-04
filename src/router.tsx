@@ -1,13 +1,18 @@
+import { Suspense, lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
 import Titled from "@/Titled";
-import Accuracy from "@/desk/Accuracy";
-import Desk from "@/desk/Desk";
+import Loading from "@/components/Loading";
 import Home from "@/desk/Home";
-import MandatePage from "@/desk/MandatePage";
-import Pipeline from "@/desk/Pipeline";
-import Review from "@/desk/Review";
-import Rules from "@/desk/Rules";
-import SearchPage from "@/desk/SearchPage";
+
+// Home is the start-of-day page and stays in the initial bundle. Every other
+// surface is split into its own chunk and fetched on first navigation.
+const Accuracy = lazy(() => import("@/desk/Accuracy"));
+const Desk = lazy(() => import("@/desk/Desk"));
+const MandatePage = lazy(() => import("@/desk/MandatePage"));
+const Pipeline = lazy(() => import("@/desk/Pipeline"));
+const Review = lazy(() => import("@/desk/Review"));
+const Rules = lazy(() => import("@/desk/Rules"));
+const SearchPage = lazy(() => import("@/desk/SearchPage"));
 
 export const router = createBrowserRouter(
   [
@@ -25,7 +30,9 @@ export const router = createBrowserRouter(
       path: "/desk",
       element: (
         <Titled title="Beacon — Enrichment Desk">
-          <Desk />
+          <Suspense fallback={<Loading />}>
+            <Desk />
+          </Suspense>
         </Titled>
       ),
     },
@@ -33,7 +40,9 @@ export const router = createBrowserRouter(
       path: "/pipeline",
       element: (
         <Titled title="Beacon — Pipeline">
-          <Pipeline />
+          <Suspense fallback={<Loading />}>
+            <Pipeline />
+          </Suspense>
         </Titled>
       ),
     },
@@ -41,7 +50,9 @@ export const router = createBrowserRouter(
       path: "/review",
       element: (
         <Titled title="Beacon — Review">
-          <Review />
+          <Suspense fallback={<Loading />}>
+            <Review />
+          </Suspense>
         </Titled>
       ),
     },
@@ -49,7 +60,9 @@ export const router = createBrowserRouter(
       path: "/rules",
       element: (
         <Titled title="Beacon — Rules">
-          <Rules />
+          <Suspense fallback={<Loading />}>
+            <Rules />
+          </Suspense>
         </Titled>
       ),
     },
@@ -57,7 +70,9 @@ export const router = createBrowserRouter(
       path: "/accuracy",
       element: (
         <Titled title="Beacon — Accuracy">
-          <Accuracy />
+          <Suspense fallback={<Loading />}>
+            <Accuracy />
+          </Suspense>
         </Titled>
       ),
     },
@@ -65,7 +80,9 @@ export const router = createBrowserRouter(
       path: "/mandate",
       element: (
         <Titled title="Beacon — Mandates">
-          <MandatePage />
+          <Suspense fallback={<Loading />}>
+            <MandatePage />
+          </Suspense>
         </Titled>
       ),
     },
@@ -76,7 +93,9 @@ export const router = createBrowserRouter(
       path: "/search/:mandateId",
       element: (
         <Titled title="Beacon — Run search">
-          <SearchPage />
+          <Suspense fallback={<Loading />}>
+            <SearchPage />
+          </Suspense>
         </Titled>
       ),
     },
