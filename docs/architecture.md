@@ -41,18 +41,35 @@ History is append-only. Qualification scores and review decisions are never upda
 
 Each synthetic firm has a hidden true value per rubric axis. Four mock providers observe it, each covering a subset of axes with its own coverage and error rate:
 
-| Provider | Trust | Coverage | Error rate |
-| --- | --- | --- | --- |
-| BeaconDB | 1 | 25% | 2% |
-| Deal DB | 2 | 70% | 10% |
-| Filings | 3 | 60% | 5% |
-| Web search | 4 | 55% | 20% |
+| Provider   | Trust | Coverage | Error rate |
+| ---------- | ----- | -------- | ---------- |
+| BeaconDB   | 1     | 25%      | 2%         |
+| Deal DB    | 2     | 70%      | 10%        |
+| Filings    | 3     | 60%      | 5%         |
+| Web search | 4     | 55%      | 20%        |
 
-Observations are pure functions of provider, firm, and axis, so the agent is deterministic without a fixture table. `server/enrichment/reconcile.ts` turns one axis's observations into findings:
+The agent works in four steps. Each step is a pure module, so each can move to a Foundry Function or AIP Logic function unchanged.
 
-- **No observations → abstention.** The agent records that no source had the value instead of guessing. Abstention is a first-class outcome: it tells the analyst exactly where their judgment is needed, and the Accuracy page reports the abstention rate as a trust signal.
-- **Agreement → one corroborated finding**, credited to every agreeing provider (for example "Deal DB + Filings").
-- **Disagreement → a conflict.** The two most trusted positions are surfaced as a pair and the agent never picks a winner. The analyst resolves it, and the other finding is marked rejected.
+1. **Source records** (`server/extraction/documents.ts`). Each provider's observations for a firm are rendered as a readable record: an internal profile, a deal-league entry, a filings summary, or an "About us" page. A record states that provider's values, including its deliberate errors, in plain sentences around neutral filler. Records are pure functions of provider and firm, and a version string plus a hash identify exactly what was read.
+2. **Extraction** (`server/extraction/contract.ts`). One module holds the prompt, the input (a firm's four records), and the output schema: per provider and axis, a value and the exact sentence it came from, or nothing. Claude runs this offline (`npm run extract`), one call per firm. A rule-based extractor produces the same shape for firms without a recorded answer.
+3. **Grounding** (`server/extraction/grounding.ts`). An answer is kept only if:
+   - the provider covers that axis;
+   - the value is valid for the axis;
+   - the quote appears word for word in that record (ignoring whitespace) and is at least a short sentence;
+   - the quote contains the value, with numbers matched as whole tokens, so "5" does not match "$85 million".
+
+   A rejected answer is dropped. If that leaves an axis with no support, the axis abstains with an excerpt saying the answer had no supporting quote.
+
+4. **Reconciliation** (`server/enrichment/reconcile.ts`) turns one axis's grounded observations into findings:
+   - **No observations → abstention.** The agent records that no source supported a value instead of guessing. Abstention is a first-class outcome: it tells the analyst exactly where their judgment is needed, and the Accuracy page reports the abstention rate as a trust signal.
+   - **Agreement → one corroborated finding**, credited to every agreeing provider (for example "Deal DB + Filings").
+   - **Disagreement → a conflict.** The two most trusted positions are surfaced as a pair and the agent never picks a winner. The analyst resolves it, and the other finding is marked rejected.
+
+Each finding stores the record id, the exact quote, and the extraction model. On the desk, **View source** opens the record with the quote highlighted.
+
+**Why offline.** Model answers are recorded once and committed as fixtures (`fixtures/extraction/`), with tokens, cost, and latency per firm. The seed loads them as `Extraction` objects, and the live **Run agent** button grounds those stored answers again. Visitors therefore spend nothing, the demo is reproducible, and the same fixtures feed evaluation. A stored answer is used only when its record hash and prompt version match the current code. Otherwise the firm falls back to the rule-based extractor, and the seed prints how many fixtures were current or stale.
+
+**Showcase.** The seed leaves the agent's runs open on twelve firms (both business models). It picks them for source conflicts and abstentions and keeps them out of every screen, so the desk opens on a live run.
 
 ## Scoring as shared code
 

@@ -11,14 +11,14 @@ Acquisition-target sourcing for a corporate development team. Analysts turn a ma
 ## What it does
 
 - **Mandate → search.** Scope a candidate universe by thesis (corporate finance or capital solutions), geography, product, and sector.
-- **Agent enrichment with honest abstention.** Four mock data sources are queried in trust order. Agreement becomes one corroborated finding. Disagreement becomes an explicit conflict for the analyst. "No source has this" is recorded as an abstention instead of a guess.
+- **Grounded agent enrichment with honest abstention.** Claude reads four mock source records per firm and returns each value with the exact sentence that supports it. A value is kept only if that quote appears word for word in the record and contains the value. Agreement becomes one corroborated finding, disagreement becomes an explicit conflict for the analyst, and an axis no source supports is recorded as an abstention instead of a guess. Every cited value opens its source record with the quote highlighted.
 - **Deterministic scoring.** An 18-point, nine-axis rubric per thesis, with hard rejects and A/B/C tiers. The same code runs in the browser for live previews and on the server for the record.
 - **Append-only audit trail.** Scores, findings, and decisions are versioned, never edited.
 - **A learning loop with a human in it.** Pass rationales are clustered (by Claude, with a deterministic fallback) into proposed screening rules. Each proposal is checked against the data, shows how many firms it would screen, and only takes effect after an analyst approves it.
 - **Drift.** When new evidence moves a qualified or passed firm's tier, or a passed firm is bought by a competitor, it resurfaces for review.
 
-| Home | Rules | Review |
-| --- | --- | --- |
+| Home                               | Rules                                         | Review                                       |
+| ---------------------------------- | --------------------------------------------- | -------------------------------------------- |
 | ![Home](docs/screenshots/home.png) | ![Proposed rules](docs/screenshots/rules.png) | ![Drift review](docs/screenshots/review.png) |
 
 ## Architecture
@@ -31,9 +31,9 @@ flowchart LR
   API --> Actions[Action handlers<br/>one transaction each]
   Actions --> Rubric[Shared rubric<br/>shared/scoreMirror.ts]
   UI --> Rubric
-  Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
+  Actions --> Agent[Enrichment agent<br/>source records → grounding → reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>11 object tables)]
+  Actions --> PG[(Postgres<br/>12 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -58,6 +58,8 @@ npm run dev       # http://localhost:8080
 Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_CLUSTERING=on` and provide Anthropic credentials (`ANTHROPIC_API_KEY`). The public demo allows at most one Claude call per 10 minutes and 24 per day; everything else falls back to the heuristic.
 
 ## Deploy
+
+**Extraction.** `npm run extract` has Claude (Haiku 4.5, Message Batches API) read every firm's four source records and writes the answers to `fixtures/extraction/*.jsonl`, with model, prompt version, document hash, tokens, and cost per firm. `--max-usd` (default 5) stops the run before the cap would be passed, planned against worst-case output. A rerun skips firms that already have a current record, and `--resume-batch <id>` collects a batch that was already paid for. The "Extract" GitHub Actions workflow runs the same command with the key from a repository secret and pushes the fixtures to a branch. The seed, the demo, and CI only read the committed fixtures, so they need no key. A firm with no current fixture falls back to a rule-based extractor that produces the same shape.
 
 Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Smart Placement runs the Worker near the database, and `POST /api/actions` (60 per minute) and `POST /api/reset` (3 per minute) are rate limited per client IP.
 
@@ -91,17 +93,18 @@ npm run deploy:presenter
 
 ## Project layout
 
-| Path | What lives there |
-| --- | --- |
-| `shared/` | The ontology schema, rubric, vocabulary, taxonomy, predicates (used by both sides) |
-| `server/actions/` | One module per domain; every write is a named, validated, transactional action |
-| `server/enrichment/` | Deterministic mock providers and evidence reconciliation |
-| `server/clustering/` | Claude and heuristic rule proposers |
-| `server/seed/` | 700-firm synthetic universe and a history built by the real actions |
-| `api/` | Thin HTTP adapters (`Request` → `Response`) |
-| `worker/` | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset |
-| `src/` | The React app; `src/data/` is the typed data layer |
+| Path                 | What lives there                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------- |
+| `shared/`            | The ontology schema, rubric, vocabulary, taxonomy, predicates (used by both sides)                    |
+| `server/actions/`    | One module per domain; every write is a named, validated, transactional action                        |
+| `server/enrichment/` | Deterministic mock providers and evidence reconciliation                                              |
+| `server/extraction/` | Mock source records, the extraction prompt contract, the grounding check, fixtures, and the spend cap |
+| `server/clustering/` | Claude and heuristic rule proposers                                                                   |
+| `server/seed/`       | 700-firm synthetic universe and a history built by the real actions                                   |
+| `api/`               | Thin HTTP adapters (`Request` → `Response`)                                                           |
+| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset                      |
+| `src/`               | The React app; `src/data/` is the typed data layer                                                    |
 
 ## Data
 
-Everything is synthetic. Firm names are generated from invented words, and any resemblance to a real firm is coincidental. Enrichment sources are mocks that link to reserved `.example` domains.
+Everything is synthetic. Firm names are generated from invented words, and any resemblance to a real firm is coincidental. Enrichment sources are generated records, labelled "Mock source" in the app, and some contain deliberate errors.
