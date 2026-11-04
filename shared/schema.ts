@@ -312,6 +312,7 @@ export const ACTION_NAMES = [
   "setFirmOutcome",
   "reEngageFirm",
   "keepPassed",
+  "acknowledgeDrift",
   "clusterRejections",
   "approveRule",
   "dismissRule",

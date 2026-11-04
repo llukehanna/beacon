@@ -540,6 +540,54 @@
       )
       no-repeat bottom / 100% 1px;
 }
+/* Pipeline grid: fixed-height rows so the body can be windowed. The header
+   sticks to the top of the page's scroll container. */
+.dsn .table.pipeline-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  height: 36px;
+  padding: 0 6px;
+  border-bottom: 0;
+  background: #0f1118;
+  box-shadow: inset 0 -1px 0 var(--color-divider);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dsn .table.pipeline-grid td {
+  padding: 0 6px;
+  border-bottom: 0;
+  vertical-align: middle;
+}
+.dsn .table.pipeline-grid tbody tr[data-index]:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}
+.dsn .table.pipeline-grid tbody tr.pipeline-spacer,
+.dsn .table.pipeline-grid tbody tr.pipeline-spacer:hover {
+  background: none;
+  pointer-events: none;
+}
+.dsn .table.pipeline-grid tbody tr.pipeline-spacer td {
+  padding: 0;
+}
+.dsn .th-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+.dsn .th-sort:hover {
+  color: var(--color-text);
+}
 .dsn .dialog-backdrop {
   position: fixed;
   inset: 0;

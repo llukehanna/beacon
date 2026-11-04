@@ -1,4 +1,6 @@
 import React from "react";
+import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useOsdkQuery } from "@/data/hooks";
 import type { AccuracySummary } from "../../shared/summaries";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
@@ -7,6 +9,7 @@ import {
   DIVERGENCE_BG,
   DIVERGENCE_BORDER,
   DIVERGENCE_FG,
+  SIDEBAR_STYLE,
   VOID_BG,
   outcomeChipStyle,
   outcomeLabel,
@@ -140,20 +143,10 @@ function Accuracy(): React.ReactElement {
         display: "flex",
       }}
     >
-      <aside
-        style={{
-          width: 240,
-          flex: "0 0 240px",
-          borderRight: "1px solid var(--color-divider)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={SIDEBAR_STYLE}>
         <BrandMark section="Accuracy" />
         <WorkspaceNavLinks />
+        <DemoFooter />
       </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
@@ -283,7 +276,9 @@ function Accuracy(): React.ReactElement {
                     gap: 6,
                   }}
                 >
-                  <Kicker>Abstention rate</Kicker>
+                  <Kicker>
+                    <Term id="Abstention">Abstention</Term> rate
+                  </Kicker>
                   <span
                     style={{
                       fontSize: 32,

@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
 import { useOsdkQuery } from "@/data/hooks";
 import type {
   HomeSummary,
@@ -12,12 +13,14 @@ import { formatMandateFirmCounts } from "./mandateFirms";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import { LIFECYCLE_BUCKETS, type Lifecycle } from "./pipelineBuckets";
+import { formatScore } from "./scoreFormat";
 import {
   DIVERGENCE_BG,
   DIVERGENCE_BORDER,
   DIVERGENCE_FG,
   DIVERGENCE_PHRASE,
   OUTCOME_ACQUIRED,
+  SIDEBAR_STYLE,
   VOID_BG,
   driftReasonPresentation,
   outcomeLabel,
@@ -144,6 +147,10 @@ interface InboxItem {
   typeLabel: string;
 }
 
+function tierWithScore(tier: string, score: number | undefined): string {
+  return score === undefined ? tier : formatScore(score, tier);
+}
+
 function toInboxItem(item: NeedsYouItem): InboxItem {
   switch (item.kind) {
     case "drift": {
@@ -151,10 +158,7 @@ function toInboxItem(item: NeedsYouItem): InboxItem {
       const rank = item.rank;
       const tierMove =
         item.priorTier && item.newTier
-          ? `${item.priorTier} ${item.priorScore ?? ""} → ${item.newTier} ${item.newScore ?? ""}`.replace(
-              /\s+/g,
-              " ",
-            )
+          ? `${tierWithScore(item.priorTier, item.priorScore)} → ${tierWithScore(item.newTier, item.newScore)}`
           : null;
       return {
         key: item.key,
@@ -526,7 +530,7 @@ function Home(): React.ReactElement {
   const passedAndAcquired = trust?.passedAndAcquired ?? 0;
 
   const headline = isLoading
-    ? "Reading the ontology…"
+    ? "Loading your inbox…"
     : inboxTotal === 0
       ? "Nothing needs you. Queue is clear."
       : `${inboxTotal} thing${inboxTotal === 1 ? "" : "s"} need${
@@ -545,20 +549,10 @@ function Home(): React.ReactElement {
         display: "flex",
       }}
     >
-      <aside
-        style={{
-          width: 240,
-          flex: "0 0 240px",
-          borderRight: "1px solid var(--color-divider)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={SIDEBAR_STYLE}>
         <BrandMark section="Home" />
         <WorkspaceNavLinks />
+        <DemoFooter />
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>

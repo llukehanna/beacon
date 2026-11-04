@@ -233,7 +233,7 @@ export async function seedHistory(
     .filter((x) => (x.employees ?? 0) >= 10 && notGeneralist(x))
     .slice(0, 4);
   for (const f of misc) {
-    await reject(f.$primaryKey, "Weak MD pedigree for our franchise.");
+    await reject(f.$primaryKey, "Weak MD experience for our franchise.");
   }
 
   // 5. Learn from the rejections; approve the clearest rule.
