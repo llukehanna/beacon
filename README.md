@@ -76,7 +76,7 @@ npm run deploy    # typecheck, vite build, wrangler deploy
 npx wrangler hyperdrive create beacon-db --connection-string='<neon connection string>'
 ```
 
-**Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and no cron, so it can be edited live without touching production.
+**Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and the same nightly reset, so it can be edited live without touching production.
 
 ```bash
 # 1. Create a Neon branch for it and copy its connection string.
