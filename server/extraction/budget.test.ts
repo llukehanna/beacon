@@ -1,8 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { assignCustomIds, planChunks, selectFirmsToExtract } from "./budget.js";
+import { assignCustomIds, planChunks, selectFirmsToExtract, withRetry } from "./budget.js";
 import { EXTRACTION_PROMPT_VERSION, SYSTEM_PROMPT } from "./contract.js";
 import type { FixtureRecord } from "./fixtures.js";
-import { PRICES, costFromUsage, estimateFirmCostUsd, systemPromptCaches } from "./pricing.js";
+import {
+  PRICES,
+  costFromUsage,
+  estimateFirmCostUsd,
+  hasPrice,
+  systemPromptCaches,
+} from "./pricing.js";
 
 const MODEL = "claude-haiku-4-5";
 
@@ -104,6 +110,18 @@ describe("pricing", () => {
     expect(costFromUsage(MODEL, usage, true)).toBeCloseTo(full / 2, 10);
   });
 
+  it("looks prices up by own key only", () => {
+    expect(hasPrice(MODEL)).toBe(true);
+    expect(hasPrice("constructor")).toBe(false);
+    expect(hasPrice("__proto__")).toBe(false);
+    expect(() => costFromUsage("constructor", usage, true)).toThrow(/No price/);
+    expect(() => estimateFirmCostUsd("__proto__", 100, 100, true)).toThrow(/No price/);
+  });
+
+  it("does not assume Sonnet caches a short prompt", () => {
+    expect(systemPromptCaches("claude-sonnet-5-5", SYSTEM_PROMPT.length)).toBe(false);
+  });
+
   it("throws for a model with no price", () => {
     expect(() => costFromUsage("claude-unknown", usage, true)).toThrow(/No price/);
   });
@@ -124,5 +142,80 @@ describe("pricing", () => {
       10,
     );
     expect(estimateFirmCostUsd(MODEL, 8000, 3000, true)).toBeCloseTo(short / 2, 10);
+  });
+});
+
+describe("planChunks hardening", () => {
+  const firms = Array.from({ length: 12 }, (_, i) => `f${i}`);
+
+  it("sizes the first chunk separately", () => {
+    const { chunks } = planChunks(firms, () => 0.001, 5, 0, 5, 2);
+    expect(chunks.map((c) => c.length)).toEqual([2, 5, 5]);
+  });
+
+  it("plans from worst-case output: a bigger ceiling plans fewer firms", () => {
+    const estimate = (outputTokens: number) => (id: string) =>
+      estimateFirmCostUsd(MODEL, id.length * 1000, 3000, true, outputTokens);
+    const typical = planChunks(firms, estimate(600), 0.01, 0, 100).skippedForBudget;
+    const worst = planChunks(firms, estimate(1500), 0.01, 0, 100).skippedForBudget;
+    expect(worst).toBeGreaterThan(typical);
+    // The worst-case plan really fits: its estimates sum to no more than the cap.
+    const planned = firms.slice(0, firms.length - worst);
+    expect(planned.reduce((sum, id) => sum + estimate(1500)(id), 0)).toBeLessThanOrEqual(0.01);
+  });
+
+  it("throws on an estimate that is not a finite number", () => {
+    expect(() => planChunks(firms, () => Number.NaN, 5, 0, 5)).toThrow(/not a usable number/);
+    expect(() => planChunks(firms, () => Infinity, 5, 0, 5)).toThrow(/not a usable number/);
+    expect(() => planChunks(firms, () => -1, 5, 0, 5)).toThrow(/not a usable number/);
+  });
+});
+
+describe("withRetry", () => {
+  const transient = (e: unknown) => e instanceof Error && e.message === "blip";
+
+  it("retries transient errors with doubling backoff, then succeeds", async () => {
+    let calls = 0;
+    const delays: number[] = [];
+    const result = await withRetry(
+      async () => {
+        if (++calls < 4) {
+          throw new Error("blip");
+        }
+        return "ok";
+      },
+      { isTransient: transient, sleep: async (ms) => void delays.push(ms) },
+    );
+    expect(result).toBe("ok");
+    expect(calls).toBe(4);
+    expect(delays).toEqual([1000, 2000, 4000]);
+  });
+
+  it("tries 5 times by default, then throws the last error", async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error("blip");
+        },
+        { isTransient: transient, sleep: async () => {} },
+      ),
+    ).rejects.toThrow("blip");
+    expect(calls).toBe(5);
+  });
+
+  it("does not retry other errors", async () => {
+    let calls = 0;
+    await expect(
+      withRetry(
+        async () => {
+          calls++;
+          throw new Error("bad request");
+        },
+        { isTransient: transient, sleep: async () => {} },
+      ),
+    ).rejects.toThrow("bad request");
+    expect(calls).toBe(1);
   });
 });

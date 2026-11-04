@@ -2,6 +2,11 @@ name: Extract
 
 # Reads the mock source documents with Claude (Message Batches API) and pushes the resulting
 # fixtures to a new branch. It does not open a pull request.
+#
+# A rerun starts from the ref it is dispatched on, so it resumes only if the earlier
+# fixtures/extract-* branch was merged there, or the workflow is dispatched from that branch.
+# If a run stopped after a batch was submitted, its log names the batch: dispatch again with
+# resume_batch set to that id (and the same model) to collect it instead of paying twice.
 on:
   workflow_dispatch:
     inputs:
@@ -15,6 +20,10 @@ on:
         default: "5"
       sample:
         description: Extract only the first N firms still missing (optional)
+        type: string
+        required: false
+      resume_batch:
+        description: Collect this earlier batch (msgbatch_...) first, using the same model (optional)
         type: string
         required: false
       clustering:
@@ -47,15 +56,18 @@ jobs:
           MODEL: ${{ inputs.model }}
           MAX_USD: ${{ inputs.max_usd }}
           SAMPLE: ${{ inputs.sample }}
+          RESUME_BATCH: ${{ inputs.resume_batch }}
           CLUSTERING: ${{ inputs.clustering }}
         run: |
           args=(--model "$MODEL" --max-usd "$MAX_USD")
           if [ -n "$SAMPLE" ]; then args+=(--sample "$SAMPLE"); fi
+          if [ -n "$RESUME_BATCH" ]; then args+=(--resume-batch "$RESUME_BATCH"); fi
           if [ "$CLUSTERING" = "true" ]; then args+=(--clustering); fi
           npm run extract -- "${args[@]}"
-      # Lines already written are valid and resumable, so keep them even if the step above failed.
+      # Lines already written are valid and resumable, so keep them even if the step above failed
+      # or the run was canceled. The attempt number keeps a job re-run from reusing the branch name.
       - name: Push fixtures to a new branch
-        if: ${{ !cancelled() }}
+        if: always()
         env:
           MODEL: ${{ inputs.model }}
         run: |
@@ -65,7 +77,7 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          branch="fixtures/extract-${{ github.run_id }}"
+          branch="fixtures/extract-${{ github.run_id }}-${{ github.run_attempt }}"
           git switch -c "$branch"
           git add fixtures
           git commit -m "Extraction: fixtures from ${MODEL}" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"

@@ -4,7 +4,12 @@ import { generateUniverse } from "../seed/universe.js";
 import { createTestDb } from "../testing.js";
 import { EXTRACTION_PROMPT_VERSION, ruleBasedExtraction } from "./contract.js";
 import { documentsHash, firmDocuments } from "./documents.js";
-import { type FixtureRecord, fixtureToExtractionRows, parseFixtureLines } from "./fixtures.js";
+import {
+  type FixtureRecord,
+  fixtureToExtractionRows,
+  parseFixtureLines,
+  repairFixtureText,
+} from "./fixtures.js";
 
 const firm = generateUniverse(5)[0];
 const docs = firmDocuments(firm);
@@ -42,6 +47,27 @@ describe("parseFixtureLines", () => {
     expect(records).toHaveLength(2);
     expect(records[0]).toEqual(good);
     expect(records[1].output).toBeNull();
+  });
+});
+
+describe("repairFixtureText", () => {
+  const line = JSON.stringify(record());
+
+  it("leaves empty text and text ending in a newline alone", () => {
+    expect(repairFixtureText("")).toBe("");
+    expect(repairFixtureText(`${line}\n`)).toBe(`${line}\n`);
+  });
+
+  it("adds the missing newline after a whole record", () => {
+    expect(repairFixtureText(line)).toBe(`${line}\n`);
+  });
+
+  it("drops a partial last line, so the next append cannot glue onto it", () => {
+    const repaired = repairFixtureText(`${line}\n${line.slice(0, 40)}`);
+    expect(repaired).toBe(`${line}\n`);
+    expect(repairFixtureText(line.slice(0, 40))).toBe("");
+    const appended = parseFixtureLines(`${repaired}${line}\n`);
+    expect(appended).toHaveLength(2);
   });
 });
 

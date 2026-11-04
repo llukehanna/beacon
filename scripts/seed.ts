@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { getDb } from "../server/db/client.js";
 import { parseFixtureLines } from "../server/extraction/fixtures.js";
@@ -10,10 +10,12 @@ import { saveSnapshot } from "../server/seed/snapshot.js";
 // schema or the seed.
 // Extraction fixtures (made by `npm run extract`) are loaded into the Extraction table.
 const fixtureDir = fileURLToPath(new URL("../fixtures/extraction/", import.meta.url));
-const fixtures = readdirSync(fixtureDir)
-  .filter((f) => f.endsWith(".jsonl"))
-  .sort()
-  .flatMap((f) => parseFixtureLines(readFileSync(`${fixtureDir}${f}`, "utf8")));
+const fixtures = existsSync(fixtureDir)
+  ? readdirSync(fixtureDir)
+      .filter((f) => f.endsWith(".jsonl"))
+      .sort()
+      .flatMap((f) => parseFixtureLines(readFileSync(`${fixtureDir}${f}`, "utf8")))
+  : [];
 const started = Date.now();
 const now = new Date();
 const db = await getDb();
