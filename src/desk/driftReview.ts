@@ -93,22 +93,37 @@ export function reasonText(d: ReasonLike | undefined): string {
   return ((d?.rejectionRationale ?? "").trim() || (d?.analystCategorization ?? "").trim()).trim();
 }
 
+export interface Lookalikes<F> {
+  /** The newest MAX_LOOKALIKES matches, newest rejection first. */
+  firms: F[];
+  /** Every match, so the count stays true past the cap. */
+  total: number;
+}
+
 /**
- * Passed firms whose latest rejection reason matches one of the drift's
- * changed axes, excluding the drift's own firm. `reasons` is the
- * latestRejection() map, newest decision first; the result follows that order
- * and holds at most MAX_LOOKALIKES firms.
+ * Other passed firms whose latest rejection reason cites the same axis that
+ * invalidated this drifted firm's own pass reason. The axes in play are the
+ * drift's changed axes that the drifted firm's own rejection reason matches;
+ * with none, there is no shared reason and nothing to show. `reasons` is the
+ * latestRejection() map, newest decision first, and the result follows that
+ * order.
  */
 export function lookalikesFor<F extends { firmId?: string | null }>(
   drift: { firmId?: string | null; changedAxes?: string | null },
   passedFirms: readonly F[],
   reasons: ReadonlyMap<string, ReasonLike>,
-): F[] {
-  const axes = parseChangedAxes(drift.changedAxes)
+): Lookalikes<F> {
+  const none: Lookalikes<F> = { firms: [], total: 0 };
+  const ownReason = reasonText(reasons.get(drift.firmId ?? ""));
+  if (ownReason === "") {
+    return none;
+  }
+  const staleAxes = parseChangedAxes(drift.changedAxes)
     .map((c) => c.axis)
-    .filter((a): a is string => typeof a === "string" && a !== "");
-  if (axes.length === 0) {
-    return [];
+    .filter((a): a is string => typeof a === "string" && a !== "")
+    .filter((ax) => reasonMatchesAxis(ownReason, ax));
+  if (staleAxes.length === 0) {
+    return none;
   }
   const passedById = new Map<string, F>();
   for (const f of passedFirms) {
@@ -116,21 +131,18 @@ export function lookalikesFor<F extends { firmId?: string | null }>(
       passedById.set(f.firmId, f);
     }
   }
-  const hits: F[] = [];
+  const matches: F[] = [];
   for (const [firmId, decision] of reasons) {
     const firm = passedById.get(firmId);
     if (firm === undefined || firmId === drift.firmId) {
       continue;
     }
     const text = reasonText(decision);
-    if (text !== "" && axes.some((ax) => reasonMatchesAxis(text, ax))) {
-      hits.push(firm);
-      if (hits.length === MAX_LOOKALIKES) {
-        break;
-      }
+    if (text !== "" && staleAxes.some((ax) => reasonMatchesAxis(text, ax))) {
+      matches.push(firm);
     }
   }
-  return hits;
+  return { firms: matches.slice(0, MAX_LOOKALIKES), total: matches.length };
 }
 
 // ─── Resolutions ────────────────────────────────────────────────────────
@@ -143,12 +155,15 @@ export const RESOLUTION_LABEL: Readonly<Record<string, string>> = {
   passed: "Passed",
 };
 
+// A Map, so a stray value like "constructor" can't resolve through the prototype.
+const RESOLUTION_BY_VALUE: ReadonlyMap<string, string> = new Map(Object.entries(RESOLUTION_LABEL));
+
 export function resolutionLabel(resolution: string | null | undefined): string {
   const raw = (resolution ?? "").trim();
   if (raw === "") {
     return "Resolved";
   }
-  const known = RESOLUTION_LABEL[raw];
+  const known = RESOLUTION_BY_VALUE.get(raw);
   if (known !== undefined) {
     return known;
   }

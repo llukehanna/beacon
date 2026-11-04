@@ -42,6 +42,13 @@ interface Lookalike {
   firmName: string;
 }
 
+interface LookalikeSet {
+  firms: Lookalike[];
+  total: number;
+}
+
+const NO_LOOKALIKES: LookalikeSet = { firms: [], total: 0 };
+
 // ─── Reason vocabulary ──────────────────────────────────────────────────
 // Matches support.js:reasonMap in the design. The palette itself lives in
 // ./tokens (DRIFT_REASON_STYLE) so /review and Home render the same violet.
@@ -145,7 +152,7 @@ function DriftCard({
   drift: DriftLike;
   firmName: string;
   firmObj: unknown;
-  lookalikes: Lookalike[];
+  lookalikes: LookalikeSet;
   // Only populated when the drift is outcome_diverged — the parent looks
   // both up (most-recent ReviewDecision + Firm.outcome). Passing null when
   // unknown so the card can degrade to a generic body if either is missing.
@@ -177,6 +184,9 @@ function DriftCard({
         : isQualifiedOrLater(normalizeLifecycle(lifecycle))
           ? "pipeline"
           : null;
+
+  // A Closed firm is done: nothing left to pass on, only the drift to note.
+  const canPass = normalizeLifecycle(lifecycle) !== "Closed";
 
   const closeNotePanel = (): void => {
     setNote("");
@@ -431,7 +441,7 @@ function DriftCard({
         </div>
       )}
 
-      {!resolved && lookalikes.length > 0 && (
+      {!resolved && lookalikes.total > 0 && (
         <>
           <button
             type="button"
@@ -448,11 +458,11 @@ function DriftCard({
               padding: 0,
               textAlign: "left",
             }}
-            title="Firms already passed whose rejection rationale mentions this axis"
+            title="Other passed firms whose rejection reason cites the axis that invalidated this firm's reason"
           >
             {lookalikesOpen
               ? "Hide"
-              : `+${lookalikes.length} passed firm${lookalikes.length === 1 ? "" : "s"} share this now-stale reason`}
+              : `+${lookalikes.total} passed firm${lookalikes.total === 1 ? "" : "s"} share this now-stale reason`}
           </button>
           {lookalikesOpen && (
             <div
@@ -463,11 +473,22 @@ function DriftCard({
                 marginTop: 8,
               }}
             >
-              {lookalikes.map((l) => (
+              {lookalikes.firms.map((l) => (
                 <span key={l.firmId} className="tag tag-neutral" title={l.firmId}>
                   {l.firmName}
                 </span>
               ))}
+              {lookalikes.total > lookalikes.firms.length && (
+                <span
+                  style={{
+                    fontSize: 12,
+                    alignSelf: "center",
+                    color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+                  }}
+                >
+                  and {lookalikes.total - lookalikes.firms.length} more
+                </span>
+              )}
             </div>
           )}
         </>
@@ -513,13 +534,15 @@ function DriftCard({
                   <button className="btn btn-primary" disabled={busy} onClick={onAcknowledge}>
                     {acknowledge.isPending ? "Keeping…" : "Keep in pipeline"}
                   </button>
-                  <button
-                    className="btn btn-secondary"
-                    disabled={busy}
-                    onClick={() => setNotePanel("pass")}
-                  >
-                    Pass…
-                  </button>
+                  {canPass && (
+                    <button
+                      className="btn btn-secondary"
+                      disabled={busy}
+                      onClick={() => setNotePanel("pass")}
+                    >
+                      Pass…
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -690,7 +713,7 @@ function Review(): React.ReactElement {
   // invalidated: other passed firms whose reason cites the same axis may be
   // stale too. Computed once per drift so cards don't redo it per render.
   const lookalikesByDrift = React.useMemo(() => {
-    const m = new Map<string, Lookalike[]>();
+    const m = new Map<string, LookalikeSet>();
     for (const d of drifts) {
       if (
         (d.driftStatus ?? "").toLowerCase() === "resolved" ||
@@ -698,12 +721,15 @@ function Review(): React.ReactElement {
       ) {
         continue;
       }
-      const hits = lookalikesFor(d, passedFirms, rejectionByFirm).map((f) => ({
-        firmId: f.firmId ?? "",
-        firmName: f.firmName ?? f.firmId ?? "",
-      }));
-      if (hits.length > 0) {
-        m.set(d.driftEventId, hits);
+      const { firms, total } = lookalikesFor(d, passedFirms, rejectionByFirm);
+      if (total > 0) {
+        m.set(d.driftEventId, {
+          total,
+          firms: firms.map((f) => ({
+            firmId: f.firmId ?? "",
+            firmName: f.firmName ?? f.firmId ?? "",
+          })),
+        });
       }
     }
     return m;
@@ -851,7 +877,7 @@ function Review(): React.ReactElement {
               drift={d}
               firmName={firmNameById.get(d.firmId ?? "") ?? d.firmId ?? "Unknown firm"}
               firmObj={firmById.get(d.firmId ?? "")}
-              lookalikes={lookalikesByDrift.get(d.driftEventId) ?? []}
+              lookalikes={lookalikesByDrift.get(d.driftEventId) ?? NO_LOOKALIKES}
               rejectionReason={rejectionReasonByFirm.get(d.firmId ?? "") ?? null}
               observedOutcome={outcomeByFirm.get(d.firmId ?? "") ?? null}
             />
@@ -868,7 +894,7 @@ function Review(): React.ReactElement {
                   drift={d}
                   firmName={firmNameById.get(d.firmId ?? "") ?? d.firmId ?? "Unknown firm"}
                   firmObj={firmById.get(d.firmId ?? "")}
-                  lookalikes={lookalikesByDrift.get(d.driftEventId) ?? []}
+                  lookalikes={lookalikesByDrift.get(d.driftEventId) ?? NO_LOOKALIKES}
                 />
               ))}
             </>

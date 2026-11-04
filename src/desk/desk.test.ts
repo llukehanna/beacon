@@ -2104,7 +2104,10 @@ describe("latestRejection", () => {
 describe("lookalikesFor", () => {
   const drift = {
     firmId: "self",
-    changedAxes: JSON.stringify([{ axis: "Deal Size", old: ">$150m", new: "<$25m" }]),
+    changedAxes: JSON.stringify([
+      { axis: "Deal Size", old: ">$150m", new: "<$25m" },
+      { axis: "Firm Age", old: "<5y", new: "15y" },
+    ]),
   };
   const firm = (firmId: string) => ({ firmId, firmName: firmId });
   const reasons = new Map([
@@ -2112,28 +2115,53 @@ describe("lookalikesFor", () => {
     ["a", { rejectionRationale: "Deal size below our floor" }],
     ["b", { rejectionRationale: "Bench too thin" }],
     ["c", { rejectionRationale: "", analystCategorization: "deal size" }],
+    ["age", { rejectionRationale: "Firm age is too young" }],
   ]);
+  const all = ["self", "a", "b", "c", "age"].map(firm);
 
-  it("returns only firms passed for the drifted axis, never the drift's own firm", () => {
-    const hits = lookalikesFor(drift, [firm("self"), firm("a"), firm("b"), firm("c")], reasons);
-    expect(hits.map((f) => f.firmId)).toEqual(["a", "c"]);
+  it("returns firms passed for the axis that invalidated this firm's reason, never itself", () => {
+    const { firms, total } = lookalikesFor(drift, all, reasons);
+    expect(firms.map((f) => f.firmId)).toEqual(["a", "c"]);
+    expect(total).toBe(2);
   });
 
-  it("is empty when no passed firm shares the reason", () => {
-    expect(lookalikesFor(drift, [firm("b")], reasons)).toEqual([]);
-    expect(lookalikesFor(drift, [firm("a")], new Map())).toEqual([]);
-    expect(lookalikesFor({ firmId: "self", changedAxes: "[]" }, [firm("a")], reasons)).toEqual([]);
+  it("does not count a firm passed for an unrelated changed axis", () => {
+    const { firms } = lookalikesFor(drift, all, reasons);
+    expect(firms.map((f) => f.firmId)).not.toContain("age");
   });
 
-  it("orders by most recent decision and caps at nine", () => {
-    const many = new Map<string, { rejectionRationale: string }>();
+  it("is empty when the drifted firm's own reason matches no changed axis, or no passed firm shares it", () => {
+    const empty = { firms: [], total: 0 };
+    expect(
+      lookalikesFor(
+        drift,
+        all,
+        new Map([...reasons, ["self", { rejectionRationale: "Bench thin" }]]),
+      ),
+    ).toEqual(empty);
+    expect(lookalikesFor(drift, all, new Map([...reasons].filter(([k]) => k !== "self")))).toEqual(
+      empty,
+    );
+    expect(lookalikesFor(drift, [firm("self"), firm("b")], reasons)).toEqual(empty);
+    expect(lookalikesFor({ firmId: "self", changedAxes: "[]" }, all, reasons)).toEqual(empty);
+  });
+
+  it("keeps the true total past nine, listing the nine newest", () => {
+    const many = new Map<string, { rejectionRationale: string }>([
+      ["self", { rejectionRationale: "Deal size" }],
+    ]);
     const firms = [];
     for (let i = 0; i < 12; i++) {
       many.set(`f${i}`, { rejectionRationale: "Deal size" });
       firms.push(firm(`f${i}`));
     }
-    const hits = lookalikesFor(drift, [...firms].reverse(), many);
-    expect(hits.map((f) => f.firmId)).toEqual(firms.slice(0, 9).map((f) => f.firmId));
+    const { firms: listed, total } = lookalikesFor(
+      drift,
+      [firm("self"), ...[...firms].reverse()],
+      many,
+    );
+    expect(total).toBe(12);
+    expect(listed.map((f) => f.firmId)).toEqual(firms.slice(0, 9).map((f) => f.firmId));
   });
 });
 
@@ -2145,6 +2173,7 @@ describe("RESOLUTION_LABEL", () => {
       kept_in_pipeline: "Kept in pipeline",
       passed: "Passed",
     });
+    expect(resolutionLabel("constructor")).toBe("Constructor");
     expect(resolutionLabel("kept_passed")).toBe("Kept passed");
     expect(resolutionLabel("some_new_value")).toBe("Some new value");
     expect(resolutionLabel(undefined)).toBe("Resolved");

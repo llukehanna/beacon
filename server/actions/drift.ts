@@ -255,6 +255,13 @@ export const acknowledgeDrift = defineAction<{ driftEvent: DriftObj; note: strin
     note: { type: "string", nullable: true },
   },
   async run(ctx, { driftEvent, note }) {
+    const firm = await requireObject(ctx, "Firm", driftEvent.firmId ?? "");
+    if (normalizeLifecycle(firm.lifecycleState) === PASSED) {
+      throw new ActionError(
+        "A Passed firm is not in the pipeline; re-engage it or keep it passed",
+        409,
+      );
+    }
     await resolveDrift(ctx, driftEvent, "kept_in_pipeline");
     const why = (note ?? "").trim();
     const decisionId = await logDecision(ctx, {
