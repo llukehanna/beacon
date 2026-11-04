@@ -14,8 +14,15 @@ import "./nocturne.css";
 // Funnel vocabulary lives in one module so the Home strip and
 // this page can't disagree about which stage a firm sits in.
 import { type Lifecycle, STATUS_CHIP, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
-import { type RankedFirm, orderEnrichmentQueue } from "./queue";
-import { type DecisionScore, formatScore, scoreFraction, shownScore } from "./scoreFormat";
+import {
+  type PipelineSortKey,
+  hqCode,
+  pipelineSort,
+  rejectDecisionByFirm,
+  revealScrollTop,
+  windowRange,
+} from "./pipelineRows";
+import { formatScore, scoreFraction, shownScore } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
 import { TIER_COLOR, TIER_LABEL, VOID_BG, outcomeChipStyle, outcomeLabel } from "./tokens";
 
@@ -231,12 +238,24 @@ function NavSidebar(): React.ReactElement {
 
 // ─── Header ─────────────────────────────────────────────────────────────
 
+const SORT_LABEL: Record<PipelineSortKey, string> = {
+  stage: "stage, then score",
+  score: "score",
+  name: "name",
+};
+
 function PipelineHeader({
+  shown,
   total,
+  loading,
+  sortKey,
   query,
   onQuery,
 }: {
+  shown: number;
   total: number;
+  loading: boolean;
+  sortKey: PipelineSortKey;
   query: string;
   onQuery: (v: string) => void;
 }): React.ReactElement {
@@ -260,7 +279,8 @@ function PipelineHeader({
             color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
           }}
         >
-          {total} firm{total === 1 ? "" : "s"} · sorted by closest to decision
+          {loading ? "Loading firms…" : `${shown} of ${total} firms`} · sorted by{" "}
+          {SORT_LABEL[sortKey]}
         </span>
       </div>
       <div style={{ marginLeft: "auto", position: "relative", width: 260 }}>
@@ -471,7 +491,6 @@ interface LastActivity {
 }
 
 interface Row {
-  ranked: RankedFirm;
   firm: FirmView;
   mirror: MirrorResult;
   /** Score and tier shown for the row: at-decision for passed firms, live otherwise. */
@@ -481,32 +500,73 @@ interface Row {
   lastActivity: LastActivity | null;
 }
 
+/** Why a firm is out, in one string for the cell tooltip and the detail rail. */
+function rejectText(mirror: MirrorResult, rationale: string | null): string {
+  if (mirror.hardRejected) {
+    return `Hard-rejected · ${mirror.rejectReason}`;
+  }
+  return rationale === null ? "Reason not on file" : `Pass reason · ${rationale}`;
+}
+
+const mutedText = "color-mix(in srgb, var(--color-text) 32%, transparent)";
+
+// Fixed geometry: the body is windowed, so every row is exactly ROW_HEIGHT
+// and the header exactly HEADER_HEIGHT (nocturne.css `.pipeline-grid`).
+const ROW_HEIGHT = 52;
+const HEADER_HEIGHT = 36;
+const OVERSCAN = 6;
+const COLUMN_COUNT = 8;
+
+const ellipsis: React.CSSProperties = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+};
+
 function FirmRow({
   row,
+  index,
   selected,
+  tabbable,
   onSelect,
+  onFocusRow,
+  onKeyDown,
 }: {
   row: Row;
+  index: number;
   selected: boolean;
+  tabbable: boolean;
   onSelect: (id: string) => void;
+  onFocusRow: (index: number) => void;
+  onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => void;
 }): React.ReactElement {
   const { firm, mirror, score, bucket, rejectionRationale, lastActivity } = row;
   const isRejected = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[score.tier] ?? TIER_COLOR.Rejected;
   const scoreText = formatScore(score.total);
   const barFill = scoreFraction(score.total);
-
-  // Hard-rejects (algorithmic) vs analyst rejections carry different verbs.
-  const rejectLabel = mirror.hardRejected
-    ? `Hard-rejected · ${mirror.rejectReason}`
-    : isRejected
-      ? `Pass reason · ${rejectionRationale ?? "not on file"}`
-      : null;
+  const reasonText = isRejected ? rejectText(mirror, rejectionRationale) : null;
+  const name = firm.firmName ?? firm.firmId ?? "";
+  const activityText = lastActivity
+    ? `${labelForDecisionType(lastActivity.type)} · ${relativeTime(lastActivity.decidedAt)}`
+    : "None logged";
 
   return (
     <tr
-      onClick={() => firm.firmId && onSelect(firm.firmId)}
+      data-index={index}
+      aria-rowindex={index + 2}
+      aria-selected={selected}
+      tabIndex={tabbable ? 0 : -1}
+      onClick={() => {
+        onFocusRow(index);
+        if (firm.firmId) {
+          onSelect(firm.firmId);
+        }
+      }}
+      onFocus={() => onFocusRow(index)}
+      onKeyDown={onKeyDown}
       style={{
+        height: ROW_HEIGHT,
         cursor: firm.firmId ? "pointer" : "default",
         boxShadow: selected ? "inset 2px 0 0 var(--color-accent)" : "none",
         background: selected
@@ -514,7 +574,7 @@ function FirmRow({
           : "transparent",
       }}
     >
-      <td style={{ padding: "8px var(--space-2)", overflow: "hidden" }}>
+      <td style={{ overflow: "hidden" }}>
         <div
           style={{
             fontWeight: 500,
@@ -523,20 +583,20 @@ function FirmRow({
             color: isRejected
               ? "color-mix(in srgb, var(--color-text) 62%, transparent)"
               : "inherit",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            ...ellipsis,
           }}
-          title={firm.firmName ?? firm.firmId}
+          title={name}
         >
-          {firm.firmName ?? firm.firmId}
+          {name}
         </div>
         {firm.coverageModel && (
           <div
             style={{
               fontSize: 11,
               color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
+              ...ellipsis,
             }}
+            title={firm.coverageModel}
           >
             {firm.coverageModel}
           </div>
@@ -551,42 +611,31 @@ function FirmRow({
       </td>
       <td
         style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          color:
-            firm.sector === null || firm.sector === undefined || firm.sector === ""
-              ? "color-mix(in srgb, var(--color-text) 32%, transparent)"
-              : undefined,
+          ...ellipsis,
+          color: firm.sector ? undefined : mutedText,
         }}
         title={firm.sector ?? undefined}
       >
-        {firm.sector ?? "—"}
+        {firm.sector || "—"}
       </td>
       <td>
         <StatusChip stage={bucket} />
       </td>
-      <td>
-        {isRejected ? (
+      <td style={{ overflow: "hidden" }}>
+        {reasonText !== null ? (
           <div
             style={{
               fontSize: 11,
               color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              ...ellipsis,
             }}
-            title={
-              rejectLabel ? `${formatScore(score.total, score.tier)} · ${rejectLabel}` : undefined
-            }
+            title={`${formatScore(score.total, score.tier)} · ${reasonText}`}
           >
             <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{scoreText}</span>
-            {rejectLabel
-              ? ` · ${mirror.hardRejected ? rejectLabel : (rejectionRationale ?? "reason not on file")}`
-              : null}
+            {` · ${reasonText}`}
           </div>
         ) : (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
               style={{
                 fontVariantNumeric: "tabular-nums",
@@ -599,8 +648,9 @@ function FirmRow({
             <TierTag tier={score.tier} />
             <span
               style={{
-                width: 34,
+                width: 24,
                 height: 4,
+                flex: "0 0 24px",
                 borderRadius: "var(--radius-xs)",
                 background: "var(--color-neutral-800)",
                 position: "relative",
@@ -624,32 +674,300 @@ function FirmRow({
         {firm.employees ?? "—"}
       </td>
       <td
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          color:
-            firm.hqCountry === null || firm.hqCountry === undefined || firm.hqCountry === ""
-              ? "color-mix(in srgb, var(--color-text) 32%, transparent)"
-              : undefined,
-        }}
-        title={firm.hqCountry ?? undefined}
+        style={{ ...ellipsis, color: firm.hqCountry ? undefined : mutedText }}
+        title={firm.hqCountry || undefined}
       >
-        {firm.hqCountry ?? "—"}
+        {hqCode(firm.hqCountry)}
       </td>
       <td
         style={{
           color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
+          ...ellipsis,
         }}
+        title={activityText}
       >
-        {lastActivity
-          ? `${labelForDecisionType(lastActivity.type)} · ${relativeTime(lastActivity.decidedAt)}`
-          : "None logged"}
+        {activityText}
       </td>
     </tr>
+  );
+}
+
+function SortHeader({
+  label,
+  sortKey,
+  active,
+  direction,
+  onSort,
+}: {
+  label: string;
+  sortKey: PipelineSortKey;
+  active: PipelineSortKey;
+  direction: "ascending" | "descending";
+  onSort: (key: PipelineSortKey) => void;
+}): React.ReactElement {
+  const isActive = active === sortKey;
+  return (
+    <th aria-sort={isActive ? direction : "none"}>
+      <button type="button" className="th-sort" onClick={() => onSort(sortKey)}>
+        {label}
+        <span aria-hidden style={{ opacity: isActive ? 0.9 : 0 }}>
+          {direction === "ascending" ? "↑" : "↓"}
+        </span>
+      </button>
+    </th>
+  );
+}
+
+/**
+ * The table body is windowed: only the rows in view (plus overscan) are in the
+ * DOM, with spacer rows standing in for the rest. The page's own scroll
+ * container (`scrollRef`) drives it, so the bucket tiles above scroll away
+ * naturally. One row holds the tab stop; arrow keys move focus, Enter or Space
+ * selects.
+ */
+function WindowedTable({
+  rows,
+  selectedId,
+  onSelect,
+  scrollRef,
+  sortKey,
+  onSort,
+}: {
+  rows: Row[];
+  selectedId: string | undefined;
+  onSelect: (id: string) => void;
+  scrollRef: React.RefObject<HTMLElement>;
+  sortKey: PipelineSortKey;
+  onSort: (key: PipelineSortKey) => void;
+}): React.ReactElement {
+  const tableRef = React.useRef<HTMLTableElement>(null);
+  const [range, setRange] = React.useState({ start: 0, end: 30 });
+  const [activeIndex, setActiveState] = React.useState(0);
+  // The logical active row. Key handling reads this, not the focused element, so a
+  // key pressed before DOM focus has caught up with the last move still acts on the right row.
+  const activeRef = React.useRef(0);
+  const setActiveIndex = React.useCallback((index: number) => {
+    activeRef.current = index;
+    setActiveState(index);
+  }, []);
+  const focusPending = React.useRef(false);
+  const count = rows.length;
+
+  // How far the table's top edge has scrolled past the top of the scroll container.
+  const tableScrollTop = React.useCallback((): number => {
+    const scroller = scrollRef.current;
+    const table = tableRef.current;
+    if (scroller === null || table === null) {
+      return 0;
+    }
+    return scroller.getBoundingClientRect().top - table.getBoundingClientRect().top;
+  }, [scrollRef]);
+
+  const measure = React.useCallback(() => {
+    const scroller = scrollRef.current;
+    if (scroller === null) {
+      return;
+    }
+    const next = windowRange({
+      scrollTop: tableScrollTop(),
+      viewportHeight: scroller.clientHeight,
+      rowHeight: ROW_HEIGHT,
+      count,
+      overscan: OVERSCAN,
+    });
+    setRange((prev) => (prev.start === next.start && prev.end === next.end ? prev : next));
+  }, [scrollRef, tableScrollTop, count]);
+
+  const reveal = React.useCallback(
+    (index: number) => {
+      const scroller = scrollRef.current;
+      if (scroller === null) {
+        return;
+      }
+      const current = tableScrollTop();
+      const target = revealScrollTop({
+        scrollTop: current,
+        viewportHeight: scroller.clientHeight,
+        headerHeight: HEADER_HEIGHT,
+        rowHeight: ROW_HEIGHT,
+        index,
+      });
+      if (target !== current) {
+        scroller.scrollTop += target - current;
+      }
+    },
+    [scrollRef, tableScrollTop],
+  );
+
+  React.useLayoutEffect(() => {
+    measure();
+    const scroller = scrollRef.current;
+    if (scroller === null) {
+      return undefined;
+    }
+    scroller.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    observer?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
+  }, [measure, scrollRef]);
+
+  // A newly selected row (keyboard, or a link in) is scrolled into view.
+  const selectedIndex = React.useMemo(
+    () => (selectedId === undefined ? -1 : rows.findIndex((r) => r.firm.firmId === selectedId)),
+    [rows, selectedId],
+  );
+  const selectedIndexRef = React.useRef(selectedIndex);
+  selectedIndexRef.current = selectedIndex;
+  React.useEffect(() => {
+    if (selectedIndexRef.current >= 0) {
+      reveal(selectedIndexRef.current);
+    }
+  }, [selectedId, reveal]);
+
+  // Keyboard focus follows the active row once it is in the DOM.
+  React.useEffect(() => {
+    if (!focusPending.current) {
+      return;
+    }
+    const el = tableRef.current?.querySelector<HTMLElement>(`tr[data-index="${activeIndex}"]`);
+    if (el) {
+      focusPending.current = false;
+      el.focus({ preventScroll: true });
+    }
+  });
+
+  const moveTo = (index: number): void => {
+    const next = Math.max(0, Math.min(count - 1, index));
+    focusPending.current = true;
+    setActiveIndex(next);
+    reveal(next);
+  };
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>): void => {
+    const index = Math.min(activeRef.current, count - 1);
+    const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 400) / ROW_HEIGHT) - 2);
+    switch (e.key) {
+      case "ArrowDown":
+        moveTo(index + 1);
+        break;
+      case "ArrowUp":
+        moveTo(index - 1);
+        break;
+      case "PageDown":
+        moveTo(index + page);
+        break;
+      case "PageUp":
+        moveTo(index - page);
+        break;
+      case "Home":
+        moveTo(0);
+        break;
+      case "End":
+        moveTo(count - 1);
+        break;
+      case "Enter":
+      case " ": {
+        const id = rows[index]?.firm.firmId;
+        if (id) {
+          onSelect(id);
+        }
+        break;
+      }
+      default:
+        return;
+    }
+    e.preventDefault();
+  };
+
+  const start = Math.min(range.start, count);
+  const end = Math.min(range.end, count);
+  // The tab stop stays inside the rendered window so Tab can always reach the table.
+  const tabIndexRow = Math.max(start, Math.min(end - 1, Math.min(activeIndex, count - 1)));
+  const topPad = start * ROW_HEIGHT;
+  const bottomPad = (count - end) * ROW_HEIGHT;
+
+  return (
+    <table
+      ref={tableRef}
+      className="table pipeline-grid"
+      role="grid"
+      aria-label="Firms"
+      aria-rowcount={count + 1}
+      style={{ tableLayout: "fixed", width: "100%" }}
+    >
+      {/* Fixed column widths: Status and Fit each own their cell, so a chip can't
+          run into the next column, and Firm takes whatever width is left. */}
+      <colgroup>
+        <col />
+        <col style={{ width: 48 }} />
+        <col style={{ width: 88 }} />
+        <col style={{ width: 112 }} />
+        <col style={{ width: 128 }} />
+        <col style={{ width: 48 }} />
+        <col style={{ width: 44 }} />
+        <col style={{ width: 120 }} />
+      </colgroup>
+      <thead>
+        <tr aria-rowindex={1}>
+          <SortHeader
+            label="Firm"
+            sortKey="name"
+            active={sortKey}
+            direction="ascending"
+            onSort={onSort}
+          />
+          <th>Type</th>
+          <th>Sector</th>
+          <SortHeader
+            label="Status"
+            sortKey="stage"
+            active={sortKey}
+            direction="descending"
+            onSort={onSort}
+          />
+          <SortHeader
+            label="Fit"
+            sortKey="score"
+            active={sortKey}
+            direction="descending"
+            onSort={onSort}
+          />
+          <th style={{ textAlign: "right" }}>Emp.</th>
+          <th>HQ</th>
+          <th>Activity</th>
+        </tr>
+      </thead>
+      <tbody>
+        {topPad > 0 && (
+          <tr className="pipeline-spacer" aria-hidden="true" style={{ height: topPad }}>
+            <td colSpan={COLUMN_COUNT} />
+          </tr>
+        )}
+        {rows.slice(start, end).map((r, i) => {
+          const index = start + i;
+          return (
+            <FirmRow
+              key={r.firm.firmId ?? `row-${index}`}
+              row={r}
+              index={index}
+              selected={r.firm.firmId === selectedId}
+              tabbable={index === tabIndexRow}
+              onSelect={onSelect}
+              onFocusRow={setActiveIndex}
+              onKeyDown={onKeyDown}
+            />
+          );
+        })}
+        {bottomPad > 0 && (
+          <tr className="pipeline-spacer" aria-hidden="true" style={{ height: bottomPad }}>
+            <td colSpan={COLUMN_COUNT} />
+          </tr>
+        )}
+      </tbody>
+    </table>
   );
 }
 
@@ -658,11 +976,17 @@ function FirmsTable({
   selectedId,
   onSelect,
   isLoading,
+  scrollRef,
+  sortKey,
+  onSort,
 }: {
   rows: Row[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   isLoading: boolean;
+  scrollRef: React.RefObject<HTMLElement>;
+  sortKey: PipelineSortKey;
+  onSort: (key: PipelineSortKey) => void;
 }): React.ReactElement {
   if (isLoading && rows.length === 0) {
     return (
@@ -686,7 +1010,7 @@ function FirmsTable({
             animation: "bcn-spin .7s linear infinite",
           }}
         />
-        Loading working set from ontology…
+        Loading firms…
       </div>
     );
   }
@@ -741,45 +1065,14 @@ function FirmsTable({
   }
 
   return (
-    <table className="table" style={{ tableLayout: "fixed", width: "100%" }}>
-      {/* Anchor column widths so a sparse Sector cell can't visually pull
-          HQ / Emp. / Last-activity out of column. Without this, `<table>`
-          auto-sizes each column to its content and a mostly-null Sector
-          collapses to a hairline, making downstream cells look like they
-          landed under the wrong header. */}
-      <colgroup>
-        <col style={{ width: "21%" }} />
-        <col style={{ width: "6%" }} />
-        <col style={{ width: "13%" }} />
-        <col style={{ width: "12%" }} />
-        <col style={{ width: "16%" }} />
-        <col style={{ width: "6%" }} />
-        <col style={{ width: "10%" }} />
-        <col style={{ width: "16%" }} />
-      </colgroup>
-      <thead>
-        <tr>
-          <th>Firm</th>
-          <th>Type</th>
-          <th>Sector</th>
-          <th>Status</th>
-          <th>Fit</th>
-          <th style={{ textAlign: "right" }}>Emp.</th>
-          <th>HQ</th>
-          <th>Last activity</th>
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((r) => (
-          <FirmRow
-            key={r.firm.firmId ?? Math.random().toString()}
-            row={r}
-            selected={r.firm.firmId === selectedId}
-            onSelect={onSelect}
-          />
-        ))}
-      </tbody>
-    </table>
+    <WindowedTable
+      rows={rows}
+      selectedId={selectedId}
+      onSelect={onSelect}
+      scrollRef={scrollRef}
+      sortKey={sortKey}
+      onSort={onSort}
+    />
   );
 }
 
@@ -1030,9 +1323,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
             fontWeight: 500,
           }}
         >
-          {mirror.hardRejected
-            ? `Hard-rejected · ${mirror.rejectReason}`
-            : `Pass reason · ${rejectionRationale ?? "not on file"}`}
+          {rejectText(mirror, rejectionRationale)}
         </div>
       )}
 
@@ -1081,7 +1372,8 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
 const railShellStyle: React.CSSProperties = {
   borderLeft: "1px solid var(--color-divider)",
   overflow: "auto",
-  padding: "18px 18px 22px",
+  // Bottom padding clears the fixed demo notice so the CTA is never covered.
+  padding: "18px 18px 72px",
   display: "flex",
   flexDirection: "column",
   gap: 16,
@@ -1106,48 +1398,17 @@ function Pipeline(): React.ReactElement {
   const [query, setQuery] = React.useState("");
   const [passedOnly, setPassedOnly] = React.useState(false);
   const [profileFilter, setProfileFilter] = React.useState<ProfileFilter>(NO_PROFILE_FILTER);
+  const [sortKey, setSortKey] = React.useState<PipelineSortKey>("stage");
+  const scrollRef = React.useRef<HTMLElement>(null);
 
   const firms = React.useMemo(() => (data ?? []) as unknown as FirmView[], [data]);
 
-  // Most-recent reject rationale per firm (for manually-rejected rows).
-  const rejectionByFirm = React.useMemo(() => {
-    const m = new Map<string, string>();
-    for (const d of decisionsData ?? []) {
-      const t = (d.decisionType ?? "").toLowerCase();
-      if (!t.includes("reject")) {
-        continue;
-      }
-      const fid = d.firmId ?? null;
-      const rat = (d.rejectionRationale ?? "").trim();
-      if (fid === null || fid === "" || rat === "") {
-        continue;
-      }
-      if (!m.has(fid)) {
-        m.set(fid, rat);
-      }
-    }
-    return m;
-  }, [decisionsData]);
-
-  // Score stored on each firm's most recent reject decision (decisions are
-  // ordered newest first), so a passed firm shows the score it was passed at.
-  const rejectScoreByFirm = React.useMemo(() => {
-    const m = new Map<string, DecisionScore>();
-    for (const d of decisionsData ?? []) {
-      const fid = d.firmId ?? null;
-      if (fid === null || fid === "" || m.has(fid)) {
-        continue;
-      }
-      if (!(d.decisionType ?? "").toLowerCase().includes("reject")) {
-        continue;
-      }
-      m.set(fid, {
-        scoreAtDecision: d.scoreAtDecision as number | null | undefined,
-        tierAtDecision: d.tierAtDecision as string | null | undefined,
-      });
-    }
-    return m;
-  }, [decisionsData]);
+  // Newest reject decision per firm: the pass reason, and the score and tier
+  // the firm was passed at. Decisions are ordered newest first.
+  const rejectByFirm = React.useMemo(
+    () => rejectDecisionByFirm(decisionsData ?? []),
+    [decisionsData],
+  );
 
   // Most-recent decision per firm — real activity, not the pipeline-builder
   // default lastReviewed date. The query is ordered by decidedAt desc, so
@@ -1171,57 +1432,38 @@ function Pipeline(): React.ReactElement {
   }, [decisionsData]);
 
   const rows = React.useMemo<Row[]>(() => {
-    const ranked = orderEnrichmentQueue(
-      firms.map((f) => ({
-        firmId: f.firmId ?? "",
-        firmName: f.firmName,
-        ...toScoreInput(f),
-      })),
-    );
-    const firmById = new Map(firms.map((f) => [f.firmId ?? "", f] as const));
-    return ranked
-      .map((r) => {
-        const firm = firmById.get(r.firm.firmId ?? "") ?? (r.firm as unknown as FirmView);
+    const needle = query.trim().toLowerCase();
+    const built = firms
+      .filter(
+        (firm) =>
+          (profileFilter.revenueBand === "" || firm.revenueBand === profileFilter.revenueBand) &&
+          (profileFilter.ownership === "" || firm.ownership === profileFilter.ownership) &&
+          (profileFilter.successionRisk === "" ||
+            firm.successionRisk === profileFilter.successionRisk),
+      )
+      .filter(
+        (firm) =>
+          needle === "" ||
+          (firm.firmName ?? "").toLowerCase().includes(needle) ||
+          (firm.sector ?? "").toLowerCase().includes(needle) ||
+          (firm.hqCountry ?? "").toLowerCase().includes(needle) ||
+          (firm.firmId ?? "").toLowerCase().includes(needle),
+      )
+      .map((firm): Row => {
         const mirror = mirrorScore(toScoreInput(firm));
         const bucket = bucketOf(firm, mirror);
-        const rationale = rejectionByFirm.get(firm.firmId ?? "") ?? null;
-        const lastActivity = lastActivityByFirm.get(firm.firmId ?? "") ?? null;
-        const score = shownScore(
-          mirror,
-          bucket === PASSED,
-          rejectScoreByFirm.get(firm.firmId ?? ""),
-        );
+        const reject = rejectByFirm.get(firm.firmId ?? "");
         return {
-          ranked: r,
           firm,
           mirror,
-          score,
+          score: shownScore(mirror, bucket === PASSED, reject),
           bucket,
-          rejectionRationale: rationale,
-          lastActivity,
+          rejectionRationale: reject?.rationale ?? null,
+          lastActivity: lastActivityByFirm.get(firm.firmId ?? "") ?? null,
         };
-      })
-      .filter(
-        (row) =>
-          (profileFilter.revenueBand === "" ||
-            row.firm.revenueBand === profileFilter.revenueBand) &&
-          (profileFilter.ownership === "" || row.firm.ownership === profileFilter.ownership) &&
-          (profileFilter.successionRisk === "" ||
-            row.firm.successionRisk === profileFilter.successionRisk),
-      )
-      .filter((row) => {
-        if (query.trim() === "") {
-          return true;
-        }
-        const needle = query.trim().toLowerCase();
-        return (
-          (row.firm.firmName ?? "").toLowerCase().includes(needle) ||
-          (row.firm.sector ?? "").toLowerCase().includes(needle) ||
-          (row.firm.hqCountry ?? "").toLowerCase().includes(needle) ||
-          (row.firm.firmId ?? "").toLowerCase().includes(needle)
-        );
       });
-  }, [firms, query, profileFilter, rejectionByFirm, rejectScoreByFirm, lastActivityByFirm]);
+    return pipelineSort(built, sortKey);
+  }, [firms, query, profileFilter, sortKey, rejectByFirm, lastActivityByFirm]);
 
   const counts = React.useMemo(() => {
     const c = emptyBucketCounts();
@@ -1253,7 +1495,14 @@ function Pipeline(): React.ReactElement {
     >
       <NavSidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <PipelineHeader total={firms.length} query={query} onQuery={setQuery} />
+        <PipelineHeader
+          shown={visibleRows.length}
+          total={firms.length}
+          loading={isLoading && firms.length === 0}
+          sortKey={sortKey}
+          query={query}
+          onQuery={setQuery}
+        />
         {error && (
           <div
             style={{
@@ -1268,61 +1517,35 @@ function Pipeline(): React.ReactElement {
         )}
         <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
           <main
+            ref={scrollRef}
             style={{
               flex: 1,
               overflowY: "auto",
-              padding: "18px 22px 24px",
+              padding: "0 22px 72px",
               display: "flex",
               flexDirection: "column",
               gap: 16,
               minWidth: 0,
             }}
           >
-            <BucketCounts
-              counts={counts}
-              isLoading={isLoading && firms.length === 0}
-              passedOnly={passedOnly}
-              onTogglePassed={() => setPassedOnly((v) => !v)}
-            />
-            <ProfileFilters value={profileFilter} onChange={setProfileFilter} />
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
-                }}
-              >
-                Working set{" "}
-                <span
-                  style={{
-                    color: "color-mix(in srgb, var(--color-text) 78%, transparent)",
-                    fontVariantNumeric: "tabular-nums",
-                  }}
-                >
-                  {visibleRows.length}
-                </span>{" "}
-                of {firms.length} <span style={{ opacity: 0.6 }}>· 679 in master database</span>
-              </span>
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "color-mix(in srgb, var(--color-text) 42%, transparent)",
-                }}
-              >
-                sorted by closest to decision
-              </span>
+            {/* The scroll container has no top padding so the sticky table header sits flush with its edge. */}
+            <div style={{ paddingTop: 18 }}>
+              <BucketCounts
+                counts={counts}
+                isLoading={isLoading && firms.length === 0}
+                passedOnly={passedOnly}
+                onTogglePassed={() => setPassedOnly((v) => !v)}
+              />
             </div>
+            <ProfileFilters value={profileFilter} onChange={setProfileFilter} />
             <FirmsTable
               rows={visibleRows}
               selectedId={selectedId}
               onSelect={setSelectedId}
               isLoading={isLoading}
+              scrollRef={scrollRef}
+              sortKey={sortKey}
+              onSort={setSortKey}
             />
           </main>
           <DetailRail row={selectedRow} />
