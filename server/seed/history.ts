@@ -6,13 +6,14 @@
  * whose agent runs are left open for the analyst.
  */
 import { matchesPredicate } from "../../shared/predicate.js";
-import type { ActionName, ObjectOf } from "../../shared/schema.js";
+import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
+import { sortedRows } from "../db/ordering.js";
 import { getObject, listAll } from "../db/repo.js";
 import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
@@ -61,6 +62,19 @@ function seedIds(): (prefix: string) => string {
   return (prefix) => `${prefix}-seed-${String(++n).padStart(5, "0")}`;
 }
 
+/**
+ * Every object of a type in a fixed, collation-independent order (see `sortedRows`): which firms
+ * the seed picks, and so the rejections a recorded clustering reply is matched against, must not
+ * depend on the database's text ordering.
+ */
+async function all<N extends ObjectTypeName>(
+  db: Db,
+  type: N,
+  opts: { where?: Record<string, { $eq: string }>; orderBy?: readonly string[] } = {},
+): Promise<ObjectOf<N>[]> {
+  return sortedRows(type, await listAll(db, type, { where: opts.where }), opts.orderBy);
+}
+
 export async function seedHistory(
   db: Db,
   start: Date,
@@ -84,7 +98,7 @@ export async function seedHistory(
   async function enrichLikeAnAnalyst(id: string): Promise<void> {
     await act("runAgentEnrichment", { firm: id });
     const firm = await loadFirm(id);
-    const open = (await listAll(db, "ResearchFinding", { where: { firmId: { $eq: id } } })).filter(
+    const open = (await all(db, "ResearchFinding", { where: { firmId: { $eq: id } } })).filter(
       (f) => f.findingStatus === "proposed" || f.findingStatus === "abstained",
     );
     const accepted: Record<string, unknown> = {};
@@ -149,7 +163,7 @@ export async function seedHistory(
   for (const m of MANDATES) {
     await act("runMandateSearch", m);
   }
-  const mandates = await listAll(db, "Mandate", { orderBy: { createdAt: "asc" } });
+  const mandates = await all(db, "Mandate", { orderBy: ["createdAt"] });
   await act("runSearch", {
     mandate: mandates[0].$primaryKey,
     geographies: ["United States", "Canada"],
@@ -164,11 +178,11 @@ export async function seedHistory(
   });
 
   // 2. Enrich the searched firms plus a few CS firms.
-  const members = (await listAll(db, "SearchMembership")).map((m) => m.firmId!);
+  const members = (await all(db, "SearchMembership")).map((m) => m.firmId!);
   const csFirms = (
-    await listAll(db, "Firm", {
+    await all(db, "Firm", {
       where: { firmType: { $eq: "CS" } },
-      orderBy: { firmName: "asc" },
+      orderBy: ["firmName"],
     })
   )
     .slice(0, 10)
@@ -179,7 +193,7 @@ export async function seedHistory(
   }
 
   // 3. Qualify the strongest; move a few through the pipeline.
-  const ranked = (await listAll(db, "Firm"))
+  const ranked = (await all(db, "Firm"))
     .filter((f) => f.enrichedBy === USER)
     .map((f) => ({ f, s: scoreFirm(f) }))
     .sort((a, b) => b.s.weightedTotal - a.s.weightedTotal);
@@ -202,7 +216,7 @@ export async function seedHistory(
   // 4. Rejections that form clusters the learning loop can find.
   const taken = new Set(qualified);
   const pool = async () =>
-    (await listAll(db, "Firm", { orderBy: { firmName: "asc" } })).filter(
+    (await all(db, "Firm", { orderBy: ["firmName"] })).filter(
       (f) =>
         !taken.has(f.$primaryKey) &&
         ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
@@ -255,7 +269,7 @@ export async function seedHistory(
   // 5. Learn from the rejections; approve the clearest rule: the employees rule, or else the one
   // with the most supporting firms (a recorded Claude reply need not propose employees).
   await act("clusterRejections", {});
-  const proposals = await listAll(db, "ProposedRule");
+  const proposals = await all(db, "ProposedRule");
   const clearest =
     proposals.find((x) => x.predicateAxis === "employees") ??
     proposals.reduce<(typeof proposals)[number] | undefined>(
@@ -277,9 +291,9 @@ export async function seedHistory(
     await act("setFirmOutcome", { firm: id, outcome: outcomes[i], outcomeObservedAt: at() });
   }
   const earliestRejected = (
-    await listAll(db, "ReviewDecision", {
+    await all(db, "ReviewDecision", {
       where: { decisionType: { $eq: "reject" } },
-      orderBy: { decidedAt: "asc" },
+      orderBy: ["decidedAt"],
     })
   )
     .slice(0, 2)
@@ -321,7 +335,7 @@ export async function seedHistory(
   // once: the outcome_diverged event is left for the analyst, and the resolved one is a
   // tier_moved firm that is still in the pipeline.
   const tierDrift = (
-    await listAll(db, "DriftEvent", { where: { driftReason: { $eq: "tier_moved" } } })
+    await all(db, "DriftEvent", { where: { driftReason: { $eq: "tier_moved" } } })
   )[0];
   if (tierDrift) {
     await act("acknowledgeDrift", {
@@ -332,8 +346,8 @@ export async function seedHistory(
 
   // 9. Showcase: the agent runs the demo opens on, left open. The picker skips firms an earlier
   // step touched; firms an approved screen removes are dropped here, so all stay in the live queue.
-  const screens = (await listAll(db, "HardScreenConfig")).filter((c) => c.configActive);
-  const candidates = (await listAll(db, "Firm")).filter(
+  const screens = (await all(db, "HardScreenConfig")).filter((c) => c.configActive);
+  const candidates = (await all(db, "Firm")).filter(
     (f) =>
       !screens.some((c) =>
         matchesPredicate(f, {
@@ -345,7 +359,7 @@ export async function seedHistory(
       ),
   );
   const stored = new Map<string, ObjectOf<"Extraction">[]>();
-  for (const row of await listAll(db, "Extraction")) {
+  for (const row of await all(db, "Extraction")) {
     stored.set(row.firmId ?? "", [...(stored.get(row.firmId ?? "") ?? []), row]);
   }
   // Only previews the plans, so these ids are never stored.

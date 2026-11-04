@@ -3,6 +3,7 @@ import type { ObjectOf } from "../../shared/schema.js";
 import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
+import { sortedRows } from "../db/ordering.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { iso, logDecision } from "./common.js";
@@ -170,10 +171,13 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
   // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
   async prepare(db, _params, ctx) {
     const firms = new Map((await listAll(db, "Firm")).map((f) => [f.$primaryKey, f]));
-    const decisions = await listAll(db, "ReviewDecision", {
-      where: { decisionType: { $eq: DECISION.reject } },
-      orderBy: { decidedAt: "asc" },
-    });
+    // Ordered here, not by the database: its text ordering (the primary-key tie-break) varies by
+    // server, and the order is part of the input a recorded clustering reply is matched against.
+    const decisions = sortedRows(
+      "ReviewDecision",
+      await listAll(db, "ReviewDecision", { where: { decisionType: { $eq: DECISION.reject } } }),
+      ["decidedAt"],
+    );
     const rows: RejectionRow[] = decisions
       .filter((d) => normalizeLifecycle(firms.get(d.firmId ?? "")?.lifecycleState) === PASSED)
       .map((d) => ({

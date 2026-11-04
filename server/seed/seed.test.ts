@@ -5,8 +5,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type { ObjectOf } from "../../shared/schema.js";
 import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
+import { type ClusteringFixture, fixtureClusterer, hashRejections } from "../clustering/fixture.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
-import type { Clusterer } from "../clustering/types.js";
+import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
@@ -299,15 +300,31 @@ describe("showcase seed", () => {
     expect(rules.find((r) => r.ruleStatus === "approved")!.n).toBe(rules[0].n);
   }, 300_000);
 
-  it("ids are the same on every seed, so a recorded clustering reply keeps matching", async () => {
-    const ids = async () => {
+  it("clusters the same rejections on every seed, so a recorded reply keeps matching", async () => {
+    const seed = async (now: Date) => {
       const db = await createTestDb();
-      await resetDemo(db, new Date("2026-09-22T12:00:00.000Z"));
-      return (await db.query<{ decisionId: string }>(`SELECT "decisionId" FROM review_decision`))
-        .map((r) => r.decisionId)
-        .sort();
+      let captured: RejectionRow[] = [];
+      const capture: Clusterer = async (rows) => {
+        captured = [...rows];
+        return heuristicClusterer(rows);
+      };
+      await resetDemo(db, now, { clusterer: capture });
+      return captured;
     };
-    expect(await ids()).toEqual(await ids());
+    const first = await seed(new Date("2026-09-22T12:00:00.000Z"));
+    const second = await seed(new Date("2031-03-05T08:30:00.000Z"));
+    expect(first.length).toBeGreaterThan(0);
+    expect(first.map((r) => r.decisionId)).toEqual(second.map((r) => r.decisionId));
+    expect(hashRejections(second)).toBe(hashRejections(first));
+
+    const recorded: ClusteringFixture = {
+      inputHash: hashRejections(first),
+      model: "claude-opus-5",
+      proposals: [],
+      createdAt: "2026-11-04T00:00:00.000Z",
+    };
+    const replay = fixtureClusterer(recorded, heuristicClusterer);
+    expect((await replay(second)).source).toBe("claude");
   }, 300_000);
 });
 

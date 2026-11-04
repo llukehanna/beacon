@@ -22,7 +22,8 @@ const CLUSTER_PRICES: Readonly<Record<string, readonly [number, number]>> = {
  * rejections exist. Separate from the extraction run: no batch, no cap, and one call's cost.
  */
 export async function recordClustering(): Promise<void> {
-  const real = new Anthropic({ timeout: 300_000, maxRetries: 1 });
+  // maxRetries 0: this is one billed call, and a retry after a lost response would be a second.
+  const real = new Anthropic({ timeout: 300_000, maxRetries: 0 });
   const state: {
     usage: { input: number; output: number } | null;
     model: string;
@@ -58,6 +59,15 @@ export async function recordClustering(): Promise<void> {
   const db = await createPgliteDb();
   try {
     await resetDemo(db, new Date(), { fixtures: loadExtractionFixtures(), clusterer });
+  } catch (err) {
+    // Once a reply has arrived it is billed, and a failure after that loses it.
+    const billed = state.usage !== null;
+    const reason = err instanceof Error ? `${err.name}: ${err.message}` : "unexpected error";
+    throw new Error(
+      billed
+        ? `${reason}. The Claude call was billed (${state.usage?.input} input and ${state.usage?.output} output tokens) and nothing was written.`
+        : reason,
+    );
   } finally {
     await db.close();
   }
