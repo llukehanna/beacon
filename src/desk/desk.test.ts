@@ -8,7 +8,7 @@ import {
   screenFirm,
   toScreeningRules,
 } from "./activeScreening";
-import { type FindingLike, needsYouAxisCountByFirm } from "./axisState";
+import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
 import {
   ENUM_EDIT_KEYS,
   FINDING_AXIS_TO_KEY,
@@ -1966,5 +1966,29 @@ describe("windowSegments", () => {
       4,
       "s3",
     ]);
+  });
+});
+
+describe("axisBadge — what an axis row shows beside its finding", () => {
+  it("an abstained axis reads 'No source — needs you' with no provider or confidence chip", () => {
+    const finding = { findingId: "1", provider: "exa", confidenceTier: "abstain" };
+    expect(axisBadge(classifyAxis(finding))).toEqual({
+      label: "No source \u2014 needs you",
+      showProvider: false,
+      showConfidence: false,
+    });
+  });
+
+  it("only a proposed value carries a confidence chip", () => {
+    expect(axisBadge("proposed")).toMatchObject({
+      label: null,
+      showProvider: true,
+      showConfidence: true,
+    });
+    expect(axisBadge("verified")).toMatchObject({
+      label: null,
+      showProvider: true,
+      showConfidence: false,
+    });
   });
 });

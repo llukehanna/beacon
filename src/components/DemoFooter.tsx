@@ -49,6 +49,23 @@ export default function DemoFooter(): React.ReactElement {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [confirming]);
 
+  // The Reset button is disabled while the reset runs, which drops focus to <body>; hand it back
+  // when the reset finishes (success or error), unless the user has moved on to something else.
+  const wasBusy = React.useRef(false);
+  React.useEffect(() => {
+    if (busy) {
+      wasBusy.current = true;
+      return;
+    }
+    if (wasBusy.current) {
+      wasBusy.current = false;
+      const active = document.activeElement;
+      if (active === null || active === document.body) {
+        triggerRef.current?.focus();
+      }
+    }
+  }, [busy]);
+
   // The floating note is transient; it clears itself.
   React.useEffect(() => {
     if (message === null) {
@@ -70,8 +87,10 @@ export default function DemoFooter(): React.ReactElement {
     const onKeyDown = (e: KeyboardEvent): void => {
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
         close();
       } else if (e.key === "Tab") {
+        e.stopPropagation();
         // Two buttons: wrap focus between them so it never leaves the open popover.
         const first = cancelRef.current;
         const last = confirmRef.current;
@@ -161,7 +180,7 @@ export default function DemoFooter(): React.ReactElement {
                 background: "var(--color-surface)",
                 border: "1px solid var(--color-divider)",
                 color: message.error
-                  ? "#f4abab"
+                  ? "#e79191"
                   : "color-mix(in srgb, var(--color-text) 72%, transparent)",
               }
         }
