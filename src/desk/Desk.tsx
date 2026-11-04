@@ -36,6 +36,7 @@ import {
   pickAuthoritative,
   retrievedMs,
 } from "./axisState";
+import { deskPanelState } from "./deskPanelState";
 import {
   type AcceptDecision,
   FINDING_AXIS_TO_KEY,
@@ -1427,7 +1428,8 @@ function AxisBreakdown({
           axisFindings !== undefined && axisFindings.length > 0
             ? pickAuthoritative(axisFindings)
             : undefined;
-        const badge = finding !== undefined ? axisBadge(classifyAxis(finding)) : undefined;
+        const badge =
+          finding !== undefined ? axisBadge(classifyAxis(finding), axis.known) : undefined;
         const bandInt = Number.isInteger(axis.score) ? (axis.score as 0 | 1 | 2) : null;
         const editValue = ed ? edits[ed.editKey] : undefined;
         const onFile = ed ? firmRecord[ed.editKey] : undefined;
@@ -3588,6 +3590,7 @@ function YourCallRail({
             value={note}
             onChange={(e) => setNote(e.target.value)}
             aria-invalid={noteMissing}
+            aria-describedby={noteMissing ? "decision-note-error" : undefined}
             placeholder={
               terminalKind === null
                 ? "Optional for advance/qualify · required to pass…"
@@ -3596,6 +3599,8 @@ function YourCallRail({
             style={{ minHeight: 104, lineHeight: 1.45 }}
           />
           <div
+            id={noteMissing ? "decision-note-error" : undefined}
+            role={noteMissing ? "alert" : undefined}
             style={{
               fontSize: 11,
               color:
@@ -3872,11 +3877,7 @@ function EnrichmentPanel({
   React.useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       // A popover dialog (demo reset confirm) owns the keyboard while it is open.
-      const target = e.target instanceof Element ? e.target : null;
-      if (
-        target?.closest('[role="dialog"]') != null ||
-        document.querySelector('[role="dialog"]') !== null
-      ) {
+      if (document.querySelector('[role="dialog"]') !== null) {
         return;
       }
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -4106,7 +4107,34 @@ function FirmSkeleton(): React.ReactElement {
   );
 }
 
-/** A deep-linked firm id that is not in the loaded queue. */
+/** A deep-linked firm that exists but is outside the pinned search's membership. */
+function FirmNotInSearch({ onClear }: { onClear: () => void }): React.ReactElement {
+  return (
+    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
+        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>
+          {"This firm isn't in the current search"}
+        </div>
+        <p
+          style={{
+            margin: "0 0 16px",
+            fontSize: 13,
+            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
+            lineHeight: 1.55,
+          }}
+        >
+          The queue is limited to the firms this search found. Clear the search filter to see every
+          firm.
+        </p>
+        <button type="button" className="btn btn-secondary" onClick={onClear}>
+          Clear search filter
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A deep-linked firm id that is not in the database. */
 function FirmNotFound({ firmId }: { firmId: string }): React.ReactElement {
   return (
     <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -4224,7 +4252,7 @@ function Desk(): React.ReactElement {
   const searchIdParam = searchParams.get("search") ?? "";
   const searchActive = searchIdParam !== "";
 
-  const { data: pinnedSearchData } = useOsdkObjects(Search, {
+  const { data: pinnedSearchData, isLoading: pinnedSearchLoading } = useOsdkObjects(Search, {
     where: { searchId: { $eq: searchIdParam } },
     pageSize: 1,
   });
@@ -4278,8 +4306,13 @@ function Desk(): React.ReactElement {
   const membership = useLinks(pinnedSearchInstance as never, "firms", {
     pageSize: 500,
   });
+  // Null while a pinned search's membership is unresolved. An empty Set would read as "this
+  // search has no firms" and filter every firm out before the links arrive.
+  const membershipLoading =
+    searchActive &&
+    (pinnedSearchLoading || (pinnedSearchInstance !== undefined && membership.isLoading));
   const memberFirmIds = React.useMemo(() => {
-    if (!searchActive) {
+    if (!searchActive || membershipLoading) {
       return null;
     }
     const arr = membership.linkedObjectsBySourcePrimaryKey.get(searchIdParam);
@@ -4291,7 +4324,7 @@ function Desk(): React.ReactElement {
       }
     }
     return set;
-  }, [searchActive, membership.linkedObjectsBySourcePrimaryKey, searchIdParam]);
+  }, [searchActive, membershipLoading, membership.linkedObjectsBySourcePrimaryKey, searchIdParam]);
 
   // Decisions load-bearing only when the filter is active (to compute
   // per-firm "N prior decisions"). Skipping the fetch when the desk is
@@ -4344,8 +4377,11 @@ function Desk(): React.ReactElement {
   }, [searchActive, decisionData, pinnedSearch?.runAt]);
 
   const filteredData = React.useMemo(() => {
-    if (!searchActive || memberFirmIds === null) {
+    if (!searchActive) {
       return (data ?? []) as typeof data;
+    }
+    if (memberFirmIds === null) {
+      return [] as unknown as typeof data;
     }
     return (data ?? []).filter((f) => memberFirmIds.has(f.firmId ?? ""));
   }, [searchActive, memberFirmIds, data]);
@@ -4393,7 +4429,19 @@ function Desk(): React.ReactElement {
     return orderEnrichmentQueue(firms, rankingRules);
   }, [filteredData, rankingRules]);
 
-  const selected = filteredData?.find((f) => f.firmId === selectedId);
+  const selected =
+    selectedId === undefined ? undefined : filteredData?.find((f) => f.firmId === selectedId);
+  const loadError = error ?? membership.error;
+  const panelState = deskPanelState({
+    selectedId,
+    firmsLoading: isLoading,
+    membershipLoading,
+    hasError: loadError !== undefined,
+    searchActive,
+    inView: selected !== undefined,
+    inDatabase: selectedId !== undefined && (data ?? []).some((f) => f.firmId === selectedId),
+    viewCount: filteredData?.length ?? 0,
+  });
 
   return (
     <div
@@ -4426,8 +4474,9 @@ function Desk(): React.ReactElement {
             onClear={onClearSearchFilter}
           />
         )}
-        {error && (
+        {loadError && (
           <div
+            role="alert"
             style={{
               padding: "8px 24px",
               background: "rgba(207,112,112,.12)",
@@ -4435,10 +4484,28 @@ function Desk(): React.ReactElement {
               fontSize: 12,
             }}
           >
-            {String(error)}
+            {String(loadError)}
           </div>
         )}
-        {searchActive && !isLoading && (filteredData?.length ?? 0) === 0 && (
+        {panelState === "firm" && selected !== undefined && (
+          <EnrichmentPanel
+            firm={selected}
+            actionFirm={selected}
+            allFirms={(filteredData ?? []) as unknown as FirmView[]}
+            firmsLoading={isLoading}
+            // Same rule list the queue ranks and partitions on, so the firm
+            // header's hard-screen chip can't call a firm workable while the
+            // sidebar shows it screened.
+            activeConfigs={rankingRules}
+            configsLoading={configLoading}
+          />
+        )}
+        {panelState === "skeleton" && <FirmSkeleton />}
+        {panelState === "not-found" && selectedId !== undefined && (
+          <FirmNotFound firmId={selectedId} />
+        )}
+        {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
+        {panelState === "search-empty" && (
           <div
             style={{
               flex: 1,
@@ -4457,25 +4524,8 @@ function Desk(): React.ReactElement {
               : "This search returned no firms yet. If it just launched, give the backend a moment to attach dedupes and create discoveries. The queue populates as membership lands."}
           </div>
         )}
-        {selected ? (
-          <EnrichmentPanel
-            firm={selected}
-            actionFirm={selected}
-            allFirms={(filteredData ?? []) as unknown as FirmView[]}
-            firmsLoading={isLoading}
-            // Same rule list the queue ranks and partitions on, so the firm
-            // header's hard-screen chip can't call a firm workable while the
-            // sidebar shows it screened.
-            activeConfigs={rankingRules}
-            configsLoading={configLoading}
-          />
-        ) : isLoading ? (
-          <FirmSkeleton />
-        ) : selectedId !== undefined ? (
-          <FirmNotFound firmId={selectedId} />
-        ) : (
-          !(searchActive && (filteredData?.length ?? 0) === 0) && <EmptyState />
-        )}
+        {panelState === "empty" && <EmptyState />}
+        {panelState === "error" && <div style={{ flex: 1 }} />}
       </div>
     </div>
   );
