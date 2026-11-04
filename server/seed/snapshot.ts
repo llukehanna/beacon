@@ -8,7 +8,7 @@
  * at that moment.
  */
 import { OBJECT_TYPES, type PropType } from "../../shared/schema.js";
-import type { Db } from "../db/client.js";
+import type { Db, Queryable } from "../db/client.js";
 import { getMeta, setMeta } from "../db/meta.js";
 import { HttpError } from "../errors.js";
 
@@ -44,9 +44,26 @@ const TEXT_SHIFTS: Readonly<Record<string, Readonly<Record<string, (shift: strin
   },
 };
 
-function restoreSql(table: string, shift: string): string {
+/** Columns each snapshot table actually has: one saved before a property was added lacks it. */
+async function snapshotColumns(tx: Queryable): Promise<Map<string, Set<string>>> {
+  const rows = await tx.query<{ table_name: string; column_name: string }>(
+    `SELECT table_name, column_name FROM information_schema.columns ` +
+      `WHERE table_schema = current_schema() AND table_name LIKE 'snapshot\\_%'`,
+  );
+  const out = new Map<string, Set<string>>();
+  for (const r of rows) {
+    out.set(r.table_name, (out.get(r.table_name) ?? new Set()).add(r.column_name));
+  }
+  return out;
+}
+
+function restoreSql(table: string, shift: string, have: ReadonlySet<string>): string {
   const cols = Object.entries(TABLES[table]);
   const values = cols.map(([name, type]) => {
+    // A property added after the snapshot was taken restores as NULL until the next `npm run seed`.
+    if (!have.has(name)) {
+      return "NULL";
+    }
     const text = TEXT_SHIFTS[table]?.[name];
     if (text) {
       return text(shift);
@@ -87,8 +104,9 @@ export async function resetFromSnapshot(
   const firms = await db.transaction(async (tx) => {
     await tx.query(`SET LOCAL TIME ZONE 'UTC'`);
     await tx.query(`TRUNCATE ${Object.keys(TABLES).join(", ")}`);
+    const columns = await snapshotColumns(tx);
     for (const table of Object.keys(TABLES)) {
-      await tx.query(restoreSql(table, shift));
+      await tx.query(restoreSql(table, shift, columns.get(snapshotOf(table)) ?? new Set()));
     }
     const [{ n }] = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`);
     return n;
