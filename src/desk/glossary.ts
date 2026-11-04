@@ -15,5 +15,5 @@ export const GLOSSARY: Record<string, string> = {
     "A firm has moved since the analyst decided on it. Either a qualified firm's tier changed; a passed firm now scores in a higher tier, so the reason for passing may no longer hold; or a passed firm's outcome diverged from the pass, such as being acquired by a competitor.",
   Tier: "The band a firm's 18-point rubric score falls into: A (strong fit), B (moderate fit), C (weak fit), or Rejected below C. Cut-offs differ by thesis: A is 14+ for CF and 13+ for CS; B is 10+ and C is 6+ for both. A hard-rejected firm is Rejected at 0.",
   Abstention:
-    "No source had the value, so the agent recorded that instead of guessing. It marks where analyst judgment is needed.",
+    "No source had a supported value (none stated one, or the stated value had no supporting quote), so the agent recorded that instead of guessing. It marks where analyst judgment is needed.",
 };

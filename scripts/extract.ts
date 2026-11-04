@@ -18,6 +18,7 @@ import {
 import { documentsHash, firmDocuments } from "../server/extraction/documents.js";
 import {
   type FixtureRecord,
+  firmsMissingCurrent,
   parseFixtureLines,
   planFixtureRepair,
 } from "../server/extraction/fixtures.js";
@@ -31,6 +32,7 @@ import {
 import { generateUniverse } from "../server/seed/universe.js";
 import { firmModel } from "../shared/scoring.js";
 import { recordClustering } from "./cluster-fixture.js";
+import { loadExtractionFixtures } from "./fixture-files.js";
 
 // `--clustering` instead records the one Claude call that groups the seeded rejections into rule
 // proposals, as fixtures/clustering/clusters.json (see scripts/cluster-fixture.ts).
@@ -96,6 +98,21 @@ if (!hasPrice(model)) {
 }
 if (resumeBatch !== undefined && (sync || !/^msgbatch_[A-Za-z0-9]+$/.test(resumeBatch))) {
   fail("--resume-batch takes a batch id (msgbatch_...) and cannot be combined with --sync.", 2);
+}
+if (values.clustering) {
+  // The recording is keyed to the rejections the seed produces, which depend on the extraction
+  // fixtures. Recorded against partial or stale ones it goes stale as soon as the rest merge.
+  const universe = generateUniverse();
+  const { model: newest, missing } = firmsMissingCurrent(loadExtractionFixtures(), universe);
+  if (newest === null) {
+    console.warn(
+      "WARNING: no extraction fixtures found; clustering the rule-based seed. Run `npm run extract` first to cluster model-backed values.",
+    );
+  } else if (missing.length > 0) {
+    fail(
+      `Refusing to record clustering: ${missing.length} of ${universe.length} firms have no current ${newest} extraction record (e.g. ${missing.slice(0, 3).join(", ")}). Finish \`npm run extract -- --model ${newest}\` first.`,
+    );
+  }
 }
 if (!process.env.ANTHROPIC_API_KEY) {
   fail(

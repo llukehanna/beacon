@@ -24,7 +24,7 @@ import {
   type Rates,
 } from "./trustMetrics";
 
-// Abstention is "no source had a value": a fact about coverage, not a verdict,
+// Abstention is "no supported value": a fact about coverage, not a verdict,
 // so it never takes the amber/red of override.
 const ABSTENTION_COLOR = "color-mix(in srgb, var(--color-text) 72%, transparent)";
 
@@ -296,8 +296,8 @@ function Accuracy(): React.ReactElement {
                       color: "color-mix(in srgb, var(--color-text) 65%, transparent)",
                     }}
                   >
-                    Share of findings where no source had a value and Beacon recorded that instead
-                    of guessing.
+                    Share of findings where Beacon recorded no value because no source stated one,
+                    or the stated value had no supporting quote.
                   </div>
                 </div>
 

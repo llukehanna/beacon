@@ -74,7 +74,7 @@ import {
 } from "./queue";
 import { formatScore, queueRowTier, scoreFraction } from "./scoreFormat";
 import { type MirrorResult, type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
-import { excerptText, modelLabel } from "./sourceHighlight";
+import { excerptText, modelChipTitle, modelLabel } from "./sourceHighlight";
 import {
   BAND_COLOR,
   CONFIDENCE_CHIP,
@@ -606,7 +606,7 @@ function ModelChip({ model }: { model?: string | null }): React.ReactElement | n
   }
   return (
     <span
-      title="Model that read the source document"
+      title={modelChipTitle(model)}
       style={{
         display: "inline-flex",
         alignItems: "center",

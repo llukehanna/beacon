@@ -52,7 +52,7 @@ import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
 import { formatScore, queueRowTier, scoreFraction, shownScore } from "./scoreFormat";
 import { mirrorScore } from "./scoreMirror";
-import { excerptText, highlightQuote, modelLabel } from "./sourceHighlight";
+import { excerptText, highlightQuote, modelChipTitle, modelLabel } from "./sourceHighlight";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
 
@@ -2200,6 +2200,15 @@ describe("highlightQuote", () => {
     expect(highlightQuote(body, "averaged 9 closed deals")).toBeNull();
     expect(highlightQuote(body, "")).toBeNull();
     expect(highlightQuote(body, "   ")).toBeNull();
+  });
+});
+
+describe("modelChipTitle", () => {
+  it("says the read was recorded when the demo data was built, and not a model for rule-based", () => {
+    expect(modelChipTitle("claude-haiku-4-5")).toBe(
+      "Read by Claude Haiku 4.5 when the demo data was built; no model runs on this page.",
+    );
+    expect(modelChipTitle("rule-based")).toBe("Read by a rule-based extractor (no model).");
   });
 });
 

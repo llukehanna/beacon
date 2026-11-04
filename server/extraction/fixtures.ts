@@ -100,7 +100,68 @@ export function planFixtureRepair(text: string): {
   if (parseFixtureLines(text.slice(cut)).length > 0) {
     return { addNewline: true, keepBytes: null };
   }
-  return { addNewline: false, keepBytes: Buffer.byteLength(text.slice(0, cut)) };
+  return { addNewline: false, keepBytes: new TextEncoder().encode(text.slice(0, cut)).length };
+}
+
+/**
+ * Where a record stands against the current code. `unusable`: the reply was not usable JSON.
+ * `stale`: made for another firm, prompt version, or document text, so its quotes must not be
+ * trusted. `current`: the seed turns it into rows.
+ */
+export type FixtureStatus = "current" | "stale" | "unusable";
+
+export function fixtureStatus(record: FixtureRecord, firm: FirmRef | undefined): FixtureStatus {
+  if (record.output === null) {
+    return "unusable";
+  }
+  if (
+    firm === undefined ||
+    record.firmId !== idOf(firm) ||
+    record.promptVersion !== EXTRACTION_PROMPT_VERSION ||
+    record.documentsHash !== documentsHash(firmDocuments(firm))
+  ) {
+    return "stale";
+  }
+  return "current";
+}
+
+/** How many of `records` are current, stale, or unusable; `firms` are looked up by id. */
+export function summarizeFixtures(
+  records: readonly FixtureRecord[],
+  firms: ReadonlyMap<string, FirmRef>,
+): Record<FixtureStatus, number> {
+  const counts: Record<FixtureStatus, number> = { current: 0, stale: 0, unusable: 0 };
+  for (const record of records) {
+    counts[fixtureStatus(record, firms.get(record.firmId))]++;
+  }
+  return counts;
+}
+
+/**
+ * The model of the newest record (the newest model file), and the firms with no current record
+ * from it. `model` is null when there are no records at all.
+ */
+export function firmsMissingCurrent(
+  records: readonly FixtureRecord[],
+  firms: readonly FirmRef[],
+): { model: string | null; missing: string[] } {
+  let newest: FixtureRecord | undefined;
+  for (const record of records) {
+    if (newest === undefined || record.createdAt > newest.createdAt) {
+      newest = record;
+    }
+  }
+  if (newest === undefined) {
+    return { model: null, missing: [] };
+  }
+  const model = newest.model;
+  const byFirm = new Map(firms.map((f) => [idOf(f), f]));
+  const done = new Set(
+    records
+      .filter((r) => r.model === model && fixtureStatus(r, byFirm.get(r.firmId)) === "current")
+      .map((r) => r.firmId),
+  );
+  return { model, missing: [...byFirm.keys()].filter((id) => !done.has(id)).sort() };
 }
 
 /**
@@ -116,12 +177,7 @@ export function fixtureToExtractionRows(
 ): Props<"Extraction">[] {
   const firmId = idOf(firm);
   const docs = firmDocuments(firm);
-  if (
-    record.output === null ||
-    record.firmId !== firmId ||
-    record.promptVersion !== EXTRACTION_PROMPT_VERSION ||
-    record.documentsHash !== documentsHash(docs)
-  ) {
+  if (record.output === null || fixtureStatus(record, firm) !== "current") {
     return [];
   }
   // One row per (provider, axis): the primary key allows no more. A grounded item beats a rejected one.

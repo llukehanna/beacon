@@ -10,13 +10,21 @@ export const clusteringFile = fileURLToPath(
   new URL("../fixtures/clustering/clusters.json", import.meta.url),
 );
 
-export function loadExtractionFixtures(): FixtureRecord[] {
+/** Each committed model file with its records, in file-name order. */
+export function loadExtractionFixtureFiles(): { file: string; records: FixtureRecord[] }[] {
   return existsSync(extractionDir)
     ? readdirSync(extractionDir)
         .filter((f) => f.endsWith(".jsonl"))
         .sort()
-        .flatMap((f) => parseFixtureLines(readFileSync(`${extractionDir}${f}`, "utf8")))
+        .map((file) => ({
+          file,
+          records: parseFixtureLines(readFileSync(`${extractionDir}${file}`, "utf8")),
+        }))
     : [];
+}
+
+export function loadExtractionFixtures(): FixtureRecord[] {
+  return loadExtractionFixtureFiles().flatMap((f) => f.records);
 }
 
 /** A missing file and a file that is not a valid fixture are different problems. */
