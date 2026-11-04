@@ -1,0 +1,72 @@
+name: Extract
+
+# Reads the mock source documents with Claude (Message Batches API) and pushes the resulting
+# fixtures to a new branch. It does not open a pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model to extract with
+        type: string
+        default: claude-haiku-4-5
+      max_usd:
+        description: Stop before this run's spend would pass this many US dollars
+        type: string
+        default: "5"
+      sample:
+        description: Extract only the first N firms still missing (optional)
+        type: string
+        required: false
+      clustering:
+        description: Also run seed-time clustering
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extract
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Extract
+        timeout-minutes: 330
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ inputs.model }}
+          MAX_USD: ${{ inputs.max_usd }}
+          SAMPLE: ${{ inputs.sample }}
+          CLUSTERING: ${{ inputs.clustering }}
+        run: |
+          args=(--model "$MODEL" --max-usd "$MAX_USD")
+          if [ -n "$SAMPLE" ]; then args+=(--sample "$SAMPLE"); fi
+          if [ "$CLUSTERING" = "true" ]; then args+=(--clustering); fi
+          npm run extract -- "${args[@]}"
+      # Lines already written are valid and resumable, so keep them even if the step above failed.
+      - name: Push fixtures to a new branch
+        if: ${{ !cancelled() }}
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          if [ -z "$(git status --porcelain fixtures)" ]; then
+            echo "No fixture changes to push."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="fixtures/extract-${{ github.run_id }}"
+          git switch -c "$branch"
+          git add fixtures
+          git commit -m "Extraction: fixtures from ${MODEL}" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          git push origin "$branch"
