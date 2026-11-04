@@ -291,14 +291,16 @@ export async function seedHistory(
     });
   }
 
-  // 8. One resolved drift so the history shows both states.
-  const outcomeDrift = (
-    await listAll(db, "DriftEvent", { where: { driftReason: { $eq: "outcome_diverged" } } })
+  // 8. One resolved drift so the history shows both states. Every kind of drift stays open
+  // once: the outcome_diverged event is left for the analyst, and the resolved one is a
+  // tier_moved firm that is still in the pipeline.
+  const tierDrift = (
+    await listAll(db, "DriftEvent", { where: { driftReason: { $eq: "tier_moved" } } })
   )[0];
-  if (outcomeDrift) {
-    await act("keepPassed", {
-      driftEvent: outcomeDrift.$primaryKey,
-      rationale: "The buyer paid a premium we would not have matched.",
+  if (tierDrift) {
+    await act("acknowledgeDrift", {
+      driftEvent: tierDrift.$primaryKey,
+      note: "The new evidence is thin; we are keeping the firm in the pipeline for now.",
     });
   }
 }
