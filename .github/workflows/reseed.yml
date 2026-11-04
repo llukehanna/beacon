@@ -17,15 +17,24 @@ permissions:
 jobs:
   reseed:
     runs-on: ubuntu-latest
-    env:
-      DATABASE_URL: ${{ inputs.target == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_PRESENTER }}
     steps:
-      - name: Require a database URL for the chosen target
+      - name: Select the database URL for the chosen target
+        env:
+          TARGET: ${{ inputs.target }}
+          DB_PRODUCTION: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          DB_PRESENTER: ${{ secrets.DATABASE_URL_PRESENTER }}
         run: |
-          if [ -z "$DATABASE_URL" ]; then
-            echo "::error::The secret for target '${{ inputs.target }}' is empty or not set (DATABASE_URL_PRODUCTION / DATABASE_URL_PRESENTER)."
+          case "$TARGET" in
+            production) url="$DB_PRODUCTION"; secret=DATABASE_URL_PRODUCTION ;;
+            presenter) url="$DB_PRESENTER"; secret=DATABASE_URL_PRESENTER ;;
+            *) echo "::error::Unknown target '$TARGET'."; exit 1 ;;
+          esac
+          if [ -z "$url" ]; then
+            echo "::error::The secret $secret for target '$TARGET' is empty or not set."
             exit 1
           fi
+          echo "::add-mask::$url"
+          echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
