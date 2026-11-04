@@ -337,6 +337,27 @@ describe("groundExtraction: tightened checks", () => {
     }
   });
 
+  it("reads a number before a comma but not glued or partial numbers", () => {
+    const { firm, docs } = firmWith("deal_size_usd_m");
+    const cases: [string, string, boolean][] = [
+      ["In 2019, the firm advised on deals of $60 million.", "60", true],
+      ["Deals were sized at 60, with most below that level.", "60", true],
+      ["Leverage ran at 12x on the larger transactions.", "12", false],
+      ["Fees ran near .5 million on the smaller transactions.", "5", false],
+      ["The deal book was version 3.5.1 of the internal model.", "3.5", false],
+    ];
+    for (const [sentence, value, accepted] of cases) {
+      const patched = withLine(docs, "dealdb", sentence);
+      const r = groundExtraction(
+        firm,
+        patched,
+        { items: [{ provider: "dealdb", axis: "deal_size_usd_m", value, quote: sentence }] },
+        "m",
+      );
+      expect(r.observations.length === 1, `${sentence} / ${value}`).toBe(accepted);
+    }
+  });
+
   it("requires number values to be plain digits", () => {
     const { firm, docs, f } = firmWith("firm_age");
     for (const value of ["1e1", "1,200", "12 years", "0x10", "-3", ".5"]) {
