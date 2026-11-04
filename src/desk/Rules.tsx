@@ -1123,7 +1123,7 @@ function Rules(): React.ReactElement {
                   <path d="M4 7h16M4 12h16M4 17h10" />
                 </svg>
               </span>
-              <div style={{ fontSize: 19, fontWeight: 600 }}>Not enough rejection history yet</div>
+              <div style={{ fontSize: 19, fontWeight: 600 }}>Not enough pass history yet</div>
               <p
                 style={{
                   margin: 0,
@@ -1132,8 +1132,9 @@ function Rules(): React.ReactElement {
                   maxWidth: "44ch",
                 }}
               >
-                Proposed hard-screen rules appear once you&rsquo;ve rejected roughly five similar
-                firms. Beacon clusters the reasons and drafts a predicate for you to approve.
+                Proposed hard-screen rules appear once at least four different firms you&rsquo;ve
+                passed on share a reason. Beacon clusters the reasons and drafts a predicate for you
+                to approve.
               </p>
             </div>
           )}

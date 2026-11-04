@@ -51,6 +51,19 @@ describe("resetFromSnapshot", () => {
     expect(await getMeta(restored, "lastResetAt")).toBe(later.toISOString());
   }, 300_000);
 
+  it("restores a snapshot taken before a column existed, leaving it empty", async () => {
+    const takenAt = new Date("2026-09-22T12:00:00.000Z");
+    const db = await createTestDb();
+    await resetDemo(db, takenAt, { newId: sequentialIds() });
+    await saveSnapshot(db, takenAt);
+    await db.exec(`ALTER TABLE snapshot_firm DROP COLUMN "successionRisk"`);
+    await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
+    const [{ n }] = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM firm WHERE "successionRisk" IS NOT NULL`,
+    );
+    expect(n).toBe(0);
+  }, 300_000);
+
   it("refuses to reset without a snapshot", async () => {
     const db = await createTestDb();
     await expect(resetFromSnapshot(db)).rejects.toMatchObject({ status: 503 });

@@ -198,15 +198,16 @@ describe("resetDemo", () => {
     expect(await n(`SELECT count(*)::int AS n FROM hard_screen_config WHERE "configActive"`)).toBe(
       1,
     );
+    for (const reason of ["tier_moved", "pass_reason_invalidated", "outcome_diverged"]) {
+      expect(
+        await n(
+          `SELECT count(*)::int AS n FROM drift_event WHERE "driftStatus" = 'open' AND "driftReason" = '${reason}'`,
+        ),
+        reason,
+      ).toBeGreaterThanOrEqual(1);
+    }
     expect(
-      await n(
-        `SELECT count(*)::int AS n FROM drift_event WHERE "driftStatus" = 'open' AND "driftReason" IN ('tier_moved','pass_reason_invalidated')`,
-      ),
-    ).toBeGreaterThanOrEqual(1);
-    expect(
-      await n(
-        `SELECT count(*)::int AS n FROM drift_event WHERE "driftReason" = 'outcome_diverged' AND "driftStatus" = 'resolved'`,
-      ),
+      await n(`SELECT count(*)::int AS n FROM drift_event WHERE "driftStatus" = 'resolved'`),
     ).toBe(1);
     expect(
       await n(`SELECT count(*)::int AS n FROM research_finding WHERE "findingStatus" = 'verified'`),

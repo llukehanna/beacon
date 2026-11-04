@@ -20,7 +20,7 @@ flowchart LR
 
 `shared/schema.ts` declares the 11 object types (firms, mandates, searches, findings, scores, decisions, drift events, rules, hard-screen configs, and the search join objects), their properties and types, the two links the UI traverses, and the 17 action names. Everything else derives from it:
 
-- **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names.
+- **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names. `ensureSchema` runs it on every cold start and then adds any property column an existing table lacks, so a new property reaches a database created before it. It reads `information_schema` first and runs `ALTER TABLE` (under a 5 s lock timeout) only for columns actually missing, so a current database is never locked; a saved demo snapshot taken earlier restores the new column empty until the next `npm run seed`.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
 - **API.** `GET /api/objects` lists one type with `$eq` filters and ordering, a page at a time (`pageSize` up to 1000 and an opaque `pageToken`). `POST /api/links` follows a link for many source objects in one query, `POST /api/actions` applies a named action and reports which object types it wrote, and `GET /api/functions` runs a named query function (`homeSummary`, `accuracySummary`) that aggregates in SQL so the browser receives numbers instead of rows.
 - **Frontend.** `src/data/hooks.ts` exposes typed hooks keyed by the same type names. They keep the OSDK hook names the pages were written against, so the screens didn't change when the backend did. `useOsdkQuery` calls a query function, and a successful action refreshes only the object types it wrote, the links that touch them, and the function results.
@@ -84,19 +84,19 @@ sequenceDiagram
 
 ## The learning loop
 
-1. **Cluster.** `clusterRejections` gathers every rejection with its rationale and the firm's facts. Claude proposes predicates on one firm fact at a time (structured output validated against a schema). When Claude is off, throttled, or fails, a keyword heuristic proposes instead.
-2. **Ground.** Every proposal, from either source, is checked against the data. A rejection only counts as support if its firm actually satisfies the predicate, and a proposal needs four distinct firms. Duplicates of existing rules, including dismissed ones, are dropped.
+1. **Cluster.** `clusterRejections` gathers every pass decision (a `reject` review decision) with its rationale and the firm's facts. Claude proposes predicates on one firm fact at a time (structured output validated against a schema). When Claude is off, throttled, or fails, a keyword heuristic proposes instead.
+2. **Ground.** Every proposal, from either source, is checked against the data. A pass only counts as support if its firm actually satisfies the predicate, and a proposal needs four distinct firms. Duplicates of existing rules, including dismissed ones, are dropped.
 3. **Project.** Each surviving proposal records how many firms in the current queue it would screen.
 4. **Approve.** Nothing screens until an analyst approves it. Approval writes a versioned hard-screen config, and amending the threshold writes a new version. Unapproving or dismissing deactivates it.
 5. **Screen.** The desk's queue drops firms that trip an active config.
 
 ## Drift
 
-When a qualified or rejected firm's live score moves after its terminal decision, Beacon raises a drift event. Qualified firms drift on any tier change. Rejected firms drift only when they improve, because the reason for passing may no longer hold. A passed firm later acquired by a competitor raises an "outcome diverged" event. The Review page lets the analyst re-engage the firm or keep it passed with a rationale.
+When the live score of a firm at Qualified or any later stage, or of a Passed firm, moves after its last decision, Beacon raises a drift event. Firms at Qualified or later (Qualified through Closed) drift on any tier change. Passed firms drift only when they improve, because the reason for passing may no longer hold. A passed firm later acquired by a competitor raises an "outcome diverged" event. The Review page lets the analyst re-engage a passed firm, keep it passed with a rationale, or acknowledge the drift on a firm that stays in the pipeline.
 
 ## Demo operations
 
-- **Seed through the real actions.** `server/seed/` generates the 700-firm universe, then produces a month of history (mandates, searches, enrichment, qualifications, clustered rejections, an approved rule, outcomes, and drift) by calling the same action handlers the UI calls. The seed doubles as an end-to-end test of the backend.
+- **Seed through the real actions.** `server/seed/` generates the 700-firm universe, then produces a month of history (mandates, searches, enrichment, qualifications, clustered passes, an approved rule, outcomes, and drift) by calling the same action handlers the UI calls. The seed doubles as an end-to-end test of the backend.
 - **Reset.** `npm run seed` builds the world once and saves it as `snapshot_*` tables. A reset restores them in one transaction (TRUNCATE, then INSERT…SELECT with every timestamp, and the dates embedded in search names and drift details, moved forward by the time since the snapshot), so visitors see the old world or the new one, never a half-built mix, and the result matches a full rebuild at that moment. A nightly Cloudflare Cron Trigger and the demo bar's Reset button share an atomic throttle of one reset per five minutes.
 - **Claude cost guard.** At most one Claude clustering call per 10 minutes and 24 per day across all visitors. Both limits are claimed atomically before the action's transaction opens, so a rollback can't refund them.
 - **Ceilings.** Parameter length and list caps, at most 25 mandates and 50 searches, and 10,000 activity rows until the next reset.
