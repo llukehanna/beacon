@@ -226,6 +226,161 @@ describe("groundExtraction", () => {
   });
 });
 
+/** The documents with extra text appended to one provider's body. */
+const withLine = (docs: SourceDocument[], provider: string, line: string): SourceDocument[] =>
+  docs.map((d) => (d.provider === provider ? { ...d, body: `${d.body}\n${line}` } : d));
+
+describe("groundExtraction: tightened checks", () => {
+  it("rejects a real sentence that lacks the label, and accepts the label in any case", () => {
+    const firm = firms.find((f) => field(firmDocuments(f), "beacondb", "services_fit").field)!;
+    const docs = firmDocuments(firm);
+    const { doc, field: f } = field(docs, "beacondb", "services_fit");
+    const ask = (d: SourceDocument[], quote: string) =>
+      groundExtraction(
+        firm,
+        d,
+        { items: [{ provider: "beacondb", axis: "services_fit", value: f!.value, quote }] },
+        "m",
+      );
+
+    const filler = doc.body.split("\n")[1];
+    expect(ask(docs, filler).rejected).toEqual([
+      { provider: "beacondb", axis: "services_fit", reason: "value_not_in_quote" },
+    ]);
+
+    const shouted = `Its service offering is assessed as: ${f!.value.toUpperCase()}.`;
+    const r = ask(withLine(docs, "beacondb", shouted), shouted);
+    expect(r.rejected).toEqual([]);
+    expect(r.observations.map((o) => o.value)).toEqual([f!.value]);
+  });
+
+  it("accepts a quote that spans two body lines, and stores the raw slice", () => {
+    for (const firm of firms) {
+      const docs = firmDocuments(firm);
+      const doc = docs.find((d) => d.fields.length >= 2);
+      if (!doc) {
+        continue;
+      }
+      const [a, b] = doc.fields;
+      const r = groundExtraction(
+        firm,
+        docs,
+        {
+          items: [
+            {
+              provider: doc.provider,
+              axis: a.axis,
+              value: a.value,
+              quote: `${a.sentence} ${b.sentence}`,
+            },
+          ],
+        },
+        "m",
+      );
+      expect(r.rejected).toEqual([]);
+      const o = r.observations[0];
+      expect(o.sourceQuote).toBe(`${a.sentence}\n${b.sentence}`);
+      expect(o.sourceExcerpt).toBe(o.sourceQuote);
+      expect(doc.body.includes(o.sourceQuote!)).toBe(true);
+      return;
+    }
+    throw new Error("no suitable firm");
+  });
+
+  it("stores the raw slice even when the model adds surrounding whitespace", () => {
+    const { firm, docs, f } = firmWith("firm_age");
+    const r = groundExtraction(
+      firm,
+      docs,
+      {
+        items: [
+          { provider: "dealdb", axis: "firm_age", value: f.value, quote: `\n ${f.sentence} \t` },
+        ],
+      },
+      "m",
+    );
+    expect(r.observations[0].sourceQuote).toBe(f.sentence);
+  });
+
+  it("ignores numbers glued to letters", () => {
+    const { firm, docs } = firmWith("firm_age");
+    const sentence = "The firm was founded in Q3 of 2019 after a long search.";
+    const patched = withLine(docs, "dealdb", sentence);
+    const ask = (value: string) =>
+      groundExtraction(
+        firm,
+        patched,
+        { items: [{ provider: "dealdb", axis: "firm_age", value, quote: sentence }] },
+        "m",
+      );
+    expect(ask("3").rejected).toEqual([
+      { provider: "dealdb", axis: "firm_age", reason: "value_not_in_quote" },
+    ]);
+    expect(ask("2019").rejected).toEqual([]);
+    expect(ask("2019").observations).toHaveLength(1);
+  });
+
+  it("does not read part of a thousands-separated number", () => {
+    const { firm, docs } = firmWith("deal_size_usd_m");
+    const sentence = "A typical transaction is sized at about $1,200 million.";
+    const patched = withLine(docs, "dealdb", sentence);
+    for (const value of ["1", "200", "1200"]) {
+      const r = groundExtraction(
+        firm,
+        patched,
+        { items: [{ provider: "dealdb", axis: "deal_size_usd_m", value, quote: sentence }] },
+        "m",
+      );
+      expect(r.rejected).toEqual([
+        { provider: "dealdb", axis: "deal_size_usd_m", reason: "value_not_in_quote" },
+      ]);
+    }
+  });
+
+  it("requires number values to be plain digits", () => {
+    const { firm, docs, f } = firmWith("firm_age");
+    for (const value of ["1e1", "1,200", "12 years", "0x10", "-3", ".5"]) {
+      const r = groundExtraction(
+        firm,
+        docs,
+        { items: [{ provider: "dealdb", axis: "firm_age", value, quote: f.sentence }] },
+        "m",
+      );
+      expect(r.rejected).toEqual([
+        { provider: "dealdb", axis: "firm_age", reason: "invalid_value" },
+      ]);
+    }
+  });
+
+  it("rejects a fragment quote as too short, after checking the document", () => {
+    const { firm, docs, f } = firmWith("firm_age");
+    const ask = (quote: string) =>
+      groundExtraction(
+        firm,
+        docs,
+        { items: [{ provider: "dealdb", axis: "firm_age", value: f.value, quote }] },
+        "m",
+      );
+    expect(ask(f.value).rejected).toEqual([
+      { provider: "dealdb", axis: "firm_age", reason: "quote_too_short" },
+    ]);
+    expect(ask("zzz qqq").rejected[0].reason).toBe("quote_not_in_document");
+  });
+
+  it("keeps the first of two accepted items for the same provider and axis", () => {
+    const { firm, docs, f } = firmWith("firm_age");
+    const item = {
+      provider: "dealdb" as const,
+      axis: "firm_age",
+      value: f.value,
+      quote: f.sentence,
+    };
+    const r = groundExtraction(firm, docs, { items: [item, item] }, "m");
+    expect(r.observations).toHaveLength(1);
+    expect(r.rejected).toEqual([]);
+  });
+});
+
 describe("parseExtraction", () => {
   const reply = {
     items: [{ provider: "dealdb", axis: "firm_age", value: "12", quote: "Twelve." }],
@@ -269,6 +424,18 @@ describe("prompt", () => {
     for (const d of docs) {
       expect(msg).toContain(`<document provider="${d.provider}">`);
       expect(msg).toContain(d.body);
+    }
+    expect(msg).not.toContain("Firm model");
+  });
+
+  it("puts the firm model first when known, and leaves the system prompt static", () => {
+    const docs = firmDocuments(firms[0]);
+    expect(buildUserMessage(docs, "CF").startsWith("Firm model: CF\n")).toBe(true);
+    expect(buildUserMessage(docs, "CS").startsWith("Firm model: CS\n")).toBe(true);
+    expect(SYSTEM_PROMPT).toContain("CF firms:");
+    expect(SYSTEM_PROMPT).toContain("CS firms:");
+    for (const f of firms) {
+      expect(SYSTEM_PROMPT).not.toContain(f.firmName);
     }
   });
 });

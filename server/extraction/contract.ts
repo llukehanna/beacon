@@ -68,14 +68,18 @@ For every document, report each axis it states. Report only what the document it
 Axes:
 ${axisLines()}
 
-Allowed labels for the categorical axes. Use a label exactly as it appears in the document; the firm's model decides which list applies.
+Allowed labels for the categorical axes. The user message may begin with a line "Firm model: CF" or "Firm model: CS"; use the list for that model. Always use a label exactly as it appears in the document.
 services_fit:
+  CF firms:
 ${list(CF_SERVICES_LABELS)}
+  CS firms:
 ${list(CS_SERVICES_LABELS)}
 md_pedigree:
+  CF firms:
 ${list(CF_MD_LABELS)}
+  CS firms:
 ${list(CS_MD_LABELS)}
-balance_sheet_principal:
+balance_sheet_principal (all firms):
 ${list(CS_BSP_LABELS)}
 
 Rules:
@@ -87,11 +91,15 @@ Rules:
 Reply with JSON only, in this shape:
 {"items":[{"provider":"dealdb","axis":"firm_age","value":"12","quote":"The firm has been operating for 12 years."}]}`;
 
-/** Each document fenced with its provider id, in the order given. */
-export function buildUserMessage(docs: readonly SourceDocument[]): string {
-  return docs
+/**
+ * Each document fenced with its provider id, in the order given. When the firm's
+ * model is known it leads the message, so the model picks the matching label list.
+ */
+export function buildUserMessage(docs: readonly SourceDocument[], firmModel?: "CF" | "CS"): string {
+  const body = docs
     .map((d) => `<document provider="${d.provider}">\n${d.title}\n${d.body}\n</document>`)
     .join("\n\n");
+  return firmModel ? `Firm model: ${firmModel}\n\n${body}` : body;
 }
 
 const PROVIDER_IDS: ReadonlySet<string> = new Set(PROVIDER_TRUST);
