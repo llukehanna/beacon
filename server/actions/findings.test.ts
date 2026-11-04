@@ -113,6 +113,19 @@ describe("runAgentEnrichment extraction", () => {
     expect(proposed.every((f) => f.extractionModel === "claude-haiku-4-5")).toBe(true);
   });
 
+  it("ignores stored extractions made with another prompt version", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await storeExtractions(db, firm, ruleBasedExtraction(firmDocuments(firm)).items);
+    await db.query(`UPDATE extraction SET "promptVersion" = 'extract-v0'`);
+    await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
+    const proposed = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.findingStatus === "proposed",
+    );
+    expect(proposed.length).toBeGreaterThan(0);
+    expect(proposed.every((f) => f.extractionModel === "rule-based")).toBe(true);
+  });
+
   it("ignores stored extractions with a stale hash", async () => {
     const db = await createTestDb();
     const firm = await seedFirm(db);
@@ -211,6 +224,8 @@ describe("verifyFinding", () => {
     await expect(run(db, "verifyFinding", { finding: "a1" })).rejects.toThrow(/needs a value/);
     await run(db, "verifyFinding", { finding: "a1", overrideValue: "45" });
     expect((await getObject(db, "ResearchFinding", "a1"))?.findingStatus).toBe("abstained");
+    const analyst = (await findingsOf(db, firm.$primaryKey)).find((f) => f.provider === "analyst");
+    expect(analyst?.sourceExcerpt).toBe("Analyst entered 45, where the agent recorded no value.");
   });
 });
 

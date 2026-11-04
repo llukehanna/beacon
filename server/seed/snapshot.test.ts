@@ -64,6 +64,18 @@ describe("resetFromSnapshot", () => {
     expect(n).toBe(0);
   }, 300_000);
 
+  it("restores a snapshot taken before a table existed, leaving it empty", async () => {
+    const takenAt = new Date("2026-09-22T12:00:00.000Z");
+    const db = await createTestDb();
+    await resetDemo(db, takenAt, { newId: sequentialIds() });
+    await saveSnapshot(db, takenAt);
+    await db.exec(`DROP TABLE snapshot_extraction`);
+    await db.query(`INSERT INTO extraction ("extractionId", "firmId") VALUES ('x', 'y')`);
+    await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
+    const [{ n }] = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM extraction`);
+    expect(n).toBe(0);
+  }, 300_000);
+
   it("refuses to reset without a snapshot", async () => {
     const db = await createTestDb();
     await expect(resetFromSnapshot(db)).rejects.toMatchObject({ status: 503 });
