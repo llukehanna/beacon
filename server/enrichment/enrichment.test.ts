@@ -36,6 +36,36 @@ describe("mock providers", () => {
 describe("reconcileAxis", () => {
   const ids = () => "cg-1";
 
+  it("keeps document fields from the lead observation", () => {
+    const doc = (provider: Observation["provider"], quote: string, model: string): Observation => ({
+      ...obs(provider, "60"),
+      sourceUrl: "",
+      sourceExcerpt: quote,
+      sourceDocumentId: `${provider}:acme_unitedstates`,
+      sourceQuote: quote,
+      model,
+    });
+    const [plan] = reconcileAxis(
+      dealSize,
+      [doc("filings", "other quote", "m2"), doc("dealdb", "closes deals near 60 million", "m1")],
+      ids,
+    );
+    expect(plan).toMatchObject<Partial<FindingPlan>>({
+      sourceDocumentId: "dealdb:acme_unitedstates",
+      sourceQuote: "closes deals near 60 million",
+      extractionModel: "m1",
+      sourceUrl: null,
+    });
+  });
+
+  it("uses the grounding excerpt when an abstention follows a rejected answer", () => {
+    const [plain] = reconcileAxis(dealSize, [], ids);
+    const [rejected] = reconcileAxis(dealSize, [], ids, { groundingRejected: true });
+    expect(plain.sourceExcerpt).toBe("No source returned a value for this axis.");
+    expect(rejected.sourceExcerpt).toMatch(/was not supported by a quote in the source/);
+    expect(rejected.sourceDocumentId).toBeNull();
+  });
+
   it("abstains honestly when no source has the value", () => {
     const [p] = reconcileAxis(dealSize, [], ids);
     expect(p).toMatchObject<Partial<FindingPlan>>({
