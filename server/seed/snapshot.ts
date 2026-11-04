@@ -106,7 +106,11 @@ export async function resetFromSnapshot(
     await tx.query(`TRUNCATE ${Object.keys(TABLES).join(", ")}`);
     const columns = await snapshotColumns(tx);
     for (const table of Object.keys(TABLES)) {
-      await tx.query(restoreSql(table, shift, columns.get(snapshotOf(table)) ?? new Set()));
+      const have = columns.get(snapshotOf(table));
+      // A table added after the snapshot was taken has no snapshot table: it stays empty.
+      if (have) {
+        await tx.query(restoreSql(table, shift, have));
+      }
     }
     const [{ n }] = await tx.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`);
     return n;
