@@ -10,7 +10,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>11 object tables)]
+  Actions --> PG[(Postgres<br/>12 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -18,7 +18,7 @@ flowchart LR
 
 ## Ontology first
 
-`shared/schema.ts` declares the 11 object types (firms, mandates, searches, findings, scores, decisions, drift events, rules, hard-screen configs, and the search join objects), their properties and types, the two links the UI traverses, and the 17 action names. Everything else derives from it:
+`shared/schema.ts` declares the 12 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, and the search join objects), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
 
 - **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names. `ensureSchema` runs it on every cold start and then adds any property column an existing table lacks, so a new property reaches a database created before it. It reads `information_schema` first and runs `ALTER TABLE` (under a 5 s lock timeout) only for columns actually missing, so a current database is never locked; a saved demo snapshot taken earlier restores the new column empty until the next `npm run seed`.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
