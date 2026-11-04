@@ -29,8 +29,8 @@ describe("ontology schema", () => {
     expect(findLink("Firm", "nope")).toBeUndefined();
   });
 
-  it("names the 17 actions the app and seed use", () => {
-    expect(ACTION_NAMES).toHaveLength(17);
+  it("names the 18 actions the app and seed use", () => {
+    expect(ACTION_NAMES).toHaveLength(18);
     expect(isActionName("qualifyFirm")).toBe(true);
     expect(isActionName("dropTables")).toBe(false);
   });

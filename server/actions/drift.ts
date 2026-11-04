@@ -180,11 +180,38 @@ async function resolveDrift(
   });
 }
 
+/**
+ * Close every open drift event on a firm that has just been passed: the
+ * question the drift raised ("is it still worth pursuing?") is answered.
+ * Returns the ids it resolved.
+ */
+export async function resolveOpenDriftOnPass(
+  ctx: ActionContext,
+  firmId: string,
+): Promise<string[]> {
+  const open = await ctx.tx.query<{ driftEventId: string }>(
+    `SELECT "driftEventId" FROM drift_event WHERE "firmId" = $1 AND "driftStatus" = 'open'`,
+    [firmId],
+  );
+  for (const { driftEventId } of open) {
+    await updateObject(ctx.tx, "DriftEvent", driftEventId, {
+      driftStatus: "resolved",
+      resolution: "passed",
+      resolvedAt: iso(ctx.now),
+      resolvedBy: ctx.user,
+    });
+  }
+  return open.map((r) => r.driftEventId);
+}
+
 export const reEngageFirm = defineAction<{ firm: FirmObj; driftEvent: DriftObj }>({
   params: { firm: { type: { object: "Firm" } }, driftEvent: { type: { object: "DriftEvent" } } },
   async run(ctx, { firm, driftEvent }) {
     if (driftEvent.firmId !== firm.$primaryKey) {
       throw new ActionError("Drift event belongs to a different firm");
+    }
+    if (normalizeLifecycle(firm.lifecycleState) !== PASSED) {
+      throw new ActionError("Only a Passed firm can be re-engaged", 409);
     }
     await resolveDrift(ctx, driftEvent, "re_engaged");
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
@@ -215,6 +242,25 @@ export const keepPassed = defineAction<{ driftEvent: DriftObj; rationale: string
       firmId: driftEvent.firmId,
       decisionType: DECISION.keepPassed,
       rejectionRationale: why,
+      scoreAtDecision: driftEvent.newScore,
+      tierAtDecision: driftEvent.newTier,
+    });
+    return { created: [decisionId], modified: [driftEvent.$primaryKey] };
+  },
+});
+
+export const acknowledgeDrift = defineAction<{ driftEvent: DriftObj; note: string | null }>({
+  params: {
+    driftEvent: { type: { object: "DriftEvent" } },
+    note: { type: "string", nullable: true },
+  },
+  async run(ctx, { driftEvent, note }) {
+    await resolveDrift(ctx, driftEvent, "kept_in_pipeline");
+    const why = (note ?? "").trim();
+    const decisionId = await logDecision(ctx, {
+      firmId: driftEvent.firmId,
+      decisionType: DECISION.acknowledgeDrift,
+      rejectionRationale: why === "" ? undefined : why,
       scoreAtDecision: driftEvent.newScore,
       tierAtDecision: driftEvent.newTier,
     });

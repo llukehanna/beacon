@@ -5,12 +5,16 @@ import {
   DriftEvent,
   Firm,
   ReviewDecision,
+  acknowledgeDriftAction,
   keepPassedAction,
   reEngageFirmAction,
+  rejectFirmAction,
 } from "@/data/ontology";
-import { PASSED, normalizeLifecycle } from "../../shared/vocab";
+import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab";
+import { lookalikesFor, parseChangedAxes, reasonText, resolutionLabel } from "./driftReview";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
+import { latestRejection } from "./pipelineRows";
 import { formatScore } from "./scoreFormat";
 import {
   DIVERGENCE_FG,
@@ -23,76 +27,14 @@ import {
   outcomeLabel,
 } from "./tokens";
 
-// ─── Lookalike heuristics ───────────────────────────────────────────────
-// A drift's axis is matched against the rejection rationales of firms who
-// already "passed" (rejected / hard-rejected / manually passed) — we surface
-// them as "N passed firms share this now-stale reason". The match is fuzzy
-// substring (case-insensitive) across a few common axis-name shapes: raw,
-// snake→space, camel→space. False positives happen when rationale text uses
-// an axis word incidentally; false negatives when analysts paraphrase.
-
-function axisSearchTerms(axis: string | undefined): string[] {
-  if (axis === undefined || axis === null) {
-    return [];
-  }
-  const trimmed = axis.trim();
-  if (trimmed === "") {
-    return [];
-  }
-  const terms = new Set<string>();
-  const lower = trimmed.toLowerCase();
-  terms.add(lower);
-  terms.add(lower.replace(/_/g, " "));
-  terms.add(lower.replace(/-/g, " "));
-  terms.add(
-    trimmed
-      .replace(/([A-Z])/g, " $1")
-      .trim()
-      .toLowerCase(),
-  );
-  // Drop terms shorter than 4 chars — too collision-prone against rationale text.
-  return [...terms].filter((t) => t.length >= 4);
-}
-
-function rationaleMatchesAxis(rationale: string, axis: string): boolean {
-  const haystack = rationale.toLowerCase();
-  for (const t of axisSearchTerms(axis)) {
-    if (haystack.includes(t)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function isPassedDisposition(firm: FirmLike): boolean {
-  if (normalizeLifecycle(firm.lifecycleState) === PASSED) {
-    return true;
-  }
-  const disp = (firm.disposition ?? "").trim().toLowerCase();
-  if (disp.includes("reject") || disp.includes("passed") || disp.includes("pass")) {
-    return true;
-  }
-  return false;
-}
-
 interface FirmLike {
   firmId?: string;
   firmName?: string | null;
   lifecycleState?: string | null;
-  disposition?: string | null;
   // FDE backfills these on decided firms; not yet in the SDK PropertyKeys
   // for Firm — same widened-cast pattern the desk uses.
   outcome?: string | null;
   outcomeObservedAt?: string | number | Date | null;
-}
-
-interface DecisionLike {
-  decisionId: string;
-  firmId?: string;
-  decidedAt?: unknown;
-  decisionType?: string;
-  rejectionRationale?: string;
-  analystCategorization?: string;
 }
 
 interface Lookalike {
@@ -174,53 +116,6 @@ function relativeTime(ts: unknown): string {
   return `${Math.round(h / 24)}d ago`;
 }
 
-// ─── Changed-axes parser ────────────────────────────────────────────────
-// DriftEvent.changedAxes is a JSON string. The SDK description says
-// [{axis, old, new, causing_finding_id, source, dated}] but the backend
-// actually emits {oldValue, newValue} (or old_value / new_value) — read
-// all three shapes so the card renders real values regardless.
-
-interface ChangedAxis {
-  axis?: string;
-  old?: unknown;
-  new?: unknown;
-  source?: string;
-  dated?: string;
-}
-
-function normalizeChangedAxis(entry: Record<string, unknown>): ChangedAxis {
-  return {
-    axis: typeof entry.axis === "string" ? entry.axis : undefined,
-    old: entry.old ?? entry.oldValue ?? entry.old_value,
-    new: entry.new ?? entry.newValue ?? entry.new_value,
-    source: typeof entry.source === "string" ? entry.source : undefined,
-    dated:
-      typeof entry.dated === "string"
-        ? entry.dated
-        : typeof entry.date === "string"
-          ? entry.date
-          : undefined,
-  };
-}
-
-function parseChangedAxes(raw: string | null | undefined): ChangedAxis[] {
-  if (raw === null || raw === undefined || raw === "") {
-    return [];
-  }
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    const objects = parsed.filter(
-      (x): x is Record<string, unknown> => typeof x === "object" && x !== null,
-    );
-    return objects.map(normalizeChangedAxis);
-  } catch {
-    return [];
-  }
-}
-
 // ─── Drift card ─────────────────────────────────────────────────────────
 
 interface DriftLike {
@@ -259,9 +154,11 @@ function DriftCard({
 }): React.ReactElement {
   const reEngage = useOsdkAction(reEngageFirmAction);
   const keepPassed = useOsdkAction(keepPassedAction);
-  const [keepOpen, setKeepOpen] = React.useState(false);
+  const acknowledge = useOsdkAction(acknowledgeDriftAction);
+  const pass = useOsdkAction(rejectFirmAction);
+  const [notePanel, setNotePanel] = React.useState<"keepPassed" | "pass" | null>(null);
   const [lookalikesOpen, setLookalikesOpen] = React.useState(false);
-  const [rationale, setRationale] = React.useState("");
+  const [note, setNote] = React.useState("");
 
   const resolved = (drift.driftStatus ?? "").toLowerCase() === "resolved";
   const reason = reasonPresentation(drift.driftReason);
@@ -269,19 +166,50 @@ function DriftCard({
   const changed = React.useMemo(() => parseChangedAxes(drift.changedAxes), [drift.changedAxes]);
   const firstChange = changed[0];
 
+  // Passed firms are offered a way back in; firms still in the pipeline a
+  // way to stay or go. Nothing until the firm has loaded.
+  const lifecycle = (firmObj as FirmLike | undefined)?.lifecycleState;
+  const kind: "passed" | "pipeline" | null =
+    firmObj === undefined
+      ? null
+      : normalizeLifecycle(lifecycle) === PASSED
+        ? "passed"
+        : isQualifiedOrLater(normalizeLifecycle(lifecycle))
+          ? "pipeline"
+          : null;
+
+  const closeNotePanel = (): void => {
+    setNote("");
+    setNotePanel(null);
+  };
   const onReEngage = (): void => {
     void reEngage.applyAction({ firm: firmObj, driftEvent: drift } as never);
   };
-  const onKeep = (): void => {
+  const onAcknowledge = (): void => {
+    void acknowledge.applyAction({ driftEvent: drift, note: null } as never);
+  };
+  const onKeepPassed = (): void => {
     void keepPassed
-      .applyAction({ driftEvent: drift, rationale: rationale.trim() } as never)
-      .then(() => {
-        setRationale("");
-        setKeepOpen(false);
-      });
+      .applyAction({ driftEvent: drift, rationale: note.trim() } as never)
+      .then(closeNotePanel);
+  };
+  const onPass = (): void => {
+    void pass
+      .applyAction({ firm: firmObj, rejectionRationale: note.trim() } as never)
+      .then(closeNotePanel);
   };
 
-  const canKeep = rationale.trim().length > 0 && !keepPassed.isPending;
+  const noteSubmitting = notePanel === "keepPassed" ? keepPassed.isPending : pass.isPending;
+  const canSubmitNote = note.trim().length > 0 && !noteSubmitting;
+  const busy = reEngage.isPending || acknowledge.isPending || noteSubmitting;
+  const failures: string[] = [
+    reEngage.error !== undefined ? `Re-engage failed: ${String(reEngage.error)}` : "",
+    acknowledge.error !== undefined ? `Keep in pipeline failed: ${String(acknowledge.error)}` : "",
+    keepPassed.error !== undefined
+      ? `Keep passed failed: ${String(keepPassed.error)}. Your note is preserved.`
+      : "",
+    pass.error !== undefined ? `Pass failed: ${String(pass.error)}. Your note is preserved.` : "",
+  ].filter((m) => m !== "");
 
   const priorTierName = drift.priorTier ?? "?";
   const newTierName = drift.newTier ?? "?";
@@ -366,7 +294,7 @@ function DriftCard({
               color: "#8fe3c0",
             }}
           >
-            {drift.resolution ?? "resolved"}
+            {resolutionLabel(drift.resolution)}
           </span>
         )}
       </div>
@@ -545,10 +473,11 @@ function DriftCard({
         </>
       )}
 
-      {!resolved && (
+      {!resolved && kind !== null && (
         <>
-          {(reEngage.error !== undefined || keepPassed.error !== undefined) && (
+          {failures.length > 0 && (
             <div
+              role="alert"
               style={{
                 marginTop: 12,
                 padding: "8px 12px",
@@ -558,29 +487,41 @@ function DriftCard({
                 fontSize: 12,
               }}
             >
-              {reEngage.error !== undefined && (
-                <div>Re-engage failed: {String(reEngage.error)}</div>
-              )}
-              {keepPassed.error !== undefined && (
-                <div>
-                  Keep passed failed: {String(keepPassed.error)}. Your rationale is preserved.
-                </div>
-              )}
+              {failures.map((m) => (
+                <div key={m}>{m}</div>
+              ))}
             </div>
           )}
 
-          {!keepOpen ? (
+          {notePanel === null ? (
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-              <button
-                className="btn btn-primary"
-                disabled={reEngage.isPending}
-                onClick={onReEngage}
-              >
-                {reEngage.isPending ? "Re-engaging…" : "Re-engage"}
-              </button>
-              <button className="btn btn-secondary" onClick={() => setKeepOpen(true)}>
-                Keep passed…
-              </button>
+              {kind === "passed" ? (
+                <>
+                  <button className="btn btn-primary" disabled={busy} onClick={onReEngage}>
+                    {reEngage.isPending ? "Re-engaging…" : "Re-engage"}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => setNotePanel("keepPassed")}
+                  >
+                    Keep passed…
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-primary" disabled={busy} onClick={onAcknowledge}>
+                    {acknowledge.isPending ? "Keeping…" : "Keep in pipeline"}
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    disabled={busy}
+                    onClick={() => setNotePanel("pass")}
+                  >
+                    Pass…
+                  </button>
+                </>
+              )}
             </div>
           ) : (
             <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 8 }}>
@@ -590,24 +531,44 @@ function DriftCard({
                   color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
                 }}
               >
-                A rationale is required to keep this firm passed.
+                {notePanel === "keepPassed"
+                  ? "A rationale is required to keep this firm passed."
+                  : "A rationale is required to pass on this firm."}
               </div>
               <textarea
                 className="input"
-                value={rationale}
-                onChange={(e) => setRationale(e.target.value)}
-                placeholder="Why keep this firm passed despite the drift?"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                placeholder={
+                  notePanel === "keepPassed"
+                    ? "Why keep this firm passed despite the drift?"
+                    : "Why pass on this firm after the drift?"
+                }
                 style={{ minHeight: 72, lineHeight: 1.45 }}
-                aria-label="Reason to keep this firm passed"
+                aria-label={
+                  notePanel === "keepPassed"
+                    ? "Reason to keep this firm passed"
+                    : "Reason to pass on this firm"
+                }
               />
               <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn btn-primary" disabled={!canKeep} onClick={onKeep}>
-                  {keepPassed.isPending ? "Keeping…" : "Keep passed"}
+                <button
+                  className="btn btn-primary"
+                  disabled={!canSubmitNote}
+                  onClick={notePanel === "keepPassed" ? onKeepPassed : onPass}
+                >
+                  {notePanel === "keepPassed"
+                    ? keepPassed.isPending
+                      ? "Keeping…"
+                      : "Keep passed"
+                    : pass.isPending
+                      ? "Passing…"
+                      : "Pass firm"}
                 </button>
                 <button
                   className="btn btn-ghost"
-                  onClick={() => setKeepOpen(false)}
-                  disabled={keepPassed.isPending}
+                  onClick={closeNotePanel}
+                  disabled={noteSubmitting}
                 >
                   Cancel
                 </button>
@@ -697,94 +658,56 @@ function Review(): React.ReactElement {
 
   const drifts = React.useMemo(() => (driftData ?? []) as unknown as DriftLike[], [driftData]);
 
-  // Most-recent decision per firm — the ReviewDecision query is ordered by
-  // decidedAt desc, so the first entry for each firmId is the freshest.
-  const mostRecentDecisionByFirm = React.useMemo(() => {
-    const m = new Map<string, DecisionLike>();
-    for (const d of (decisionsData ?? []) as unknown as DecisionLike[]) {
-      const fid = d.firmId ?? null;
-      if (fid === null || fid === "") {
-        continue;
-      }
-      if (!m.has(fid)) {
-        m.set(fid, d);
-      }
-    }
-    return m;
-  }, [decisionsData]);
+  // Why each firm was passed: its newest reject decision (the query is
+  // ordered newest first). Later keep_passed / acknowledge_drift decisions
+  // are about the drift, not the original pass, so they never count.
+  const rejectionByFirm = React.useMemo(
+    () => latestRejection(decisionsData ?? []),
+    [decisionsData],
+  );
 
-  // Rejection rationale per firm, derived from the freshest decision. Used
-  // as the "we passed because …" body on outcome_diverged drift cards.
-  // Falls back to analystCategorization when the freeform rationale is
-  // empty (matches passedFirms below).
+  // "We passed because …" on outcome_diverged drift cards.
   const rejectionReasonByFirm = React.useMemo(() => {
     const m = new Map<string, string>();
-    for (const [fid, d] of mostRecentDecisionByFirm) {
-      const text = (d.rejectionRationale ?? "").trim() || (d.analystCategorization ?? "").trim();
+    for (const [fid, d] of rejectionByFirm) {
+      const text = reasonText(d);
       if (text !== "") {
         m.set(fid, text);
       }
     }
     return m;
-  }, [mostRecentDecisionByFirm]);
+  }, [rejectionByFirm]);
 
-  // Firms in "passed" disposition (rejected or manually passed) that carry
-  // a rationale. Reused as the search-space for lookalike matching.
-  const passedFirms = React.useMemo(() => {
-    const out: { firmId: string; firmName: string; rationale: string }[] = [];
-    for (const f of (firmsData ?? []) as unknown as FirmLike[]) {
-      if (f.firmId === undefined || f.firmId === "" || !isPassedDisposition(f)) {
-        continue;
-      }
-      const decision = mostRecentDecisionByFirm.get(f.firmId);
-      if (decision === undefined) {
-        continue;
-      }
-      const rat =
-        (decision.rejectionRationale ?? "").trim() || (decision.analystCategorization ?? "").trim();
-      if (rat === "") {
-        continue;
-      }
-      out.push({ firmId: f.firmId, firmName: f.firmName ?? f.firmId, rationale: rat });
-    }
-    return out;
-  }, [firmsData, mostRecentDecisionByFirm]);
+  const passedFirms = React.useMemo(
+    () =>
+      ((firmsData ?? []) as unknown as FirmLike[]).filter(
+        (f) => !!f.firmId && normalizeLifecycle(f.lifecycleState) === PASSED,
+      ),
+    [firmsData],
+  );
 
-  // Precompute lookalikes per drift so cards don't recompute per render.
-  // Reliability caveat: axis-in-rationale is a fuzzy substring match on
-  // free-form text. Same limitation as the design's cluster: false positives
-  // when the axis word appears incidentally, false negatives when analysts
-  // paraphrase (e.g. rationale says "Sell-side thin" and axis is
-  // "servicesFit"). We surface the count anyway — the analyst reviews the
-  // list of firm names when they expand it and can dismiss noise.
+  // Lookalikes only make sense when a passed firm's reason has been
+  // invalidated: other passed firms whose reason cites the same axis may be
+  // stale too. Computed once per drift so cards don't redo it per render.
   const lookalikesByDrift = React.useMemo(() => {
     const m = new Map<string, Lookalike[]>();
     for (const d of drifts) {
-      if ((d.driftStatus ?? "").toLowerCase() === "resolved") {
-        m.set(d.driftEventId, []);
+      if (
+        (d.driftStatus ?? "").toLowerCase() === "resolved" ||
+        d.driftReason !== "pass_reason_invalidated"
+      ) {
         continue;
       }
-      const axes = parseChangedAxes(d.changedAxes)
-        .map((c) => c.axis)
-        .filter((a): a is string => typeof a === "string" && a !== "");
-      if (axes.length === 0) {
-        m.set(d.driftEventId, []);
-        continue;
+      const hits = lookalikesFor(d, passedFirms, rejectionByFirm).map((f) => ({
+        firmId: f.firmId ?? "",
+        firmName: f.firmName ?? f.firmId ?? "",
+      }));
+      if (hits.length > 0) {
+        m.set(d.driftEventId, hits);
       }
-      const hits: Lookalike[] = [];
-      for (const pf of passedFirms) {
-        if (pf.firmId === d.firmId) {
-          continue; // exclude the drift's own firm
-        }
-        const matched = axes.some((ax) => rationaleMatchesAxis(pf.rationale, ax));
-        if (matched) {
-          hits.push({ firmId: pf.firmId, firmName: pf.firmName });
-        }
-      }
-      m.set(d.driftEventId, hits);
     }
     return m;
-  }, [drifts, passedFirms]);
+  }, [drifts, passedFirms, rejectionByFirm]);
 
   // Open first, resolved after — within each, most-recent detectedAt first
   // (query already returns desc so the input order is fine).
