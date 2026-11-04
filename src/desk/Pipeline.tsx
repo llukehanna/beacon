@@ -15,7 +15,7 @@ import "./nocturne.css";
 // this page can't disagree about which stage a firm sits in.
 import { type Lifecycle, STATUS_CHIP, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
 import { type RankedFirm, orderEnrichmentQueue } from "./queue";
-import { formatScore, scoreFraction } from "./scoreFormat";
+import { type DecisionScore, formatScore, scoreFraction, shownScore } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
 import { TIER_COLOR, TIER_LABEL, VOID_BG, outcomeChipStyle, outcomeLabel } from "./tokens";
 
@@ -474,6 +474,8 @@ interface Row {
   ranked: RankedFirm;
   firm: FirmView;
   mirror: MirrorResult;
+  /** Score and tier shown for the row: at-decision for passed firms, live otherwise. */
+  score: { total: number; tier: string };
   bucket: Lifecycle;
   rejectionRationale: string | null;
   lastActivity: LastActivity | null;
@@ -488,11 +490,11 @@ function FirmRow({
   selected: boolean;
   onSelect: (id: string) => void;
 }): React.ReactElement {
-  const { firm, mirror, bucket, rejectionRationale, lastActivity } = row;
+  const { firm, mirror, score, bucket, rejectionRationale, lastActivity } = row;
   const isRejected = mirror.hardRejected || bucket === PASSED;
-  const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
-  const scoreText = formatScore(mirror.weightedTotal);
-  const barFill = scoreFraction(mirror.weightedTotal);
+  const tierColor = TIER_COLOR[score.tier] ?? TIER_COLOR.Rejected;
+  const scoreText = formatScore(score.total);
+  const barFill = scoreFraction(score.total);
 
   // Hard-rejects (algorithmic) vs analyst rejections carry different verbs.
   const rejectLabel = mirror.hardRejected
@@ -575,9 +577,7 @@ function FirmRow({
               whiteSpace: "nowrap",
             }}
             title={
-              rejectLabel
-                ? `${formatScore(mirror.weightedTotal, mirror.tier)} · ${rejectLabel}`
-                : undefined
+              rejectLabel ? `${formatScore(score.total, score.tier)} · ${rejectLabel}` : undefined
             }
           >
             <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{scoreText}</span>
@@ -596,7 +596,7 @@ function FirmRow({
             >
               {scoreText}
             </span>
-            <TierTag tier={mirror.tier} />
+            <TierTag tier={score.tier} />
             <span
               style={{
                 width: 34,
@@ -850,15 +850,15 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
     );
   }
 
-  const { firm, mirror, bucket, rejectionRationale } = row;
+  const { firm, mirror, score, bucket, rejectionRationale } = row;
   const isReject = mirror.hardRejected || bucket === PASSED;
-  const tierColor = TIER_COLOR[mirror.tier] ?? TIER_COLOR.Rejected;
-  const barFill = scoreFraction(mirror.weightedTotal);
+  const tierColor = TIER_COLOR[score.tier] ?? TIER_COLOR.Rejected;
+  const barFill = scoreFraction(score.total);
   const tierNote = mirror.hardRejected
-    ? "Hard-rejected, so the fit score is zero"
-    : mirror.tier === "Rejected"
+    ? "Hard-rejected by the screen"
+    : score.tier === "Rejected"
       ? "Below the C threshold"
-      : (TIER_LABEL[mirror.tier] ?? "");
+      : (TIER_LABEL[score.tier] ?? "");
 
   const facts: { k: string; v: string }[] = [];
   if (firm.coverageModel) {
@@ -981,7 +981,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
               color: tierColor,
             }}
           >
-            {formatScore(mirror.weightedTotal)}
+            {formatScore(score.total)}
           </span>
           <Kicker>Fit score</Kicker>
         </div>
@@ -1006,7 +1006,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
             />
           </span>
           <span style={{ fontSize: 11, color: tierColor }}>
-            {bucket} · {formatScore(mirror.weightedTotal, mirror.tier)}
+            {bucket} · {formatScore(score.total, score.tier)}
           </span>
           <span
             style={{
@@ -1129,6 +1129,26 @@ function Pipeline(): React.ReactElement {
     return m;
   }, [decisionsData]);
 
+  // Score stored on each firm's most recent reject decision (decisions are
+  // ordered newest first), so a passed firm shows the score it was passed at.
+  const rejectScoreByFirm = React.useMemo(() => {
+    const m = new Map<string, DecisionScore>();
+    for (const d of decisionsData ?? []) {
+      const fid = d.firmId ?? null;
+      if (fid === null || fid === "" || m.has(fid)) {
+        continue;
+      }
+      if (!(d.decisionType ?? "").toLowerCase().includes("reject")) {
+        continue;
+      }
+      m.set(fid, {
+        scoreAtDecision: d.scoreAtDecision as number | null | undefined,
+        tierAtDecision: d.tierAtDecision as string | null | undefined,
+      });
+    }
+    return m;
+  }, [decisionsData]);
+
   // Most-recent decision per firm — real activity, not the pipeline-builder
   // default lastReviewed date. The query is ordered by decidedAt desc, so
   // the first entry per firmId is the most recent.
@@ -1166,7 +1186,20 @@ function Pipeline(): React.ReactElement {
         const bucket = bucketOf(firm, mirror);
         const rationale = rejectionByFirm.get(firm.firmId ?? "") ?? null;
         const lastActivity = lastActivityByFirm.get(firm.firmId ?? "") ?? null;
-        return { ranked: r, firm, mirror, bucket, rejectionRationale: rationale, lastActivity };
+        const score = shownScore(
+          mirror,
+          bucket === PASSED,
+          rejectScoreByFirm.get(firm.firmId ?? ""),
+        );
+        return {
+          ranked: r,
+          firm,
+          mirror,
+          score,
+          bucket,
+          rejectionRationale: rationale,
+          lastActivity,
+        };
       })
       .filter(
         (row) =>
@@ -1188,7 +1221,7 @@ function Pipeline(): React.ReactElement {
           (row.firm.firmId ?? "").toLowerCase().includes(needle)
         );
       });
-  }, [firms, query, profileFilter, rejectionByFirm, lastActivityByFirm]);
+  }, [firms, query, profileFilter, rejectionByFirm, rejectScoreByFirm, lastActivityByFirm]);
 
   const counts = React.useMemo(() => {
     const c = emptyBucketCounts();

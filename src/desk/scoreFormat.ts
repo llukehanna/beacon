@@ -18,3 +18,41 @@ export function scoreFraction(total: number | null | undefined): number {
   }
   return Math.min(1, Math.max(0, total / MAX_POSSIBLE));
 }
+
+/** The score a Pipeline row shows: total and tier letter. */
+export interface ShownScore {
+  total: number;
+  tier: string;
+}
+
+/** The score stored on the firm's reject decision (ReviewDecision.scoreAtDecision / tierAtDecision). */
+export interface DecisionScore {
+  scoreAtDecision?: number | null;
+  tierAtDecision?: string | null;
+}
+
+/**
+ * A passed firm shows the score it had when it was passed; every other firm
+ * (and a passed firm with no recorded decision score) shows the live score.
+ */
+export function shownScore(
+  live: { weightedTotal: number; tier: string },
+  passed: boolean,
+  decision: DecisionScore | null | undefined,
+): ShownScore {
+  const at = decision?.scoreAtDecision;
+  const tierAt = decision?.tierAtDecision;
+  if (passed && typeof at === "number" && Number.isFinite(at) && tierAt) {
+    return { total: at, tier: tierAt };
+  }
+  return { total: live.weightedTotal, tier: live.tier };
+}
+
+/**
+ * Tier letter on a queue row. A firm an approved rule screened out reads
+ * "Rejected" whatever its score tier; otherwise the score's own tier, so the
+ * queue, the desk header and the Pipeline agree.
+ */
+export function queueRowTier(hardScreened: boolean, tier: string): string {
+  return hardScreened ? "Rejected" : tier;
+}

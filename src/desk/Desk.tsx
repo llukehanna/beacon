@@ -60,7 +60,7 @@ import {
   orderEnrichmentQueue,
   toQueueFirm,
 } from "./queue";
-import { formatScore, scoreFraction } from "./scoreFormat";
+import { formatScore, queueRowTier, scoreFraction } from "./scoreFormat";
 import { type MirrorResult, type Model, type ScoreInput, mirrorScore } from "./scoreMirror";
 import {
   BAND_COLOR,
@@ -1018,17 +1018,9 @@ function QueueSidebar({
         )}
         {filtered.map((r) => {
           const selected = r.firm.firmId === selectedId;
-          // R-badge decision now reads from the shared hard-screen verdict
-          // (r.hardScreened) rather than the client mirror alone. A firm
-          // whose tier is Rejected via low score but hasn't tripped any
-          // rule stays workable — we don't wear an R at the top of the
-          // queue for those firms; the score row already conveys the
-          // low current standing.
-          const displayTier: string = r.hardScreened
-            ? "Rejected"
-            : r.tier === "Rejected"
-              ? "C"
-              : r.tier;
+          // A firm an approved rule screened out wears an R; every other
+          // firm shows its own score tier, the same as the header and Pipeline.
+          const displayTier = queueRowTier(r.hardScreened, r.tier);
           const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
           // An approved rule took this firm off the live queue. Named, not
           // just dimmed — "why is this firm greyed out" should be readable

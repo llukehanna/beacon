@@ -33,7 +33,7 @@ import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pi
 import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
-import { formatScore, scoreFraction } from "./scoreFormat";
+import { formatScore, queueRowTier, scoreFraction, shownScore } from "./scoreFormat";
 import { mirrorScore } from "./scoreMirror";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
@@ -1658,5 +1658,54 @@ describe("formatScore — one 18-point scale everywhere", () => {
     expect(scoreFraction(null)).toBe(0);
     expect(scoreFraction(40)).toBe(1);
     expect(scoreFraction(-3)).toBe(0);
+  });
+});
+
+describe("shownScore — a passed firm shows the score it was passed at", () => {
+  const live = { weightedTotal: 12, tier: "B" };
+
+  it("uses the reject decision's score and tier for a passed firm", () => {
+    expect(shownScore(live, true, { scoreAtDecision: 8, tierAtDecision: "C" })).toEqual({
+      total: 8,
+      tier: "C",
+    });
+  });
+
+  it("uses the live score for a firm that has not been passed", () => {
+    expect(shownScore(live, false, { scoreAtDecision: 8, tierAtDecision: "C" })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+  });
+
+  it("falls back to the live score when no decision score is on file", () => {
+    expect(shownScore(live, true, undefined)).toEqual({ total: 12, tier: "B" });
+    expect(shownScore(live, true, { scoreAtDecision: null, tierAtDecision: "C" })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+    expect(shownScore(live, true, { scoreAtDecision: 8, tierAtDecision: null })).toEqual({
+      total: 12,
+      tier: "B",
+    });
+  });
+
+  it("keeps a recorded score of zero", () => {
+    expect(shownScore(live, true, { scoreAtDecision: 0, tierAtDecision: "Rejected" })).toEqual({
+      total: 0,
+      tier: "Rejected",
+    });
+  });
+});
+
+describe("queueRowTier — queue, header and Pipeline agree", () => {
+  it("shows R for a screened firm whatever its score tier", () => {
+    expect(queueRowTier(true, "A")).toBe("Rejected");
+    expect(queueRowTier(true, "Rejected")).toBe("Rejected");
+  });
+
+  it("shows the score tier otherwise, including a soft Rejected", () => {
+    expect(queueRowTier(false, "B")).toBe("B");
+    expect(queueRowTier(false, "Rejected")).toBe("Rejected");
   });
 });
