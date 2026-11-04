@@ -94,8 +94,11 @@ function rawSlice(raw: string, quote: string): string | null {
 const MIN_QUOTE_WORDS = 4;
 const wordCount = (s: string): number => (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 
-/** Standalone numbers: not glued to letters, digits or separators, so "$85" yields 85 and "1,200" yields none. */
-const NUMBER_TOKEN = /(?<![\w.,])\d+(?:\.\d+)?(?![\w,]|\.\d)/g;
+/**
+ * Standalone numbers: not glued to letters, decimals, or thousands separators, so "$85" yields
+ * 85, "1,200" yields none, and "In 2019, the firm" still yields 2019.
+ */
+const NUMBER_TOKEN = /(?<![\w.]|\d,)\d+(?:\.\d+)?(?![\w]|,\d|\.\d)/g;
 
 const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
 
