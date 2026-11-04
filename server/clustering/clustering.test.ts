@@ -5,6 +5,12 @@ import { getMeta } from "../db/meta.js";
 import { createTestDb } from "../testing.js";
 import { CLAUDE_COOLDOWN_MS, chooseClusterer } from "./choose.js";
 import { createClaudeClusterer, parseClusterResponse, renderRejections } from "./claude.js";
+import {
+  type ClusteringFixture,
+  fixtureClusterer,
+  hashRejections,
+  parseClusteringFixture,
+} from "./fixture.js";
 import { heuristicClusterer } from "./heuristic.js";
 import type { Clusterer, RejectionRow } from "./types.js";
 
@@ -111,5 +117,41 @@ describe("chooseClusterer", () => {
     expect(await chooseClusterer(db, new Date(t.getTime() + CLAUDE_COOLDOWN_MS))).not.toBe(
       heuristicClusterer,
     );
+  });
+});
+
+describe("fixtureClusterer", () => {
+  const fixture: ClusteringFixture = {
+    inputHash: hashRejections(rows),
+    model: "claude-opus-5",
+    proposals: JSON.parse(goodJson).rules,
+    createdAt: "2026-11-04T00:00:00.000Z",
+  };
+
+  it("uses the fixture only for matching input", async () => {
+    const fallback = vi.fn<Clusterer>(async () => ({ proposals: [], source: "heuristic" }));
+    const clusterer = fixtureClusterer(fixture, fallback);
+
+    const replayed = await clusterer(rows);
+    expect(replayed).toEqual({ proposals: fixture.proposals, source: "claude" });
+    expect(fallback).not.toHaveBeenCalled();
+
+    const changed = [{ ...rows[0], rationale: "Too small, 5 staff." }];
+    expect((await clusterer(changed)).source).toBe("heuristic");
+    expect(fallback).toHaveBeenCalledTimes(1);
+
+    expect((await fixtureClusterer(null, fallback)(rows)).source).toBe("heuristic");
+    expect(fallback).toHaveBeenCalledTimes(2);
+  });
+
+  it("hashes the rendered rejections, so a different decision id does not match", () => {
+    expect(hashRejections(rows)).toBe(hashRejections([...rows]));
+    expect(hashRejections([{ ...rows[0], decisionId: "d2" }])).not.toBe(hashRejections(rows));
+  });
+
+  it("reads a fixture file and rejects a malformed one", () => {
+    expect(parseClusteringFixture(JSON.stringify(fixture))).toEqual(fixture);
+    expect(parseClusteringFixture("not json")).toBeNull();
+    expect(parseClusteringFixture(JSON.stringify({ ...fixture, proposals: [{}] }))).toBeNull();
   });
 });
