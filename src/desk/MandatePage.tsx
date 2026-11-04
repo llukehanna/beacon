@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useLinks, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -341,6 +342,15 @@ function NewMandateForm(): React.ReactElement {
           value={archetype}
           onChange={setArchetype}
         />
+        <div
+          style={{
+            fontSize: 11,
+            marginTop: 4,
+            color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
+          }}
+        >
+          <Term id="CF">CF</Term> corporate finance · <Term id="CS">CS</Term> capital solutions
+        </div>
       </div>
 
       <div>

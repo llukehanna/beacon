@@ -1,5 +1,6 @@
 import React from "react";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -24,6 +25,7 @@ import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 // Shared with Home's pending-rules card so both surfaces print the same
 // predicate string.
+import { type RejectionNote, buildRejectionNotes } from "./ruleEvidence";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
 import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
@@ -144,6 +146,8 @@ interface RuleLike {
 interface DecisionLike {
   decisionId: string;
   firmId?: string;
+  rejectionRationale?: string | null;
+  decidedAt?: unknown;
 }
 
 // One HardScreenConfig row is one rule VERSION. Amending a threshold
@@ -171,16 +175,28 @@ interface RuleVersions {
   activeLatest: ConfigLike | null;
 }
 
+function formatNoteDate(ms: number): string {
+  return new Date(ms).toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
 // ─── Rule card ──────────────────────────────────────────────────────────
 
 function RuleCard({
   rule,
-  basisFirmNames,
+  notes,
+  explainModel,
   versions,
   firms,
 }: {
   rule: RuleLike;
-  basisFirmNames: string[];
+  // The analysts' own rejection notes behind this rule, newest first.
+  notes: RejectionNote[];
+  // True on the one card per page that wraps "Model: both" in a glossary tooltip.
+  explainModel: boolean;
   // Empty array while HardScreenConfig loads, or when the rule was never
   // approved. Approved rules always have at least one entry.
   versions: RuleVersions;
@@ -402,7 +418,15 @@ function RuleCard({
           flexWrap: "wrap",
         }}
       >
-        {rule.ruleModel && <span>Model: {rule.ruleModel}</span>}
+        {rule.ruleModel && (
+          <span>
+            {explainModel && rule.ruleModel === "both" ? (
+              <Term id="Model: both">Model: both</Term>
+            ) : (
+              `Model: ${rule.ruleModel}`
+            )}
+          </span>
+        )}
         {rule.mandateScope && <span>Scope: {rule.mandateScope}</span>}
       </div>
 
@@ -440,34 +464,76 @@ function RuleCard({
               ? "Hide rejections"
               : `Based on ${basisCount} rejection${basisCount === 1 ? "" : "s"}`}
           </button>
-          {expanded && basisFirmNames.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {basisFirmNames.map((n, i) => (
-                <span key={`${n}-${i}`} className="tag tag-neutral">
-                  {n}
-                </span>
+          {expanded && notes.length > 0 && (
+            <ul
+              aria-label="Analyst rejection notes"
+              style={{
+                listStyle: "none",
+                margin: 0,
+                padding: 0,
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {notes.map((n) => (
+                <li
+                  key={n.decisionId}
+                  style={{
+                    padding: "8px 10px",
+                    borderLeft: "2px solid var(--color-divider)",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 2,
+                  }}
+                >
+                  <span
+                    style={{
+                      fontSize: 13,
+                      color: "color-mix(in srgb, var(--color-text) 82%, transparent)",
+                      overflowWrap: "anywhere",
+                    }}
+                  >
+                    &ldquo;{n.note}&rdquo;
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
+                    }}
+                  >
+                    {n.firmName}
+                    {n.decidedAtMs !== null && (
+                      <>
+                        {" · "}
+                        <time dateTime={new Date(n.decidedAtMs).toISOString()}>
+                          {formatNoteDate(n.decidedAtMs)}
+                        </time>
+                      </>
+                    )}
+                  </span>
+                </li>
               ))}
-              {supporting.length > basisFirmNames.length && (
-                <span
+              {supporting.length > notes.length && (
+                <li
                   style={{
                     fontSize: 11,
                     color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
-                    alignSelf: "center",
                   }}
                 >
-                  +{supporting.length - basisFirmNames.length} more (firm not on file)
-                </span>
+                  +{supporting.length - notes.length} more without a written note
+                </li>
               )}
-            </div>
+            </ul>
           )}
-          {expanded && basisFirmNames.length === 0 && (
+          {expanded && notes.length === 0 && (
             <div
               style={{
                 fontSize: 12,
                 color: "color-mix(in srgb, var(--color-text) 50%, transparent)",
               }}
             >
-              Supporting decisions reference firms not currently loaded.
+              No written notes are on file for these rejections.
             </div>
           )}
         </>
@@ -502,8 +568,7 @@ function RuleCard({
             color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
           }}
         >
-          Screen count not shown: the desk evaluates numeric predicates client-side, and this rule
-          compares text. It is screened server-side.
+          Screen count shown after approval for text-based rules.
         </div>
       )}
 
@@ -868,14 +933,12 @@ function Rules(): React.ReactElement {
     [firmsData],
   );
 
-  // decisionId → firmId, firmId → firmName. Chain them so a rule's
-  // supportingDecisionIds list resolves to firm names on expand.
-  const firmIdByDecisionId = React.useMemo(() => {
-    const m = new Map<string, string>();
+  // decisionId → decision, firmId → firmName. Chain them so a rule's
+  // supportingDecisionIds list resolves to the analysts' notes on expand.
+  const decisionById = React.useMemo(() => {
+    const m = new Map<string, DecisionLike>();
     for (const d of (decisionsData ?? []) as unknown as DecisionLike[]) {
-      if (d.firmId !== undefined && d.firmId !== "") {
-        m.set(d.decisionId, d.firmId);
-      }
+      m.set(d.decisionId, d);
     }
     return m;
   }, [decisionsData]);
@@ -915,27 +978,20 @@ function Rules(): React.ReactElement {
     return m;
   }, [configsData]);
 
-  const basisFirmNamesByRule = React.useMemo(() => {
-    const m = new Map<string, string[]>();
+  const notesByRule = React.useMemo(() => {
+    const m = new Map<string, RejectionNote[]>();
     for (const r of rules) {
-      const ids = parseSupportingIds(r.supportingDecisionIds);
-      const names: string[] = [];
-      const seen = new Set<string>();
-      for (const decId of ids) {
-        const fid = firmIdByDecisionId.get(decId);
-        if (fid === undefined || seen.has(fid)) {
-          continue;
-        }
-        seen.add(fid);
-        const name = firmNameById.get(fid);
-        if (name !== undefined) {
-          names.push(name);
-        }
-      }
-      m.set(r.proposedRuleId, names);
+      m.set(
+        r.proposedRuleId,
+        buildRejectionNotes(
+          parseSupportingIds(r.supportingDecisionIds),
+          decisionById,
+          firmNameById,
+        ),
+      );
     }
     return m;
-  }, [rules, firmIdByDecisionId, firmNameById]);
+  }, [rules, decisionById, firmNameById]);
 
   // Order: pending first (freshest actionable work), then approved, then dismissed.
   const ordered = React.useMemo(() => {
@@ -951,6 +1007,9 @@ function Rules(): React.ReactElement {
     };
     return [...rules].sort((a, b) => rank(a.ruleStatus ?? "") - rank(b.ruleStatus ?? ""));
   }, [rules]);
+
+  // Only the first card that says "Model: both" gets the glossary tooltip.
+  const firstBothModelRuleId = ordered.find((r) => r.ruleModel === "both")?.proposedRuleId;
 
   const pendingCount = rules.filter(
     (r) => (r.ruleStatus ?? "pending").toLowerCase() === "pending",
@@ -1076,7 +1135,8 @@ function Rules(): React.ReactElement {
             <RuleCard
               key={r.proposedRuleId}
               rule={r}
-              basisFirmNames={basisFirmNamesByRule.get(r.proposedRuleId) ?? []}
+              notes={notesByRule.get(r.proposedRuleId) ?? []}
+              explainModel={r.proposedRuleId === firstBothModelRuleId}
               versions={versionsByRuleId.get(r.proposedRuleId) ?? { all: [], activeLatest: null }}
               firms={screenableFirms}
             />

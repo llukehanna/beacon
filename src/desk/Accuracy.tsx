@@ -1,5 +1,6 @@
 import React from "react";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useOsdkQuery } from "@/data/hooks";
 import type { AccuracySummary } from "../../shared/summaries";
 import { BrandMark, WorkspaceNavLinks } from "./nav";
@@ -275,7 +276,9 @@ function Accuracy(): React.ReactElement {
                     gap: 6,
                   }}
                 >
-                  <Kicker>Abstention rate</Kicker>
+                  <Kicker>
+                    <Term id="Abstention">Abstention</Term> rate
+                  </Kicker>
                   <span
                     style={{
                       fontSize: 32,

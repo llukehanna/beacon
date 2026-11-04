@@ -530,7 +530,7 @@ function Home(): React.ReactElement {
   const passedAndAcquired = trust?.passedAndAcquired ?? 0;
 
   const headline = isLoading
-    ? "Reading the ontology…"
+    ? "Loading your inbox…"
     : inboxTotal === 0
       ? "Nothing needs you. Queue is clear."
       : `${inboxTotal} thing${inboxTotal === 1 ? "" : "s"} need${
