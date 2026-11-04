@@ -3,6 +3,12 @@ name: Extract
 # Reads the mock source documents with Claude (Message Batches API) and pushes the resulting
 # fixtures to a new branch. It does not open a pull request.
 #
+# With clustering ticked, a second step records the clustering fixture after the extraction step,
+# so it is made against the extraction fixtures just written (they decide which rejections the
+# seeded analyst makes). It runs even when the extraction step found everything current. Clustering
+# is its own mode, `npm run extract -- --clustering`, and ignores model, max_usd, sample, and
+# resume_batch.
+#
 # A rerun starts from the ref it is dispatched on, so it resumes only if the earlier
 # fixtures/extract-* branch was merged there, or the workflow is dispatched from that branch.
 # If a run stopped after a batch was submitted, its log names the batch: dispatch again with
@@ -27,7 +33,7 @@ on:
         type: string
         required: false
       clustering:
-        description: Also run seed-time clustering
+        description: After the extraction step, record the seed-time clustering fixture (one more Claude call, not covered by max_usd)
         type: boolean
         default: false
 
@@ -57,14 +63,19 @@ jobs:
           MAX_USD: ${{ inputs.max_usd }}
           SAMPLE: ${{ inputs.sample }}
           RESUME_BATCH: ${{ inputs.resume_batch }}
-          CLUSTERING: ${{ inputs.clustering }}
         run: |
           args=(--model "$MODEL" --max-usd "$MAX_USD")
           if [ -n "$SAMPLE" ]; then args+=(--sample "$SAMPLE"); fi
           if [ -n "$RESUME_BATCH" ]; then args+=(--resume-batch "$RESUME_BATCH"); fi
-          if [ "$CLUSTERING" = "true" ]; then args+=(--clustering); fi
           npm run extract -- "${args[@]}"
-      # Lines already written are valid and resumable, so keep them even if the step above failed
+      - name: Record clustering
+        if: ${{ inputs.clustering }}
+        timeout-minutes: 20
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run extract -- --clustering
+      # Commits fixtures/extraction and fixtures/clustering together. Lines already written are valid
+      # and resumable, so keep them even if a step above failed
       # or the run was canceled. The attempt number keeps a job re-run from reusing the branch name.
       - name: Push fixtures to a new branch
         if: always()

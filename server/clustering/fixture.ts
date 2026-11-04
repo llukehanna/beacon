@@ -35,7 +35,7 @@ const fixtureSchema = z.object({
   createdAt: z.string(),
 });
 
-/** The fixture in this JSON text, or null when it is not a valid one. */
+/** The fixture in this JSON text, or null when it is not a valid one (a missing file is the caller's case). */
 export function parseClusteringFixture(text: string): ClusteringFixture | null {
   try {
     const parsed = fixtureSchema.safeParse(JSON.parse(text));
@@ -45,7 +45,7 @@ export function parseClusteringFixture(text: string): ClusteringFixture | null {
   }
 }
 
-/** The fixture's proposals when the rejections are the ones it was recorded for; else the fallback. */
+/** The fixture's proposals when the rejections are the ones it was recorded for; else the fallback. A null fixture (none, or an invalid file) always falls back. */
 export function fixtureClusterer(
   fixture: ClusteringFixture | null,
   fallback: Clusterer,

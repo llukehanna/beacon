@@ -17,18 +17,35 @@ const clustering = loadClusteringFixture();
 const started = Date.now();
 const now = new Date();
 const db = await getDb();
-// Say whether the recording applied: a stale one silently gives way to the deterministic clusterer.
-let replayed = false;
-const replay = fixtureClusterer(clustering, heuristicClusterer);
+// Say how the recording fared: a stale one silently gives way to the deterministic clusterer.
+let clusteredBy: "claude" | "heuristic" | null = null; // null: the clusterer never ran
+const replay = fixtureClusterer(
+  clustering.status === "valid" ? clustering.fixture : null,
+  heuristicClusterer,
+);
 const clusterer: Clusterer = async (rows) => {
   const out = await replay(rows);
-  replayed = out.source === "claude";
+  clusteredBy = out.source;
   return out;
 };
 const { firms } = await resetDemo(db, now, { fixtures, clusterer });
 await saveSnapshot(db, now);
+const clusteringNote = ((): string => {
+  switch (clustering.status) {
+    case "absent":
+      return "no clustering fixture";
+    case "invalid":
+      return "clustering fixture is invalid and was ignored";
+    case "valid":
+      return clusteredBy === "claude"
+        ? "clustering fixture used"
+        : clusteredBy === "heuristic"
+          ? "clustering fixture is stale (recorded for other rejections) and was ignored"
+          : "clustering fixture not needed (no rejections to cluster)";
+  }
+})();
 const target = process.env.DATABASE_URL ? "DATABASE_URL" : ".data/pglite";
 console.log(
-  `Seeded ${firms} firms and their history (${fixtures.length} extraction records, ${clustering ? (replayed ? "clustering fixture used" : "clustering fixture is stale and was ignored") : "no clustering fixture"}) into ${target}, and saved the reset snapshot, in ${((Date.now() - started) / 1000).toFixed(1)}s.`,
+  `Seeded ${firms} firms and their history (${fixtures.length} extraction records, ${clusteringNote}) into ${target}, and saved the reset snapshot, in ${((Date.now() - started) / 1000).toFixed(1)}s.`,
 );
 await db.close();

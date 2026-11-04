@@ -19,8 +19,14 @@ export function loadExtractionFixtures(): FixtureRecord[] {
     : [];
 }
 
-export function loadClusteringFixture(): ClusteringFixture | null {
-  return existsSync(clusteringFile)
-    ? parseClusteringFixture(readFileSync(clusteringFile, "utf8"))
-    : null;
+/** A missing file and a file that is not a valid fixture are different problems. */
+export type ClusteringFixtureFile =
+  { status: "absent" } | { status: "invalid" } | { status: "valid"; fixture: ClusteringFixture };
+
+export function loadClusteringFixture(): ClusteringFixtureFile {
+  if (!existsSync(clusteringFile)) {
+    return { status: "absent" };
+  }
+  const fixture = parseClusteringFixture(readFileSync(clusteringFile, "utf8"));
+  return fixture === null ? { status: "invalid" } : { status: "valid", fixture };
 }
