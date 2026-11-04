@@ -2,18 +2,24 @@
  * A few weeks of plausible analyst work, produced by the real action
  * handlers on an advancing clock: mandates and searches, agent enrichment
  * with verifications, overrides and conflict resolutions, qualifications,
- * clustered rejections, an approved rule, outcomes, and open drift.
+ * clustered rejections, an approved rule, outcomes, and open drift. It ends with a few firms
+ * whose agent runs are left open for the analyst.
  */
-import type { ActionName, ObjectOf } from "../../shared/schema.js";
+import { matchesPredicate } from "../../shared/predicate.js";
+import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
+import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
+import { sortedRows } from "../db/ordering.js";
 import { getObject, listAll } from "../db/repo.js";
 import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
+import { planFirmAxes } from "../extraction/plan.js";
+import { pickShowcaseFirms } from "./showcase.js";
 
 type FirmObj = ObjectOf<"Firm">;
 
@@ -47,19 +53,43 @@ const STRONG_VALUES = {
   feeGeneratingCount: 5,
 };
 
+/**
+ * Ids the seed gives its records: the same on every run, so a recording made against one seed
+ * (the clustering fixture names decisions by id) still matches the next.
+ */
+function seedIds(): (prefix: string) => string {
+  let n = 0;
+  return (prefix) => `${prefix}-seed-${String(++n).padStart(5, "0")}`;
+}
+
+/**
+ * Every object of a type in a fixed, collation-independent order (see `sortedRows`): which firms
+ * the seed picks, and so the rejections a recorded clustering reply is matched against, must not
+ * depend on the database's text ordering.
+ */
+async function all<N extends ObjectTypeName>(
+  db: Db,
+  type: N,
+  opts: { where?: Record<string, { $eq: string }>; orderBy?: readonly string[] } = {},
+): Promise<ObjectOf<N>[]> {
+  return sortedRows(type, await listAll(db, type, { where: opts.where }), opts.orderBy);
+}
+
 export async function seedHistory(
   db: Db,
   start: Date,
-  opts: Pick<ApplyOptions, "newId"> = {},
+  opts: Pick<ApplyOptions, "newId"> & { clusterer?: Clusterer } = {},
 ): Promise<void> {
+  const newId = opts.newId ?? seedIds();
+  const clusterer = opts.clusterer ?? heuristicClusterer;
   const r = rng("beacon-history-v1");
   let clock = start.getTime();
   const act = (name: ActionName, params: Record<string, unknown>) => {
     clock += (10 + Math.floor(r() * 40)) * 60_000;
     return applyAction(db, name, params, {
       now: new Date(clock),
-      clusterer: heuristicClusterer,
-      newId: opts.newId,
+      clusterer,
+      newId,
     });
   };
   const at = () => new Date(clock).toISOString();
@@ -68,7 +98,7 @@ export async function seedHistory(
   async function enrichLikeAnAnalyst(id: string): Promise<void> {
     await act("runAgentEnrichment", { firm: id });
     const firm = await loadFirm(id);
-    const open = (await listAll(db, "ResearchFinding", { where: { firmId: { $eq: id } } })).filter(
+    const open = (await all(db, "ResearchFinding", { where: { firmId: { $eq: id } } })).filter(
       (f) => f.findingStatus === "proposed" || f.findingStatus === "abstained",
     );
     const accepted: Record<string, unknown> = {};
@@ -133,7 +163,7 @@ export async function seedHistory(
   for (const m of MANDATES) {
     await act("runMandateSearch", m);
   }
-  const mandates = await listAll(db, "Mandate", { orderBy: { createdAt: "asc" } });
+  const mandates = await all(db, "Mandate", { orderBy: ["createdAt"] });
   await act("runSearch", {
     mandate: mandates[0].$primaryKey,
     geographies: ["United States", "Canada"],
@@ -148,11 +178,11 @@ export async function seedHistory(
   });
 
   // 2. Enrich the searched firms plus a few CS firms.
-  const members = (await listAll(db, "SearchMembership")).map((m) => m.firmId!);
+  const members = (await all(db, "SearchMembership")).map((m) => m.firmId!);
   const csFirms = (
-    await listAll(db, "Firm", {
+    await all(db, "Firm", {
       where: { firmType: { $eq: "CS" } },
-      orderBy: { firmName: "asc" },
+      orderBy: ["firmName"],
     })
   )
     .slice(0, 10)
@@ -163,7 +193,7 @@ export async function seedHistory(
   }
 
   // 3. Qualify the strongest; move a few through the pipeline.
-  const ranked = (await listAll(db, "Firm"))
+  const ranked = (await all(db, "Firm"))
     .filter((f) => f.enrichedBy === USER)
     .map((f) => ({ f, s: scoreFirm(f) }))
     .sort((a, b) => b.s.weightedTotal - a.s.weightedTotal);
@@ -186,7 +216,7 @@ export async function seedHistory(
   // 4. Rejections that form clusters the learning loop can find.
   const taken = new Set(qualified);
   const pool = async () =>
-    (await listAll(db, "Firm", { orderBy: { firmName: "asc" } })).filter(
+    (await all(db, "Firm", { orderBy: ["firmName"] })).filter(
       (f) =>
         !taken.has(f.$primaryKey) &&
         ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
@@ -236,11 +266,21 @@ export async function seedHistory(
     await reject(f.$primaryKey, "Weak MD experience for our franchise.");
   }
 
-  // 5. Learn from the rejections; approve the clearest rule.
+  // 5. Learn from the rejections; approve the clearest rule: the employees rule, or else the one
+  // with the most supporting firms (a recorded Claude reply need not propose employees).
   await act("clusterRejections", {});
-  const small = (await listAll(db, "ProposedRule")).find((x) => x.predicateAxis === "employees");
-  if (small) {
-    await act("approveRule", { proposedRule: small.$primaryKey });
+  const proposals = await all(db, "ProposedRule");
+  const clearest =
+    proposals.find((x) => x.predicateAxis === "employees") ??
+    proposals.reduce<(typeof proposals)[number] | undefined>(
+      (best, x) =>
+        best === undefined || (x.supportingFirmCount ?? 0) > (best.supportingFirmCount ?? 0)
+          ? x
+          : best,
+      undefined,
+    );
+  if (clearest) {
+    await act("approveRule", { proposedRule: clearest.$primaryKey });
   }
 
   // 6. Observed outcomes.
@@ -251,9 +291,9 @@ export async function seedHistory(
     await act("setFirmOutcome", { firm: id, outcome: outcomes[i], outcomeObservedAt: at() });
   }
   const earliestRejected = (
-    await listAll(db, "ReviewDecision", {
+    await all(db, "ReviewDecision", {
       where: { decisionType: { $eq: "reject" } },
-      orderBy: { decidedAt: "asc" },
+      orderBy: ["decidedAt"],
     })
   )
     .slice(0, 2)
@@ -295,12 +335,41 @@ export async function seedHistory(
   // once: the outcome_diverged event is left for the analyst, and the resolved one is a
   // tier_moved firm that is still in the pipeline.
   const tierDrift = (
-    await listAll(db, "DriftEvent", { where: { driftReason: { $eq: "tier_moved" } } })
+    await all(db, "DriftEvent", { where: { driftReason: { $eq: "tier_moved" } } })
   )[0];
   if (tierDrift) {
     await act("acknowledgeDrift", {
       driftEvent: tierDrift.$primaryKey,
       note: "The new evidence is thin; we are keeping the firm in the pipeline for now.",
     });
+  }
+
+  // 9. Showcase: the agent runs the demo opens on, left open. The picker skips firms an earlier
+  // step touched; firms an approved screen removes are dropped here, so all stay in the live queue.
+  const screens = (await all(db, "HardScreenConfig")).filter((c) => c.configActive);
+  const candidates = (await all(db, "Firm")).filter(
+    (f) =>
+      !screens.some((c) =>
+        matchesPredicate(f, {
+          axis: c.configAxis ?? "",
+          operator: c.configOperator ?? "",
+          threshold: c.configThreshold ?? "",
+          model: c.configModel,
+        }),
+      ),
+  );
+  const stored = new Map<string, ObjectOf<"Extraction">[]>();
+  for (const row of await all(db, "Extraction")) {
+    stored.set(row.firmId ?? "", [...(stored.get(row.firmId ?? "") ?? []), row]);
+  }
+  // Only previews the plans, so these ids are never stored.
+  const plansFor = (firm: FirmObj) => {
+    let n = 0;
+    return planFirmAxes(firm, stored.get(firm.$primaryKey) ?? [], () => `preview-${++n}`).flatMap(
+      (a) => a.plans,
+    );
+  };
+  for (const id of pickShowcaseFirms(candidates, plansFor)) {
+    await act("runAgentEnrichment", { firm: id });
   }
 }

@@ -1,0 +1,96 @@
+name: Extract
+
+# Reads the mock source documents with Claude (Message Batches API) and pushes the resulting
+# fixtures to a new branch. It does not open a pull request.
+#
+# With clustering ticked, a second step records the clustering fixture after the extraction step,
+# so it is made against the extraction fixtures just written (they decide which rejections the
+# seeded analyst makes). It runs even when the extraction step found everything current. Clustering
+# is its own mode, `npm run extract -- --clustering`, and ignores model, max_usd, sample, and
+# resume_batch. Tick it only on the run that completes extraction for every firm: a fixture
+# recorded against partial extractions goes stale once the rest are merged.
+#
+# A rerun starts from the ref it is dispatched on, so it resumes only if the earlier
+# fixtures/extract-* branch was merged there, or the workflow is dispatched from that branch.
+# If a run stopped after a batch was submitted, its log names the batch: dispatch again with
+# resume_batch set to that id (and the same model) to collect it instead of paying twice.
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: Model to extract with
+        type: string
+        default: claude-haiku-4-5
+      max_usd:
+        description: Stop before this run's spend would pass this many US dollars
+        type: string
+        default: "5"
+      sample:
+        description: Extract only the first N firms still missing (optional)
+        type: string
+        required: false
+      resume_batch:
+        description: Collect this earlier batch (msgbatch_...) first, using the same model (optional)
+        type: string
+        required: false
+      clustering:
+        description: After the extraction step, record the seed-time clustering fixture (one more Claude call, not covered by max_usd)
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: extract
+  cancel-in-progress: false
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Extract
+        timeout-minutes: 330
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          MODEL: ${{ inputs.model }}
+          MAX_USD: ${{ inputs.max_usd }}
+          SAMPLE: ${{ inputs.sample }}
+          RESUME_BATCH: ${{ inputs.resume_batch }}
+        run: |
+          args=(--model "$MODEL" --max-usd "$MAX_USD")
+          if [ -n "$SAMPLE" ]; then args+=(--sample "$SAMPLE"); fi
+          if [ -n "$RESUME_BATCH" ]; then args+=(--resume-batch "$RESUME_BATCH"); fi
+          npm run extract -- "${args[@]}"
+      - name: Record clustering
+        if: ${{ inputs.clustering }}
+        timeout-minutes: 20
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npm run extract -- --clustering
+      # Commits fixtures/extraction and fixtures/clustering together. Lines already written are valid
+      # and resumable, so keep them even if a step above failed
+      # or the run was canceled. The attempt number keeps a job re-run from reusing the branch name.
+      - name: Push fixtures to a new branch
+        if: always()
+        env:
+          MODEL: ${{ inputs.model }}
+        run: |
+          if [ -z "$(git status --porcelain fixtures)" ]; then
+            echo "No fixture changes to push."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="fixtures/extract-${{ github.run_id }}-${{ github.run_attempt }}"
+          git switch -c "$branch"
+          git add fixtures
+          git commit -m "Extraction: fixtures from ${MODEL}" -m "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
+          git push origin "$branch"

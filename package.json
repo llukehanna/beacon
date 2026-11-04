@@ -16,6 +16,7 @@
     "format": "prettier --write src/ server/ shared/ api/ scripts/ worker/",
     "format:check": "prettier --check src/ server/ shared/ api/ scripts/ worker/",
     "seed": "tsx scripts/seed.ts",
+    "extract": "tsx scripts/extract.ts",
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy --env=\"\"",
     "deploy:presenter": "npm run build && wrangler deploy --env presenter",

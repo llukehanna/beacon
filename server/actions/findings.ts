@@ -1,5 +1,5 @@
 import type { ObjectOf, Props } from "../../shared/schema.js";
-import { axisPoints, firmModel, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
+import { axisPoints, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
 import {
   ANALYST,
   type AxisDef,
@@ -11,16 +11,9 @@ import {
 } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
 import { PROVIDERS } from "../enrichment/providers.js";
-import { reconcileAxis, sameValue } from "../enrichment/reconcile.js";
+import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
-import {
-  EXTRACTION_PROMPT_VERSION,
-  type ExtractionOutput,
-  RULE_BASED_MODEL,
-  ruleBasedExtraction,
-} from "../extraction/contract.js";
-import { documentsHash, firmDocuments } from "../extraction/documents.js";
-import { groundExtraction } from "../extraction/grounding.js";
+import { planFirmAxes } from "../extraction/plan.js";
 import { type FirmObj, iso, logDecision, requireObject, snapshotScore } from "./common.js";
 import { computeDriftForFirm } from "./drift.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -69,70 +62,34 @@ const providerLabels = (provider: string): string =>
     .map((p) => PROVIDERS[p as Provider]?.label ?? p)
     .join(" + ");
 
-/**
- * The stored extraction for these documents, or the rule-based one. Rows made against other
- * document text or another prompt version are ignored. If rows from several models match, the
- * model that sorts first is used, so the result never depends on row order.
- */
-async function extractionFor(
-  ctx: ActionContext,
-  firmId: string,
-  docs: ReturnType<typeof firmDocuments>,
-): Promise<{ output: ExtractionOutput; model: string }> {
-  const hash = documentsHash(docs);
-  const rows = (await listAll(ctx.tx, "Extraction", { where: { firmId: { $eq: firmId } } })).filter(
-    (r) => r.documentsHash === hash && r.promptVersion === EXTRACTION_PROMPT_VERSION,
-  );
-  if (rows.length === 0) {
-    return { output: ruleBasedExtraction(docs), model: RULE_BASED_MODEL };
-  }
-  const model = rows.map((r) => r.model ?? "").sort()[0];
-  return {
-    model,
-    output: {
-      items: rows
-        .filter((r) => (r.model ?? "") === model)
-        .map((r) => ({
-          provider: (r.provider ?? "") as Provider,
-          axis: r.axis ?? "",
-          value: r.value ?? null,
-          quote: r.quote ?? null,
-        })),
-    },
-  };
-}
-
 export const runAgentEnrichment = defineAction<{ firm: FirmObj }>({
   params: { firm: { type: { object: "Firm" } } },
   async run(ctx, { firm }) {
-    const model = firmModel(firm);
     const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
+    const stored = await listAll(ctx.tx, "Extraction", {
+      where: { firmId: { $eq: firm.$primaryKey } },
+    });
     const created: string[] = [];
-    const docs = firmDocuments(firm);
-    const extraction = await extractionFor(ctx, firm.$primaryKey, docs);
-    const grounded = groundExtraction(firm, docs, extraction.output, extraction.model);
-    for (const axis of ENRICH_AXES) {
-      if (!axis.models.includes(model)) {
-        continue;
-      }
-      const forAxis = existing.filter((f) => f.axis === axis.axis);
-      if (forAxis.some((f) => f.findingStatus === "verified")) {
-        continue;
-      } // settled by a human
-      for (const stale of forAxis.filter(
-        (f) => f.findingStatus === "proposed" || f.findingStatus === "abstained",
+    const settled = (axis: AxisDef) =>
+      existing.some((f) => f.axis === axis.axis && f.findingStatus === "verified"); // settled by a human
+    for (const { axis, plans } of planFirmAxes(
+      firm,
+      stored,
+      () => ctx.newId("cg"),
+      (axis) => !settled(axis),
+    )) {
+      for (const stale of existing.filter(
+        (f) =>
+          f.axis === axis.axis &&
+          (f.findingStatus === "proposed" || f.findingStatus === "abstained"),
       )) {
         await updateObject(ctx.tx, "ResearchFinding", stale.$primaryKey, {
           findingStatus: "superseded",
         });
       }
-      const observations = grounded.observations.filter((o) => o.axis === axis.axis);
-      const groundingRejected = grounded.rejected.some((r) => r.axis === axis.axis);
-      for (const plan of reconcileAxis(axis, observations, () => ctx.newId("cg"), {
-        groundingRejected,
-      })) {
+      for (const plan of plans) {
         const findingId = ctx.newId("rf");
         await insertObject(ctx.tx, "ResearchFinding", {
           findingId,

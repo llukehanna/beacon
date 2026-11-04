@@ -18,6 +18,8 @@ const BREADTH_CAP: Readonly<Record<string, number>> = {
 
 const norm = (s: string | undefined | null): string => (s ?? "").trim().toLowerCase();
 
+const byCodeUnit = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
 /** Row ceilings for the shared public demo; the nightly reset clears them. */
 export const MAX_MANDATES = 25;
 export const MAX_SEARCHES = 50;
@@ -114,7 +116,8 @@ export const runSearch = defineAction<{
           matchesSelection(f, sel),
       )
       .map((f) => ({ f, s: scoreFirm(f).weightedTotal }))
-      .sort((a, b) => b.s - a.s || (a.f.firmName ?? "").localeCompare(b.f.firmName ?? ""))
+      // Ties break by code unit, not localeCompare: the seed's results must not depend on the machine's locale.
+      .sort((a, b) => b.s - a.s || byCodeUnit(a.f.firmName ?? "", b.f.firmName ?? ""))
       .map((x) => x.f);
     const seen = new Set<string>();
     const chosen = [...seeds, ...matches]
