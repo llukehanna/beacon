@@ -1,5 +1,6 @@
 import { Suspense, lazy } from "react";
 import { createBrowserRouter } from "react-router-dom";
+import RouteError from "@/RouteError";
 import Titled from "@/Titled";
 import Loading from "@/components/Loading";
 import Home from "@/desk/Home";
@@ -19,6 +20,7 @@ export const router = createBrowserRouter(
     {
       // Start-of-day operations page. Every card and number on it links to
       // the surface that does the work; it is not a stats dashboard.
+      errorElement: <RouteError />,
       path: "/",
       element: (
         <Titled title="Beacon — Home">
@@ -27,6 +29,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/desk",
       element: (
         <Titled title="Beacon — Enrichment Desk">
@@ -37,6 +40,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/pipeline",
       element: (
         <Titled title="Beacon — Pipeline">
@@ -47,6 +51,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/review",
       element: (
         <Titled title="Beacon — Review">
@@ -57,6 +62,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/rules",
       element: (
         <Titled title="Beacon — Rules">
@@ -67,6 +73,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/accuracy",
       element: (
         <Titled title="Beacon — Accuracy">
@@ -77,6 +84,7 @@ export const router = createBrowserRouter(
       ),
     },
     {
+      errorElement: <RouteError />,
       path: "/mandate",
       element: (
         <Titled title="Beacon — Mandates">
@@ -90,6 +98,7 @@ export const router = createBrowserRouter(
       // "Interpret & run search" surface — turns a mandate's intent into
       // a Search (geographies / industries / seeds / exclusions / breadth
       // → the run-search action). Routes to /desk?search=<id> on completion.
+      errorElement: <RouteError />,
       path: "/search/:mandateId",
       element: (
         <Titled title="Beacon — Run search">
