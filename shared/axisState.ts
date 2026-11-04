@@ -77,6 +77,26 @@ export function classifyAxis(auth: FindingLike): AxisState {
   return "proposed";
 }
 
+/** What the axis breakdown row shows beside a finding-backed axis. */
+export interface AxisBadge {
+  /** Replaces the chips when no source had a value. */
+  label: string | null;
+  showProvider: boolean;
+  /** The High/Low chip describes a model's proposal, so only proposed values carry one. */
+  showConfidence: boolean;
+}
+
+export function axisBadge(state: AxisState): AxisBadge {
+  switch (state) {
+    case "abstained":
+      return { label: "No source \u2014 needs you", showProvider: false, showConfidence: false };
+    case "verified":
+      return { label: null, showProvider: true, showConfidence: false };
+    case "proposed":
+      return { label: null, showProvider: true, showConfidence: true };
+  }
+}
+
 // ─── Cross-firm rollup (Home) ───────────────────────────────────────────
 
 interface FirmScopedFinding extends FindingLike {
