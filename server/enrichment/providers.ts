@@ -22,6 +22,10 @@ export interface Observation {
   confidence: number;
   sourceUrl: string;
   sourceExcerpt: string;
+  /** Set when the value was extracted from a source document. */
+  sourceDocumentId?: string;
+  sourceQuote?: string;
+  model?: string;
 }
 
 export interface FirmRef {
