@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/llukehanna/beacon/actions/workflows/ci.yml/badge.svg)](https://github.com/llukehanna/beacon/actions/workflows/ci.yml)
 
-Acquisition-target sourcing for a corporate development team. Analysts turn a mandate into a searched universe of advisory firms. An agent assembles cited evidence for each firm, a deterministic rubric scores and tiers every firm, and the reasons analysts reject firms become proposed screening rules for the next search.
+Acquisition-target sourcing for a corporate development team. Analysts turn a mandate into a searched universe of advisory firms. An agent assembles cited evidence for each firm, a deterministic rubric scores and tiers every firm, and the reasons analysts pass on firms become proposed screening rules for the next search.
 
 **Live demo:** https://beacon.lukeghanna.com (synthetic data, resets daily)
 
@@ -14,7 +14,7 @@ Acquisition-target sourcing for a corporate development team. Analysts turn a ma
 - **Agent enrichment with honest abstention.** Four mock data sources are queried in trust order. Agreement becomes one corroborated finding. Disagreement becomes an explicit conflict for the analyst. "No source has this" is recorded as an abstention instead of a guess.
 - **Deterministic scoring.** An 18-point, nine-axis rubric per thesis, with hard rejects and A/B/C tiers. The same code runs in the browser for live previews and on the server for the record.
 - **Append-only audit trail.** Scores, findings, and decisions are versioned, never edited.
-- **A learning loop with a human in it.** Rejection rationales are clustered (by Claude, with a deterministic fallback) into proposed screening rules. Each proposal is checked against the data, shows how many firms it would screen, and only takes effect after an analyst approves it.
+- **A learning loop with a human in it.** Pass rationales are clustered (by Claude, with a deterministic fallback) into proposed screening rules. Each proposal is checked against the data, shows how many firms it would screen, and only takes effect after an analyst approves it.
 - **Drift.** When new evidence moves a qualified or passed firm's tier, or a passed firm is bought by a competitor, it resurfaces for review.
 
 | Home | Rules | Review |
@@ -61,11 +61,10 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 
 Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Smart Placement runs the Worker near the database, and `POST /api/actions` (60 per minute) and `POST /api/reset` (3 per minute) are rate limited per client IP.
 
-**Production** (`beacon.lukeghanna.com`) reads two Worker secrets: `DATABASE_URL` (Neon Postgres) and `CRON_SECRET`.
+**Production** (`beacon.lukeghanna.com`) reads one Worker secret: `DATABASE_URL` (Neon Postgres).
 
 ```bash
 npx wrangler secret put DATABASE_URL
-npx wrangler secret put CRON_SECRET
 DATABASE_URL='<neon connection string>' npm run seed   # once, and after schema or seed changes
 npm run deploy    # typecheck, vite build, wrangler deploy
 ```

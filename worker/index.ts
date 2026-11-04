@@ -9,7 +9,7 @@ import * as links from "../api/links.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
 import { type Db, createPgDb, withRequestDb } from "../server/db/client.js";
-import { ddl } from "../server/db/ddl.js";
+import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
 import { jsonError } from "../server/http.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
@@ -52,7 +52,7 @@ async function openDb(env: Env): Promise<Db> {
   }
   const db = createPgDb(url);
   if (!schemaApplied) {
-    await db.exec(ddl());
+    await ensureSchema(db);
     schemaApplied = true;
   }
   return db;
