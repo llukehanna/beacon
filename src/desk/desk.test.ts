@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { COUNTRY_GEO } from "../../shared/taxonomy";
 import {
   type ScreeningRule,
   countScreened,
@@ -30,6 +31,13 @@ import {
   searchListFirmIds,
 } from "./mandateFirms";
 import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pipelineBuckets";
+import {
+  hqCode,
+  pipelineSort,
+  rejectDecisionByFirm,
+  revealScrollTop,
+  windowRange,
+} from "./pipelineRows";
 import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
@@ -1707,5 +1715,144 @@ describe("queueRowTier — queue, header and Pipeline agree", () => {
   it("shows the score tier otherwise, including a soft Rejected", () => {
     expect(queueRowTier(false, "B")).toBe("B");
     expect(queueRowTier(false, "Rejected")).toBe("Rejected");
+  });
+});
+
+describe("pipelineSort", () => {
+  const r = (id: string, bucket: string, total: number) => ({
+    bucket,
+    score: { total },
+    firm: { firmId: id, firmName: id },
+  });
+  const ids = (rows: { firm: { firmId: string } }[]) => rows.map((x) => x.firm.firmId);
+
+  it("defaults to stage: Closed first, Discovered last, Passed after everything", () => {
+    const rows = [
+      r("d", "Discovered", 18),
+      r("p", "Passed", 18),
+      r("c", "Closed", 2),
+      r("n", "NDA", 9),
+      r("s", "Screening", 12),
+    ];
+    expect(ids(pipelineSort(rows))).toEqual(["c", "n", "s", "d", "p"]);
+  });
+
+  it("breaks stage ties by score descending, then name", () => {
+    const rows = [
+      r("b-low", "Screening", 5),
+      r("z-high", "Screening", 14),
+      r("a-high", "Screening", 14),
+    ];
+    expect(ids(pipelineSort(rows, "stage"))).toEqual(["a-high", "z-high", "b-low"]);
+  });
+
+  it("orders passed firms by their shown score among themselves", () => {
+    const rows = [r("p-low", "Passed", 3), r("p-high", "Passed", 11), r("d", "Discovered", 0)];
+    expect(ids(pipelineSort(rows))).toEqual(["d", "p-high", "p-low"]);
+  });
+
+  it("sorts by score or by name on request, and does not mutate its input", () => {
+    const rows = [r("b", "Closed", 4), r("a", "Discovered", 9), r("c", "NDA", 9)];
+    const before = ids(rows);
+    expect(ids(pipelineSort(rows, "score"))).toEqual(["a", "c", "b"]);
+    expect(ids(pipelineSort(rows, "name"))).toEqual(["a", "b", "c"]);
+    expect(ids(rows)).toEqual(before);
+  });
+});
+
+describe("rejectDecisionByFirm", () => {
+  it("keeps the newest reject decision per firm with its rationale and score in one pass", () => {
+    // Decisions arrive newest first.
+    const m = rejectDecisionByFirm([
+      { firmId: "f1", decisionType: "advance" },
+      {
+        firmId: "f1",
+        decisionType: "reject",
+        rejectionRationale: " Too small ",
+        scoreAtDecision: 7,
+        tierAtDecision: "C",
+      },
+      {
+        firmId: "f1",
+        decisionType: "reject",
+        rejectionRationale: "older",
+        scoreAtDecision: 12,
+        tierAtDecision: "B",
+      },
+      { firmId: "f2", decisionType: "Reject_Firm", scoreAtDecision: 0, tierAtDecision: "Rejected" },
+      { firmId: "", decisionType: "reject", rejectionRationale: "no firm" },
+      { firmId: null, decisionType: "reject" },
+    ]);
+    expect([...m.keys()]).toEqual(["f1", "f2"]);
+    expect(m.get("f1")).toEqual({
+      rationale: "Too small",
+      scoreAtDecision: 7,
+      tierAtDecision: "C",
+    });
+    expect(m.get("f2")).toEqual({
+      rationale: null,
+      scoreAtDecision: 0,
+      tierAtDecision: "Rejected",
+    });
+  });
+});
+
+describe("hqCode", () => {
+  it("maps every seeded country to a code and falls back to the name", () => {
+    for (const country of Object.keys(COUNTRY_GEO)) {
+      expect(hqCode(country)).toMatch(/^[A-Z]{2}$/);
+    }
+    expect(hqCode("United States")).toBe("US");
+    expect(hqCode("Atlantis")).toBe("Atlantis");
+    expect(hqCode(null)).toBe("—");
+    expect(hqCode("")).toBe("—");
+  });
+});
+
+describe("windowRange", () => {
+  const base = { rowHeight: 50, count: 700, overscan: 3 };
+
+  it("renders the visible rows plus overscan", () => {
+    expect(windowRange({ ...base, scrollTop: 0, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 13,
+    });
+    expect(windowRange({ ...base, scrollTop: 1000, viewportHeight: 500 })).toEqual({
+      start: 17,
+      end: 33,
+    });
+  });
+
+  it("clamps to the row count and handles a table scrolled out of view", () => {
+    expect(windowRange({ ...base, scrollTop: 999_999, viewportHeight: 500 })).toEqual({
+      start: 697,
+      end: 700,
+    });
+    expect(windowRange({ ...base, scrollTop: -400, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 5,
+    });
+    expect(windowRange({ ...base, count: 0, scrollTop: 0, viewportHeight: 500 })).toEqual({
+      start: 0,
+      end: 0,
+    });
+  });
+});
+
+describe("revealScrollTop", () => {
+  // Rows are 50px; a 40px sticky header sits above row 0, so row i spans 40 + 50i .. 90 + 50i.
+  const base = { rowHeight: 50, headerHeight: 40, viewportHeight: 400 };
+
+  it("leaves the scroll alone when the row is already visible", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 0, index: 3 })).toBe(0);
+    expect(revealScrollTop({ ...base, scrollTop: -80, index: 0 })).toBe(-80);
+  });
+
+  it("scrolls up so the row clears the sticky header", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 500, index: 9 })).toBe(450);
+  });
+
+  it("scrolls down so the row ends at the bottom edge", () => {
+    expect(revealScrollTop({ ...base, scrollTop: 0, index: 10 })).toBe(190);
   });
 });
