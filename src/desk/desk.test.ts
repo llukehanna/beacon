@@ -32,11 +32,16 @@ import {
 } from "./mandateFirms";
 import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pipelineBuckets";
 import {
+  DEFAULT_SORT,
   hqCode,
+  navTarget,
+  nextSort,
   pipelineSort,
   rejectDecisionByFirm,
   revealScrollTop,
+  sortDirection,
   windowRange,
+  windowSegments,
 } from "./pipelineRows";
 import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
 import { summarizePredicate } from "./rulePredicate";
@@ -1854,5 +1859,112 @@ describe("revealScrollTop", () => {
 
   it("scrolls down so the row ends at the bottom edge", () => {
     expect(revealScrollTop({ ...base, scrollTop: 0, index: 10 })).toBe(190);
+  });
+});
+
+describe("pipelineSort reversal and header clicks", () => {
+  const r = (id: string, bucket: string, total: number) => ({
+    bucket,
+    score: { total },
+    firm: { firmId: id, firmName: id },
+  });
+  const ids = (rows: { firm: { firmId: string } }[]) => rows.map((x) => x.firm.firmId);
+
+  it("reverses the whole order, Passed first when stage is flipped", () => {
+    const rows = [r("d", "Discovered", 1), r("p", "Passed", 1), r("c", "Closed", 1)];
+    expect(ids(pipelineSort(rows, "stage", true))).toEqual(["p", "d", "c"]);
+    expect(ids(pipelineSort(rows, "name", true))).toEqual(["p", "d", "c"]);
+  });
+
+  it("a new key starts in its natural direction; the same key flips it, then flips back", () => {
+    expect(sortDirection(DEFAULT_SORT)).toBe("descending");
+    const flipped = nextSort(DEFAULT_SORT, "stage");
+    expect(flipped).toEqual({ key: "stage", reversed: true });
+    expect(sortDirection(flipped)).toBe("ascending");
+    expect(nextSort(flipped, "stage")).toEqual(DEFAULT_SORT);
+    const byName = nextSort(flipped, "name");
+    expect(byName).toEqual({ key: "name", reversed: false });
+    expect(sortDirection(byName)).toBe("ascending");
+    expect(sortDirection({ key: "name", reversed: true })).toBe("descending");
+  });
+});
+
+describe("navTarget", () => {
+  it("maps navigation keys and clamps at the edges", () => {
+    expect(navTarget("ArrowDown", 3, 10, 5)).toBe(4);
+    expect(navTarget("ArrowUp", 3, 10, 5)).toBe(2);
+    expect(navTarget("PageDown", 3, 10, 5)).toBe(8);
+    expect(navTarget("PageDown", 8, 10, 5)).toBe(9);
+    expect(navTarget("PageUp", 3, 10, 5)).toBe(0);
+    expect(navTarget("Home", 7, 10, 5)).toBe(0);
+    expect(navTarget("End", 3, 10, 5)).toBe(9);
+  });
+
+  it("returns the current index for a no-op at an edge and null for other keys", () => {
+    expect(navTarget("ArrowUp", 0, 10, 5)).toBe(0);
+    expect(navTarget("Home", 0, 10, 5)).toBe(0);
+    expect(navTarget("ArrowDown", 9, 10, 5)).toBe(9);
+    expect(navTarget("End", 9, 10, 5)).toBe(9);
+    expect(navTarget("Enter", 3, 10, 5)).toBeNull();
+    expect(navTarget("a", 3, 10, 5)).toBeNull();
+  });
+});
+
+describe("windowSegments", () => {
+  const rowsOf = (segs: ReturnType<typeof windowSegments>) =>
+    segs.map((s) => (s.kind === "row" ? s.index : `s${s.rows}`));
+
+  it("is the window between two spacers", () => {
+    expect(rowsOf(windowSegments({ start: 4, end: 7, count: 10, pinned: null }))).toEqual([
+      "s4",
+      4,
+      5,
+      6,
+      "s3",
+    ]);
+    expect(rowsOf(windowSegments({ start: 0, end: 3, count: 3, pinned: null }))).toEqual([0, 1, 2]);
+    expect(rowsOf(windowSegments({ start: 0, end: 0, count: 0, pinned: null }))).toEqual([]);
+  });
+
+  it("keeps a focused row that scrolled above or below the window, spacing around it", () => {
+    expect(rowsOf(windowSegments({ start: 6, end: 8, count: 12, pinned: 2 }))).toEqual([
+      "s2",
+      2,
+      "s3",
+      6,
+      7,
+      "s4",
+    ]);
+    expect(rowsOf(windowSegments({ start: 1, end: 3, count: 12, pinned: 9 }))).toEqual([
+      "s1",
+      1,
+      2,
+      "s6",
+      9,
+      "s2",
+    ]);
+    expect(rowsOf(windowSegments({ start: 0, end: 2, count: 5, pinned: 4 }))).toEqual([
+      0,
+      1,
+      "s2",
+      4,
+    ]);
+  });
+
+  it("ignores a pinned row already in the window or out of range", () => {
+    expect(rowsOf(windowSegments({ start: 2, end: 5, count: 8, pinned: 3 }))).toEqual([
+      "s2",
+      2,
+      3,
+      4,
+      "s3",
+    ]);
+    expect(rowsOf(windowSegments({ start: 2, end: 5, count: 8, pinned: 20 }))).toEqual([
+      "s2",
+      2,
+      3,
+      4,
+      "s3",
+    ]);
   });
 });

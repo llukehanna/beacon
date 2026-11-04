@@ -11,6 +11,36 @@ import { LIFECYCLE_STAGES } from "../../shared/vocab";
 /** stage: furthest along first · score: highest first · name: A to Z. */
 export type PipelineSortKey = "stage" | "score" | "name";
 
+export type SortDirection = "ascending" | "descending";
+
+/** The active sort: a key, and whether the header was clicked again to flip its natural direction. */
+export interface PipelineSort {
+  key: PipelineSortKey;
+  reversed: boolean;
+}
+
+export const DEFAULT_SORT: PipelineSort = { key: "stage", reversed: false };
+
+const NATURAL_DIRECTION: Record<PipelineSortKey, SortDirection> = {
+  stage: "descending",
+  score: "descending",
+  name: "ascending",
+};
+
+/** The direction the rows run in, for `aria-sort` and the header arrow. */
+export function sortDirection(sort: PipelineSort): SortDirection {
+  const natural = NATURAL_DIRECTION[sort.key];
+  if (!sort.reversed) {
+    return natural;
+  }
+  return natural === "ascending" ? "descending" : "ascending";
+}
+
+/** A header click: a new key starts in its natural direction; the same key flips it. */
+export function nextSort(current: PipelineSort, key: PipelineSortKey): PipelineSort {
+  return key === current.key ? { key, reversed: !current.reversed } : { key, reversed: false };
+}
+
 /** The slice of a Pipeline row the sort reads. */
 export interface SortableRow {
   bucket: string;
@@ -38,11 +68,12 @@ function byName(a: SortableRow, b: SortableRow): number {
 /**
  * Order Pipeline rows. The default, "stage", puts the deal furthest along
  * first (Closed … Discovered) with Passed last; ties fall to score (highest
- * first), then name. Returns a new array.
+ * first), then name. `reversed` runs the whole order backwards. Returns a new array.
  */
 export function pipelineSort<T extends SortableRow>(
   rows: readonly T[],
   key: PipelineSortKey = "stage",
+  reversed = false,
 ): T[] {
   const compare = (a: T, b: T): number => {
     switch (key) {
@@ -56,7 +87,8 @@ export function pipelineSort<T extends SortableRow>(
         );
     }
   };
-  return [...rows].sort(compare);
+  const sorted = [...rows].sort(compare);
+  return reversed ? sorted.reverse() : sorted;
 }
 
 // ─── Reject decisions ───────────────────────────────────────────────────
@@ -160,4 +192,73 @@ export function revealScrollTop(args: {
     return rowBottom - viewportHeight;
   }
   return scrollTop;
+}
+
+/**
+ * Where a navigation key sends the active row: the target index clamped to
+ * the list, or null when the key is not a navigation key. A key at the edge
+ * (ArrowUp on the first row) returns the current index, a no-op the caller
+ * should still swallow.
+ */
+export function navTarget(key: string, index: number, count: number, page: number): number | null {
+  let target: number;
+  switch (key) {
+    case "ArrowDown":
+      target = index + 1;
+      break;
+    case "ArrowUp":
+      target = index - 1;
+      break;
+    case "PageDown":
+      target = index + page;
+      break;
+    case "PageUp":
+      target = index - page;
+      break;
+    case "Home":
+      target = 0;
+      break;
+    case "End":
+      target = count - 1;
+      break;
+    default:
+      return null;
+  }
+  return Math.max(0, Math.min(count - 1, target));
+}
+
+export type Segment = { kind: "spacer"; rows: number } | { kind: "row"; index: number };
+
+/**
+ * What the table body renders: the windowed rows, plus `pinned` (the row that
+ * holds keyboard focus) even when it has scrolled out of the window, so focus
+ * is never lost to an unmount. Everything else is a spacer of the right height.
+ */
+export function windowSegments(args: {
+  start: number;
+  end: number;
+  count: number;
+  pinned: number | null;
+}): Segment[] {
+  const { start, end, count, pinned } = args;
+  const blocks: [number, number][] = [[start, end]];
+  if (pinned !== null && pinned >= 0 && pinned < count && (pinned < start || pinned >= end)) {
+    blocks.push([pinned, pinned + 1]);
+    blocks.sort((a, b) => a[0] - b[0]);
+  }
+  const segments: Segment[] = [];
+  let cursor = 0;
+  for (const [from, to] of blocks) {
+    if (from > cursor) {
+      segments.push({ kind: "spacer", rows: from - cursor });
+    }
+    for (let index = from; index < to; index += 1) {
+      segments.push({ kind: "row", index });
+    }
+    cursor = Math.max(cursor, to);
+  }
+  if (count > cursor) {
+    segments.push({ kind: "spacer", rows: count - cursor });
+  }
+  return segments;
 }

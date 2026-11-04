@@ -15,12 +15,19 @@ import "./nocturne.css";
 // this page can't disagree about which stage a firm sits in.
 import { type Lifecycle, STATUS_CHIP, bucketOf, emptyBucketCounts } from "./pipelineBuckets";
 import {
+  DEFAULT_SORT,
+  type PipelineSort,
   type PipelineSortKey,
+  type SortDirection,
   hqCode,
+  navTarget,
+  nextSort,
   pipelineSort,
   rejectDecisionByFirm,
   revealScrollTop,
+  sortDirection,
   windowRange,
+  windowSegments,
 } from "./pipelineRows";
 import { formatScore, scoreFraction, shownScore } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
@@ -244,18 +251,22 @@ const SORT_LABEL: Record<PipelineSortKey, string> = {
   name: "name",
 };
 
+function sortSummary(sort: PipelineSort): string {
+  return `sorted by ${SORT_LABEL[sort.key]}${sort.reversed ? " (reversed)" : ""}`;
+}
+
 function PipelineHeader({
   shown,
   total,
   loading,
-  sortKey,
+  sort,
   query,
   onQuery,
 }: {
   shown: number;
   total: number;
   loading: boolean;
-  sortKey: PipelineSortKey;
+  sort: PipelineSort;
   query: string;
   onQuery: (v: string) => void;
 }): React.ReactElement {
@@ -279,8 +290,7 @@ function PipelineHeader({
             color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
           }}
         >
-          {loading ? "Loading firms…" : `${shown} of ${total} firms`} · sorted by{" "}
-          {SORT_LABEL[sortKey]}
+          {loading ? "Loading firms…" : `${shown} of ${total} firms · ${sortSummary(sort)}`}
         </span>
       </div>
       <div style={{ marginLeft: "auto", position: "relative", width: 260 }}>
@@ -529,7 +539,6 @@ function FirmRow({
   selected,
   tabbable,
   onSelect,
-  onFocusRow,
   onKeyDown,
 }: {
   row: Row;
@@ -537,7 +546,6 @@ function FirmRow({
   selected: boolean;
   tabbable: boolean;
   onSelect: (id: string) => void;
-  onFocusRow: (index: number) => void;
   onKeyDown: (e: React.KeyboardEvent<HTMLTableRowElement>) => void;
 }): React.ReactElement {
   const { firm, mirror, score, bucket, rejectionRationale, lastActivity } = row;
@@ -547,8 +555,9 @@ function FirmRow({
   const barFill = scoreFraction(score.total);
   const reasonText = isRejected ? rejectText(mirror, rejectionRationale) : null;
   const name = firm.firmName ?? firm.firmId ?? "";
+  // Time first: it is the part that must survive truncation.
   const activityText = lastActivity
-    ? `${labelForDecisionType(lastActivity.type)} · ${relativeTime(lastActivity.decidedAt)}`
+    ? `${relativeTime(lastActivity.decidedAt)} · ${labelForDecisionType(lastActivity.type)}`
     : "None logged";
 
   return (
@@ -558,12 +567,10 @@ function FirmRow({
       aria-selected={selected}
       tabIndex={tabbable ? 0 : -1}
       onClick={() => {
-        onFocusRow(index);
         if (firm.firmId) {
           onSelect(firm.firmId);
         }
       }}
-      onFocus={() => onFocusRow(index)}
       onKeyDown={onKeyDown}
       style={{
         height: ROW_HEIGHT,
@@ -623,16 +630,23 @@ function FirmRow({
       </td>
       <td style={{ overflow: "hidden" }}>
         {reasonText !== null ? (
+          // Score on its own line so it never clips; the reason sits below it.
           <div
-            style={{
-              fontSize: 11,
-              color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-              ...ellipsis,
-            }}
+            style={{ display: "flex", flexDirection: "column", lineHeight: 1.3 }}
             title={`${formatScore(score.total, score.tier)} · ${reasonText}`}
           >
-            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>{scoreText}</span>
-            {` · ${reasonText}`}
+            <span style={{ fontVariantNumeric: "tabular-nums", fontWeight: 600 }}>
+              {formatScore(score.total, score.tier)}
+            </span>
+            <span
+              style={{
+                fontSize: 11,
+                color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
+                ...ellipsis,
+              }}
+            >
+              {reasonText}
+            </span>
           </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -681,6 +695,7 @@ function FirmRow({
       </td>
       <td
         style={{
+          fontSize: 12,
           color: "color-mix(in srgb, var(--color-text) 55%, transparent)",
           ...ellipsis,
         }}
@@ -695,23 +710,22 @@ function FirmRow({
 function SortHeader({
   label,
   sortKey,
-  active,
-  direction,
+  sort,
   onSort,
 }: {
   label: string;
   sortKey: PipelineSortKey;
-  active: PipelineSortKey;
-  direction: "ascending" | "descending";
+  sort: PipelineSort;
   onSort: (key: PipelineSortKey) => void;
 }): React.ReactElement {
-  const isActive = active === sortKey;
+  const isActive = sort.key === sortKey;
+  const direction: SortDirection = sortDirection(sort);
   return (
     <th aria-sort={isActive ? direction : "none"}>
       <button type="button" className="th-sort" onClick={() => onSort(sortKey)}>
         {label}
         <span aria-hidden style={{ opacity: isActive ? 0.9 : 0 }}>
-          {direction === "ascending" ? "↑" : "↓"}
+          {isActive && direction === "ascending" ? "↑" : "↓"}
         </span>
       </button>
     </th>
@@ -730,28 +744,38 @@ function WindowedTable({
   selectedId,
   onSelect,
   scrollRef,
-  sortKey,
+  sort,
   onSort,
 }: {
   rows: Row[];
   selectedId: string | undefined;
   onSelect: (id: string) => void;
   scrollRef: React.RefObject<HTMLElement>;
-  sortKey: PipelineSortKey;
+  sort: PipelineSort;
   onSort: (key: PipelineSortKey) => void;
 }): React.ReactElement {
   const tableRef = React.useRef<HTMLTableElement>(null);
   const [range, setRange] = React.useState({ start: 0, end: 30 });
-  const [activeIndex, setActiveState] = React.useState(0);
+  const count = rows.length;
+  // The active row is tracked by firm, not position, so re-sorting keeps it on the same firm.
+  const [activeId, setActiveState] = React.useState<string | undefined>(undefined);
   // The logical active row. Key handling reads this, not the focused element, so a
   // key pressed before DOM focus has caught up with the last move still acts on the right row.
-  const activeRef = React.useRef(0);
-  const setActiveIndex = React.useCallback((index: number) => {
-    activeRef.current = index;
-    setActiveState(index);
+  const activeRef = React.useRef<string | undefined>(undefined);
+  const setActiveId = React.useCallback((id: string | undefined) => {
+    activeRef.current = id;
+    setActiveState(id);
   }, []);
+  // The row that holds DOM focus, if any. It stays rendered when it scrolls out of the window.
+  const [focusedId, setFocusedId] = React.useState<string | undefined>(undefined);
   const focusPending = React.useRef(false);
-  const count = rows.length;
+  const indexById = React.useMemo(
+    () => new Map(rows.map((r, i) => [r.firm.firmId ?? "", i] as const)),
+    [rows],
+  );
+  const indexOf = (id: string | undefined): number =>
+    Math.min(Math.max(0, indexById.get(id ?? "") ?? 0), count - 1);
+  const activeIndex = indexOf(activeId);
 
   // How far the table's top edge has scrolled past the top of the scroll container.
   const tableScrollTop = React.useCallback((): number => {
@@ -827,67 +851,74 @@ function WindowedTable({
     }
   }, [selectedId, reveal]);
 
-  // Keyboard focus follows the active row once it is in the DOM.
+  // Keyboard focus follows the active row once it is in the DOM. Only while focus is still in
+  // the table: if the user has moved on (clicked the search box), a stale move is dropped.
   React.useEffect(() => {
     if (!focusPending.current) {
       return;
     }
-    const el = tableRef.current?.querySelector<HTMLElement>(`tr[data-index="${activeIndex}"]`);
+    const table = tableRef.current;
+    if (table === null || !table.contains(document.activeElement)) {
+      focusPending.current = false;
+      return;
+    }
+    const el = table.querySelector<HTMLElement>(`tr[data-index="${activeIndex}"]`);
     if (el) {
       focusPending.current = false;
       el.focus({ preventScroll: true });
     }
   });
 
-  const moveTo = (index: number): void => {
-    const next = Math.max(0, Math.min(count - 1, index));
+  const moveTo = (next: number): void => {
+    if (next === indexOf(activeRef.current)) {
+      return;
+    }
     focusPending.current = true;
-    setActiveIndex(next);
+    setActiveId(rows[next]?.firm.firmId ?? "");
     reveal(next);
   };
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTableRowElement>): void => {
-    const index = Math.min(activeRef.current, count - 1);
+    if (e.metaKey || e.ctrlKey || e.altKey) {
+      return;
+    }
+    const index = indexOf(activeRef.current);
     const page = Math.max(1, Math.floor((scrollRef.current?.clientHeight ?? 400) / ROW_HEIGHT) - 2);
-    switch (e.key) {
-      case "ArrowDown":
-        moveTo(index + 1);
-        break;
-      case "ArrowUp":
-        moveTo(index - 1);
-        break;
-      case "PageDown":
-        moveTo(index + page);
-        break;
-      case "PageUp":
-        moveTo(index - page);
-        break;
-      case "Home":
-        moveTo(0);
-        break;
-      case "End":
-        moveTo(count - 1);
-        break;
-      case "Enter":
-      case " ": {
-        const id = rows[index]?.firm.firmId;
-        if (id) {
-          onSelect(id);
-        }
-        break;
+    const target = navTarget(e.key, index, count, page);
+    if (target !== null) {
+      moveTo(target);
+    } else if (e.key === "Enter" || e.key === " ") {
+      const id = rows[index]?.firm.firmId;
+      if (id) {
+        onSelect(id);
       }
-      default:
-        return;
+    } else {
+      return;
     }
     e.preventDefault();
   };
 
+  const handleSort = (key: PipelineSortKey): void => {
+    onSort(key);
+    // A new order starts at the top of the table.
+    const scroller = scrollRef.current;
+    const above = tableScrollTop();
+    if (scroller !== null && above > 0) {
+      scroller.scrollTop -= above;
+    }
+  };
+
   const start = Math.min(range.start, count);
   const end = Math.min(range.end, count);
-  // The tab stop stays inside the rendered window so Tab can always reach the table.
-  const tabIndexRow = Math.max(start, Math.min(end - 1, Math.min(activeIndex, count - 1)));
-  const topPad = start * ROW_HEIGHT;
-  const bottomPad = (count - end) * ROW_HEIGHT;
+  const focusedIndex = focusedId === undefined ? null : (indexById.get(focusedId) ?? null);
+  const segments = windowSegments({ start, end, count, pinned: focusedIndex });
+  // The tab stop is the active row when it is rendered, else the nearest rendered one, so
+  // Tab can always reach the table.
+  const activeRendered =
+    (activeIndex >= start && activeIndex < end) || activeIndex === focusedIndex;
+  const tabIndexRow = activeRendered
+    ? activeIndex
+    : Math.max(start, Math.min(end - 1, activeIndex));
 
   return (
     <table
@@ -908,64 +939,61 @@ function WindowedTable({
         <col style={{ width: 128 }} />
         <col style={{ width: 48 }} />
         <col style={{ width: 44 }} />
-        <col style={{ width: 120 }} />
+        <col style={{ width: 136 }} />
       </colgroup>
       <thead>
         <tr aria-rowindex={1}>
-          <SortHeader
-            label="Firm"
-            sortKey="name"
-            active={sortKey}
-            direction="ascending"
-            onSort={onSort}
-          />
+          <SortHeader label="Firm" sortKey="name" sort={sort} onSort={handleSort} />
           <th>Type</th>
           <th>Sector</th>
-          <SortHeader
-            label="Status"
-            sortKey="stage"
-            active={sortKey}
-            direction="descending"
-            onSort={onSort}
-          />
-          <SortHeader
-            label="Fit"
-            sortKey="score"
-            active={sortKey}
-            direction="descending"
-            onSort={onSort}
-          />
+          <SortHeader label="Status" sortKey="stage" sort={sort} onSort={handleSort} />
+          <SortHeader label="Fit" sortKey="score" sort={sort} onSort={handleSort} />
           <th style={{ textAlign: "right" }}>Emp.</th>
           <th>HQ</th>
           <th>Activity</th>
         </tr>
       </thead>
-      <tbody>
-        {topPad > 0 && (
-          <tr className="pipeline-spacer" aria-hidden="true" style={{ height: topPad }}>
-            <td colSpan={COLUMN_COUNT} />
-          </tr>
-        )}
-        {rows.slice(start, end).map((r, i) => {
-          const index = start + i;
+      <tbody
+        onFocus={(e) => {
+          const index = Number((e.target as HTMLElement).dataset.index);
+          if (Number.isInteger(index) && rows[index]) {
+            const id = rows[index].firm.firmId ?? "";
+            setActiveId(id);
+            setFocusedId(id);
+          }
+        }}
+        onBlur={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            setFocusedId(undefined);
+          }
+        }}
+      >
+        {segments.map((seg, i) => {
+          if (seg.kind === "spacer") {
+            return (
+              <tr
+                key={`spacer-${i}`}
+                className="pipeline-spacer"
+                aria-hidden="true"
+                style={{ height: seg.rows * ROW_HEIGHT }}
+              >
+                <td colSpan={COLUMN_COUNT} />
+              </tr>
+            );
+          }
+          const r = rows[seg.index];
           return (
             <FirmRow
-              key={r.firm.firmId ?? `row-${index}`}
+              key={r.firm.firmId ?? `row-${seg.index}`}
               row={r}
-              index={index}
+              index={seg.index}
               selected={r.firm.firmId === selectedId}
-              tabbable={index === tabIndexRow}
+              tabbable={seg.index === tabIndexRow}
               onSelect={onSelect}
-              onFocusRow={setActiveIndex}
               onKeyDown={onKeyDown}
             />
           );
         })}
-        {bottomPad > 0 && (
-          <tr className="pipeline-spacer" aria-hidden="true" style={{ height: bottomPad }}>
-            <td colSpan={COLUMN_COUNT} />
-          </tr>
-        )}
       </tbody>
     </table>
   );
@@ -977,7 +1005,7 @@ function FirmsTable({
   onSelect,
   isLoading,
   scrollRef,
-  sortKey,
+  sort,
   onSort,
 }: {
   rows: Row[];
@@ -985,7 +1013,7 @@ function FirmsTable({
   onSelect: (id: string) => void;
   isLoading: boolean;
   scrollRef: React.RefObject<HTMLElement>;
-  sortKey: PipelineSortKey;
+  sort: PipelineSort;
   onSort: (key: PipelineSortKey) => void;
 }): React.ReactElement {
   if (isLoading && rows.length === 0) {
@@ -1070,7 +1098,7 @@ function FirmsTable({
       selectedId={selectedId}
       onSelect={onSelect}
       scrollRef={scrollRef}
-      sortKey={sortKey}
+      sort={sort}
       onSort={onSort}
     />
   );
@@ -1398,7 +1426,7 @@ function Pipeline(): React.ReactElement {
   const [query, setQuery] = React.useState("");
   const [passedOnly, setPassedOnly] = React.useState(false);
   const [profileFilter, setProfileFilter] = React.useState<ProfileFilter>(NO_PROFILE_FILTER);
-  const [sortKey, setSortKey] = React.useState<PipelineSortKey>("stage");
+  const [sort, setSort] = React.useState<PipelineSort>(DEFAULT_SORT);
   const scrollRef = React.useRef<HTMLElement>(null);
 
   const firms = React.useMemo(() => (data ?? []) as unknown as FirmView[], [data]);
@@ -1462,8 +1490,8 @@ function Pipeline(): React.ReactElement {
           lastActivity: lastActivityByFirm.get(firm.firmId ?? "") ?? null,
         };
       });
-    return pipelineSort(built, sortKey);
-  }, [firms, query, profileFilter, sortKey, rejectByFirm, lastActivityByFirm]);
+    return pipelineSort(built, sort.key, sort.reversed);
+  }, [firms, query, profileFilter, sort, rejectByFirm, lastActivityByFirm]);
 
   const counts = React.useMemo(() => {
     const c = emptyBucketCounts();
@@ -1499,7 +1527,7 @@ function Pipeline(): React.ReactElement {
           shown={visibleRows.length}
           total={firms.length}
           loading={isLoading && firms.length === 0}
-          sortKey={sortKey}
+          sort={sort}
           query={query}
           onQuery={setQuery}
         />
@@ -1544,8 +1572,8 @@ function Pipeline(): React.ReactElement {
               onSelect={setSelectedId}
               isLoading={isLoading}
               scrollRef={scrollRef}
-              sortKey={sortKey}
-              onSort={setSortKey}
+              sort={sort}
+              onSort={(key) => setSort((current) => nextSort(current, key))}
             />
           </main>
           <DetailRail row={selectedRow} />
