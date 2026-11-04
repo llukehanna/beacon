@@ -642,17 +642,14 @@ function Review(): React.ReactElement {
     isLoading: driftLoading,
     error: driftError,
   } = useOsdkObjects(DriftEvent, {
-    pageSize: 200,
     orderBy: { detectedAt: "desc" },
     autoFetchMore: true,
   });
   const { data: firmsData } = useOsdkObjects(Firm, {
-    pageSize: 300,
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
   const { data: decisionsData } = useOsdkObjects(ReviewDecision, {
-    pageSize: 500,
     orderBy: { decidedAt: "desc" },
     autoFetchMore: true,
   });

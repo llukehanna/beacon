@@ -8,6 +8,7 @@ import { ActionError } from "../errors.js";
 import { resolveParams } from "./params.js";
 import { ACTIONS } from "./registry.js";
 import type { ActionResult } from "./types.js";
+import { writeLog } from "./writes.js";
 
 /** Tables that only grow as people use the demo (append-only history and proposals). */
 const ACTIVITY_TABLES = [
@@ -64,8 +65,10 @@ export async function applyAction(
   const prep = def.prepare
     ? await def.prepare(db, await resolveParams(db, def.params, raw), base)
     : undefined;
-  return db.transaction(async (tx) => {
+  const writes = writeLog();
+  const result = await db.transaction(async (tx) => {
     const params = await resolveParams(tx, def.params, raw);
-    return def.run({ ...base, tx }, params, prep);
+    return def.run({ ...base, tx: writes.track(tx) }, params, prep);
   });
+  return { ...result, types: writes.types() };
 }

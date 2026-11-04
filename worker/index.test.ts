@@ -113,3 +113,18 @@ describe("withRequestDb", () => {
     expect(seen).toBe(db);
   });
 });
+
+describe("functions route", () => {
+  it("serves GET /api/functions through the database wrapper, unthrottled, and nothing else", async () => {
+    const ACTIONS_LIMITER = limiter(false);
+    vi.stubEnv("DATABASE_URL", "");
+    // 503 comes from withDb (no database configured): the route exists, reads, and is not rate-limited.
+    const res = await get("/api/functions?name=homeSummary", undefined, {
+      ...env,
+      ACTIONS_LIMITER,
+    });
+    expect(res.status).toBe(503);
+    expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
+    expect((await get("/api/functions?name=homeSummary", { method: "POST" })).status).toBe(405);
+  });
+});

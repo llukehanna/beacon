@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Plugin } from "vite";
 
-const ROUTES = new Set(["objects", "links", "actions", "reset"]);
+const ROUTES = new Set(["objects", "links", "actions", "reset", "functions"]);
 
 async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
   const chunks: Buffer[] = [];

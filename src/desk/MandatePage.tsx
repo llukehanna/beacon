@@ -396,12 +396,10 @@ function MandatePage(): React.ReactElement {
     isLoading: mandatesLoading,
     error: mandatesError,
   } = useOsdkObjects(Mandate, {
-    pageSize: 100,
     orderBy: { createdAt: "desc" },
     autoFetchMore: true,
   });
   const { data: searchData, error: searchError } = useOsdkObjects(SearchList, {
-    pageSize: 200,
     orderBy: { createdAt: "desc" },
     autoFetchMore: true,
   });
@@ -410,7 +408,6 @@ function MandatePage(): React.ReactElement {
   // the SearchList↔firms link, which is why it read "285 firms" against
   // Home's "317 scoped" for the same mandate.
   const { data: searchObjData } = useOsdkObjects(Search, {
-    pageSize: 200,
     autoFetchMore: true,
   });
   const { data: membershipData } = useOsdkObjects(SearchMembership, {
@@ -418,7 +415,6 @@ function MandatePage(): React.ReactElement {
     autoFetchMore: true,
   });
   const { data: firmData } = useOsdkObjects(Firm, {
-    pageSize: 300,
     autoFetchMore: true,
   });
 

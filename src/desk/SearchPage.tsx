@@ -407,7 +407,7 @@ function SearchPage(): React.ReactElement {
   const { data: searchesData } = useOsdkObjects(Search, {
     where: { mandateId: { $eq: mandateId ?? "" } },
     orderBy: { runAt: "desc" },
-    pageSize: 10,
+    autoFetchMore: true,
   });
   const searches = React.useMemo(
     () => (searchesData ?? []) as unknown as SearchShape[],
