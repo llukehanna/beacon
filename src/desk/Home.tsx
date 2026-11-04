@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
 import { useOsdkQuery } from "@/data/hooks";
 import type {
   HomeSummary,
@@ -19,6 +20,7 @@ import {
   DIVERGENCE_FG,
   DIVERGENCE_PHRASE,
   OUTCOME_ACQUIRED,
+  SIDEBAR_STYLE,
   VOID_BG,
   driftReasonPresentation,
   outcomeLabel,
@@ -547,20 +549,10 @@ function Home(): React.ReactElement {
         display: "flex",
       }}
     >
-      <aside
-        style={{
-          width: 240,
-          flex: "0 0 240px",
-          borderRight: "1px solid var(--color-divider)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={SIDEBAR_STYLE}>
         <BrandMark section="Home" />
         <WorkspaceNavLinks />
+        <DemoFooter />
       </aside>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>

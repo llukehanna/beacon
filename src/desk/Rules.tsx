@@ -1,4 +1,5 @@
 import React from "react";
+import DemoFooter from "@/components/DemoFooter";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -25,7 +26,7 @@ import "./nocturne.css";
 // predicate string.
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
-import { VOID_BG } from "./tokens";
+import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
 
 // ─── Status chip ────────────────────────────────────────────────────────
 
@@ -965,21 +966,11 @@ function Rules(): React.ReactElement {
         display: "flex",
       }}
     >
-      <aside
-        style={{
-          width: 240,
-          flex: "0 0 240px",
-          borderRight: "1px solid var(--color-divider)",
-          display: "flex",
-          flexDirection: "column",
-          padding: 16,
-          gap: 12,
-          minHeight: 0,
-        }}
-      >
+      <aside style={SIDEBAR_STYLE}>
         <BrandMark section="Rules" />
         <ProposeRulesButton />
         <WorkspaceNavLinks />
+        <DemoFooter />
       </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header

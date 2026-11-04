@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import DemoFooter from "@/components/DemoFooter";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
 import {
@@ -31,7 +32,14 @@ import {
 } from "./pipelineRows";
 import { formatScore, scoreFraction, shownScore } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
-import { TIER_COLOR, TIER_LABEL, VOID_BG, outcomeChipStyle, outcomeLabel } from "./tokens";
+import {
+  SIDEBAR_STYLE,
+  TIER_COLOR,
+  TIER_LABEL,
+  VOID_BG,
+  outcomeChipStyle,
+  outcomeLabel,
+} from "./tokens";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -225,20 +233,10 @@ function relativeTime(ts: unknown): string {
 
 function NavSidebar(): React.ReactElement {
   return (
-    <aside
-      style={{
-        width: 240,
-        flex: "0 0 240px",
-        borderRight: "1px solid var(--color-divider)",
-        display: "flex",
-        flexDirection: "column",
-        padding: 16,
-        gap: 12,
-        minHeight: 0,
-      }}
-    >
+    <aside style={SIDEBAR_STYLE}>
       <BrandMark section="Pipeline" />
       <WorkspaceNavLinks />
+      <DemoFooter />
     </aside>
   );
 }
@@ -260,6 +258,7 @@ function PipelineHeader({
   total,
   loading,
   sort,
+  hint,
   query,
   onQuery,
 }: {
@@ -267,6 +266,8 @@ function PipelineHeader({
   total: number;
   loading: boolean;
   sort: PipelineSort;
+  /** Trailing prompt for the subtitle, shown while the detail rail is closed. */
+  hint: string | null;
   query: string;
   onQuery: (v: string) => void;
 }): React.ReactElement {
@@ -290,7 +291,9 @@ function PipelineHeader({
             color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
           }}
         >
-          {loading ? "Loading firms…" : `${shown} of ${total} firms · ${sortSummary(sort)}`}
+          {loading
+            ? "Loading firms…"
+            : `${shown} of ${total} firms · ${sortSummary(sort)}${hint === null ? "" : ` · ${hint}`}`}
         </span>
       </div>
       <div style={{ marginLeft: "auto", position: "relative", width: 260 }}>
@@ -1152,25 +1155,7 @@ function formatOutcomeDate(raw: string | number | Date | null | undefined): stri
   return new Date(t).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
-function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
-  if (row === undefined) {
-    return (
-      <aside style={railShellStyle}>
-        <div
-          style={{
-            margin: "auto",
-            textAlign: "center",
-            padding: 32,
-            color: "color-mix(in srgb, var(--color-text) 50%, transparent)",
-            fontSize: 13,
-          }}
-        >
-          Select a firm to see its qualification status and facts.
-        </div>
-      </aside>
-    );
-  }
-
+function DetailRail({ row }: { row: Row }): React.ReactElement {
   const { firm, mirror, score, bucket, rejectionRationale } = row;
   const isReject = mirror.hardRejected || bucket === PASSED;
   const tierColor = TIER_COLOR[score.tier] ?? TIER_COLOR.Rejected;
@@ -1400,8 +1385,7 @@ function DetailRail({ row }: { row: Row | undefined }): React.ReactElement {
 const railShellStyle: React.CSSProperties = {
   borderLeft: "1px solid var(--color-divider)",
   overflow: "auto",
-  // Bottom padding clears the fixed demo notice so the CTA is never covered.
-  padding: "18px 18px 72px",
+  padding: 18,
   display: "flex",
   flexDirection: "column",
   gap: 16,
@@ -1528,6 +1512,7 @@ function Pipeline(): React.ReactElement {
           total={firms.length}
           loading={isLoading && firms.length === 0}
           sort={sort}
+          hint={selectedRow === undefined ? "select a firm for details" : null}
           query={query}
           onQuery={setQuery}
         />
@@ -1549,7 +1534,7 @@ function Pipeline(): React.ReactElement {
             style={{
               flex: 1,
               overflowY: "auto",
-              padding: "0 22px 72px",
+              padding: "0 22px 24px",
               display: "flex",
               flexDirection: "column",
               gap: 16,
@@ -1576,7 +1561,8 @@ function Pipeline(): React.ReactElement {
               onSort={(key) => setSort((current) => nextSort(current, key))}
             />
           </main>
-          <DetailRail row={selectedRow} />
+          {/* With nothing selected the rail is gone, so the table gets the width (and Firm stays readable). */}
+          {selectedRow !== undefined && <DetailRail row={selectedRow} />}
         </div>
       </div>
     </div>
