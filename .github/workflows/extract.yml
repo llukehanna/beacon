@@ -7,7 +7,8 @@ name: Extract
 # so it is made against the extraction fixtures just written (they decide which rejections the
 # seeded analyst makes). It runs even when the extraction step found everything current. Clustering
 # is its own mode, `npm run extract -- --clustering`, and ignores model, max_usd, sample, and
-# resume_batch.
+# resume_batch. Tick it only on the run that completes extraction for every firm: a fixture
+# recorded against partial extractions goes stale once the rest are merged.
 #
 # A rerun starts from the ref it is dispatched on, so it resumes only if the earlier
 # fixtures/extract-* branch was merged there, or the workflow is dispatched from that branch.
