@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
 import {
@@ -1359,7 +1360,7 @@ function DetailRail({ row }: { row: Row }): React.ReactElement {
                     color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
                   }}
                 >
-                  {f.k}
+                  {f.k === "Coverage" ? <Term id="Coverage">Coverage</Term> : f.k}
                 </span>
                 <span style={{ overflowWrap: "anywhere" }}>{f.v}</span>
               </React.Fragment>

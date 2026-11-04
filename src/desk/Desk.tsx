@@ -1,6 +1,7 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useLinks, useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -275,7 +276,7 @@ interface HardGate {
   editKey: string;
   readKey: keyof FirmView;
   label: string;
-  helper?: string;
+  helper?: React.ReactNode;
   // Which stored boolean reads as "cleared" for this gate. Analyst-facing
   // copy is Pass/Fail (uniform "Pass = cleared"); storage stays the same
   // boolean the ontology already speaks. Two of the four gates invert:
@@ -292,7 +293,11 @@ const HARD_GATES: HardGate[] = [
     editKey: "advisoryConflict",
     readKey: "advisoryConflict",
     label: "Advisory conflict",
-    helper: "CS hard-reject",
+    helper: (
+      <>
+        <Term id="CS">CS</Term> hard-reject
+      </>
+    ),
     passWhen: HARD_GATE_PASS_WHEN.advisoryConflict,
   },
   {
@@ -951,8 +956,11 @@ function QueueSidebar({
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{queue.length}</span> {scopeLabel}
             {": "}
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{openScreenedCount}</span> open
-            firm{openScreenedCount === 1 ? "" : "s"} screened by approved rules{" · "}sorted by
-            expected gain
+            firm{openScreenedCount === 1 ? "" : "s"} screened by{" "}
+            <Link to="/rules" style={{ color: "var(--color-accent)" }}>
+              approved rules
+            </Link>
+            {" · "}sorted by expected gain
           </>
         )}
       </div>
@@ -1659,7 +1667,9 @@ function HardGates({
 }): React.ReactElement {
   return (
     <div>
-      <Kicker style={{ marginBottom: 8 }}>Hard gates</Kicker>
+      <Kicker style={{ marginBottom: 8 }}>
+        <Term id="Hard gate">Hard gates</Term>
+      </Kicker>
       <div
         style={{
           display: "grid",
@@ -1689,7 +1699,13 @@ function HardGates({
               onFocus={() => setFocused(`gate:${g.editKey}`)}
             >
               <div>
-                <div style={{ fontSize: 13, fontWeight: 500 }}>{g.label}</div>
+                <div style={{ fontSize: 13, fontWeight: 500 }}>
+                  {g.label === "S&T / balance sheet" ? (
+                    <Term id="S&T / balance sheet">{g.label}</Term>
+                  ) : (
+                    g.label
+                  )}
+                </div>
                 {g.helper && (
                   <div
                     style={{

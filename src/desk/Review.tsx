@@ -1,5 +1,6 @@
 import React from "react";
 import DemoFooter from "@/components/DemoFooter";
+import { Term } from "@/components/Term";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
   DriftEvent,
@@ -148,7 +149,10 @@ function DriftCard({
   lookalikes,
   rejectionReason,
   observedOutcome,
+  explainTier = false,
 }: {
+  // True on the one card per page that wraps "Tier" in a glossary tooltip.
+  explainTier?: boolean;
   drift: DriftLike;
   firmName: string;
   firmObj: unknown;
@@ -260,6 +264,16 @@ function DriftCard({
           style={{ display: "flex", alignItems: "center", gap: 6 }}
           title="tier · score at decision time → tier · score now"
         >
+          <span
+            style={{
+              fontSize: 10,
+              letterSpacing: "0.12em",
+              textTransform: "uppercase",
+              color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
+            }}
+          >
+            {explainTier ? <Term id="Tier">Tier</Term> : "Tier"}
+          </span>
           <TierBadge tier={priorTierName} score={drift.priorScore ?? null} />
           <svg
             width="14"
@@ -780,7 +794,9 @@ function Review(): React.ReactElement {
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.15 }}>
-            <span style={{ fontWeight: 500, fontSize: 16 }}>Drift queue</span>
+            <span style={{ fontWeight: 500, fontSize: 16 }}>
+              <Term id="Drift">Drift</Term> queue
+            </span>
             <span
               style={{
                 fontSize: 11,
@@ -865,15 +881,16 @@ function Review(): React.ReactElement {
                   maxWidth: "44ch",
                 }}
               >
-                Beacon watches the ontology for score-changing updates on firms you&rsquo;ve already
-                passed. When a stale reason is invalidated, it surfaces here.
+                Beacon watches for score-changing updates on firms you&rsquo;ve already passed. When
+                a stale reason is invalidated, it surfaces here.
               </p>
             </div>
           )}
 
-          {ordered.open.map((d) => (
+          {ordered.open.map((d, i) => (
             <DriftCard
               key={d.driftEventId}
+              explainTier={i === 0}
               drift={d}
               firmName={firmNameById.get(d.firmId ?? "") ?? d.firmId ?? "Unknown firm"}
               firmObj={firmById.get(d.firmId ?? "")}
