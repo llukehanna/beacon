@@ -1,6 +1,6 @@
 import type { ApplyOptions } from "../actions/apply.js";
 import type { Db, Queryable } from "../db/client.js";
-import { OBJECT_TABLES, ddl } from "../db/ddl.js";
+import { OBJECT_TABLES, ensureSchema } from "../db/ddl.js";
 import { setMeta } from "../db/meta.js";
 import { insertObjects } from "../db/repo.js";
 import { seedHistory } from "./history.js";
@@ -32,7 +32,7 @@ export async function resetDemo(
   now: Date = new Date(),
   opts: Pick<ApplyOptions, "newId"> = {},
 ): Promise<{ firms: number }> {
-  await db.exec(ddl());
+  await ensureSchema(db);
   const universe = generateUniverse();
   await db.transaction(async (tx) => {
     await tx.query(`TRUNCATE ${[...OBJECT_TABLES, "search_list_firm"].join(", ")}`);
