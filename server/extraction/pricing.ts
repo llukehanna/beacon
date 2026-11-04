@@ -7,8 +7,9 @@
  * token, cache reads and writes included.
  *
  * `minCacheableTokens` is the shortest prompt prefix the model will cache; a shorter one
- * silently does not cache even with a cache_control marker (4096 for Haiku 4.5; 512 for
- * Sonnet 5.5, a newer model whose value the skill says to confirm in the prompt-caching docs).
+ * silently does not cache even with a cache_control marker (4096 for Haiku 4.5). The skill lists
+ * 512 for Sonnet 5.5 but says to confirm newest models in the prompt-caching docs, so 4096 is
+ * assumed until it is confirmed: that only ever under-credits caching, never over-credits it.
  */
 import type { FixtureRecord } from "./fixtures.js";
 
@@ -33,23 +34,25 @@ export const PRICES: Record<string, ModelPrice> = {
     outputPerMTok: 10,
     cacheReadPerMTok: 0.2,
     cacheWritePerMTok: 2.5,
-    minCacheableTokens: 512,
+    minCacheableTokens: 4096,
   },
 };
 
 const BATCH_FACTOR = 0.5;
 const CHARS_PER_TOKEN = 4;
-/** Planning figure for a reply: the shape is a short JSON list, well under max_tokens. */
+/** Default planning figure for a reply; a caller that needs a ceiling passes max_tokens instead. */
 const OUTPUT_TOKENS_PER_FIRM = 600;
 
+/** Own keys only: "constructor" and "__proto__" are not models. */
+export const hasPrice = (model: string): boolean => Object.hasOwn(PRICES, model);
+
 function priceOf(model: string): ModelPrice {
-  const price = PRICES[model];
-  if (!price) {
+  if (!hasPrice(model)) {
     throw new Error(
       `No price for model "${model}". Add it to PRICES in server/extraction/pricing.ts.`,
     );
   }
-  return price;
+  return PRICES[model];
 }
 
 /** Dollars for one request's reported usage. */
@@ -77,21 +80,21 @@ export function systemPromptCaches(model: string, systemChars: number): boolean 
  * A planning estimate for one firm: 4 characters per token and 600 output tokens. The system
  * prompt is priced as a cache read (every firm after the first) only when it is long enough to
  * cache; otherwise it is full-price input, so a short prompt never earns a discount it will not get.
+ * `outputTokens` defaults to 600; pass the request's max_tokens for a worst-case figure.
  */
 export function estimateFirmCostUsd(
   model: string,
   userMessageChars: number,
   systemChars: number,
   batch: boolean,
+  outputTokens: number = OUTPUT_TOKENS_PER_FIRM,
 ): number {
   const p = priceOf(model);
   const userTokens = Math.ceil(userMessageChars / CHARS_PER_TOKEN);
   const systemTokens = Math.ceil(systemChars / CHARS_PER_TOKEN);
   const systemRate = systemPromptCaches(model, systemChars) ? p.cacheReadPerMTok : p.inputPerMTok;
   const dollars =
-    (userTokens * p.inputPerMTok +
-      systemTokens * systemRate +
-      OUTPUT_TOKENS_PER_FIRM * p.outputPerMTok) /
+    (userTokens * p.inputPerMTok + systemTokens * systemRate + outputTokens * p.outputPerMTok) /
     1_000_000;
   return batch ? dollars * BATCH_FACTOR : dollars;
 }

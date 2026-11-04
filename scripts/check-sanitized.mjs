@@ -25,7 +25,7 @@ const SKIP_DIRS = new Set([
   ".claude",
 ]);
 const SKIP_FILES = new Set(["scripts/check-sanitized.mjs", "package-lock.json"]);
-const TEXT_EXT = /\.(ts|tsx|js|mjs|cjs|json|md|html|css|svg|yml|yaml|txt)$/i;
+const TEXT_EXT = /\.(ts|tsx|js|mjs|cjs|json|md|html|css|svg|yml|yaml|txt|jsonl)$/i;
 const MAX_NGRAM = 4;
 
 /** Structural patterns that identify nothing on their own. */

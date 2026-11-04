@@ -85,6 +85,20 @@ export function parseFixtureLines(text: string): FixtureRecord[] {
 }
 
 /**
+ * Make fixture text safe to append to. A run killed mid-write can leave a last line with no
+ * newline: if it is a whole record, the newline is added; if it is a fragment, it is dropped.
+ */
+export function repairFixtureText(text: string): string {
+  if (text === "" || text.endsWith("\n")) {
+    return text;
+  }
+  const lastLine = text.slice(text.lastIndexOf("\n") + 1);
+  return parseFixtureLines(lastLine).length > 0
+    ? `${text}\n`
+    : text.slice(0, text.length - lastLine.length);
+}
+
+/**
  * The `Extraction` rows for one record, one per item with a value, each marked grounded or
  * rejected by the same check the agent applies. A record is ignored (no rows) when its reply
  * was unusable, or when it was made against other document text or another prompt version:
