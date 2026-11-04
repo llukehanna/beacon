@@ -2,14 +2,36 @@ import { describe, expect, it } from "vitest";
 import { OBJECT_TYPES } from "../../shared/schema.js";
 import type { Db } from "../db/client.js";
 import { getMeta } from "../db/meta.js";
+import { EXTRACTION_PROMPT_VERSION, ruleBasedExtraction } from "../extraction/contract.js";
+import { documentsHash, firmDocuments } from "../extraction/documents.js";
+import type { FixtureRecord } from "../extraction/fixtures.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
 import { resetFromSnapshot, saveSnapshot } from "./snapshot.js";
+import { generateUniverse } from "./universe.js";
 
 /** Sequential ids, so two builds of the same history get the same primary keys. */
 function sequentialIds(): (prefix: string) => string {
   let n = 0;
   return (prefix) => `${prefix}-${++n}`;
+}
+
+/** One valid record built from the rule-based output, so its quotes ground and it yields rows. */
+function oneFixture(takenAt: Date): FixtureRecord {
+  const firm = generateUniverse()[0];
+  const docs = firmDocuments(firm);
+  return {
+    firmId: firm.firmId!,
+    model: "claude-haiku-4-5",
+    promptVersion: EXTRACTION_PROMPT_VERSION,
+    documentsHash: documentsHash(docs),
+    createdAt: takenAt.toISOString(),
+    output: ruleBasedExtraction(docs),
+    usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0, cacheWriteTokens: 0 },
+    costUsd: 0,
+    latencyMs: null,
+    batchId: null,
+  };
 }
 
 /** Every demo table, rows ordered by primary key. */
@@ -31,7 +53,8 @@ describe("resetFromSnapshot", () => {
     const later = new Date("2026-10-05T23:59:30.123Z");
 
     const restored = await createTestDb();
-    await resetDemo(restored, takenAt, { newId: sequentialIds() });
+    const fixtures = [oneFixture(takenAt)];
+    await resetDemo(restored, takenAt, { newId: sequentialIds(), fixtures });
     await saveSnapshot(restored, takenAt);
     // Visitors change things before the next reset; the snapshot must not care.
     await restored.query(`DELETE FROM review_decision`);
@@ -39,9 +62,13 @@ describe("resetFromSnapshot", () => {
     expect(await resetFromSnapshot(restored, later)).toEqual({ firms: 700 });
 
     const rebuilt = await createTestDb();
-    await resetDemo(rebuilt, later, { newId: sequentialIds() });
+    await resetDemo(rebuilt, later, { newId: sequentialIds(), fixtures });
 
     const [a, b] = [await dump(restored), await dump(rebuilt)];
+    expect(
+      (b.extraction as unknown[]).length,
+      "the fixture produced Extraction rows",
+    ).toBeGreaterThan(0);
     for (const table of Object.keys(b)) {
       expect(a[table].length, table).toBe(b[table].length);
       expect(a[table], table).toEqual(b[table]);

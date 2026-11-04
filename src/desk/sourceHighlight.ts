@@ -78,6 +78,15 @@ export function modelLabel(model: string | null | undefined): string | null {
   return `Claude ${family} ${m[2]}.${m[3]}`;
 }
 
+/** What the model chip's tooltip says: the read was recorded when the demo data was built, never live. */
+export function modelChipTitle(model: string | null | undefined): string {
+  const label = modelLabel(model);
+  if (model === RULE_BASED || label === null) {
+    return "Read by a rule-based extractor (no model).";
+  }
+  return `Read by ${label} when the demo data was built; no model runs on this page.`;
+}
+
 /**
  * A finding's excerpt as displayed. Only an excerpt backed by a source document is a quotation;
  * an abstention reason or "Analyst entered ..." note is plain text. Null when there is none.

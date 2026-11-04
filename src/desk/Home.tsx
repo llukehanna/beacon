@@ -803,8 +803,8 @@ function Home(): React.ReactElement {
                         marginTop: 4,
                       }}
                     >
-                      Share of findings where no source had a value and Beacon recorded that instead
-                      of guessing.
+                      Share of findings where Beacon recorded no value because no source stated one,
+                      or the stated value had no supporting quote.
                     </div>
                   </Link>
 
