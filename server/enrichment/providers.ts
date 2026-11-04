@@ -24,17 +24,17 @@ export interface Observation {
   sourceExcerpt: string;
 }
 
-interface FirmRef {
+export interface FirmRef {
   firmId?: string | null;
   firmName?: string | null;
   firmType?: string | null;
   $primaryKey?: string;
 }
 
-const idOf = (f: FirmRef): string => f.$primaryKey ?? f.firmId ?? "";
+export const idOf = (f: FirmRef): string => f.$primaryKey ?? f.firmId ?? "";
 const isCs = (f: FirmRef): boolean => (f.firmType ?? "").toLowerCase() === "cs";
 
-const PROVIDERS: Readonly<
+export const PROVIDERS: Readonly<
   Record<
     Provider,
     {
@@ -152,8 +152,12 @@ function wrongValue(firm: FirmRef, axis: AxisDef, truth: string, r: () => number
   );
 }
 
-/** What one provider reports for one firm and axis, or null if it has nothing. */
-export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Observation | null {
+/** One provider's raw draw for one firm and axis: the value it reports and how sure it is. */
+function draw(
+  provider: Provider,
+  firm: FirmRef,
+  axis: AxisDef,
+): { value: string; confidence: number } | null {
   const p = PROVIDERS[provider];
   if (!p.axes.includes(axis.axis)) {
     return null;
@@ -165,12 +169,36 @@ export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Obser
   const truth = truthFor(firm, axis);
   const value = r() < p.errorRate ? wrongValue(firm, axis, truth, r) : truth;
   const confidence = Math.round((p.conf[0] + r() * (p.conf[1] - p.conf[0])) * 100) / 100;
+  return { value, confidence };
+}
+
+/** What one provider reports for one firm and axis, or null if it has nothing. */
+export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Observation | null {
+  const d = draw(provider, firm, axis);
+  if (!d) {
+    return null;
+  }
+  const p = PROVIDERS[provider];
   return {
     provider,
     axis: axis.axis,
-    value,
-    confidence,
+    value: d.value,
+    confidence: d.confidence,
     sourceUrl: `https://${p.host}/firms/${encodeURIComponent(idOf(firm))}#${axis.axis}`,
-    sourceExcerpt: `${p.label} lists ${axis.axis.replace(/_/g, " ")} for ${firm.firmName ?? "this firm"} as "${value}".`,
+    sourceExcerpt: `${p.label} lists ${axis.axis.replace(/_/g, " ")} for ${firm.firmName ?? "this firm"} as "${d.value}".`,
   };
+}
+
+/**
+ * The confidence `observe` assigns to this provider's answer. Where the
+ * provider has nothing for the firm and axis, its midpoint confidence.
+ */
+export function confidenceFor(provider: Provider, firm: FirmRef, axis: AxisDef): number {
+  const d = draw(provider, firm, axis);
+  if (d) {
+    return d.confidence;
+  }
+  const [lo, hi] = PROVIDERS[provider].conf;
+  // Whole hundredths first, so a .5 midpoint rounds up instead of tripping on float error.
+  return Math.round((Math.round(lo * 100) + Math.round(hi * 100)) / 2) / 100;
 }
