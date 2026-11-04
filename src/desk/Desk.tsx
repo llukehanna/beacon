@@ -873,17 +873,35 @@ function QueueSidebar({
       <BrandMark section="Enrichment Desk" />
       <WorkspaceNavLinks />
 
-      <div style={{ padding: "0 4px", marginTop: 4 }}>
+      <div
+        style={{
+          padding: "0 4px",
+          marginTop: 4,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+        }}
+      >
         <Kicker>Queue</Kicker>
-        <div
+        <label
           style={{
-            fontSize: 10,
-            marginTop: 4,
-            color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: 11,
+            cursor: "pointer",
+            color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
           }}
         >
-          sorted by expected gain
-        </div>
+          <input
+            type="checkbox"
+            checked={showAll}
+            onChange={(e) => setShowAll(e.target.checked)}
+            style={{ accentColor: "var(--color-accent)", cursor: "pointer" }}
+          />
+          Show all firms
+        </label>
       </div>
 
       {/* Search */}
@@ -931,30 +949,11 @@ function QueueSidebar({
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{queue.length}</span> {scopeLabel}
             {": "}
             <span style={{ fontVariantNumeric: "tabular-nums" }}>{openScreenedCount}</span> open
-            firm{openScreenedCount === 1 ? "" : "s"} screened by approved rules
+            firm{openScreenedCount === 1 ? "" : "s"} screened by approved rules{" · "}sorted by
+            expected gain
           </>
         )}
       </div>
-
-      <label
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 8,
-          padding: "0 4px",
-          fontSize: 11,
-          cursor: "pointer",
-          color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-        }}
-      >
-        <input
-          type="checkbox"
-          checked={showAll}
-          onChange={(e) => setShowAll(e.target.checked)}
-          style={{ accentColor: "var(--color-accent)", cursor: "pointer" }}
-        />
-        Show all firms
-      </label>
 
       {/* Only shown when the view is narrower or wider than the header's
           headline number, so the list count is never ambiguous. */}

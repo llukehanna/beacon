@@ -49,6 +49,15 @@ export default function DemoFooter(): React.ReactElement {
     return () => document.removeEventListener("pointerdown", onPointerDown);
   }, [confirming]);
 
+  // The floating note is transient; it clears itself.
+  React.useEffect(() => {
+    if (message === null) {
+      return undefined;
+    }
+    const t = window.setTimeout(() => setMessage(null), 8000);
+    return () => window.clearTimeout(t);
+  }, [message]);
+
   const close = React.useCallback((): void => {
     setConfirming(false);
     triggerRef.current?.focus();
@@ -103,33 +112,59 @@ export default function DemoFooter(): React.ReactElement {
         position: "relative",
         flex: "none",
         marginTop: "auto",
-        paddingTop: 12,
+        paddingTop: 8,
         borderTop: "1px solid var(--color-divider)",
         display: "flex",
-        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "space-between",
         gap: 8,
-        alignItems: "flex-start",
       }}
     >
-      <span style={noteStyle}>Demo · synthetic data · resets daily</span>
+      <span style={{ ...noteStyle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
+        Demo data · resets daily
+      </span>
       <button
         ref={triggerRef}
         type="button"
         className="btn btn-secondary"
+        aria-label="Reset demo"
         aria-haspopup="dialog"
         aria-expanded={confirming}
         disabled={busy}
         onClick={() => setConfirming((v) => !v)}
+        style={{ flex: "none", padding: "3px 10px", fontSize: 12 }}
       >
-        {busy ? "Resetting…" : "Reset demo"}
+        {busy ? "Resetting…" : "Reset"}
       </button>
-      {/* Always mounted so screen readers announce changes. */}
+      {/* Always mounted so screen readers announce changes; the visible note floats above the
+          row so the footer stays one line tall. */}
       <span
         role="status"
-        style={{
-          ...noteStyle,
-          color: message?.error ? "#f4abab" : noteStyle.color,
-        }}
+        style={
+          message === null || confirming
+            ? {
+                position: "absolute",
+                width: 1,
+                height: 1,
+                overflow: "hidden",
+                clip: "rect(0 0 0 0)",
+              }
+            : {
+                ...noteStyle,
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: "calc(100% + 8px)",
+                zIndex: 20,
+                padding: "8px 10px",
+                borderRadius: "var(--radius-md)",
+                background: "var(--color-surface)",
+                border: "1px solid var(--color-divider)",
+                color: message.error
+                  ? "#f4abab"
+                  : "color-mix(in srgb, var(--color-text) 72%, transparent)",
+              }
+        }
       >
         {message?.text ?? ""}
       </span>
