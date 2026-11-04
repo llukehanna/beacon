@@ -34,6 +34,7 @@ import {
 } from "../../shared/trustMetrics.js";
 import { type Db } from "../db/client.js";
 import { insertObjects, listAll, listLinked } from "../db/repo.js";
+import { type SourceDocument, sourceDocument } from "../extraction/documents.js";
 import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
 import { findingCells } from "./findings.js";
@@ -346,6 +347,31 @@ describe("accuracySummary", () => {
     expect(keys).not.toContain("analyst");
     expect(keys.at(-1)).toBe("__none__");
     expect(summary.byProvider.at(-1)!.r.abstention).toBe(100);
+  });
+});
+
+describe("sourceDocument", () => {
+  it("returns the firm's document and 404s on unknown ids", async () => {
+    const [firm] = await listAll(db, "Firm", { where: { lifecycleState: { $eq: "Screening" } } });
+    const doc = (await runFunction(db, "sourceDocument", {
+      firmId: firm.$primaryKey,
+      provider: "dealdb",
+    })) as SourceDocument;
+    expect(doc).toEqual(sourceDocument("dealdb", firm));
+    expect(doc.documentId).toBe(`dealdb:${firm.$primaryKey}`);
+    expect(doc.body).toContain(firm.firmName);
+
+    const unknownFirm = runFunction(db, "sourceDocument", {
+      firmId: "no-such-firm",
+      provider: "dealdb",
+    });
+    await expect(unknownFirm).rejects.toMatchObject({ status: 404 });
+    const unknownProvider = runFunction(db, "sourceDocument", {
+      firmId: firm.$primaryKey,
+      provider: "nope",
+    });
+    await expect(unknownProvider).rejects.toMatchObject({ status: 404 });
+    await expect(runFunction(db, "sourceDocument", {})).rejects.toMatchObject({ status: 404 });
   });
 });
 
