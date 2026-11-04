@@ -6,14 +6,14 @@ export const GLOSSARY: Record<string, string> = {
   "Model: both":
     "This rule applies to both Corporate Finance (CF) and Capital Solutions (CS) firms.",
   "S&T / balance sheet":
-    "Sales and trading, or principal activity on the firm's own balance sheet. Pass means the firm has none, so it can advise without a conflict.",
+    "Sales and trading, or principal activity on the firm's own balance sheet. Pass means the firm has none. It screens a firm out only when an approved rule uses it.",
   Coverage:
     "How the firm organizes its bankers: around a single sector, several sectors, or as generalists.",
   "Hard gate":
-    "A pass/fail requirement that screens a firm out regardless of its score. Fail any one and the firm is hard-rejected.",
+    "Pass/fail checks on a firm. An advisory conflict hard-rejects a CS firm automatically. S&T / balance sheet, web activity and solvent screen a firm out only when an approved rule uses them. Other automatic rejections (CS principal investors; CF generalists and conflicted services) come from the scored axes.",
   Drift:
-    "New evidence has changed a firm's score or tier since the analyst last decided on it, so the earlier reason may no longer hold.",
-  Tier: "The band an 18-point rubric score falls into: A is a strong fit, B moderate, C weak, and Rejected is below C.",
+    "A firm has moved since the analyst decided on it. Either a qualified firm's tier changed; a passed firm now scores in a higher tier, so the reason for passing may no longer hold; or a passed firm's outcome diverged from the pass, such as being acquired by a competitor.",
+  Tier: "The band a firm's 18-point rubric score falls into: A (strong fit), B (moderate fit), C (weak fit), or Rejected below C. Cut-offs differ by thesis: A is 14+ for CF and 13+ for CS; B is 10+ and C is 6+ for both. A hard-rejected firm is Rejected at 0.",
   Abstention:
     "No source had the value, so the agent recorded that instead of guessing. It marks where analyst judgment is needed.",
 };

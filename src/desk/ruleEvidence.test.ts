@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { TIER_THRESHOLDS } from "../../shared/scoreMirror";
 import { GLOSSARY } from "./glossary";
 import { type EvidenceDecision, buildRejectionNotes } from "./ruleEvidence";
 
@@ -67,5 +68,13 @@ describe("GLOSSARY", () => {
     ]) {
       expect(GLOSSARY[k]).toBeTruthy();
     }
+  });
+
+  it("states the real tier cut-offs", () => {
+    const { CF, CS } = TIER_THRESHOLDS;
+    expect(GLOSSARY.Tier).toContain(`A is ${CF.A}+ for CF and ${CS.A}+ for CS`);
+    expect(CF.B).toBe(CS.B);
+    expect(CF.C).toBe(CS.C);
+    expect(GLOSSARY.Tier).toContain(`B is ${CF.B}+ and C is ${CF.C}+`);
   });
 });

@@ -12,6 +12,7 @@ import {
   dismissRuleAction,
   unapproveRuleAction,
 } from "@/data/ontology";
+import { firmFieldFor } from "../../shared/queue";
 import { ProposeRulesButton } from "./ProposeRulesButton";
 // Shared with the desk so a rule's screen count on this card and the desk's
 // "N screened by approved rules" are the same arithmetic over the same firms.
@@ -283,6 +284,9 @@ function RuleCard({
       ? null
       : countScreened(firms, screenRules);
   const projectionUnavailable = screenRules.length > 0 && !isEvaluable(screenRules[0]);
+  // A rule on a resolvable axis with a string operator (=, in, contains) is
+  // matched by the queue's own matcher even though the card cannot count it.
+  const textRule = projectionUnavailable && firmFieldFor(screenRules[0].axis) !== null;
 
   const currentVersion =
     effective?.configVersion ??
@@ -568,7 +572,9 @@ function RuleCard({
             color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
           }}
         >
-          Screen count shown after approval for text-based rules.
+          {textRule
+            ? "Screen count isn\u2019t available for text-based rules. Once approved, they still screen matching firms in the queue."
+            : "Screen count isn\u2019t available for this rule."}
         </div>
       )}
 
