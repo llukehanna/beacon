@@ -9,6 +9,7 @@ import {
   toScreeningRules,
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
+import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import {
   ENUM_EDIT_KEYS,
   FINDING_AXIS_TO_KEY,
@@ -1972,23 +1973,110 @@ describe("windowSegments", () => {
 describe("axisBadge — what an axis row shows beside its finding", () => {
   it("an abstained axis reads 'No source — needs you' with no provider or confidence chip", () => {
     const finding = { findingId: "1", provider: "exa", confidenceTier: "abstain" };
-    expect(axisBadge(classifyAxis(finding))).toEqual({
+    expect(axisBadge(classifyAxis(finding), false)).toEqual({
       label: "No source \u2014 needs you",
       showProvider: false,
       showConfidence: false,
     });
   });
 
+  it("an abstained axis that already has a value shows the value, not 'needs you'", () => {
+    const finding = { findingId: "1", provider: "exa", confidenceTier: "abstain" };
+    expect(axisBadge(classifyAxis(finding), true)).toEqual({
+      label: null,
+      showProvider: false,
+      showConfidence: false,
+    });
+  });
+
   it("only a proposed value carries a confidence chip", () => {
-    expect(axisBadge("proposed")).toMatchObject({
+    expect(axisBadge("proposed", false)).toMatchObject({
       label: null,
       showProvider: true,
       showConfidence: true,
     });
-    expect(axisBadge("verified")).toMatchObject({
+    expect(axisBadge("verified", true)).toMatchObject({
       label: null,
       showProvider: true,
       showConfidence: false,
     });
+  });
+});
+
+describe("deskPanelState — one panel state at a time", () => {
+  const base: DeskPanelInputs = {
+    selectedId: undefined,
+    firmsLoading: false,
+    membershipLoading: false,
+    hasError: false,
+    searchActive: false,
+    inView: false,
+    inDatabase: false,
+    viewCount: 10,
+  };
+
+  it("shows the skeleton, not 'Pick a firm', while a deep-linked firm loads", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", firmsLoading: true })).toBe("skeleton");
+  });
+
+  it("shows the empty prompt for no firmId, loading or not", () => {
+    expect(deskPanelState(base)).toBe("empty");
+    expect(deskPanelState({ ...base, firmsLoading: true })).toBe("empty");
+  });
+
+  it("renders the firm once it is in the view", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", inView: true, inDatabase: true })).toBe(
+      "firm",
+    );
+  });
+
+  it("calls an id not in the full list not-found only after loading, with no error", () => {
+    expect(deskPanelState({ ...base, selectedId: "nope" })).toBe("not-found");
+    expect(deskPanelState({ ...base, selectedId: "nope", firmsLoading: true })).toBe("skeleton");
+  });
+
+  it("a failed query reports the error, never not-found", () => {
+    expect(deskPanelState({ ...base, selectedId: "f1", hasError: true })).toBe("error");
+    expect(deskPanelState({ ...base, hasError: true })).toBe("error");
+  });
+
+  it("holds the skeleton while search membership loads, even for a real firm", () => {
+    expect(
+      deskPanelState({
+        ...base,
+        selectedId: "f1",
+        searchActive: true,
+        membershipLoading: true,
+        inDatabase: true,
+      }),
+    ).toBe("skeleton");
+  });
+
+  it("a real firm outside the active search is not-in-search", () => {
+    expect(
+      deskPanelState({ ...base, selectedId: "f1", searchActive: true, inDatabase: true }),
+    ).toBe("not-in-search");
+  });
+
+  it("a member of the active search renders the firm", () => {
+    expect(
+      deskPanelState({
+        ...base,
+        selectedId: "f1",
+        searchActive: true,
+        inDatabase: true,
+        inView: true,
+      }),
+    ).toBe("firm");
+  });
+
+  it("an empty active search shows only the search-empty panel", () => {
+    expect(deskPanelState({ ...base, searchActive: true, viewCount: 0 })).toBe("search-empty");
+    expect(
+      deskPanelState({ ...base, searchActive: true, viewCount: 0, membershipLoading: true }),
+    ).toBe("search-empty");
+    expect(deskPanelState({ ...base, searchActive: true, viewCount: 0, firmsLoading: true })).toBe(
+      "empty",
+    );
   });
 });

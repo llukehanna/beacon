@@ -79,17 +79,25 @@ export function classifyAxis(auth: FindingLike): AxisState {
 
 /** What the axis breakdown row shows beside a finding-backed axis. */
 export interface AxisBadge {
-  /** Replaces the chips when no source had a value. */
+  /** Replaces the chips when no source had a value and the axis is still empty. */
   label: string | null;
   showProvider: boolean;
   /** The High/Low chip describes a model's proposal, so only proposed values carry one. */
   showConfidence: boolean;
 }
 
-export function axisBadge(state: AxisState): AxisBadge {
+/**
+ * `hasValue` is whether the axis has a value on file (or staged). An abstained finding on an axis
+ * that already has a value is history, not work: the row shows the value and no "needs you".
+ */
+export function axisBadge(state: AxisState, hasValue: boolean): AxisBadge {
   switch (state) {
     case "abstained":
-      return { label: "No source \u2014 needs you", showProvider: false, showConfidence: false };
+      return {
+        label: hasValue ? null : "No source \u2014 needs you",
+        showProvider: false,
+        showConfidence: false,
+      };
     case "verified":
       return { label: null, showProvider: true, showConfidence: false };
     case "proposed":
