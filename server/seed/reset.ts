@@ -1,5 +1,6 @@
 import type { Props } from "../../shared/schema.js";
 import type { ApplyOptions } from "../actions/apply.js";
+import type { Clusterer } from "../clustering/types.js";
 import type { Db, Queryable } from "../db/client.js";
 import { OBJECT_TABLES, ensureSchema } from "../db/ddl.js";
 import { setMeta } from "../db/meta.js";
@@ -29,11 +30,12 @@ function joined(tx: Queryable, db: Db): Db {
  * failure or timeout rolls back cleanly. It also saves a BEGIN/COMMIT round
  * trip per seeded action. `fixtures` are extraction records (from `fixtures/extraction`); their
  * rows go in right after the firms, so the agent's enrichment in the seeded history reads them.
+ * `clusterer` replaces the deterministic one that groups the seeded rejections (a recorded Claude reply).
  */
 export async function resetDemo(
   db: Db,
   now: Date = new Date(),
-  opts: Pick<ApplyOptions, "newId"> & { fixtures?: FixtureRecord[] } = {},
+  opts: Pick<ApplyOptions, "newId"> & { fixtures?: FixtureRecord[]; clusterer?: Clusterer } = {},
 ): Promise<{ firms: number }> {
   await ensureSchema(db);
   const universe = generateUniverse();

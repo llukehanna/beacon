@@ -30,7 +30,11 @@ import {
 } from "../server/extraction/pricing.js";
 import { generateUniverse } from "../server/seed/universe.js";
 import { firmModel } from "../shared/scoring.js";
+import { recordClustering } from "./cluster-fixture.js";
 
+// `--clustering` instead records the one Claude call that groups the seeded rejections into rule
+// proposals, as fixtures/clustering/clusters.json (see scripts/cluster-fixture.ts).
+//
 // Reads every firm's four mock source documents with Claude and appends one JSONL line per firm to
 // fixtures/extraction/<model>.jsonl, which the seed loads. Resumable: a firm with a current line
 // is skipped, so a rerun only pays for what is missing. --max-usd caps one run's spend; no batch
@@ -93,13 +97,21 @@ if (!hasPrice(model)) {
 if (resumeBatch !== undefined && (sync || !/^msgbatch_[A-Za-z0-9]+$/.test(resumeBatch))) {
   fail("--resume-batch takes a batch id (msgbatch_...) and cannot be combined with --sync.", 2);
 }
-if (values.clustering) {
-  fail("--clustering is not available yet; it arrives with the showcase seed.", 2);
-}
 if (!process.env.ANTHROPIC_API_KEY) {
   fail(
     "ANTHROPIC_API_KEY is not set. Export it (or add it as a repository secret for the workflow) and rerun.",
   );
+}
+if (values.clustering) {
+  // One Claude call on the seeded rejections, written to fixtures/clustering/clusters.json.
+  try {
+    await recordClustering();
+  } catch (err) {
+    fail(
+      `Clustering failed: ${err instanceof Error ? `${err.name}: ${err.message}` : "unexpected error"}`,
+    );
+  }
+  process.exit(0);
 }
 
 const client = new Anthropic();
