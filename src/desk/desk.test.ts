@@ -10,6 +10,7 @@ import {
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
+import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
   ENUM_EDIT_KEYS,
   FINDING_AXIS_TO_KEY,
@@ -35,6 +36,7 @@ import { LIFECYCLE_BUCKETS, bucketOf, emptyBucketCounts, isOpenFirm } from "./pi
 import {
   DEFAULT_SORT,
   hqCode,
+  latestRejection,
   navTarget,
   nextSort,
   pipelineSort,
@@ -2078,5 +2080,73 @@ describe("deskPanelState — one panel state at a time", () => {
     expect(deskPanelState({ ...base, searchActive: true, viewCount: 0, firmsLoading: true })).toBe(
       "empty",
     );
+  });
+});
+
+describe("latestRejection", () => {
+  it("keeps only reject decisions, newest first per firm, so keep_passed never becomes the reason", () => {
+    const m = latestRejection([
+      { decisionId: "d4", firmId: "f1", decisionType: "keep_passed", rejectionRationale: "kept" },
+      { decisionId: "d3", firmId: "f1", decisionType: "reject", rejectionRationale: "Deal size" },
+      {
+        decisionId: "d2",
+        firmId: "f2",
+        decisionType: "acknowledge_drift",
+        rejectionRationale: "x",
+      },
+      { decisionId: "d1", firmId: "f1", decisionType: "reject", rejectionRationale: "older" },
+    ]);
+    expect([...m.keys()]).toEqual(["f1"]);
+    expect(m.get("f1")?.decisionId).toBe("d3");
+  });
+});
+
+describe("lookalikesFor", () => {
+  const drift = {
+    firmId: "self",
+    changedAxes: JSON.stringify([{ axis: "Deal Size", old: ">$150m", new: "<$25m" }]),
+  };
+  const firm = (firmId: string) => ({ firmId, firmName: firmId });
+  const reasons = new Map([
+    ["self", { rejectionRationale: "Deal size too small" }],
+    ["a", { rejectionRationale: "Deal size below our floor" }],
+    ["b", { rejectionRationale: "Bench too thin" }],
+    ["c", { rejectionRationale: "", analystCategorization: "deal size" }],
+  ]);
+
+  it("returns only firms passed for the drifted axis, never the drift's own firm", () => {
+    const hits = lookalikesFor(drift, [firm("self"), firm("a"), firm("b"), firm("c")], reasons);
+    expect(hits.map((f) => f.firmId)).toEqual(["a", "c"]);
+  });
+
+  it("is empty when no passed firm shares the reason", () => {
+    expect(lookalikesFor(drift, [firm("b")], reasons)).toEqual([]);
+    expect(lookalikesFor(drift, [firm("a")], new Map())).toEqual([]);
+    expect(lookalikesFor({ firmId: "self", changedAxes: "[]" }, [firm("a")], reasons)).toEqual([]);
+  });
+
+  it("orders by most recent decision and caps at nine", () => {
+    const many = new Map<string, { rejectionRationale: string }>();
+    const firms = [];
+    for (let i = 0; i < 12; i++) {
+      many.set(`f${i}`, { rejectionRationale: "Deal size" });
+      firms.push(firm(`f${i}`));
+    }
+    const hits = lookalikesFor(drift, [...firms].reverse(), many);
+    expect(hits.map((f) => f.firmId)).toEqual(firms.slice(0, 9).map((f) => f.firmId));
+  });
+});
+
+describe("RESOLUTION_LABEL", () => {
+  it("names every resolution an action writes and falls back to a readable form", () => {
+    expect(RESOLUTION_LABEL).toEqual({
+      re_engaged: "Re-engaged",
+      kept_passed: "Kept passed",
+      kept_in_pipeline: "Kept in pipeline",
+      passed: "Passed",
+    });
+    expect(resolutionLabel("kept_passed")).toBe("Kept passed");
+    expect(resolutionLabel("some_new_value")).toBe("Some new value");
+    expect(resolutionLabel(undefined)).toBe("Resolved");
   });
 });

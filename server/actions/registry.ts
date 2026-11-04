@@ -1,5 +1,5 @@
 import type { ActionName } from "../../shared/schema.js";
-import { keepPassed, reEngageFirm, setFirmOutcome } from "./drift.js";
+import { acknowledgeDrift, keepPassed, reEngageFirm, setFirmOutcome } from "./drift.js";
 import { enrichFirm, resolveConflict, runAgentEnrichment, verifyFinding } from "./findings.js";
 import { advanceStage, qualifyFirm, rejectFirm } from "./firms.js";
 import {
@@ -21,6 +21,7 @@ export const ACTIONS: Partial<Record<ActionName, ActionDef<any, any>>> = {
   setFirmOutcome,
   reEngageFirm,
   keepPassed,
+  acknowledgeDrift,
   runAgentEnrichment,
   verifyFinding,
   resolveConflict,

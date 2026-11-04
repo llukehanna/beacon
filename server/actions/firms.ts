@@ -10,6 +10,7 @@ import {
 import { updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { type FirmObj, iso, logDecision, snapshotScore } from "./common.js";
+import { resolveOpenDriftOnPass } from "./drift.js";
 import { defineAction } from "./types.js";
 
 const stateOf = (firm: FirmObj): LifecycleState => normalizeLifecycle(firm.lifecycleState);
@@ -66,7 +67,8 @@ export const rejectFirm = defineAction<{ firm: FirmObj; rejectionRationale: stri
       scoreAtDecision: result.weightedTotal,
       tierAtDecision: result.tier,
     });
-    return { created: [decisionId], modified: [firm.$primaryKey] };
+    const resolvedDrift = await resolveOpenDriftOnPass(ctx, firm.$primaryKey);
+    return { created: [decisionId], modified: [firm.$primaryKey, ...resolvedDrift] };
   },
 });
 

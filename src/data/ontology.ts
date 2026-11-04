@@ -43,6 +43,7 @@ export const advanceStageAction = act("advanceStage");
 export const setFirmOutcomeAction = act("setFirmOutcome");
 export const reEngageFirmAction = act("reEngageFirm");
 export const keepPassedAction = act("keepPassed");
+export const acknowledgeDriftAction = act("acknowledgeDrift");
 export const clusterRejectionsAction = act("clusterRejections");
 export const approveRuleAction = act("approveRule");
 export const dismissRuleAction = act("dismissRule");

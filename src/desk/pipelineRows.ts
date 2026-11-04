@@ -110,14 +110,15 @@ export interface DecisionLike {
 }
 
 /**
- * Newest reject decision per firm, in one pass. `decisions` must be ordered
- * newest first (the Pipeline query is decidedAt desc); the first reject seen
- * for a firm wins.
+ * Newest reject decision per firm, whole, in one pass. Only decisions whose
+ * type contains "reject" count, so a later keep_passed or acknowledge_drift
+ * never stands in for the reason a firm was passed. `decisions` must be
+ * ordered newest first; the map iterates in that order too.
  */
-export function rejectDecisionByFirm(
-  decisions: Iterable<DecisionLike>,
-): Map<string, RejectDecision> {
-  const byFirm = new Map<string, RejectDecision>();
+export function latestRejection<D extends { firmId?: string | null; decisionType?: string | null }>(
+  decisions: Iterable<D>,
+): Map<string, D> {
+  const byFirm = new Map<string, D>();
   for (const d of decisions) {
     const firmId = d.firmId ?? "";
     if (firmId === "" || byFirm.has(firmId)) {
@@ -126,6 +127,21 @@ export function rejectDecisionByFirm(
     if (!(d.decisionType ?? "").toLowerCase().includes("reject")) {
       continue;
     }
+    byFirm.set(firmId, d);
+  }
+  return byFirm;
+}
+
+/**
+ * Newest reject decision per firm, reduced to what the Pipeline row shows. `decisions` must be ordered
+ * newest first (the Pipeline query is decidedAt desc); the first reject seen
+ * for a firm wins.
+ */
+export function rejectDecisionByFirm(
+  decisions: Iterable<DecisionLike>,
+): Map<string, RejectDecision> {
+  const byFirm = new Map<string, RejectDecision>();
+  for (const [firmId, d] of latestRejection(decisions)) {
     const rationale = (d.rejectionRationale ?? "").trim();
     byFirm.set(firmId, {
       rationale: rationale === "" ? null : rationale,

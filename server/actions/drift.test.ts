@@ -124,6 +124,24 @@ describe("outcomes and resolution", () => {
     ).rejects.toMatchObject({ status: 409 });
   });
 
+  it("refuses to re-engage a firm that is not Passed", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" });
+    await updateObject(db, "Firm", firm.$primaryKey, {
+      dealSizeMUsd: 10,
+      dealsPerMdL3y: 0.5,
+      firmAge: 2,
+    });
+    const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
+    await expect(
+      run(db, "reEngageFirm", { firm: firm.$primaryKey, driftEvent: id }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Outreach");
+    expect((await getObject(db, "DriftEvent", id!))?.driftStatus).toBe("open");
+  });
+
   it("keeps a firm passed with a rationale", async () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
@@ -139,5 +157,73 @@ describe("outcomes and resolution", () => {
       where: { decisionType: { $eq: "keep_passed" } },
     });
     expect(decisions[0].rejectionRationale).toBe("Still too small to integrate.");
+  });
+});
+
+describe("acknowledgeDrift", () => {
+  async function driftedQualifiedFirm() {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    await updateObject(db, "Firm", firm.$primaryKey, {
+      dealSizeMUsd: 10,
+      dealsPerMdL3y: 0.5,
+      firmAge: 2,
+    });
+    const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
+    return { db, firm, id: id! };
+  }
+
+  it("resolves the drift as kept_in_pipeline, logs the note, and leaves the firm where it is", async () => {
+    const { db, firm, id } = await driftedQualifiedFirm();
+    await run(db, "acknowledgeDrift", { driftEvent: id, note: "Still worth a call." });
+    expect(await getObject(db, "DriftEvent", id)).toMatchObject({
+      driftStatus: "resolved",
+      resolution: "kept_in_pipeline",
+      resolvedBy: "demo-analyst",
+    });
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Qualified");
+    const decisions = await listAll(db, "ReviewDecision", {
+      where: { decisionType: { $eq: "acknowledge_drift" } },
+    });
+    expect(decisions).toHaveLength(1);
+    expect(decisions[0]).toMatchObject({
+      firmId: firm.$primaryKey,
+      rejectionRationale: "Still worth a call.",
+      tierAtDecision: "B",
+    });
+  });
+
+  it("accepts a missing note", async () => {
+    const { db, id } = await driftedQualifiedFirm();
+    await run(db, "acknowledgeDrift", { driftEvent: id, note: null });
+    expect((await getObject(db, "DriftEvent", id))?.resolution).toBe("kept_in_pipeline");
+  });
+
+  it("refuses an already-resolved drift", async () => {
+    const { db, id } = await driftedQualifiedFirm();
+    await run(db, "acknowledgeDrift", { driftEvent: id, note: null });
+    await expect(run(db, "acknowledgeDrift", { driftEvent: id, note: null })).rejects.toMatchObject(
+      { status: 409 },
+    );
+  });
+});
+
+describe("rejectFirm and open drift", () => {
+  it("resolves the firm's open drift events as passed", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    await updateObject(db, "Firm", firm.$primaryKey, {
+      dealSizeMUsd: 10,
+      dealsPerMdL3y: 0.5,
+      firmAge: 2,
+    });
+    const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
+    await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Moved too far" });
+    expect(await getObject(db, "DriftEvent", id!)).toMatchObject({
+      driftStatus: "resolved",
+      resolution: "passed",
+    });
   });
 });
