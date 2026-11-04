@@ -25,6 +25,7 @@ export const Search = obj("Search");
 export const SearchList = obj("SearchList");
 export const SearchMembership = obj("SearchMembership");
 export const ResearchFinding = obj("ResearchFinding");
+export const Extraction = obj("Extraction");
 export const QualificationScore = obj("QualificationScore");
 export const ReviewDecision = obj("ReviewDecision");
 export const DriftEvent = obj("DriftEvent");

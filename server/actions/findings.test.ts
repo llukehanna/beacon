@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { ObjectOf } from "../../shared/schema.js";
 import type { Db } from "../db/client.js";
 import { getObject, insertObject, listAll } from "../db/repo.js";
+import { EXTRACTION_PROMPT_VERSION, ruleBasedExtraction } from "../extraction/contract.js";
+import { documentsHash, firmDocuments } from "../extraction/documents.js";
 import { STRONG_CF, T0, createTestDb, run, seedFirm } from "../testing.js";
 
 const findingsOf = (db: Db, firmId: string) =>
@@ -58,6 +60,106 @@ describe("runAgentEnrichment", () => {
   });
 });
 
+async function storeExtractions(
+  db: Db,
+  firm: ObjectOf<"Firm">,
+  items: { provider: string; axis: string; value: string | null; quote: string | null }[],
+  opts: { model?: string; documentsHash?: string } = {},
+) {
+  const model = opts.model ?? "claude-haiku-4-5";
+  for (const i of items) {
+    await insertObject(db, "Extraction", {
+      extractionId: `${firm.$primaryKey}|${model}|${i.provider}|${i.axis}`,
+      firmId: firm.$primaryKey,
+      ...i,
+      model,
+      promptVersion: EXTRACTION_PROMPT_VERSION,
+      documentsHash: opts.documentsHash ?? documentsHash(firmDocuments(firm)),
+      grounded: true,
+      extractedAt: T0.toISOString(),
+    });
+  }
+}
+
+describe("runAgentEnrichment extraction", () => {
+  it("without extractions uses the rule-based extractor and cites documents", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
+    const docs = firmDocuments(firm);
+    const proposed = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.findingStatus === "proposed",
+    );
+    expect(proposed.length).toBeGreaterThan(0);
+    for (const f of proposed) {
+      const doc = docs.find((d) => d.documentId === f.sourceDocumentId);
+      expect(doc, f.axis).toBeDefined();
+      expect(f.extractionModel).toBe("rule-based");
+      expect(doc!.body).toContain(f.sourceQuote);
+      expect(f.sourceExcerpt).toBe(f.sourceQuote);
+      expect(f.sourceUrl).toBeUndefined();
+    }
+  });
+
+  it("uses stored extractions with a matching hash", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await storeExtractions(db, firm, ruleBasedExtraction(firmDocuments(firm)).items);
+    await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
+    const proposed = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.findingStatus === "proposed",
+    );
+    expect(proposed.length).toBeGreaterThan(0);
+    expect(proposed.every((f) => f.extractionModel === "claude-haiku-4-5")).toBe(true);
+  });
+
+  it("ignores stored extractions with a stale hash", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await storeExtractions(db, firm, ruleBasedExtraction(firmDocuments(firm)).items, {
+      documentsHash: "stale",
+    });
+    await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
+    const proposed = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.findingStatus === "proposed",
+    );
+    expect(proposed.length).toBeGreaterThan(0);
+    expect(proposed.every((f) => f.extractionModel === "rule-based")).toBe(true);
+  });
+
+  it("abstains with the grounding excerpt when the only covering quote is not in the source", async () => {
+    const db = await createTestDb();
+    // Deal size is covered by Deal DB alone; find a firm whose Deal DB document states it.
+    let firm: ObjectOf<"Firm"> | undefined;
+    for (let i = 0; i < 40 && !firm; i++) {
+      const candidate = await seedFirm(db, { firmId: `grounding-${i}` });
+      const dealdb = firmDocuments(candidate).find((d) => d.provider === "dealdb")!;
+      if (dealdb.fields.some((f) => f.axis === "deal_size_usd_m")) {
+        firm = candidate;
+      }
+    }
+    expect(firm).toBeDefined();
+    await storeExtractions(db, firm!, [
+      {
+        provider: "dealdb",
+        axis: "deal_size_usd_m",
+        value: "60",
+        quote: "Typical mandates close at 60 million dollars, per a press release we invented.",
+      },
+    ]);
+    await run(db, "runAgentEnrichment", { firm: firm!.$primaryKey });
+    const finding = (await findingsOf(db, firm!.$primaryKey)).find(
+      (f) => f.axis === "deal_size_usd_m",
+    );
+    expect(finding).toMatchObject({
+      findingStatus: "abstained",
+      sourceExcerpt:
+        "The model's answer for this axis was not supported by a quote in the source, so Beacon recorded no value.",
+    });
+    expect(finding?.sourceQuote).toBeUndefined();
+  });
+});
+
 describe("verifyFinding", () => {
   it("confirms an agent finding as human agreement", async () => {
     const db = await createTestDb();
@@ -83,6 +185,17 @@ describe("verifyFinding", () => {
       verifiedByHuman: false,
       normalizedScore: 2,
     });
+  });
+
+  it("writes an analyst excerpt that is not a quote", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await addFinding(db, { findingId: "f1", firmId: firm.$primaryKey });
+    await run(db, "verifyFinding", { finding: "f1", overrideValue: "200" });
+    const analyst = (await findingsOf(db, firm.$primaryKey)).find((f) => f.provider === "analyst");
+    expect(analyst?.sourceExcerpt).toBe("Analyst entered 200, replacing the Deal DB value 60.");
+    expect(analyst?.sourceQuote).toBeUndefined();
+    expect(analyst?.sourceDocumentId).toBeUndefined();
   });
 
   it("fills an abstention without counting it as agreement", async () => {
