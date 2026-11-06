@@ -125,6 +125,20 @@ describe("exportRows", () => {
     expect(citations[0][0].provider).toBeNull();
   });
 
+  it("does not credit a finding that has no value for the firm's own value", () => {
+    const { rows, citations } = exportRows(
+      [firm({ servicesFit: "Adjacent advisory services" })],
+      [finding({ value: "" })],
+    );
+    expect(rows[0].services_fit).toBe("Adjacent advisory services");
+    expect(citations[0].find((c) => c.axis === "services_fit")).toEqual({
+      axis: "services_fit",
+      provider: null,
+      quote: null,
+      model: null,
+    });
+  });
+
   it("uses the score and tier the page shows when it gives them", () => {
     const { rows } = exportRows([firm({ score: 15, tier: "A" })], []);
     expect(rows[0].score).toBe(15);
@@ -203,6 +217,17 @@ describe("exportFileName", () => {
       "beacon-eu-mid-market-q4-2026-11-06.csv",
     );
     expect(exportFileName("???", "csv", now)).toBe("beacon-targets-2026-11-06.csv");
+  });
+
+  it("keeps the CRM name when the base name is long", () => {
+    const now = new Date(2026, 10, 6);
+    const long =
+      "Find owner-managed advisory boutiques in the Nordics with a succession gap".repeat(2);
+    const names = ["Salesforce", "DealCloud", "Affinity"].map((crm) =>
+      exportFileName(long, "csv", now, crm),
+    );
+    expect(new Set(names).size).toBe(3);
+    expect(names[0]).toMatch(/-salesforce-2026-11-06\.csv$/);
   });
 });
 

@@ -18,11 +18,14 @@ export function MenuButton({
   label,
   items,
   disabled,
+  busy,
   variant,
 }: {
   label: ReactNode;
   items: readonly MenuItem[];
   disabled?: boolean;
+  /** Work in progress: the button stays focusable (aria-disabled) but does not open. */
+  busy?: boolean;
   variant?: "default" | "primary" | "ghost";
 }) {
   const [open, setOpen] = useState(false);
@@ -89,10 +92,12 @@ export function MenuButton({
         disabled={disabled}
         aria-haspopup="menu"
         aria-expanded={open}
+        aria-busy={busy || undefined}
+        aria-disabled={busy || undefined}
         aria-controls={open ? menuId : undefined}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => busy !== true && setOpen((o) => !o)}
         onKeyDown={(e) => {
-          if (e.key === "ArrowDown" && !open) {
+          if (e.key === "ArrowDown" && !open && busy !== true) {
             e.preventDefault();
             setOpen(true);
           }

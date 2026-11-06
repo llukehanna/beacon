@@ -43,6 +43,12 @@
   outline-offset: -2px;
 }
 
+/* The hover tint lifts the background, so the quiet text steps up to stay at 4.5:1. */
+.item:hover .hint,
+.item:focus-visible .hint {
+  color: var(--tx2);
+}
+
 .hint {
   display: block;
   color: var(--tx3);

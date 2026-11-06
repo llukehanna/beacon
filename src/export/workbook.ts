@@ -3,7 +3,6 @@ import {
   type Citation,
   type ExportRow,
   citationsTable,
-  neutralise,
   targetsTable,
 } from "../../shared/exportRows";
 
@@ -16,6 +15,15 @@ function widths(headers: string[], rows: Cell[][], cap = 60): { width: number }[
     }
     return { width: Math.min(cap, Math.max(10, widest + 2)) };
   });
+}
+
+// Every text cell is a string cell, which Excel never evaluates, whatever it starts with. The
+// text stays as it is: no apostrophe.
+function plain(c: Cell) {
+  if (typeof c === "string") {
+    return { value: c, type: String };
+  }
+  return typeof c === "number" ? { value: c, type: Number } : null;
 }
 
 /**
@@ -33,7 +41,7 @@ export async function buildWorkbook(
   const cites = citationsTable(rows, citations);
   const sheet = (t: { headers: string[]; rows: Cell[][] }) => [
     t.headers.map((h) => ({ value: h, fontWeight: "bold" as const })),
-    ...t.rows.map((r) => r.map((c) => neutralise(c))),
+    ...t.rows.map((r) => r.map(plain)),
   ];
   return writeExcelFile([
     {
