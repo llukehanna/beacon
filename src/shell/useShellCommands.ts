@@ -1,13 +1,19 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { useOsdkObjects, useOsdkQuery } from "@/data/hooks";
-import { Firm } from "@/data/ontology";
-import type { HomeSummary } from "../../shared/summaries";
+import { useOsdkObjects } from "@/data/hooks";
+import { Firm, Mandate } from "@/data/ontology";
 import { type Command, usePageCommands } from "./commands";
 import { NAV_ITEMS } from "./keys";
 
 /** Where the firm list stands: not asked for yet, on its way, failed, or available. */
 export type FirmStatus = "idle" | "loading" | "error" | "ready";
+
+interface MandateRow {
+  mandateId: string;
+  title?: string | null;
+  intentStatement?: string | null;
+  active?: boolean | null;
+}
 
 interface FirmRow {
   firmId: string;
@@ -17,9 +23,9 @@ interface FirmRow {
 
 /**
  * Every command the palette can offer: routes, active mandates, shell actions, the actions screens
- * register, and the firm list. Firms are only fetched once `loadFirms` is true (the first time the
- * palette opens), so the shell does not load the whole list on screens that never need it. The
- * firm query is the one the Desk makes, so opening the palette there costs nothing extra.
+ * register, and the firm list. Firms and mandates are only fetched once `loadFirms` is true (the
+ * first time the palette opens), so the shell does not load either list on screens that never need
+ * it. The firm query is the one the Desk makes, so opening the palette there costs nothing extra.
  */
 export function useShellCommands({
   loadFirms,
@@ -29,7 +35,11 @@ export function useShellCommands({
   onHelp: () => void;
 }): { commands: Command[]; firmCount: number | undefined; firmStatus: FirmStatus } {
   const navigate = useNavigate();
-  const { data: summary } = useOsdkQuery<HomeSummary>("homeSummary");
+  const { data: mandateData } = useOsdkObjects(Mandate, {
+    orderBy: { createdAt: "desc" },
+    autoFetchMore: true,
+    enabled: loadFirms,
+  });
   const { data: firmData, error: firmError } = useOsdkObjects(Firm, {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
@@ -56,15 +66,18 @@ export function useShellCommands({
 
   const mandates = React.useMemo<Command[]>(
     () =>
-      (summary?.mandates ?? []).map((m) => ({
-        id: `mandate:${m.mandateId}`,
-        // Named the way the mandate page names it: intent statement, then title.
-        label: (m.intentStatement ?? "").trim() || (m.title ?? "").trim() || m.mandateId,
-        group: "Mandates" as const,
-        // The mandate's own page; opening it changes no stored state (only its Run action does).
-        run: () => navigate(`/search/${encodeURIComponent(m.mandateId)}`),
-      })),
-    [summary, navigate],
+      ((mandateData ?? []) as unknown as MandateRow[])
+        // active === false retires a mandate; null predates the flag and still counts.
+        .filter((m) => m.active !== false)
+        .map((m) => ({
+          id: `mandate:${m.mandateId}`,
+          // Named the way the mandate page names it: intent statement, then title.
+          label: (m.intentStatement ?? "").trim() || (m.title ?? "").trim() || m.mandateId,
+          group: "Mandates" as const,
+          // The mandate's own page; opening it changes no stored state (only its Run action does).
+          run: () => navigate(`/search/${encodeURIComponent(m.mandateId)}`),
+        })),
+    [mandateData, navigate],
   );
 
   const routes = React.useMemo<Command[]>(

@@ -96,6 +96,16 @@ export interface HomeSummary {
   headline: HeadlineCounts | null;
 }
 
+/** The three figures the sidebar and status bar show; each equals the Home figure of the same name. */
+export interface ShellCounts {
+  /** Firms the funnel counts as open (Discovered or Screening). */
+  open: number;
+  /** Drift events waiting on a decision (Home's review count). */
+  review: number;
+  /** Active mandates. */
+  activeMandates: number;
+}
+
 export interface AccuracySummary extends AccuracyTables {
   overall: Rates;
   outcomes: OutcomeTally;
