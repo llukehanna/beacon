@@ -574,7 +574,7 @@ describe("hard-gate polarity — Pass always means cleared", () => {
   });
 
   it("every gate declares a polarity — no undefined entries", () => {
-    // If a gate lands in HARD_GATES (Desk.tsx) without an entry here,
+    // If a gate lands in HARD_GATES (firmDesk/hardGateConfig.tsx) without an entry here,
     // formatAxisValue silently falls back to raw booleans — the copy
     // reads "You set true · agent proposes false" and the analyst loses
     // the Pass/Fail framing. Assert we're covering exactly four gates.
@@ -643,7 +643,7 @@ describe("axisInputKind — abstain-card input schema", () => {
 describe("hard-gate input-control audit — no gate axis renders as dropdown/text", () => {
   // Enumerate every raw finding-axis vocabulary term that maps to a hard
   // gate. If any one of these ever resolved to "enum" or "text", the
-  // AbstainFindingCard would render a <select> or free-text box for what
+  // evidence panel's value editor would render a <select> or free-text box for what
   // must be a Pass/Fail toggle — the exact bug this test is here to catch.
   const gateAxisVariants = Object.entries(FINDING_AXIS_TO_KEY)
     .filter(([, editKey]) => HARD_GATE_EDIT_KEYS.has(editKey))
@@ -2026,6 +2026,12 @@ describe("deskPanelState — one panel state at a time", () => {
   it("shows the empty prompt for no firmId, loading or not", () => {
     expect(deskPanelState(base)).toBe("empty");
     expect(deskPanelState({ ...base, firmsLoading: true })).toBe("empty");
+  });
+
+  it("says the queue is empty only once the firms have loaded and none exist", () => {
+    expect(deskPanelState({ ...base, viewCount: 0 })).toBe("queue-empty");
+    expect(deskPanelState({ ...base, viewCount: 0, firmsLoading: true })).toBe("empty");
+    expect(deskPanelState({ ...base, viewCount: 0, hasError: true })).toBe("error");
   });
 
   it("renders the firm once it is in the view", () => {

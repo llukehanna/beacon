@@ -1,0 +1,49 @@
+/* Beacon design tokens. Colour carries meaning: amber = conflict, green = verified or
+   positive, red = negative or rejected, hatch = abstained or passed. */
+:root {
+  --bg: #07080a;
+  --s1: #0c0d10;
+  --s2: #111317;
+  --s3: #16181d;
+
+  --line: rgba(255, 255, 255, 0.065);
+  --line2: rgba(255, 255, 255, 0.1);
+  --highlight: rgba(255, 255, 255, 0.04);
+
+  --tx: #ecedef;
+  --tx2: #9ba1ab;
+  --tx3: #7d838e; /* tertiary text: 5.3:1 on --bg, 4.7:1 on --s3 */
+  --tx4: #5f6570; /* decorative marks only (separators, empty-cell dots); below AA as text */
+
+  --acc: #8a95ff;
+  --acc2: #5b66f0;
+  --amber: #f0b955;
+  --green: #4fd19a;
+  --red: #f07167;
+  /* Readable tints of the semantic colours, for text on their own faint backgrounds. */
+  --red-tx: #f4948b;
+  --green-tx: #8ee5c0;
+  --amber-tx: #f3c978;
+  /* A firm we passed that the market bought: the one colour outside the three above. */
+  --violet: #c9a9f7;
+  --violet-bg: rgba(155, 127, 224, 0.16);
+
+  --font-ui: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur: 150ms;
+}
+
+/* Abstained / no source / passed: 135 degree stripes, 6 px, 2.5% white. */
+.hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.025) 0 6px,
+    transparent 6px 12px
+  );
+}

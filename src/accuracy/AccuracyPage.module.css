@@ -1,0 +1,84 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.error.error {
+  flex: none;
+  margin: 0;
+  border-radius: 0;
+  padding-inline: 24px;
+}
+
+.scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 24px 28px;
+  overflow-y: auto;
+}
+
+.scroll > * {
+  flex: none;
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.loading {
+  min-height: 106px;
+  padding: 16px;
+}
+
+.tables {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.footnote {
+  max-width: 78ch;
+  margin: 0;
+  color: var(--tx3);
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.footnote b {
+  color: var(--tx2);
+  font-weight: 600;
+}
+
+@media (max-width: 1199px) {
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tables {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 899px) {
+  .error.error {
+    padding-inline: 16px;
+  }
+
+  .scroll {
+    padding: 14px 16px 24px;
+  }
+}
+
+@media (max-width: 599px) {
+  .metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

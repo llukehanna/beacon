@@ -33,3 +33,11 @@ dist-ssr
 .vercel
 .wrangler
 .dev.vars*
+
+# Playwright
+test-results/
+playwright-report/
+.data/e2e*
+
+# Local tool workspace
+.superpowers/

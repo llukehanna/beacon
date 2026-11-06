@@ -1,0 +1,22 @@
+.column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(17, 19, 23, 0.9), rgba(12, 13, 16, 0.9));
+}
+
+.drawer {
+  background: var(--s1);
+  color: var(--tx);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}

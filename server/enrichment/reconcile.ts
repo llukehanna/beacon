@@ -28,6 +28,9 @@ const SOURCE_TYPE: Readonly<Record<string, string>> = {
 export const UNGROUNDED_EXCERPT =
   "The model's answer for this axis was not supported by a quote in the source, so Beacon recorded no value.";
 
+/** A single source at or above this confidence is "high" without corroboration. */
+export const HIGH_CONFIDENCE = 0.8;
+
 export function sameValue(axis: AxisDef, a: string, b: string): boolean {
   if (axis.kind === "number") {
     return Number(a) === Number(b);
@@ -94,7 +97,9 @@ export function reconcileAxis(
       extractionModel: lead.model ?? null,
       confidence,
       confidenceTier:
-        conflictGroupId === null && (g.length > 1 || confidence >= 0.8) ? "high" : "low",
+        conflictGroupId === null && (g.length > 1 || confidence >= HIGH_CONFIDENCE)
+          ? "high"
+          : "low",
       findingStatus: "proposed",
       conflictGroupId,
     };

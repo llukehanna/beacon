@@ -1,7 +1,8 @@
 import React from "react";
 import { useRouteError } from "react-router-dom";
 import { claimChunkReload, isChunkLoadError } from "@/chunkReload";
-import css from "@/components/ErrorBoundary.module.css";
+import { ErrorPanel } from "@/components/ErrorPanel";
+import { Button } from "@/ui";
 
 function sessionStore(): Storage | null {
   try {
@@ -25,25 +26,23 @@ function RouteError(): React.ReactElement {
 
   if (reloading) {
     return (
-      <div role="status" className={css.container}>
-        <p className={css.message}>Updating to the latest version…</p>
-      </div>
+      <ErrorPanel title="Updating" role="status">
+        Updating to the latest version…
+      </ErrorPanel>
     );
   }
   return (
-    <div role="alert" className={css.container}>
-      <h2>{stale ? "Beacon was updated" : "Something went wrong"}</h2>
-      <p className={css.message}>
-        {stale
-          ? "This tab is running an older version. Reload to get the current one."
-          : error instanceof Error
-            ? error.message
-            : "An unexpected error stopped this page from loading."}
-      </p>
-      <button className={css.retryButton} onClick={() => window.location.reload()}>
-        Reload
-      </button>
-    </div>
+    <ErrorPanel
+      title={stale ? "Beacon was updated" : "Something went wrong"}
+      role="alert"
+      actions={<Button onClick={() => window.location.reload()}>Reload</Button>}
+    >
+      {stale
+        ? "This tab is running an older version. Reload to get the current one."
+        : error instanceof Error
+          ? error.message
+          : "An unexpected error stopped this page from loading."}
+    </ErrorPanel>
   );
 }
 

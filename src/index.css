@@ -2,8 +2,14 @@
 @import "normalize.css";
 @import "@blueprintjs/core/lib/css/blueprint.css";
 
+/* Self-hosted Geist (the CSP allows fonts from 'self' and data: only), then tokens and base. */
+@import "@fontsource-variable/geist/index.css";
+@import "@fontsource-variable/geist-mono/index.css";
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+
 :root {
-  font-family: "Source Sans Pro", system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: var(--font-ui);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -16,10 +22,12 @@
   flex: 1;
 }
 
+/* The app shell owns the whole viewport. */
 #root {
-  margin: 0 auto;
-  max-width: 1280px;
-  padding: calc(var(--bp-surface-spacing) * 8);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
 }
 
 body {

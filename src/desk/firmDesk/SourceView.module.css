@@ -1,0 +1,74 @@
+.doc {
+  margin: 0;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #0a0b0d;
+  box-shadow:
+    0 0 0 1px var(--line2),
+    inset 0 1px 0 var(--highlight);
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--s1);
+  color: var(--tx3);
+  font-size: 11px;
+}
+
+.status {
+  margin: 0;
+  padding: 10px 12px;
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.lines {
+  position: relative;
+  max-height: 240px;
+  padding: 8px 0 10px;
+  overflow-y: auto;
+}
+
+.ln {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 8px;
+  padding: 0 12px;
+  color: var(--tx2);
+  font: 12.5px/1.75 var(--font-ui);
+}
+
+.num {
+  color: var(--tx3);
+  font: 11px/2 var(--font-mono);
+  text-align: right;
+}
+
+.text {
+  overflow-wrap: anywhere;
+}
+
+.hl {
+  background: rgba(138, 149, 255, 0.07);
+  box-shadow: inset 2px 0 0 var(--acc);
+}
+
+.doc mark {
+  background: none;
+  color: #e3e6ff;
+  text-decoration: underline;
+  text-decoration-color: var(--acc);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}

@@ -1,5 +1,6 @@
 import React from "react";
-import css from "./ErrorBoundary.module.css";
+import { Button } from "@/ui";
+import { ErrorPanel } from "./ErrorPanel";
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -9,6 +10,7 @@ interface ErrorBoundaryState {
   error: Error | null;
 }
 
+/** The last line of defence: an error no route caught shows a panel with a way to try again. */
 class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -22,13 +24,13 @@ class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundarySta
   render(): React.ReactNode {
     if (this.state.error) {
       return (
-        <div className={css.container}>
-          <h2>Something went wrong</h2>
-          <p className={css.message}>{this.state.error.message}</p>
-          <button className={css.retryButton} onClick={() => this.setState({ error: null })}>
-            Try again
-          </button>
-        </div>
+        <ErrorPanel
+          title="Something went wrong"
+          role="alert"
+          actions={<Button onClick={() => this.setState({ error: null })}>Try again</Button>}
+        >
+          {this.state.error.message}
+        </ErrorPanel>
       );
     }
 

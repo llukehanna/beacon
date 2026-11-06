@@ -3,7 +3,9 @@
  * mirror Foundry query functions: the server aggregates, the client receives
  * a few kilobytes of numbers instead of every row.
  */
+import type { ActivityItem, HeadlineCounts } from "./activityFeed.js";
 import type { Lifecycle } from "./pipelineBuckets.js";
+import type { FindingTrends, GroundedCounts } from "./trends.js";
 import type { AccuracyTables, OutcomeTally, Rates } from "./trustMetrics.js";
 
 /** Where a needs-you row sends the analyst. */
@@ -16,6 +18,8 @@ interface NeedsYouBase {
   destination: NeedsYouDestination;
   /** Firm name, or the rule's predicate text ("malformed proposal" when it has none). */
   name: string;
+  /** ISO time the item arose (drift detected, abstention recorded); null when none was recorded. */
+  at: string | null;
 }
 
 export interface DriftNeedsYou extends NeedsYouBase {
@@ -79,9 +83,62 @@ export interface HomeSummary {
     passed: number;
     passedAndAcquired: number;
   };
+  /**
+   * Daily rate history behind the metric cards; a null entry means the data does not support
+   * a trend (too few days with enough findings) and the card shows its value alone.
+   */
+  trends: FindingTrends;
+  /** Agent-produced values and how many cite a verbatim source quote (the grounded card's X of Y). */
+  grounded: GroundedCounts;
+  /** Newest-first agent activity, built from existing timestamps. */
+  activity: ActivityItem[];
+  /** What the agent's latest runs did; null when no firm has been enriched. */
+  headline: HeadlineCounts | null;
+}
+
+/** The three figures the sidebar and status bar show; each equals the Home figure of the same name. */
+export interface ShellCounts {
+  /** Firms the funnel counts as open (Discovered or Screening). */
+  open: number;
+  /** Drift events waiting on a decision (Home's review count). */
+  review: number;
+  /** Active mandates. */
+  activeMandates: number;
 }
 
 export interface AccuracySummary extends AccuracyTables {
   overall: Rates;
   outcomes: OutcomeTally;
+}
+
+/** The checks behind a quote: where it sits in its document and whether it supports the value. */
+export interface GroundingChecks {
+  /** 1-based line of the source document where the quote starts; null when it is not found. */
+  line: number | null;
+  valueInQuote: boolean;
+  words: number;
+}
+
+/** What one provider said about one axis, and whether the quote behind it held up. */
+export interface ProviderObservation {
+  provider: string;
+  /** The value the extraction reported; null when the provider had nothing for the axis. */
+  value: string | null;
+  confidence: "high" | "low" | null;
+  /** True when kept, false when grounding rejected it, null when there was nothing to ground. */
+  grounded: boolean | null;
+  rejectReason: string | null;
+  quote: string | null;
+  documentId: string | null;
+  checks: GroundingChecks | null;
+}
+
+/** Every provider's reading of a firm, per rubric axis (see server/functions/firmObservations). */
+export interface FirmObservations {
+  firmId: string;
+  /** The extraction model whose output was grounded ("rule-based" when none is stored). */
+  model: string;
+  axes: { axis: string; providers: ProviderObservation[] }[];
+  /** Per provider, how many of the firm's axes it supplied a grounded value for. */
+  hitsByProvider: Record<string, number>;
 }

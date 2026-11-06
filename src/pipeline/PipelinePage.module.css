@@ -1,0 +1,148 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.titles {
+  min-width: 0;
+}
+
+.title.title {
+  margin: 0;
+  font: 600 20px/1.2 var(--font-ui);
+  letter-spacing: -0.025em;
+}
+
+.sub {
+  margin: 2px 0 0;
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.search {
+  position: relative;
+  width: 280px;
+}
+
+.searchIcon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  color: var(--tx3);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.input {
+  width: 100%;
+  height: 32px;
+  padding: 0 10px 0 30px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx);
+  font: 13px var(--font-ui);
+  transition: box-shadow var(--dur) var(--ease);
+}
+
+.input::placeholder {
+  color: var(--tx3);
+}
+
+.input:hover {
+  box-shadow: 0 0 0 1px var(--line2);
+}
+
+.input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--acc);
+}
+
+.error.error {
+  flex: none;
+  margin: 0;
+  padding: 8px 24px;
+  background: rgba(240, 113, 103, 0.12);
+  color: #f4948b;
+  font-size: 12px;
+}
+
+/* The list column and, when a firm is selected on a wide screen, the 360 px detail column. */
+.layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.layout[data-panel="column"] {
+  grid-template-columns: minmax(0, 1fr) 360px;
+}
+
+/* The container the table folds its columns against: the list column, not the window. */
+.col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  container: pipemain / inline-size;
+}
+
+.scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+  padding: 18px 24px 28px;
+  overflow-y: auto;
+}
+
+.scroll > * {
+  flex: none;
+}
+
+@media (max-width: 899px) {
+  .head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .tools {
+    margin-left: 0;
+  }
+
+  .search {
+    flex: 1;
+    width: auto;
+  }
+
+  .error.error {
+    padding: 8px 16px;
+  }
+
+  .scroll {
+    padding: 14px 16px 24px;
+  }
+}

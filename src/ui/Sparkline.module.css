@@ -1,0 +1,30 @@
+.spark {
+  width: 110px;
+  height: 36px;
+  overflow: visible;
+}
+
+.area {
+  fill: color-mix(in srgb, currentColor 12%, transparent);
+  stroke: none;
+}
+
+.line {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.accent {
+  color: var(--acc);
+}
+
+.green {
+  color: var(--green);
+}
+
+.muted {
+  color: var(--tx3);
+}

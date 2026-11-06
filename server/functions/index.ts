@@ -6,7 +6,9 @@
 import type { Queryable } from "../db/client.js";
 import { HttpError } from "../errors.js";
 import { accuracySummary } from "./accuracySummary.js";
+import { firmObservations } from "./firmObservations.js";
 import { homeSummary } from "./homeSummary.js";
+import { shellCounts } from "./shellCounts.js";
 import { sourceDocument } from "./sourceDocument.js";
 
 export type QueryFunction = (q: Queryable, params: Record<string, unknown>) => Promise<unknown>;
@@ -15,6 +17,8 @@ export const FUNCTIONS: Record<string, QueryFunction> = {
   homeSummary: (q) => homeSummary(q),
   accuracySummary: (q) => accuracySummary(q),
   sourceDocument: (q, params) => sourceDocument(q, params),
+  firmObservations: (q, params) => firmObservations(q, params),
+  shellCounts: (q) => shellCounts(q),
 };
 
 export async function runFunction(

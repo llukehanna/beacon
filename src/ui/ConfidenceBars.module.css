@@ -1,0 +1,19 @@
+.bars {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.bars i {
+  width: 3px;
+  height: 9px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.bars i.on {
+  background: var(--green);
+}
+
+.low i.on {
+  background: var(--amber);
+}

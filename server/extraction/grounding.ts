@@ -92,7 +92,8 @@ function rawSlice(raw: string, quote: string): string | null {
 
 /** A quote shorter than this many words is a fragment, not a sentence that states a fact. */
 const MIN_QUOTE_WORDS = 4;
-const wordCount = (s: string): number => (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
+/** Words in a quote, the length measure grounding applies. */
+export const quoteWordCount = (s: string): number => (s.match(/[\p{L}\p{N}]+/gu) ?? []).length;
 
 /**
  * Standalone numbers: not glued to letters, decimals, or thousands separators, so "$85" yields
@@ -104,6 +105,17 @@ const PLAIN_NUMBER = /^\d+(\.\d+)?$/;
 
 function quoteHasNumber(quote: string, value: number): boolean {
   return (quote.match(NUMBER_TOKEN) ?? []).some((t) => Number(t) === value);
+}
+
+/**
+ * Whether an accepted value appears in its quote: the label for a categorical axis, the number
+ * for a numeric one, the word true or false for a gate.
+ */
+export function valueInQuote(axis: AxisDef, value: string, quote: string): boolean {
+  if (axis.kind === "number") {
+    return quoteHasNumber(quote, Number(value));
+  }
+  return quote.toLowerCase().includes(value.toLowerCase());
 }
 
 /** The canonical string for an accepted value, or null when the value is not valid for the axis. */
@@ -160,16 +172,13 @@ export function groundExtraction(
       reject("quote_not_in_document");
       continue;
     }
-    if (wordCount(quote) < MIN_QUOTE_WORDS) {
+    if (quoteWordCount(quote) < MIN_QUOTE_WORDS) {
       reject("quote_too_short");
       continue;
     }
 
-    if (axis.kind === "enum" && !quote.toLowerCase().includes(value.toLowerCase())) {
-      reject("value_not_in_quote");
-      continue;
-    }
-    if (axis.kind === "number" && !quoteHasNumber(quote, Number(value))) {
+    // Gates are not checked against the quote: only categorical and numeric values must appear.
+    if (axis.kind !== "gate" && !valueInQuote(axis, value, quote)) {
       reject("value_not_in_quote");
       continue;
     }
