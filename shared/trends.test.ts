@@ -121,6 +121,14 @@ describe("groundedCounts", () => {
     expect(groundedCounts(findings)).toEqual({ cited: 2, agentValues: 3 });
   });
 
+  it("leaves out a market signal's finding, which has no source to quote", () => {
+    const findings = [
+      f(1, { sourceQuote: "a quote" }),
+      f(2, { provider: "market_signal", findingStatus: "verified" }),
+    ];
+    expect(groundedCounts(findings)).toEqual({ cited: 1, agentValues: 1 });
+  });
+
   it("is zero over no findings", () => {
     expect(groundedCounts([])).toEqual({ cited: 0, agentValues: 0 });
   });

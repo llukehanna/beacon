@@ -31,6 +31,7 @@ export const ReviewDecision = obj("ReviewDecision");
 export const DriftEvent = obj("DriftEvent");
 export const ProposedRule = obj("ProposedRule");
 export const HardScreenConfig = obj("HardScreenConfig");
+export const MarketSignal = obj("MarketSignal");
 export const ActionRun = obj("ActionRun");
 export const ModelCall = obj("ModelCall");
 

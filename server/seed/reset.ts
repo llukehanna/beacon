@@ -7,6 +7,7 @@ import { setMeta } from "../db/meta.js";
 import { insertObjects } from "../db/repo.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { seedHistory } from "./history.js";
+import { seedSignals } from "./signals.js";
 import { latestTimestampMs, shiftLiveTimestamps } from "./snapshot.js";
 import { generateUniverse } from "./universe.js";
 
@@ -23,6 +24,12 @@ function joined(tx: Queryable, db: Db): Db {
     transaction: (fn) => fn(tx),
     close: () => db.close(),
   };
+}
+
+/** Ids for what the seeded signals write: the same on every run, and apart from the history's own. */
+function signalIds(): (prefix: string) => string {
+  let n = 0;
+  return (prefix) => `${prefix}-seed-signal-${String(++n).padStart(5, "0")}`;
 }
 
 /**
@@ -65,6 +72,10 @@ export async function resetDemo(
       await tx.query(`SET LOCAL TIME ZONE 'UTC'`);
       await shiftLiveTimestamps(tx, now.getTime() - latest);
     }
+    // Market signals come last, dated around `now`: those already due are applied as history, the
+    // rest wait in the snapshot for the hourly run. (They are added after the shift, which would
+    // otherwise treat the signals still to come as the latest event and move the history to them.)
+    await seedSignals(joined(tx, db), now, opts.newId ?? signalIds());
   });
   await setMeta(db, "lastResetAt", now.toISOString());
   return { firms: universe.length };

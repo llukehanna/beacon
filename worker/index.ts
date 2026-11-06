@@ -1,17 +1,19 @@
 /**
  * Cloudflare Workers entry. Static assets (the Vite build) are served by the
  * platform with an SPA fallback; /api/* runs here through the handlers in
- * api/; the nightly Cron Trigger runs the demo reset.
+ * api/; the nightly Cron Trigger runs the demo reset, and an hourly one applies the synthetic
+ * market signals that have come due.
  */
 import * as actions from "../api/actions.js";
 import * as functions from "../api/functions.js";
 import * as links from "../api/links.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
-import { type Db, createPgDb, withRequestDb } from "../server/db/client.js";
+import { type Db, createPgDb, getDb, withRequestDb } from "../server/db/client.js";
 import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
-import { jsonError } from "../server/http.js";
+import { json, jsonError } from "../server/http.js";
+import { applyDueSignals } from "../server/signals/run.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
 
 interface Env {
@@ -26,6 +28,17 @@ interface Env {
 interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
+
+/** What a Cron Trigger passes to `scheduled`: the expression that fired and when it was due. */
+interface ScheduledController {
+  cron?: string;
+  scheduledTime?: number;
+}
+
+/** The two Cron Triggers in wrangler.jsonc ("crons"). */
+export const NIGHTLY_CRON = "0 4 * * *";
+export const HOURLY_CRON = "0 * * * *";
+const NIGHTLY_HOUR_UTC = 4;
 
 type Handler = (request: Request) => Promise<Response>;
 
@@ -97,9 +110,28 @@ export default {
     return withDb(env, ctx, () => handler(request));
   },
 
-  /** Nightly Cron Trigger: runs the same reset (and throttle) as the demo bar's button. */
-  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
-    const res = await withDb(env, ctx, () => reset.POST());
+  /**
+   * Cron Triggers. The nightly one (04:00 UTC) runs the same reset (and throttle) as the demo bar's
+   * button, then applies the market signals that have come due. The hourly one only applies them,
+   * a bounded batch per run. Both fire at 04:00; the hourly one stands down then, so it cannot
+   * race the reset it would otherwise run beside. Any other expression is treated as the nightly one.
+   */
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === HOURLY_CRON) {
+      const due = new Date(controller.scheduledTime ?? Date.now());
+      if (due.getUTCHours() === NIGHTLY_HOUR_UTC) {
+        return;
+      }
+      const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));
+      if (!res.ok) {
+        throw new Error(`Hourly market signals failed: ${res.status} ${await res.text()}`);
+      }
+      return;
+    }
+    const res = await withDb(env, ctx, async () => {
+      const resetRes = await reset.POST();
+      return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
+    });
     if (!res.ok) {
       throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
     }

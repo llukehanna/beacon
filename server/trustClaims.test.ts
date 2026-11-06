@@ -62,7 +62,8 @@ describe("figures on the About and Trust pages", () => {
   it("match the Cloudflare config", () => {
     expect(limiter("ACTIONS_LIMITER")).toEqual({ limit: ACTIONS_PER_MINUTE, period: 60 });
     expect(limiter("RESET_LIMITER")).toEqual({ limit: RESETS_PER_MINUTE, period: 60 });
-    expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *"]');
+    // The nightly reset, and the hourly run that applies synthetic market signals as they come due.
+    expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *", "0 * * * *"]');
     expect(NIGHTLY_RESET_UTC).toBe("04:00");
     expect(read("api/reset.ts")).toContain(`COOLDOWN_MS = ${RESET_COOLDOWN_MINUTES} * 60_000`);
   });

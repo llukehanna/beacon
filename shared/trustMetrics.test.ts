@@ -6,6 +6,8 @@ import {
   accuracyTables,
   cellsFromFindings,
   classify,
+  countFindings,
+  isMarketSignalFinding,
   rates,
   tallyOutcomes,
 } from "./trustMetrics.js";
@@ -95,6 +97,27 @@ describe("accuracyTables", () => {
     expect(t2.byAxis).toEqual([
       { key: "__unknown__", label: "unknown axis", r: expect.objectContaining({ total: 1 }) },
     ]);
+  });
+});
+
+describe("a synthetic market signal's finding", () => {
+  const signal = f("s", { provider: "market_signal", findingStatus: "verified", axis: "firm_age" });
+  const real = f("r", { provider: "dealdb", axis: "firm_age", verifiedByHuman: true });
+
+  it("is recognised by its provider", () => {
+    expect(isMarketSignalFinding(signal)).toBe(true);
+    expect(isMarketSignalFinding(f("x", { provider: " Market_Signal " }))).toBe(true);
+    expect(isMarketSignalFinding(real)).toBe(false);
+    expect(isMarketSignalFinding(f("y", {}))).toBe(false);
+  });
+
+  it("counts toward no figure: not the total, a provider row, an axis row or a rate", () => {
+    expect(countFindings([signal, real]).total).toBe(1);
+    expect(rates([signal, real])).toEqual(rates([real]));
+    expect(cellsFromFindings([signal])).toEqual([]);
+    const tables = accuracyTables(cellsFromFindings([signal, real]));
+    expect(tables.byProvider.map((r) => r.key)).toEqual(["dealdb"]);
+    expect(tables.overall.total).toBe(1);
   });
 });
 

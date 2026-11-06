@@ -1,13 +1,14 @@
 import React from "react";
 import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
-import { DriftEvent, Firm, ReviewDecision } from "@/data/ontology";
+import { DriftEvent, Firm, MarketSignal, ReviewDecision } from "@/data/ontology";
 import { useMediaQuery } from "@/desk/firmDesk/useMediaQuery";
 import { type Command, useCommands } from "@/shell/commands";
 import { EmptyState, SidePanel } from "@/ui";
 import { DriftDetail } from "./DriftDetail";
 import { DriftList } from "./DriftList";
 import styles from "./ReviewPage.module.css";
+import { SignalsSection } from "./SignalsSection";
 import {
   type DriftItem,
   type DriftLike,
@@ -15,6 +16,7 @@ import {
   buildDriftItems,
   driftRow,
 } from "./driftModel";
+import { buildSignalsView } from "./signalsModel";
 
 /**
  * Review: the drift queue. Firms that moved since the analyst decided on them, each with the
@@ -39,6 +41,11 @@ export default function ReviewPage(): React.ReactElement {
     autoFetchMore: true,
   });
 
+  const { data: signalsData, isLoading: signalsLoading } = useOsdkObjects(MarketSignal, {
+    orderBy: { effectiveDate: "desc" },
+    autoFetchMore: true,
+  });
+
   const wide = useMediaQuery("(min-width: 1280px)");
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);
 
@@ -49,6 +56,12 @@ export default function ReviewPage(): React.ReactElement {
   );
 
   const now = Date.now();
+  // A few dozen rows at most, so it is rebuilt on each render rather than memoised against `now`.
+  const signals = buildSignalsView(
+    signalsData ?? [],
+    (firmsData ?? []) as unknown as FirmLike[],
+    now,
+  );
   const openRows = open.map((i) => driftRow(i, now));
   const resolvedRows = resolved.map((i) => driftRow(i, now));
 
@@ -123,6 +136,7 @@ export default function ReviewPage(): React.ReactElement {
               loading={loading}
             />
           )}
+          <SignalsSection view={signals} loading={signalsLoading && signalsData === undefined} />
         </div>
         <SidePanel
           open={panelOpen}

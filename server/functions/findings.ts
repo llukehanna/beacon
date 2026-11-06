@@ -4,12 +4,13 @@
  * (functions.test.ts holds them to it).
  */
 import type { FindingCell, RateCounts } from "../../shared/trustMetrics.js";
-import { ANALYST } from "../../shared/vocab.js";
+import { ANALYST, MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Queryable } from "../db/client.js";
 
 /**
  * One row per finding with its class as booleans; provider and axis folded like cellsFromFindings.
- * An analyst's own verified finding is an agreement (see classify).
+ * An analyst's own verified finding is an agreement (see classify). A synthetic market signal's
+ * finding is news, not a reading of a source, so it is left out (see isMarketSignalFinding).
  */
 const CLASSIFIED = `
   SELECT coalesce("provider", '') AS provider,
@@ -25,6 +26,7 @@ const CLASSIFIED = `
                  OR (lower(btrim(coalesce("provider", ''))) = '${ANALYST}'
                      AND lower(coalesce("findingStatus", '')) = 'verified')) AS agreed
         FROM research_finding
+       WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
     ) f`;
 
 const COUNTS = `

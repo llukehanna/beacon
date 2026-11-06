@@ -2,7 +2,7 @@ import React from "react";
 import { Link, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOsdkObjects } from "@/data/hooks";
-import { Firm, ResearchFinding, ReviewDecision } from "@/data/ontology";
+import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
 import { type FindingLike } from "@/desk/axisState";
 import { type FirmView } from "@/desk/firmDesk/deskModel";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
@@ -10,6 +10,7 @@ import { formatScore } from "@/desk/scoreFormat";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
+import { SYNTHETIC_LABEL, type SignalLike } from "../../shared/marketSignals";
 import styles from "./TearSheetPage.module.css";
 import {
   type AbstentionItem,
@@ -17,6 +18,7 @@ import {
   type ConflictItem,
   type DecisionInput,
   type EvidenceItem,
+  type SignalLine,
   type TearSheet,
   buildTearSheet,
   localDay,
@@ -34,6 +36,11 @@ function usePrintMode(): void {
 }
 
 function CitationLine({ c }: { c: Citation }): React.ReactElement {
+  if (c.provider === SYNTHETIC_LABEL) {
+    return (
+      <p className={styles.source}>{SYNTHETIC_LABEL}. Invented news, not a source document.</p>
+    );
+  }
   if (c.quote === null) {
     return (
       <p className={styles.source}>
@@ -77,8 +84,12 @@ function Evidence({
           <p className={styles.itemHead}>
             <span className={styles.axis}>{e.axis}</span>
             <span className={styles.value}>{e.value}</span>
-            <span className={styles.tag}>
-              {e.status === "verified" ? "Verified by an analyst" : "Proposed, not yet verified"}
+            <span className={e.synthetic ? `${styles.tag} ${styles.warn}` : styles.tag}>
+              {e.synthetic
+                ? `${SYNTHETIC_LABEL}, not verified by an analyst`
+                : e.status === "verified"
+                  ? "Verified by an analyst"
+                  : "Proposed, not yet verified"}
             </span>
           </p>
           <CitationLine c={e} />
@@ -129,6 +140,34 @@ function Abstentions({ items }: { items: AbstentionItem[] }): React.ReactElement
         </li>
       ))}
     </ul>
+  );
+}
+
+function Signals({ items }: { items: SignalLine[] }): React.ReactElement {
+  return (
+    <>
+      <p className={styles.plain}>
+        {SYNTHETIC_LABEL}s are invented news that Beacon applies on a schedule. They are not reports
+        about a real firm.
+      </p>
+      {items.length === 0 ? (
+        <p className={styles.plain}>No market signal has been applied to this firm yet.</p>
+      ) : (
+        <ul className={styles.list}>
+          {items.map((s) => (
+            <li key={s.id} className={styles.item} data-signal={s.id}>
+              <p className={styles.itemHead}>
+                <span className={styles.axis}>{s.headline}</span>
+              </p>
+              <p className={styles.source}>
+                {s.kind}
+                {s.date !== "" && <> · {s.date}</>} · {s.moved} · {s.label}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
   );
 }
 
@@ -243,6 +282,13 @@ function Sheet({
         )}
       </Panel>
 
+      <Panel className={styles.section} aria-labelledby="ts-signals">
+        <h2 id="ts-signals" className={styles.heading}>
+          Market signals
+        </h2>
+        <Signals items={sheet.signals} />
+      </Panel>
+
       <Panel className={styles.section} aria-labelledby="ts-history">
         <h2 id="ts-history" className={styles.heading}>
           Decision history
@@ -298,6 +344,11 @@ export default function TearSheetPage(): React.ReactElement {
     autoFetchMore: true,
     enabled: firmId !== "",
   });
+  const signalsQuery = useOsdkObjects(MarketSignal, {
+    where: { firmId: { $eq: firmId } },
+    autoFetchMore: true,
+    enabled: firmId !== "",
+  });
   const rules = useScreeningRules();
 
   const firm = ((firmQuery.data ?? [])[0] ?? undefined) as unknown as FirmView | undefined;
@@ -305,9 +356,11 @@ export default function TearSheetPage(): React.ReactElement {
     firmQuery.isLoading ||
     findingsQuery.isLoading ||
     decisionsQuery.isLoading ||
+    signalsQuery.isLoading ||
     rules.configLoading ||
     rules.proposedRulesLoading;
-  const error = firmQuery.error ?? findingsQuery.error ?? decisionsQuery.error;
+  const error =
+    firmQuery.error ?? findingsQuery.error ?? decisionsQuery.error ?? signalsQuery.error;
   const queryClient = useQueryClient();
   const retry = React.useCallback(() => void queryClient.invalidateQueries(), [queryClient]);
 
@@ -320,8 +373,9 @@ export default function TearSheetPage(): React.ReactElement {
             findings: (findingsQuery.data ?? []) as unknown as FindingLike[],
             decisions: (decisionsQuery.data ?? []) as unknown as DecisionInput[],
             rules: rules.rankingRules,
+            signals: (signalsQuery.data ?? []) as unknown as SignalLike[],
           }),
-    [firm, loading, findingsQuery.data, decisionsQuery.data, rules.rankingRules],
+    [firm, loading, findingsQuery.data, decisionsQuery.data, signalsQuery.data, rules.rankingRules],
   );
   const today = React.useMemo(() => localDay(Date.now()), []);
 

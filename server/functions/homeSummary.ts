@@ -42,6 +42,7 @@ import type {
 } from "../../shared/summaries.js";
 import { type TrendFinding, findingTrends, groundedCounts } from "../../shared/trends.js";
 import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.js";
+import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Queryable } from "../db/client.js";
 import { toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
@@ -171,7 +172,8 @@ async function loadTimedFindings(q: Queryable): Promise<(ActivityFinding & Trend
     `SELECT "findingId", "firmId", "axis", "value", "provider", "findingStatus", "confidenceTier",
             "verifiedByHuman", "conflictGroupId", "retrievedAt", "verifiedAt",
             left(btrim(coalesce("sourceQuote", '')), 1) AS "sourceQuote"
-       FROM research_finding`,
+       FROM research_finding
+      WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'`,
   );
   return rows.map((r) => ({
     ...r,

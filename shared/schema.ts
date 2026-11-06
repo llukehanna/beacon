@@ -260,6 +260,21 @@ export const OBJECT_TYPES = {
       sourceProposedRuleId: "string",
     },
   },
+  MarketSignal: {
+    apiName: "MarketSignal",
+    table: "market_signal",
+    primaryKey: "signalId",
+    properties: {
+      signalId: "string",
+      firmId: "string",
+      kind: "string",
+      effectiveDate: "timestamp",
+      headline: "string",
+      axis: "string",
+      newValue: "string",
+      appliedAt: "timestamp",
+    },
+  },
   ActionRun: {
     apiName: "ActionRun",
     table: "action_run",

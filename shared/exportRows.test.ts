@@ -110,6 +110,30 @@ describe("exportRows", () => {
     });
   });
 
+  it("cites a market signal's finding as a synthetic signal with no quote", () => {
+    const { citations } = exportRows(
+      [firm()],
+      [
+        finding({
+          axis: "fee_generating_count",
+          value: "3",
+          provider: "market_signal",
+          sourceDocumentId: null,
+          sourceQuote: null,
+          sourceExcerpt: "Harbour Partners loses a senior partner to a competitor",
+          extractionModel: null,
+          findingStatus: "verified",
+        }),
+      ],
+    );
+    expect(citations[0].find((c) => c.axis === "fee_generating_count")).toEqual({
+      axis: "fee_generating_count",
+      provider: "Synthetic market signal",
+      quote: null,
+      model: null,
+    });
+  });
+
   it("prefers the human-verified finding, types numbers and gates, and skips superseded ones", () => {
     const { rows } = exportRows(
       [firm()],
