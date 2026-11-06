@@ -86,6 +86,18 @@ describe("figures on the About and Trust pages", () => {
   });
 });
 
+describe("About page wording", () => {
+  const about = ["AboutPage.tsx", "ArchitectureDiagram.tsx"]
+    .map((f) => read(`src/about/${f}`))
+    .join("\n");
+
+  it("does not claim blanket append-only history", () => {
+    // Findings, drift events and rules change status fields; only scores and decisions are insert-only.
+    expect(about).not.toMatch(/append-only|only add rows/i);
+    expect(about).toContain("scores and decisions");
+  });
+});
+
 describe("docs/security.md", () => {
   const doc = read("docs/security.md");
 

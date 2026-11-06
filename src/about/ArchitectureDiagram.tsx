@@ -18,7 +18,7 @@ const BOXES: readonly Box[] = [
   { x: 24, y: 244, w: 100, h: 58, title: "Agent", sub: "reads sources" },
   { x: 134, y: 244, w: 100, h: 58, title: "Rubric", sub: "scores and tiers" },
   { x: 244, y: 244, w: 92, h: 58, title: "Rules", sub: "from reasons" },
-  { x: 24, y: 334, w: 312, h: 46, title: "Postgres", sub: "history is append-only" },
+  { x: 24, y: 334, w: 312, h: 46, title: "Postgres", sub: "scores and decisions never edited" },
   {
     x: 24,
     y: 412,
