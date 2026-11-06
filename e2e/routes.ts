@@ -17,7 +17,7 @@ export const ROUTES: AppRoute[] = [
   // The one-sentence headline is Home's title.
   { path: "/", slug: "home", heading: (page) => page.getByRole("heading", { level: 1 }) },
   // The desk titles the page with the selected firm's name.
-  { path: "/desk", slug: "desk", heading: (page) => page.getByRole("heading", { level: 3 }) },
+  { path: "/desk", slug: "desk", heading: (page) => page.getByRole("heading", { level: 1 }) },
   { path: "/pipeline", slug: "pipeline", heading: headerText("Working set") },
   { path: "/review", slug: "review", heading: headerText("Drift queue") },
   { path: "/rules", slug: "rules", heading: headerText("Proposed hard-screen rules") },

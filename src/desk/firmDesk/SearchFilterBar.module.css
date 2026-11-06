@@ -1,0 +1,37 @@
+.bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 16px 6px 24px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(90deg, rgba(138, 149, 255, 0.08), rgba(138, 149, 255, 0.02));
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.kicker {
+  color: var(--acc);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text strong {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+.sep {
+  margin: 0 6px;
+  color: var(--tx4);
+}

@@ -5,7 +5,7 @@
  * axis, authoritative = human-verified first, else latest retrievedAt. The
  * others collapse into a "history (N)" disclosure inside the card.
  *
- * Extracted from Desk.tsx so Home can count "awaiting judgment" firms with
+ * Extracted from firmDesk/findings/FindingsSection.tsx so Home can count "awaiting judgment" firms with
  * the SAME rule the desk renders. If Home used a looser definition (e.g.
  * "has any abstained finding" rather than "has an axis whose authoritative
  * finding abstained") the home count would promise work the desk doesn't

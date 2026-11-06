@@ -1,17 +1,16 @@
 import React from "react";
-import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
-import { ResearchFinding, runAgentEnrichmentAction } from "@/data/ontology";
+import { useOsdkObjects } from "@/data/hooks";
+import { ResearchFinding } from "@/data/ontology";
 import { type AxisGroup, type FindingLike, classifyAxis, pickAuthoritative } from "../../axisState";
 import { effectiveAxisValue } from "../../findingActions";
 import { Kicker, SectionHeader } from "../chips";
-import { type EditMap, type FirmView, displayAxis, formatActionError } from "../deskModel";
+import { type EditMap, type FirmView, displayAxis } from "../deskModel";
 import { AbstainFindingCard } from "./AbstainFindingCard";
 import { AxisCard } from "./AxisCard";
 import { ConflictFindingCard } from "./ConflictFindingCard";
 
 export function FindingsSection({
   firm,
-  actionFirm,
   edits,
   onApply,
   applyEdit,
@@ -19,7 +18,6 @@ export function FindingsSection({
   queueVerify,
 }: {
   firm: FirmView;
-  actionFirm: unknown;
   edits: EditMap;
   // Legacy raw-string apply — still used by AbstainFindingCard (analyst-
   // typed) and ConflictFindingCard (winner-of-two-sources), where the
@@ -39,7 +37,6 @@ export function FindingsSection({
     where: { firmId: { $eq: firmId } },
     autoFetchMore: true,
   });
-  const runAgent = useOsdkAction(runAgentEnrichmentAction);
   // resolveConflictAction now lives inside ConflictFindingCard so per-card
   // errors surface next to the buttons that triggered them.
 
@@ -149,32 +146,9 @@ export function FindingsSection({
               ? "loading…"
               : `${groups.conflicts.length} conflict${groups.conflicts.length === 1 ? "" : "s"} · ${groups.proposed.length} proposed · ${groups.abstained.length} abstained · ${groups.verified.length} verified · axes`}
           </span>
-          <button
-            className="btn btn-secondary"
-            style={{ fontSize: 12, padding: "5px 12px" }}
-            disabled={runAgent.isPending}
-            onClick={() => void runAgent.applyAction({ firm: actionFirm } as never)}
-            title="Re-query sources and propose fresh findings for unresolved axes"
-          >
-            {runAgent.isPending ? "Running…" : "Run agent"}
-          </button>
         </div>
       </div>
 
-      {runAgent.error !== undefined && (
-        <div
-          style={{
-            padding: "8px 12px",
-            marginBottom: 8,
-            borderRadius: "var(--radius-md)",
-            background: "rgba(240,113,103,.12)",
-            color: "#f4948b",
-            fontSize: 12,
-          }}
-        >
-          Agent run failed: {formatActionError(runAgent.error)}
-        </div>
-      )}
       {error && (
         <div
           style={{
@@ -234,18 +208,9 @@ export function FindingsSection({
               maxWidth: "40ch",
             }}
           >
-            Beacon hasn&rsquo;t scored this firm against the rubric. Run agent enrichment to pull
-            findings from every source.
+            Beacon hasn&rsquo;t scored this firm against the rubric. Run the agent from the strip
+            above to pull findings from every source.
           </p>
-          <button
-            className="btn btn-primary"
-            style={{ marginTop: 4 }}
-            disabled={runAgent.isPending}
-            onClick={() => void runAgent.applyAction({ firm: actionFirm } as never)}
-            title="Re-query sources and propose fresh findings for unresolved axes"
-          >
-            {runAgent.isPending ? "Running…" : "Run agent enrichment"}
-          </button>
         </div>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>

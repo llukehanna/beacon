@@ -1,4 +1,4 @@
-import React from "react";
+import type React from "react";
 import { type FindingLike, retrievedMs } from "../axisState";
 import { HARD_GATE_EDIT_KEYS } from "../findingActions";
 import { type Model, type ScoreInput } from "../scoreMirror";
