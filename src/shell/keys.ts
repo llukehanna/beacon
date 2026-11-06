@@ -17,6 +17,23 @@ export function isGoKey(key: string): key is GoKey {
   return Object.prototype.hasOwnProperty.call(GO_KEYS, key);
 }
 
+/**
+ * True when the global go-to keys must stay out of this keydown: any Ctrl, Cmd or Alt chord, a
+ * held-down repeat, and any Shift chord except `?` (which is typed with Shift). Shift chords
+ * belong to the screens: on the Desk, Shift+A advances a firm, so G then Shift+A must not go to
+ * Accuracy.
+ */
+export function goKeysIgnore(e: {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+  repeat: boolean;
+}): boolean {
+  return e.metaKey || e.ctrlKey || e.altKey || e.repeat || (e.shiftKey && e.key !== "?");
+}
+
 const TYPING_TAGS = new Set(["INPUT", "TEXTAREA", "SELECT"]);
 
 /**

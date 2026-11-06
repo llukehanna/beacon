@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FIRM_DECISION_KEYS, GO_KEYS, firmDecisionKey, isTypingTarget } from "./keys";
+import { FIRM_DECISION_KEYS, GO_KEYS, firmDecisionKey, goKeysIgnore, isTypingTarget } from "./keys";
 
 // The unit tests run without a DOM, so elements are stand-ins with the properties the guard reads.
 const el = (tagName: string, extra: Record<string, unknown> = {}) =>
@@ -67,5 +67,36 @@ describe("firmDecisionKey", () => {
 
   it("labels each key the way the hints show it", () => {
     expect(Object.values(FIRM_DECISION_KEYS).map((k) => k.label)).toEqual(["⇧Q", "⇧A", "⇧R"]);
+  });
+});
+
+describe("goKeysIgnore", () => {
+  const press = (key: string, mods: Record<string, boolean> = {}) => ({
+    key,
+    shiftKey: false,
+    metaKey: false,
+    ctrlKey: false,
+    altKey: false,
+    repeat: false,
+    ...mods,
+  });
+
+  it("lets plain letters and a typed ? through", () => {
+    expect(goKeysIgnore(press("g"))).toBe(false);
+    expect(goKeysIgnore(press("a"))).toBe(false);
+    expect(goKeysIgnore(press("?", { shiftKey: true }))).toBe(false);
+  });
+
+  it("leaves Shift chords to the screens, so G then Shift+A is the Desk's Advance", () => {
+    expect(goKeysIgnore(press("A", { shiftKey: true }))).toBe(true);
+    expect(goKeysIgnore(press("G", { shiftKey: true }))).toBe(true);
+    expect(goKeysIgnore(press("Shift", { shiftKey: true }))).toBe(true);
+  });
+
+  it("still ignores Ctrl, Cmd and Alt chords and held-down repeats", () => {
+    expect(goKeysIgnore(press("g", { ctrlKey: true }))).toBe(true);
+    expect(goKeysIgnore(press("g", { metaKey: true }))).toBe(true);
+    expect(goKeysIgnore(press("g", { altKey: true }))).toBe(true);
+    expect(goKeysIgnore(press("g", { repeat: true }))).toBe(true);
   });
 });
