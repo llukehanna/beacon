@@ -9,6 +9,7 @@
   font: 500 13px/1.45 var(--font-ui);
   color: var(--tx);
   cursor: pointer;
+  text-decoration: none;
   transition:
     background-color var(--dur) var(--ease),
     box-shadow var(--dur) var(--ease),

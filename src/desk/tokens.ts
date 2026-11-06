@@ -2,10 +2,8 @@
  * Beacon JS-only colour maps (tier badges, band chips, confidence chips,
  * finding status). The values follow the palette in src/styles/tokens.css:
  * amber = conflict, green = verified or positive, red = negative or rejected,
- * indigo = proposed. Layout tokens are read from CSS variables (see
- * nocturne.css and tokens.css) via var(--color-*), var(--space-*), etc.
+ * indigo = proposed. Layout tokens live in CSS (src/styles/tokens.css).
  */
-import type { CSSProperties } from "react";
 import { ACQUIRED_BY_COMPETITOR } from "../../shared/vocab";
 
 // Tier palette — matches dataProvider.tierFromScore output.
@@ -32,22 +30,6 @@ export const TIER_LABEL: Record<string, string> = {
 // Provider labels live in shared/vocab (the server's accuracySummary sorts by them).
 export { PROVIDER_LABEL, providerLabel } from "../../shared/vocab";
 
-// Body-void background — the page background token (--bg), one step darker
-// than the first surface (--color-bg is --s1). Everything inside the desk
-// still reads from --color-* variables.
-export const VOID_BG = "#07080a";
-
-// Accent-tinted danger for reject buttons — the design uses this color-mix
-// for the reject secondary button border.
-export const REJECT_BORDER = "color-mix(in srgb, #f07167 42%, transparent)";
-export const REJECT_TEXT = "#f4948b";
-export const REJECT_ICON = "#f7aaa3";
-
-// Commit-success (green) for the "your call · advance" primary action.
-export const SUCCESS_TEXT = "#8ee5c0";
-export const SUCCESS_TINT_BG = "rgba(79,209,154,.16)";
-export const SUCCESS_TINT_BORDER = "color-mix(in srgb, #4fd19a 30%, transparent)";
-
 // ─── Observed outcome (post-decision) ───────────────────────────────────
 // Firm.outcome is backfilled by the FDE against decided firms; null on
 // firms not yet observed. Rendered as a chip on the desk header, the
@@ -61,10 +43,6 @@ export const OUTCOME_LABEL: Record<string, string> = {
   went_cold: "Went cold",
   acquired_by_competitor: "Acquired by competitor",
 };
-
-// The one outcome that reads as a miss for a firm we passed — carries a
-// muted red tint on chips and drives the /accuracy headline count.
-export const OUTCOME_ACQUIRED = ACQUIRED_BY_COMPETITOR;
 
 export function outcomeLabel(raw: string | null | undefined): string {
   if (raw === null || raw === undefined) {
@@ -102,10 +80,6 @@ export const DIVERGENCE_FG = "#c9a9f7";
 export const DIVERGENCE_BG = "rgba(155,127,224,.16)";
 export const DIVERGENCE_BORDER = "color-mix(in srgb, #9b7fe0 40%, transparent)";
 
-// The one-clause telling of the divergence story — reused verbatim by the
-// Home card so the two surfaces don't drift apart in wording.
-export const DIVERGENCE_PHRASE = "we passed, market didn't";
-
 export const DRIFT_REASON_STYLE: Record<string, DriftReasonStyle> = {
   tier_moved: {
     label: "Tier moved",
@@ -120,7 +94,7 @@ export const DRIFT_REASON_STYLE: Record<string, DriftReasonStyle> = {
     border: "color-mix(in srgb, #f0b955 32%, transparent)",
   },
   outcome_diverged: {
-    label: `Outcome diverged — ${DIVERGENCE_PHRASE}`,
+    label: "Outcome diverged — we passed, market didn't",
     fg: DIVERGENCE_FG,
     bg: DIVERGENCE_BG,
     border: DIVERGENCE_BORDER,
@@ -134,9 +108,9 @@ export function driftReasonPresentation(raw: string | undefined): DriftReasonSty
   }
   return {
     label: raw ?? "unknown reason",
-    fg: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-    bg: "var(--color-neutral-800)",
-    border: "var(--color-divider)",
+    fg: "var(--tx2)",
+    bg: "var(--s3)",
+    border: "var(--line2)",
   };
 }
 
@@ -150,7 +124,7 @@ export function outcomeChipStyle(raw: string | null | undefined): {
   border: string;
 } {
   const key = (raw ?? "").trim().toLowerCase();
-  if (key === OUTCOME_ACQUIRED) {
+  if (key === ACQUIRED_BY_COMPETITOR) {
     // Divergence violet — a firm we passed that the market bought IS the
     // outcome_diverged story, just observed on the firm rather than in the
     // review queue. Same hue on both surfaces so the thread is legible.
@@ -162,20 +136,8 @@ export function outcomeChipStyle(raw: string | null | undefined): {
     };
   }
   return {
-    fg: "color-mix(in srgb, var(--color-text) 68%, transparent)",
-    bg: "var(--color-neutral-800)",
-    border: "color-mix(in srgb, var(--color-text) 18%, transparent)",
+    fg: "var(--tx2)",
+    bg: "var(--s3)",
+    border: "var(--line2)",
   };
 }
-
-/** One sidebar frame for every screen, so the rail is the same width on every route. */
-export const SIDEBAR_STYLE: CSSProperties = {
-  width: 240,
-  flex: "0 0 240px",
-  borderRight: "1px solid var(--color-divider)",
-  display: "flex",
-  flexDirection: "column",
-  padding: 16,
-  gap: 12,
-  minHeight: 0,
-};

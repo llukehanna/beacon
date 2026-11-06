@@ -1,5 +1,5 @@
-/* Doubled selector so the shell's transparent background wins over the legacy .dsn surface. */
-.shell.shell {
+/* The shell owns the whole viewport; the page background shows through it. */
+.shell {
   display: grid;
   grid-template-columns: 228px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) 30px;

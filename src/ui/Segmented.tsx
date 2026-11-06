@@ -1,22 +1,13 @@
-import React from "react";
+import styles from "./Segmented.module.css";
 
 /**
- * Segmented control — the app's single two-or-three-way choice affordance.
+ * The app's single two-or-three-way choice: the hard-gate Pass/Fail rows, the conflict prompt and
+ * the mandate form's archetype and priority.
  *
- * Used by the hard-gate Pass/Fail rows, the conflict prompt, and the mandate
- * form's archetype / priority pickers, so a segmented choice looks and
- * behaves the same everywhere.
- *
- * Presentation lives in nocturne.css (.seg / .seg-opt). This component owns
- * the markup and the ARIA: a radiogroup of role="radio" buttons whose
- * aria-checked drives the selected styling, which means the visual state and
- * the accessible state cannot drift apart — the previous hand-rolled markup
- * styled selection with an inline color while telling assistive tech
- * nothing.
- *
- * Options are compared with Object.is, so `value` may be a boolean, string,
- * or number. Booleans are the common case: the hard gates store a polarity-
- * mapped boolean where "Pass" is whichever value clears that specific gate.
+ * A radiogroup of `role="radio"` buttons whose `aria-checked` drives the selected styling, so the
+ * visual state and the accessible state cannot drift apart. Options are compared with Object.is,
+ * so `value` may be a boolean, string or number; the hard gates store a polarity-mapped boolean
+ * where "Pass" is whichever value clears that specific gate.
  */
 
 export interface SegmentedOption<T> {
@@ -35,7 +26,6 @@ export function Segmented<T>({
   block = false,
   disabled = false,
   onFocus,
-  style,
 }: {
   options: readonly SegmentedOption<T>[];
   /** Current selection. `undefined` renders every option unselected. */
@@ -47,15 +37,13 @@ export function Segmented<T>({
   block?: boolean;
   disabled?: boolean;
   onFocus?: () => void;
-  style?: React.CSSProperties;
-}): React.ReactElement {
+}) {
   return (
     <div
-      className={block ? "seg seg-block" : "seg"}
+      className={block ? `${styles.seg} ${styles.block}` : styles.seg}
       role="radiogroup"
       aria-label={ariaLabel}
       aria-labelledby={ariaLabelledBy}
-      style={style}
     >
       {options.map((opt) => {
         const checked = value !== undefined && Object.is(opt.value, value);
@@ -66,7 +54,7 @@ export function Segmented<T>({
             role="radio"
             aria-checked={checked}
             disabled={disabled}
-            className="seg-opt"
+            className={styles.option}
             title={opt.title}
             onFocus={onFocus}
             onClick={() => onChange(opt.value)}
@@ -78,5 +66,3 @@ export function Segmented<T>({
     </div>
   );
 }
-
-export default Segmented;

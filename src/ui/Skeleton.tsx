@@ -11,9 +11,8 @@ export function Skeleton({ lines, height }: { lines?: number; height?: number })
       {Array.from({ length: count }, (_, i) => (
         <div
           key={i}
-          className={styles.bar}
           // The last line of a paragraph runs short.
-          style={{ width: count > 1 && i === count - 1 ? "60%" : "100%" }}
+          className={count > 1 && i === count - 1 ? `${styles.bar} ${styles.short}` : styles.bar}
         />
       ))}
     </div>

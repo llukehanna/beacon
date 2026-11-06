@@ -1,6 +1,5 @@
 import React from "react";
-import { Button, Kbd } from "@/ui";
-import { Segmented } from "../Segmented";
+import { Button, Kbd, Segmented } from "@/ui";
 import {
   HARD_GATE_PASS_WHEN,
   NUMERIC_UNIT,

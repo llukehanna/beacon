@@ -1,0 +1,23 @@
+.notice {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.error {
+  background: rgba(240, 113, 103, 0.12);
+  color: var(--red-tx);
+}
+
+.muted {
+  background: rgba(255, 255, 255, 0.03);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx2);
+}
+
+.accent {
+  background: rgba(138, 149, 255, 0.08);
+  box-shadow: 0 0 0 1px rgba(138, 149, 255, 0.18);
+  color: var(--tx);
+}

@@ -17,6 +17,11 @@
   animation: shimmer 1.4s linear infinite;
 }
 
+/* The last line of a paragraph. */
+.short {
+  width: 60%;
+}
+
 @keyframes shimmer {
   from {
     background-position: 100% 0;

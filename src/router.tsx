@@ -3,18 +3,19 @@ import { createBrowserRouter } from "react-router-dom";
 import RouteError from "@/RouteError";
 import Titled from "@/Titled";
 import Loading from "@/components/Loading";
+import NotFound from "@/components/NotFound";
 import Home from "@/home/HomePage";
 import AppShell from "@/shell/AppShell";
 
 // Home is the start-of-day page and stays in the initial bundle. Every other
 // surface is split into its own chunk and fetched on first navigation.
-const Accuracy = lazy(() => import("@/desk/Accuracy"));
+const Accuracy = lazy(() => import("@/accuracy/AccuracyPage"));
 const Desk = lazy(() => import("@/desk/firmDesk/DeskPage"));
-const MandatePage = lazy(() => import("@/desk/MandatePage"));
+const MandatePage = lazy(() => import("@/mandates/MandatePage"));
 const Pipeline = lazy(() => import("@/pipeline/PipelinePage"));
 const Review = lazy(() => import("@/review/ReviewPage"));
-const Rules = lazy(() => import("@/desk/Rules"));
-const SearchPage = lazy(() => import("@/desk/SearchPage"));
+const Rules = lazy(() => import("@/rules/RulesPage"));
+const SearchPage = lazy(() => import("@/mandates/SearchPage"));
 
 export const router = createBrowserRouter(
   [
@@ -111,6 +112,16 @@ export const router = createBrowserRouter(
               <Suspense fallback={<Loading />}>
                 <SearchPage />
               </Suspense>
+            </Titled>
+          ),
+        },
+        {
+          // Any path no route above matches, inside the shell so navigation stays at hand.
+          errorElement: <RouteError />,
+          path: "*",
+          element: (
+            <Titled title="Beacon — Not found">
+              <NotFound />
             </Titled>
           ),
         },

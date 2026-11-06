@@ -1,4 +1,10 @@
 /* Element defaults, focus ring, scrollbars, selection, reduced motion and Blueprint overrides. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 html {
   color-scheme: dark;
   background: var(--bg);
@@ -14,6 +20,33 @@ body {
     radial-gradient(900px 420px at 30% -10%, rgba(110, 123, 255, 0.1), transparent 60%),
     radial-gradient(600px 300px at 100% 0%, rgba(79, 209, 154, 0.04), transparent 60%), var(--bg);
   background-attachment: fixed;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  margin: 0;
+  font-size: 1em;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.015em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: var(--acc);
+  text-underline-offset: 3px;
+}
+
+img {
+  display: block;
+  max-width: 100%;
 }
 
 code,
@@ -73,9 +106,8 @@ pre {
   }
 }
 
-/* Blueprint: let its dark surfaces (drawers, dialogs, popovers, tags) use the tokens. */
-.bp6-dark,
-[data-bp-color-scheme="dark"] {
+/* Blueprint: let its dark surfaces (the drawers and dialogs) use the tokens. */
+.bp6-dark {
   --bp-surface-background-color-default-rest: var(--s2);
   --bp-surface-background-color-default-hover: var(--s3);
   --bp-surface-background-color-default-active: var(--s3);
@@ -91,8 +123,7 @@ pre {
 
 .bp6-dark.bp6-drawer,
 .bp6-dark .bp6-drawer-header,
-.bp6-dark.bp6-dialog,
-.bp6-dark .bp6-popover-content {
+.bp6-dark.bp6-dialog {
   background: var(--s1);
   color: var(--tx);
   font-family: var(--font-ui);
@@ -104,10 +135,4 @@ pre {
 
 .bp6-overlay-backdrop {
   background-color: rgba(3, 4, 5, 0.6);
-}
-
-.bp6-dark .bp6-tag {
-  background: var(--s3);
-  color: var(--tx2);
-  box-shadow: 0 0 0 1px var(--line);
 }

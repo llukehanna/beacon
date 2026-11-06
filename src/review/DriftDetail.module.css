@@ -126,6 +126,7 @@
 
 .observed {
   margin: 0;
+  color: var(--violet);
   font-size: 13px;
   font-weight: 500;
   overflow-wrap: anywhere;

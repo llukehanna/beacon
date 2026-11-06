@@ -1,0 +1,147 @@
+.picker {
+  padding: 16px;
+}
+
+.label.label {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.helper {
+  margin: 4px 0 0;
+  color: var(--tx2);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+/* Tiles sit in columns on a wide screen; an expanded one grows only its own column. */
+.groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+  gap: 8px 12px;
+  align-items: start;
+  margin-top: 12px;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.category {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx);
+  cursor: pointer;
+  font: 500 13px/1.45 var(--font-ui);
+  text-align: left;
+  transition:
+    background-color var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+
+.category:hover {
+  box-shadow: 0 0 0 1px var(--line2);
+}
+
+.category[aria-pressed="true"] {
+  background: rgba(138, 149, 255, 0.12);
+  box-shadow: 0 0 0 1px rgba(138, 149, 255, 0.5);
+  color: #d6daff;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+}
+
+.subCount {
+  color: var(--tx3);
+  font: 400 11.5px var(--font-mono);
+}
+
+.subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 4px;
+  padding-left: 12px;
+  box-shadow: inset 1px 0 0 var(--line2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: 0 0 0 1px var(--line2);
+  color: var(--tx2);
+  cursor: pointer;
+  font: 12px/1.45 var(--font-ui);
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.chip:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tx);
+}
+
+.chip[aria-pressed="true"] {
+  background: rgba(138, 149, 255, 0.14);
+  box-shadow: 0 0 0 1px rgba(138, 149, 255, 0.5);
+  color: #d6daff;
+}
+
+.remove {
+  color: var(--tx3);
+}
+
+.customs {
+  margin-top: 16px;
+}
+
+.customLabel {
+  margin-bottom: 4px;
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.customs .subs {
+  margin: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
+.add {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.add > input {
+  flex: 1;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

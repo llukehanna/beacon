@@ -1,0 +1,56 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.code {
+  font-family: var(--font-mono);
+}
+
+.inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.number {
+  flex: 0 1 140px;
+  min-width: 100px;
+  font-family: var(--font-mono);
+}
+
+.hint {
+  margin: 0;
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240, 113, 103, 0.08);
+  box-shadow: 0 0 0 1px rgba(240, 113, 103, 0.3);
+}
+
+.confirmTitle {
+  color: var(--red-tx);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.confirmBody {
+  margin: 0;
+  color: var(--tx2);
+  font-size: 12px;
+  line-height: 1.5;
+}

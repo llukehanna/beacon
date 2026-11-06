@@ -66,7 +66,6 @@ export default function ShortcutsOverlay({
       onClose={onClose}
       title="Keyboard shortcuts"
       className={`bp6-dark ${styles.dialog}`}
-      portalClassName="dsn"
     >
       <DialogBody>
         <div className={styles.columns}>
