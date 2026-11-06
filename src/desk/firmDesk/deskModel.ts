@@ -1,4 +1,3 @@
-import type React from "react";
 import { type FindingLike, retrievedMs } from "../axisState";
 import { HARD_GATE_EDIT_KEYS } from "../findingActions";
 import { type Model, type ScoreInput } from "../scoreMirror";
@@ -31,6 +30,9 @@ export interface FirmView {
   revenueBand?: string | null;
   ownership?: string | null;
   successionRisk?: string | null;
+  // When and by whom the firm was last enriched ("agent" until an analyst commits).
+  enrichedAt?: string | null;
+  enrichedBy?: string | null;
   // Read by the header/queue to detect a server-side hard screen driven by
   // an approved HardScreenConfig row (post backend fix). Any string
   // containing "reject" / "screen" / "hard" is treated as hard-screened.
@@ -160,7 +162,7 @@ const CS_BSP_OPTS: CatOption[] = [
   { score: 2, label: "Advisory only" },
 ];
 
-interface AxisEditor {
+export interface AxisEditor {
   editKey: string;
   kind: "categorical" | "number";
   options?: CatOption[];
@@ -192,6 +194,30 @@ export function editorForAxis(axisLabel: string, model: Model): AxisEditor | und
     default:
       return undefined;
   }
+}
+
+const EDITOR_LABELS: Record<Model, string[]> = {
+  CF: ["Services", "MD Experience", "Deal Size", "Deals per MD", "Firm Age", "Fee-Generating"],
+  CS: [
+    "CS Services Fit",
+    "MD Experience",
+    "Balance Sheet / Principal",
+    "Deal Size",
+    "Deals per MD",
+    "Firm Age",
+    "Fee-Generating",
+  ],
+};
+
+/** The editor for a firm field, by its edit key; undefined for gates and fields with no editor. */
+export function editorForEditKey(editKey: string, model: Model): AxisEditor | undefined {
+  for (const label of EDITOR_LABELS[model]) {
+    const editor = editorForAxis(label, model);
+    if (editor?.editKey === editKey) {
+      return editor;
+    }
+  }
+  return undefined;
 }
 
 // ─── Search filter (rediscovery) ─────────────────────────────────────────
@@ -336,18 +362,6 @@ export function describeCohort(firm: FirmView): string {
   }
   const label = bits.join(" · ");
   return label === "" ? "similar" : `similar (${label})`;
-}
-
-export function findingCardShell(border: string): React.CSSProperties {
-  return {
-    padding: 12,
-    background: "var(--color-surface)",
-    borderRadius: "var(--radius-md)",
-    boxShadow: "var(--shadow-sm)",
-    border,
-    display: "flex",
-    flexDirection: "column",
-  };
 }
 
 export function formatRetrievedShort(f: FindingLike): string {

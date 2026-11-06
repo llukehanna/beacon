@@ -1,6 +1,5 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
-import { SourceDrawerProvider } from "@/components/SourceDrawer";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
 import {
   Firm,
@@ -343,11 +342,7 @@ function Desk(): React.ReactElement {
   // Each row's state line: when the firm was last enriched and what is still waiting on it.
   const runByFirmId = React.useMemo(() => {
     const m = new Map<string, QueueRun>();
-    for (const f of (filteredData ?? []) as unknown as Array<{
-      firmId?: string;
-      enrichedAt?: string | null;
-      enrichedBy?: string | null;
-    }>) {
+    for (const f of (filteredData ?? []) as unknown as FirmView[]) {
       if (f.firmId) {
         m.set(f.firmId, { enrichedAt: f.enrichedAt ?? null, enrichedBy: f.enrichedBy ?? null });
       }
@@ -384,48 +379,46 @@ function Desk(): React.ReactElement {
   );
 
   return (
-    <SourceDrawerProvider>
-      <div className={styles.desk}>
-        {queueSidebar}
-        {searchActive && (
-          <SearchFilterBar
-            intentText={pinnedIntent}
-            searchName={pinnedSearch?.name ?? null}
-            searchIndex={searchIndex}
-            memberCount={filteredData?.length ?? 0}
-            loading={memberFirmIds === null}
-            onClear={onClearSearchFilter}
+    <div className={styles.desk}>
+      {queueSidebar}
+      {searchActive && (
+        <SearchFilterBar
+          intentText={pinnedIntent}
+          searchName={pinnedSearch?.name ?? null}
+          searchIndex={searchIndex}
+          memberCount={filteredData?.length ?? 0}
+          loading={memberFirmIds === null}
+          onClear={onClearSearchFilter}
+        />
+      )}
+      {loadError && (
+        <div role="alert" className={styles.error}>
+          {String(loadError)}
+        </div>
+      )}
+      <div className={styles.body}>
+        {panelState === "firm" && selected !== undefined && (
+          <EnrichmentPanel
+            firm={selected}
+            actionFirm={selected}
+            allFirms={(filteredData ?? []) as unknown as FirmView[]}
+            firmsLoading={isLoading}
+            // Same rule list the queue ranks and partitions on, so the firm
+            // header's hard-screen chip can't call a firm workable while the
+            // sidebar shows it screened.
+            activeConfigs={rankingRules}
+            configsLoading={configLoading}
           />
         )}
-        {loadError && (
-          <div role="alert" className={styles.error}>
-            {String(loadError)}
-          </div>
+        {panelState === "skeleton" && <FirmSkeleton />}
+        {panelState === "not-found" && effectiveId !== undefined && (
+          <FirmNotFound firmId={effectiveId} />
         )}
-        <div className={styles.body}>
-          {panelState === "firm" && selected !== undefined && (
-            <EnrichmentPanel
-              firm={selected}
-              actionFirm={selected}
-              allFirms={(filteredData ?? []) as unknown as FirmView[]}
-              firmsLoading={isLoading}
-              // Same rule list the queue ranks and partitions on, so the firm
-              // header's hard-screen chip can't call a firm workable while the
-              // sidebar shows it screened.
-              activeConfigs={rankingRules}
-              configsLoading={configLoading}
-            />
-          )}
-          {panelState === "skeleton" && <FirmSkeleton />}
-          {panelState === "not-found" && effectiveId !== undefined && (
-            <FirmNotFound firmId={effectiveId} />
-          )}
-          {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
-          {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
-          {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
-        </div>
+        {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
+        {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
+        {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
       </div>
-    </SourceDrawerProvider>
+    </div>
   );
 }
 

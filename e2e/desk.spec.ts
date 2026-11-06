@@ -33,10 +33,9 @@ async function openDesk(page: Page): Promise<void> {
 }
 
 const commitEnrichment = (page: Page) => page.getByRole("button", { name: /Commit enrichment/ });
-const proposedCard = (page: Page) =>
-  page
-    .getByTestId("finding-card")
-    .filter({ has: page.getByRole("button", { name: "Verify", exact: true }) });
+/** The first grid row in a state ("conflict", "proposed", ...); selecting it fills the evidence panel. */
+const gridRow = (page: Page, state: string) => page.locator(`tr[data-state="${state}"]`).first();
+const evidence = (page: Page) => page.getByRole("complementary", { name: "Evidence" });
 
 test("desk opens on the showcase firm", async ({ page }) => {
   await openDesk(page);
@@ -48,19 +47,59 @@ test("desk opens on the showcase firm", async ({ page }) => {
   await expect(page.getByText("Proposed", { exact: true }).first()).toBeVisible();
 });
 
+test("evidence panel shows grounding checks", async ({ page }) => {
+  await openDesk(page);
+
+  // A proposed axis cites a source: its panel lists the three checks the quote passed.
+  await gridRow(page, "proposed").click();
+  const checks = evidence(page).getByRole("list", { name: "Grounding checks" });
+  await expect(checks.getByRole("listitem")).toHaveCount(3);
+  await expect(checks).toContainText("Quote found verbatim in source");
+  await expect(checks).toContainText("Value appears in the quote");
+  await expect(checks).toContainText("Quote long enough to stand alone");
+  await expect(evidence(page).getByRole("button", { name: /^Verify / })).toBeVisible();
+});
+
+test("desk renders a never-enriched firm", async ({ page }) => {
+  const problems: string[] = [];
+  page.on("console", (msg) => {
+    if (msg.type() === "error") {
+      problems.push(`console.error: ${msg.text()}`);
+    }
+  });
+  page.on("pageerror", (err) => problems.push(`uncaught: ${err.message}`));
+
+  await openDesk(page);
+  // The queue's state line says which firms the agent has not run on yet.
+  await page
+    .getByRole("list", { name: "Firms in the queue" })
+    .getByRole("button")
+    .filter({ hasText: "Not yet enriched" })
+    .first()
+    .click();
+
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByText("No agent run yet")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
+  await expect(page.getByText("No findings yet")).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  expect(problems).toEqual([]);
+});
+
 test("view a source", async ({ page }) => {
   await openDesk(page);
 
-  const card = proposedCard(page).first();
-  await card.getByRole("button", { name: "View source" }).click();
+  await gridRow(page, "proposed").click();
 
-  await expect(page.getByRole("heading", { name: "Source document" })).toBeVisible();
-  const quote = page.locator("mark");
+  // The source document opens in the evidence panel with the cited passage marked.
+  await expect(evidence(page).getByRole("figure", { name: "Source document" })).toBeVisible();
+  const quote = evidence(page).locator("mark");
   await expect(quote).toBeVisible();
-  const cited = (await quote.innerText()).trim();
-  expect(cited.length).toBeGreaterThan(0);
-  // The highlighted passage is the quote the card cites.
-  await expect(card).toContainText(cited);
+  expect((await quote.innerText()).trim().length).toBeGreaterThan(0);
+  // The checks confirm that passage is in the document.
+  await expect(
+    evidence(page).getByRole("listitem").filter({ hasText: "Quote found verbatim in source" }),
+  ).toHaveAttribute("data-status", "pass");
 });
 
 test("resolve a conflict", async ({ page }) => {
@@ -68,14 +107,15 @@ test("resolve a conflict", async ({ page }) => {
   expect((await findingCounts(page)).conflicts).toBeGreaterThanOrEqual(1);
   await expect(page.getByText(/^pending: /)).toHaveCount(0);
 
-  // Each side of the conflict is a button: "<source> <value> Accept <source> →".
+  // Each side of the conflict has an Accept button in the evidence panel.
+  await gridRow(page, "conflict").click();
   const resolved = page.waitForResponse(
     (res) =>
       res.url().endsWith("/api/actions") &&
       res.request().postData()?.includes("resolveConflict") === true,
   );
-  await page
-    .getByRole("button", { name: /Accept \S.* →/ })
+  await evidence(page)
+    .getByRole("button", { name: /^Accept / })
     .first()
     .click();
   expect((await resolved).status()).toBe(200);
@@ -95,7 +135,10 @@ test("verify a proposed value", async ({ page }) => {
   const before = await findingCounts(page);
   expect(before.proposed).toBeGreaterThanOrEqual(1);
 
-  await proposedCard(page).first().getByRole("button", { name: "Verify", exact: true }).click();
+  await gridRow(page, "proposed").click();
+  await evidence(page)
+    .getByRole("button", { name: /^Verify / })
+    .click();
   await expect(commitEnrichment(page)).toBeEnabled();
   await expect(page.getByText(SUMMARY)).toContainText(
     `${before.proposed - 1} proposed · ${before.abstained} abstained · ${before.verified + 1} verified`,

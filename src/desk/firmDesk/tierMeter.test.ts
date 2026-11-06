@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MAX_POSSIBLE, type Model, TIER_THRESHOLDS, tierFor } from "../scoreMirror";
-import { tierMeter } from "./tierMeter";
+import { segmentLabel, tierMeter, tierText } from "./tierMeter";
 
 const CUTS = TIER_THRESHOLDS.CF;
 
@@ -49,5 +49,20 @@ describe("tierMeter", () => {
         );
       }
     }
+  });
+});
+
+describe("tier wording", () => {
+  it("calls a low score under the C cut-off Below C, and Rejected only when hard-screened", () => {
+    expect(tierText("Rejected", false)).toBe("Below C");
+    expect(tierText("Rejected", true)).toBe("Rejected");
+    expect(segmentLabel("Rejected", false)).toBe("Below C");
+    expect(segmentLabel("Rejected", true)).toBe("Rejected");
+  });
+
+  it("words the other tiers the same either way", () => {
+    expect(tierText("B", false)).toBe("Tier B");
+    expect(tierText("A", true)).toBe("Tier A");
+    expect(segmentLabel("C", false)).toBe("C");
   });
 });

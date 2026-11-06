@@ -2,14 +2,7 @@ import React from "react";
 import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../scoreMirror";
 import type { Model } from "../scoreMirror";
 import styles from "./TierMeterBar.module.css";
-import { type MeterTier, tierMeter } from "./tierMeter";
-
-const SEGMENT_LABEL: Record<MeterTier, string> = {
-  Rejected: "Rejected",
-  C: "C",
-  B: "B",
-  A: "A",
-};
+import { segmentLabel, tierMeter } from "./tierMeter";
 
 const pct = (fraction: number): string => `${fraction * 100}%`;
 
@@ -22,14 +15,17 @@ export function TierMeterBar({
   score,
   model,
   prior,
+  hard = false,
 }: {
   score: number;
   model: Model;
   prior?: number | null;
+  /** True when the firm is hard-screened out, which is what makes the lowest segment "Rejected". */
+  hard?: boolean;
 }): React.ReactElement {
   const meter = tierMeter(score, MAX_POSSIBLE, TIER_THRESHOLDS[model], prior);
   const label =
-    `Score ${score} of ${MAX_POSSIBLE}, tier ${meter.tier}` +
+    `Score ${score} of ${MAX_POSSIBLE}, ${meter.tier === "Rejected" ? segmentLabel(meter.tier, hard) : `tier ${meter.tier}`}` +
     (meter.ghost === null ? "" : `. Before the last enrichment: ${prior}`);
   return (
     <div className={styles.meter} role="img" aria-label={label}>
@@ -56,7 +52,7 @@ export function TierMeterBar({
             className={s.tier === meter.tier ? styles.scaleCurrent : undefined}
             style={{ left: pct(s.from) }}
           >
-            {SEGMENT_LABEL[s.tier]}
+            {segmentLabel(s.tier, hard)}
           </span>
         ))}
       </div>

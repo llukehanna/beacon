@@ -11,10 +11,13 @@ export function DecisionMemory({
   firm,
   allFirms,
   firmsLoading,
+  empty = null,
 }: {
   firm: FirmView;
   allFirms: FirmView[];
   firmsLoading: boolean;
+  /** Shown when there is no cohort or no prior decision to report; nothing by default. */
+  empty?: React.ReactNode;
 }): React.ReactElement | null {
   const { data: decisionData, isLoading: decisionsLoading } = useOsdkObjects(ReviewDecision, {
     orderBy: { decidedAt: "desc" },
@@ -109,7 +112,7 @@ export function DecisionMemory({
   }
   if (banner === null || banner.uniqueFirms <= 0) {
     // Nothing meaningful to say (no cohort or no prior decisions).
-    return null;
+    return <>{empty}</>;
   }
 
   const cohortLabel = describeCohort(firm);

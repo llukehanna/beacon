@@ -11,7 +11,9 @@ import { TIER_LABEL, outcomeChipStyle, outcomeLabel } from "../tokens";
 import styles from "./FirmHeader.module.css";
 import { TierMeterBar } from "./TierMeterBar";
 import { type FirmView, formatObservedDate } from "./deskModel";
-import { priorScoreBefore } from "./priorScore";
+import { enrichmentDelta, priorScoreBefore } from "./priorScore";
+import { type Projection } from "./projection";
+import { tierText } from "./tierMeter";
 
 // Observed-outcome chip. Rendered on the firm header when Firm.outcome is
 // non-null. `acquired_by_competitor` renders in the divergence colour — that's
@@ -131,6 +133,7 @@ export function FirmHeader({
   before,
   after,
   saving,
+  projection,
   activeConfigs,
   configsLoading,
 }: {
@@ -138,6 +141,8 @@ export function FirmHeader({
   before: MirrorResult;
   after: MirrorResult;
   saving: boolean;
+  /** The score if the open proposals were verified; null when none is open. */
+  projection: Projection | null;
   activeConfigs: readonly ActiveConfigRule[];
   configsLoading: boolean;
 }): React.ReactElement {
@@ -151,9 +156,10 @@ export function FirmHeader({
   const state = headerState(firm, after, tier, activeConfigs, configsLoading);
   const seconds = useSecondsOnFirm(firm.firmId);
 
-  const enrichedAt = (firm as { enrichedAt?: unknown }).enrichedAt;
-  const prior = usePriorScore(firm.firmId ?? "", enrichedAt);
-  const delta = prior === null ? 0 : score - prior;
+  const prior = usePriorScore(firm.firmId ?? "", firm.enrichedAt);
+  // The change the last enrichment made is between two stored scores, so it is read from the
+  // stored firm (not the staged edits), and a hard-rejected firm's zero is not a change.
+  const delta = enrichmentDelta(before.weightedTotal, prior, state.hard || before.hardRejected);
 
   return (
     <div className={styles.hero}>
@@ -193,7 +199,7 @@ export function FirmHeader({
             className={`${styles.tier} ${tier === "Rejected" ? styles.tierRejected : ""}`}
             title={state.label}
           >
-            {tier === "Rejected" ? "Rejected" : `Tier ${tier}`}
+            {tierText(tier, state.hard)}
           </span>
         </div>
         {(saving || changed) && (
@@ -202,7 +208,23 @@ export function FirmHeader({
             {saving ? "Saving…" : `${formatScore(beforeScore)} → ${formatScore(score)} staged`}
           </div>
         )}
-        <TierMeterBar score={score} model={after.model} prior={prior} />
+        <TierMeterBar score={score} model={after.model} prior={prior} hard={state.hard} />
+        {projection !== null && !state.hard && (
+          <div className={styles.projection} data-testid="projected-score">
+            <span>
+              If {projection.count} proposal{projection.count === 1 ? "" : "s"} verified
+            </span>
+            <span className={styles.projected}>
+              {projection.hardRejected ? (
+                "Hard-rejected"
+              ) : (
+                <>
+                  <b>{projection.score}</b> / {MAX_POSSIBLE} · {tierText(projection.tier, false)}
+                </>
+              )}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );

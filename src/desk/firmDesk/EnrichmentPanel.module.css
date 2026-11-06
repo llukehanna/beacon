@@ -1,4 +1,4 @@
-/* Main column plus the 340 px evidence column. Under 1280 px the evidence column steps aside. */
+/* Main column plus the 340 px evidence column. Under 1280 px the evidence panel is a drawer. */
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
@@ -33,9 +33,5 @@
 @media (max-width: 1279px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .layout > aside {
-    display: none;
   }
 }

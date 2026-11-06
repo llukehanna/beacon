@@ -56,12 +56,31 @@
   gap: 6px;
 }
 
+.skeletonAside {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(17, 19, 23, 0.9), rgba(12, 13, 16, 0.9));
+}
+
+.skeletonTabs {
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+
+.skeletonEvidence {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
 @media (max-width: 1279px) {
   .skeletonLayout {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .skeletonLayout > aside {
+  .skeletonAside {
     display: none;
   }
 }

@@ -29,28 +29,6 @@ export const TIER_LABEL: Record<string, string> = {
   Rejected: "Rejected",
 };
 
-// Per-axis 0/1/2 band chip — matches support.js:bandChip().
-export const BAND_COLOR: Record<number, { fg: string; bg: string }> = {
-  0: { fg: "#f4948b", bg: "rgba(240,113,103,.14)" },
-  1: { fg: "#f3c978", bg: "rgba(240,185,85,.14)" },
-  2: { fg: "#7fe0b5", bg: "rgba(79,209,154,.14)" },
-};
-
-// confidenceTier chip — matches dataProvider.CONFIDENCE.
-export const CONFIDENCE_CHIP: Record<string, { label: string; fg: string; bg: string }> = {
-  high: { label: "High", fg: "#7fe0b5", bg: "rgba(79,209,154,.16)" },
-  low: { label: "Low", fg: "#f5d58f", bg: "rgba(240,185,85,.16)" },
-  abstain: { label: "Abstain", fg: "#9ba1ab", bg: "rgba(255,255,255,.05)" },
-};
-
-// findingStatus chip — matches dataProvider.FINDING.
-export const FINDING_CHIP: Record<string, { label: string; fg: string; bg: string }> = {
-  proposed: { label: "Proposed", fg: "#b4bbff", bg: "rgba(138,149,255,.14)" },
-  verified: { label: "Verified", fg: "#7fe0b5", bg: "rgba(79,209,154,.14)" },
-  abstained: { label: "Abstained", fg: "#9ba1ab", bg: "rgba(255,255,255,.05)" },
-  rejected: { label: "Rejected", fg: "#f4948b", bg: "rgba(240,113,103,.14)" },
-};
-
 // Provider labels live in shared/vocab (the server's accuracySummary sorts by them).
 export { PROVIDER_LABEL, providerLabel } from "../../shared/vocab";
 

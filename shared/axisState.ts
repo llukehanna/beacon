@@ -5,8 +5,8 @@
  * axis, authoritative = human-verified first, else latest retrievedAt. The
  * others collapse into a "history (N)" disclosure inside the card.
  *
- * Extracted from firmDesk/findings/FindingsSection.tsx so Home can count "awaiting judgment" firms with
- * the SAME rule the desk renders. If Home used a looser definition (e.g.
+ * Shared with the desk's axis grid (src/desk/firmDesk/axisRows.ts) so Home can count
+ * "awaiting judgment" firms with the SAME rule the desk renders. If Home used a looser definition (e.g.
  * "has any abstained finding" rather than "has an axis whose authoritative
  * finding abstained") the home count would promise work the desk doesn't
  * show — an abstained finding that a later verified one supersedes is not
@@ -117,7 +117,7 @@ interface FirmScopedFinding extends FindingLike {
 
 /**
  * How many axes per firm are sitting in the "no source had this — needs
- * you" state. Mirrors FindingsSection's grouping exactly:
+ * you" state. Mirrors the desk grid's grouping exactly:
  *   • superseded findings are invisible
  *   • conflict-grouped findings are their own bucket, not an axis card
  *   • one authoritative finding per remaining axis decides the state

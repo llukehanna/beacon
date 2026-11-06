@@ -34,3 +34,16 @@ export function priorScoreBefore(rows: readonly ScoreRow[], enrichedAt: unknown)
   }
   return best === null ? null : best.total;
 }
+
+/**
+ * How much the last enrichment moved the stored score: the stored total less the total before it.
+ * Zero (nothing to show) when there is no earlier score or the firm is hard-rejected, whose total
+ * is zero by definition rather than a change.
+ */
+export function enrichmentDelta(
+  storedTotal: number,
+  prior: number | null,
+  hardRejected: boolean,
+): number {
+  return prior === null || hardRejected ? 0 : storedTotal - prior;
+}
