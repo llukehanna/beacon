@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { Button, EmptyState, Skeleton } from "@/ui";
 import styles from "./DeskStates.module.css";
 
@@ -10,6 +11,37 @@ export function PickAFirm(): React.ReactElement {
         title="Pick a firm"
         body="Choose a firm from the queue. Firms are ordered by how much a decision would change their score. Firms screened out by approved rules are hidden unless you turn on Show all firms."
       />
+    </div>
+  );
+}
+
+/** No firm exists yet: the queue fills when a mandate's search finds some. */
+export function EmptyQueue(): React.ReactElement {
+  return (
+    <div className={styles.center}>
+      <EmptyState
+        title="The queue is empty"
+        body="No firms have been found yet. Run a search from a mandate and the firms it finds will line up here, ordered by how much a decision would change their score."
+        action={
+          <Link to="/mandate" className={styles.link}>
+            Open Mandates
+          </Link>
+        }
+      />
+    </div>
+  );
+}
+
+/** The firm list could not be loaded; says why, in words. */
+export function LoadFailed({ message }: { message: string }): React.ReactElement {
+  return (
+    <div className={styles.center}>
+      <div role="alert">
+        <EmptyState
+          title="Couldn't load the Desk"
+          body={`${message.replace(/[.\s]+$/, "")}. Reload the page to try again.`}
+        />
+      </div>
     </div>
   );
 }
@@ -34,6 +66,9 @@ export function FirmSkeleton(): React.ReactElement {
           {Array.from({ length: 8 }, (_, i) => (
             <Skeleton key={i} height={38} />
           ))}
+        </div>
+        <div className={styles.skeletonBar}>
+          <Skeleton height={96} />
         </div>
       </div>
       <aside className={styles.skeletonAside} aria-hidden="true">

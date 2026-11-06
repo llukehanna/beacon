@@ -33,6 +33,37 @@ export function isTypingTarget(el: Element | null): boolean {
   return (el as HTMLElement).isContentEditable === true;
 }
 
+/**
+ * The Desk's firm-level decisions. They are Shift chords so they cannot be hit by accident, and so
+ * they never collide with the plain letters that act on the selected axis (V verifies, R rejects
+ * its value, P and F pass or fail a gate).
+ */
+export const FIRM_DECISION_KEYS = {
+  qualify: { letter: "q", label: "⇧Q" },
+  advance: { letter: "a", label: "⇧A" },
+  pass: { letter: "r", label: "⇧R" },
+} as const;
+
+export type FirmDecisionKey = keyof typeof FIRM_DECISION_KEYS;
+
+/** Which firm-level decision a keydown asks for, if any. Ignores Ctrl, Cmd and Alt chords. */
+export function firmDecisionKey(e: {
+  key: string;
+  shiftKey: boolean;
+  metaKey: boolean;
+  ctrlKey: boolean;
+  altKey: boolean;
+}): FirmDecisionKey | null {
+  if (!e.shiftKey || e.metaKey || e.ctrlKey || e.altKey) {
+    return null;
+  }
+  const letter = e.key.toLowerCase();
+  const found = (Object.keys(FIRM_DECISION_KEYS) as FirmDecisionKey[]).find(
+    (k) => FIRM_DECISION_KEYS[k].letter === letter,
+  );
+  return found ?? null;
+}
+
 /** True while a modal (a dialog, the demo reset confirmation, a drawer) owns the keyboard. */
 export function modalIsOpen(doc: Document = document): boolean {
   return doc.querySelector('[role="dialog"]') !== null;

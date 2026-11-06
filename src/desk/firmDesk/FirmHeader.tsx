@@ -83,17 +83,6 @@ function headerState(
   return { hard: false, label: TIER_LABEL[tier] ?? tier };
 }
 
-/** Seconds the analyst has had this firm open; restarts when the firm changes. */
-function useSecondsOnFirm(firmId: string | undefined): number {
-  const [seconds, setSeconds] = React.useState(0);
-  React.useEffect(() => {
-    setSeconds(0);
-    const timer = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(timer);
-  }, [firmId]);
-  return seconds;
-}
-
 /** The score the firm had before its last enrichment, from the persisted score history. */
 function usePriorScore(firmId: string, enrichedAt: unknown): number | null {
   const { data } = useOsdkObjects(QualificationScore, {
@@ -154,7 +143,6 @@ export function FirmHeader({
   const beforeScore = before.weightedTotal;
   const changed = score !== beforeScore;
   const state = headerState(firm, after, tier, activeConfigs, configsLoading);
-  const seconds = useSecondsOnFirm(firm.firmId);
 
   const prior = usePriorScore(firm.firmId ?? "", firm.enrichedAt);
   // The change the last enrichment made is between two stored scores, so it is read from the
@@ -177,7 +165,6 @@ export function FirmHeader({
             outcome={(firm as unknown as { outcome?: string | null }).outcome}
             observedAt={(firm as unknown as { outcomeObservedAt?: unknown }).outcomeObservedAt}
           />
-          <span className={styles.elapsed}>{seconds}s on firm</span>
         </div>
       </div>
 

@@ -1,0 +1,238 @@
+/* Pinned to the bottom of the scrolling column, full width of it. The column sets --gx and --gb
+   (its side and bottom padding) so the bar can bleed past them. */
+.bar {
+  position: sticky;
+  /* Sticky offsets are measured from inside the column's padding, so reach down through it. */
+  bottom: calc(-1 * var(--gb));
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: auto calc(-1 * var(--gx)) calc(-1 * var(--gb));
+  padding: 12px var(--gx) 14px;
+  border-top: 1px solid var(--line2);
+  background: rgba(12, 13, 16, 0.94);
+  box-shadow: 0 -14px 28px -16px rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(10px);
+}
+
+.error {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240, 113, 103, 0.12);
+  box-shadow: 0 0 0 1px rgba(240, 113, 103, 0.3);
+  color: #f4948b;
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+.error ul {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.heading {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.title.title {
+  margin: 0;
+  color: var(--tx2);
+  font: 500 12px var(--font-ui);
+}
+
+.count {
+  color: var(--tx3);
+  font: 11.5px var(--font-mono);
+}
+
+.items {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.items li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  color: var(--tx2);
+  font-size: 12.5px;
+}
+
+.mark {
+  width: 12px;
+  color: var(--tx3);
+  font-weight: 600;
+  text-align: center;
+}
+
+.items li[data-ok="true"] .mark {
+  color: var(--green);
+}
+
+.detail {
+  color: var(--tx3);
+  font: 11.5px var(--font-mono);
+}
+
+/* Wide: what to confirm, the note, then the buttons, side by side. */
+.main {
+  display: grid;
+  grid-template: "confirm note actions" auto / auto minmax(0, 1fr) 244px;
+  gap: 16px;
+  align-items: start;
+}
+
+.confirm {
+  grid-area: confirm;
+}
+
+.noteBox {
+  grid-area: note;
+}
+
+.actions {
+  grid-area: actions;
+}
+
+.noteBox {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.note {
+  width: 100%;
+  min-height: 52px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line2);
+  color: var(--tx);
+  caret-color: var(--acc);
+  font: 13px/1.45 var(--font-ui);
+  resize: vertical;
+}
+
+.note::placeholder {
+  color: var(--tx3);
+}
+
+.note:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 0;
+}
+
+.note[aria-invalid="true"] {
+  box-shadow: 0 0 0 1px rgba(240, 113, 103, 0.6);
+}
+
+.hint {
+  margin: 0;
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.hintError {
+  color: #f4948b;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.actions > * {
+  flex: 1 1 auto;
+}
+
+/* Commit is the main action and takes the first row. */
+.actions > :first-child {
+  flex-basis: 100%;
+}
+
+.pass.pass {
+  color: #f4948b;
+  box-shadow:
+    0 0 0 1px rgba(240, 113, 103, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.terminal {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.025) 0 6px,
+    transparent 6px 12px
+  );
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx2);
+  font-size: 12.5px;
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A narrower column puts the note on a row of its own under the confirmations and buttons. */
+@container deskmain (max-width: 859px) {
+  .main {
+    grid-template:
+      "confirm actions" auto
+      "note note" auto / minmax(0, 1fr) 244px;
+    gap: 10px 16px;
+  }
+}
+
+/* A phone stacks everything; the confirmations wrap across and the buttons share the width. */
+@container deskmain (max-width: 520px) {
+  .main {
+    grid-template: "confirm" "note" "actions" / minmax(0, 1fr);
+  }
+
+  .items {
+    flex-flow: row wrap;
+    gap: 3px 18px;
+  }
+
+  .actions > :first-child {
+    flex-basis: auto;
+  }
+}
+
+/* Under 900 px the bar is the last block of the stacked page, not a pinned strip. */
+@media (max-width: 899px) {
+  .bar {
+    position: static;
+    margin: 0;
+    padding: 12px;
+    border-top: 0;
+    border-radius: 10px;
+    box-shadow: 0 0 0 1px var(--line2);
+    backdrop-filter: none;
+  }
+}

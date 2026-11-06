@@ -1,6 +1,7 @@
 /**
  * What the firm record holds for each axis right now (staged edits first), and the rubric points
  * it earns. Shown beside the sources so "no source had it" never reads as "nothing is known".
+ * A staged edit is flagged `pending`, so it is never worded as "on file" before it is committed.
  */
 import { effectiveAxisValue, formatAxisValue } from "../findingActions";
 import { type MirrorResult } from "../scoreMirror";
@@ -12,6 +13,8 @@ export interface OnFile {
   text: string;
   /** Points on the axis (0 to 2) from the rubric mirror; null for gates and unscored values. */
   band: number | null;
+  /** True when the value is only staged in this session: it is not on the firm record until Commit. */
+  pending: boolean;
 }
 
 /** Keyed by axis (finding vocabulary); an axis with no value on file has no entry. */
@@ -34,6 +37,7 @@ export function buildOnFile(
     out[row.axis] = {
       text: formatAxisValue(key, value),
       band: scored?.known ? scored.score : null,
+      pending: edits[key] !== undefined && edits[key] !== "",
     };
   }
   return out;

@@ -18,11 +18,19 @@ import { deskPanelState } from "../deskPanelState";
 import "../nocturne.css";
 import { type ActiveConfigRule, orderEnrichmentQueue, toQueueFirm } from "../queue";
 import styles from "./DeskPage.module.css";
-import { FirmNotFound, FirmNotInSearch, FirmSkeleton, PickAFirm, SearchEmpty } from "./DeskStates";
+import {
+  EmptyQueue,
+  FirmNotFound,
+  FirmNotInSearch,
+  FirmSkeleton,
+  LoadFailed,
+  PickAFirm,
+  SearchEmpty,
+} from "./DeskStates";
 import { EnrichmentPanel } from "./EnrichmentPanel";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type FirmView, type RediscoveryInfo } from "./deskModel";
+import { type FirmView, type RediscoveryInfo, formatActionError } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 
@@ -391,9 +399,9 @@ function Desk(): React.ReactElement {
           onClear={onClearSearchFilter}
         />
       )}
-      {loadError && (
+      {loadError && panelState !== "error" && (
         <div role="alert" className={styles.error}>
-          {String(loadError)}
+          {formatActionError(loadError)}
         </div>
       )}
       <div className={styles.body}>
@@ -416,6 +424,8 @@ function Desk(): React.ReactElement {
         )}
         {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
         {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
+        {panelState === "error" && <LoadFailed message={formatActionError(loadError)} />}
+        {panelState === "queue-empty" && <EmptyQueue />}
         {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
       </div>
     </div>

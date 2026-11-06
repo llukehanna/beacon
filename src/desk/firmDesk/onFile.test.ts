@@ -24,14 +24,18 @@ describe("buildOnFile", () => {
 
   it("reads each axis's value from the firm record with its rubric points", () => {
     const onFile = view(firm);
-    expect(onFile.services_fit).toEqual({ text: "Full private-capital suite", band: 2 });
-    expect(onFile.deal_size_usd_m).toEqual({ text: "40", band: 1 });
+    expect(onFile.services_fit).toEqual({
+      text: "Full private-capital suite",
+      band: 2,
+      pending: false,
+    });
+    expect(onFile.deal_size_usd_m).toEqual({ text: "40", band: 1, pending: false });
   });
 
   it("words gates as Pass or Fail and gives them no points", () => {
     const onFile = view(firm);
-    expect(onFile.solvent).toEqual({ text: "Pass", band: null });
-    expect(onFile.advisory_conflict).toEqual({ text: "Pass", band: null });
+    expect(onFile.solvent).toEqual({ text: "Pass", band: null, pending: false });
+    expect(onFile.advisory_conflict).toEqual({ text: "Pass", band: null, pending: false });
   });
 
   it("leaves out axes with no value on file", () => {
@@ -40,9 +44,9 @@ describe("buildOnFile", () => {
     expect(onFile.md_pedigree).toBeUndefined();
   });
 
-  it("prefers a staged edit to the stored value", () => {
+  it("prefers a staged edit to the stored value and marks it pending", () => {
     const onFile = view(firm, { dealSizeMUsd: 200 });
-    expect(onFile.deal_size_usd_m).toEqual({ text: "200", band: 2 });
+    expect(onFile.deal_size_usd_m).toEqual({ text: "200", band: 2, pending: true });
   });
 
   it("reads the balance-sheet gate through its SDK spelling", () => {

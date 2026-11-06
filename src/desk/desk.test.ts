@@ -2028,6 +2028,12 @@ describe("deskPanelState — one panel state at a time", () => {
     expect(deskPanelState({ ...base, firmsLoading: true })).toBe("empty");
   });
 
+  it("says the queue is empty only once the firms have loaded and none exist", () => {
+    expect(deskPanelState({ ...base, viewCount: 0 })).toBe("queue-empty");
+    expect(deskPanelState({ ...base, viewCount: 0, firmsLoading: true })).toBe("empty");
+    expect(deskPanelState({ ...base, viewCount: 0, hasError: true })).toBe("error");
+  });
+
   it("renders the firm once it is in the view", () => {
     expect(deskPanelState({ ...base, selectedId: "f1", inView: true, inDatabase: true })).toBe(
       "firm",

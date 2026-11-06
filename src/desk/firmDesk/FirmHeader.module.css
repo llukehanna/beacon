@@ -40,12 +40,6 @@
   color: #f4948b;
 }
 
-.elapsed {
-  margin-left: 4px;
-  color: var(--tx3);
-  font: 11px var(--font-mono);
-}
-
 .scorebox {
   flex: none;
   width: 300px;

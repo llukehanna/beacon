@@ -150,6 +150,58 @@ test("view a source", async ({ page }) => {
   ).toHaveAttribute("data-status", "pass");
 });
 
+test("typing in the note does not trigger shortcuts", async ({ page }) => {
+  await openDesk(page);
+  // Select a proposed axis: V would verify it and R would open its reject editor if a key leaked.
+  const row = gridRow(page, "proposed");
+  await row.click();
+  const axis = await row.getAttribute("data-axis");
+  const axisRow = page.locator(`tr[data-axis="${axis}"]`);
+  await expect(axisRow).toHaveAttribute("aria-current", "true");
+  const stage = await page.getByTitle("Lifecycle stage").innerText();
+  const before = await findingCounts(page);
+
+  const note = page.getByRole("textbox", { name: "Decision note" });
+  await note.click();
+  await page.keyboard.type("Ready to verify");
+
+  await expect(note).toHaveValue("Ready to verify");
+  await expect(axisRow).toHaveAttribute("data-state", "proposed");
+  expect(await findingCounts(page)).toEqual(before);
+  await expect(page.getByTitle("Lifecycle stage")).toHaveText(stage);
+  await expect(evidence(page).getByRole("region", { name: "Your value" })).not.toContainText(
+    "and use your own",
+  );
+  await expect(page.getByText(/^pending: /)).toHaveCount(0);
+  await expect(commitEnrichment(page)).toBeDisabled();
+});
+
+test("desk shortcuts work", async ({ page }) => {
+  await openDesk(page);
+  const before = await findingCounts(page);
+
+  // Focus the grid on a proposed axis and press V.
+  const row = gridRow(page, "proposed");
+  const axis = await row.getAttribute("data-axis");
+  await row.click();
+  await expect(row).toBeFocused();
+  await page.keyboard.press("v");
+
+  const verified = page.locator(`tr[data-axis="${axis}"]`);
+  await expect(verified).toHaveAttribute("data-state", "verified");
+  await expect(page.getByText(SUMMARY)).toContainText(
+    `${before.proposed - 1} proposed · ${before.abstained} abstained · ${before.verified + 1} verified`,
+  );
+  await expect(commitEnrichment(page)).toBeEnabled();
+
+  // Shift+R is the firm-level Pass; with no note it asks for one instead of passing.
+  await page.keyboard.press("Shift+R");
+  await expect(
+    page.getByRole("alert").filter({ hasText: "A note is required to pass." }),
+  ).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Decision note" })).toBeFocused();
+});
+
 test("resolve a conflict", async ({ page }) => {
   await openDesk(page);
   expect((await findingCounts(page)).conflicts).toBeGreaterThanOrEqual(1);

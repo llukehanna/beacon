@@ -1,6 +1,7 @@
 import React from "react";
 import { useOsdkAction } from "@/data/hooks";
 import { resolveConflictAction } from "@/data/ontology";
+import { type Command, useCommands } from "@/shell/commands";
 import { isTypingTarget } from "@/shell/keys";
 import { Button, Chip, Kbd, StatusPill } from "@/ui";
 import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
@@ -233,9 +234,33 @@ export function EvidenceBody({
     }
   }, [rejecting, editing]);
 
-  // V verifies the proposed value, R opens the reject-with-your-own-value editor.
+  // V verifies the proposed value, R opens the reject-with-your-own-value editor. Shift+R is the
+  // decision bar's "Pass" for the whole firm, so a shifted letter is never read here.
   const verifyRef = React.useRef(verify);
   verifyRef.current = verify;
+  const commands = React.useMemo<Command[]>(
+    () =>
+      proposed
+        ? [
+            {
+              id: "desk:verify",
+              label: `Verify ${row.label}`,
+              group: "Actions",
+              hint: "V",
+              run: () => verifyRef.current(),
+            },
+            {
+              id: "desk:reject",
+              label: `Reject ${row.label} and enter your own`,
+              group: "Actions",
+              hint: "R",
+              run: () => setRejecting(true),
+            },
+          ]
+        : [],
+    [proposed, row.label],
+  );
+  useCommands(commands);
   React.useEffect(() => {
     if (!proposed) {
       return;
@@ -245,6 +270,7 @@ export function EvidenceBody({
         e.metaKey ||
         e.ctrlKey ||
         e.altKey ||
+        e.shiftKey ||
         isTypingTarget(e.target as Element | null) ||
         otherDialogOpen()
       ) {
@@ -288,7 +314,7 @@ export function EvidenceBody({
 
         {onFile !== undefined && (
           <p className={styles.onFile}>
-            On file: <span>{onFile.text}</span>
+            {onFile.pending ? "Pending" : "On file"}: <span>{onFile.text}</span>
             {onFile.band !== null && ` · scores ${onFile.band} of 2`}
           </p>
         )}
