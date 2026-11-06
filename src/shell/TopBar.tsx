@@ -33,16 +33,18 @@ function useCrumbs(): Crumb[] {
 }
 
 /**
- * 48 px top bar: breadcrumbs, the search pill and, under 900 px, the button that opens the sidebar
+ * 48 px top bar: breadcrumbs, the search pill (opens the command palette) and, under 900 px, the button that opens the sidebar
  * drawer. There is deliberately no avatar; nothing behind one exists.
  */
 export default function TopBar({
   menuOpen,
   onMenu,
+  onSearch,
   showMenu,
 }: {
   menuOpen: boolean;
   onMenu: () => void;
+  onSearch: () => void;
   showMenu: boolean;
 }): React.ReactElement {
   const crumbs = useCrumbs();
@@ -75,8 +77,13 @@ export default function TopBar({
           })}
         </ol>
       </nav>
-      {/* The command palette attaches to this button. */}
-      <button type="button" className={styles.search} aria-label="Search and commands">
+      <button
+        type="button"
+        className={styles.search}
+        aria-label="Search and commands"
+        aria-haspopup="dialog"
+        onClick={onSearch}
+      >
         <Search size={14} aria-hidden="true" />
         <span className={styles.searchText}>Search firms, run actions…</span>
         <Kbd>⌘K</Kbd>

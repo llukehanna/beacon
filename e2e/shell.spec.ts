@@ -74,3 +74,50 @@ test("reset button still resets", async ({ page }) => {
 
   await expect(page.getByText("Demo data restored.")).toBeVisible();
 });
+
+test("command palette opens a firm", async ({ page }) => {
+  // The desk lands on a showcase firm; its name is the page heading.
+  await openRoute(page, route("/desk"));
+  const name = (await route("/desk").heading(page).first().innerText()).trim();
+  expect(name.length).toBeGreaterThan(3);
+  await openRoute(page, route("/"));
+
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await expect(palette).toBeVisible();
+  await expect(page.getByRole("combobox")).toBeFocused();
+
+  await page.keyboard.type(name);
+  await expect(palette.getByRole("option").first()).toContainText(name);
+  await page.keyboard.press("Enter");
+
+  await expect(page).toHaveURL(/\/desk\?firmId=/);
+  await expect(palette).toBeHidden();
+  await expect(route("/desk").heading(page).first()).toHaveText(name);
+});
+
+test("slash opens the palette outside text fields and escape closes it", async ({ page }) => {
+  await openRoute(page, route("/"));
+
+  await page.keyboard.press("/");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await expect(palette).toBeVisible();
+  await expect(page.getByRole("combobox")).toHaveValue("");
+
+  await page.keyboard.type("rul");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowUp");
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/rules$/);
+
+  // Typing a slash into a text field must not open it.
+  await openRoute(page, route("/pipeline"));
+  await page.getByRole("textbox").first().click();
+  await page.keyboard.type("a/b");
+  await expect(palette).toBeHidden();
+
+  await page.getByRole("button", { name: "Search and commands" }).click();
+  await expect(palette).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(palette).toBeHidden();
+});

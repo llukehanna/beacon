@@ -3,12 +3,15 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Drawer } from "@blueprintjs/core";
 import "@/desk/nocturne.css";
 import styles from "./AppShell.module.css";
+import CommandPalette from "./CommandPalette";
 import ShortcutsOverlay from "./ShortcutsOverlay";
 import Sidebar from "./Sidebar";
 import StatusBar from "./StatusBar";
 import TopBar from "./TopBar";
 import { SidebarSlotContext } from "./sidebarSlot";
 import { useGoKeys } from "./useGoKeys";
+import { usePaletteKeys } from "./usePaletteKeys";
+import { useShellCommands } from "./useShellCommands";
 import { useShellCounts } from "./useShellData";
 
 const NARROW_QUERY = "(max-width: 899px)";
@@ -36,9 +39,21 @@ export default function AppShell(): React.ReactElement {
   const counts = useShellCounts();
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [helpOpen, setHelpOpen] = React.useState(false);
+  const [paletteOpen, setPaletteOpen] = React.useState(false);
+  // The firm list is fetched the first time the palette opens, not on every screen.
+  const [paletteUsed, setPaletteUsed] = React.useState(false);
   const [slot, setSlot] = React.useState<HTMLElement | null>(null);
 
-  useGoKeys(() => setHelpOpen(true));
+  const openHelp = React.useCallback(() => setHelpOpen(true), []);
+  useGoKeys(openHelp);
+  const { commands, firmCount } = useShellCommands({ loadFirms: paletteUsed, onHelp: openHelp });
+  const setPalette = React.useCallback((open: boolean) => {
+    setPaletteOpen(open);
+    if (open) {
+      setPaletteUsed(true);
+    }
+  }, []);
+  usePaletteKeys(paletteOpen, setPalette);
 
   // Picking a route, or a firm in the queue, closes the drawer; widening the window does too.
   React.useEffect(() => {
@@ -76,12 +91,23 @@ export default function AppShell(): React.ReactElement {
           </aside>
         )}
         <div className={styles.column}>
-          <TopBar showMenu={narrow} menuOpen={drawerOpen} onMenu={() => setDrawerOpen(true)} />
+          <TopBar
+            showMenu={narrow}
+            menuOpen={drawerOpen}
+            onMenu={() => setDrawerOpen(true)}
+            onSearch={() => setPalette(true)}
+          />
           <div id="main" tabIndex={-1} className={styles.main}>
             <Outlet />
           </div>
         </div>
         <StatusBar counts={counts} />
+        <CommandPalette
+          commands={commands}
+          firmCount={firmCount}
+          isOpen={paletteOpen}
+          onClose={() => setPalette(false)}
+        />
         <ShortcutsOverlay isOpen={helpOpen} onClose={() => setHelpOpen(false)} />
       </div>
     </SidebarSlotContext.Provider>
