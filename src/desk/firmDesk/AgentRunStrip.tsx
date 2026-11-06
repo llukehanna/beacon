@@ -17,21 +17,27 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
  * The agent's last run on this firm in one row: when it ran and, per source, how many axes that
  * source supplied a grounded value for and what share of the axes that is. A firm the agent has
  * not run on gets the call to action instead. "Re-run" stays available once it has.
+ *
+ * `agentRan` comes from the firm's findings (see `agentHasRun`), not from `enrichedAt`: an analyst
+ * committing values by hand stamps the firm too, and that is not a run. It is undefined while the
+ * findings load.
  */
 export function AgentRunStrip({
   firm,
   actionFirm,
+  agentRan,
 }: {
   firm: FirmView;
   actionFirm: unknown;
+  agentRan: boolean | undefined;
 }): React.ReactElement {
   const enrichedAt = firm.enrichedAt ?? null;
   const enrichedBy = firm.enrichedBy ?? null;
   const when = agoText(enrichedAt, Date.now());
-  const ran = enrichedAt !== null && when !== null;
+  const ran = agentRan === true;
   const byAgent = enrichedBy === AGENT;
 
-  const { data, isLoading, error } = useFirmObservations(firm.firmId);
+  const { data, isLoading, error } = useFirmObservations(ran ? firm.firmId : undefined);
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
   const run = (): void => {
     if (!runAgent.isPending) {
@@ -63,6 +69,14 @@ export function AgentRunStrip({
         Agent run failed: {formatActionError(runAgent.error)}
       </div>
     );
+
+  if (agentRan === undefined) {
+    return (
+      <section className={styles.strip} aria-label="Agent run" aria-busy="true">
+        <Skeleton height={36} />
+      </section>
+    );
+  }
 
   if (!ran) {
     return (
@@ -104,7 +118,7 @@ export function AgentRunStrip({
             </div>
             <div className={`${styles.sub} ${styles.mono}`}>
               {when}
-              {data !== undefined && ` · ${plural(axes, "axis", "axes")}`}
+              {data !== undefined && `${when === null ? "" : " · "}${plural(axes, "axis", "axes")}`}
             </div>
           </div>
         </div>
