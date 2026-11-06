@@ -42,7 +42,7 @@ const STEPS: ReadonlyArray<{ title: string; body: React.ReactNode }> = [
     body: (
       <>
         A plain-code rubric of {AXIS_COUNT} axes, each scored 0 to 2 ({RUBRIC_MAX} points), turns
-        the verified values into a score and a tier. The same module runs in the browser for live
+        the values on file into a score and a tier. The same module runs in the browser for live
         previews and on the server for the record, so the two cannot disagree.
       </>
     ),
@@ -102,7 +102,7 @@ const LEGEND: ReadonlyArray<{ term: string; text: string }> = [
   },
   {
     term: "Postgres",
-    text: `Neon in production. One schema of ${OBJECT_TYPE_COUNT} object types describes the data. History tables are written by actions that only add rows.`,
+    text: `Neon in production. One schema of ${OBJECT_TYPE_COUNT} object types describes the data. Scores and decisions are only ever added, never edited.`,
   },
   {
     term: "Offline: Claude extraction",
