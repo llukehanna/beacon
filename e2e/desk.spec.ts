@@ -60,6 +60,34 @@ test("evidence panel shows grounding checks", async ({ page }) => {
   await expect(evidence(page).getByRole("button", { name: /^Verify / })).toBeVisible();
 });
 
+test("a click on the grid's first paint is not overridden by the opening selection", async ({
+  page,
+}) => {
+  // The desk opens on the first axis that needs a decision, from an effect that runs just after
+  // the grid renders. Click a proposed row in the very task that paints it, ahead of that effect,
+  // the way a fast or slow-to-schedule click lands.
+  await page.addInitScript(() => {
+    const w = window as unknown as { clickedAxis?: string };
+    const watch = new MutationObserver(() => {
+      const row = document.querySelector<HTMLElement>('tr[data-state="proposed"]');
+      if (row !== null && w.clickedAxis === undefined) {
+        w.clickedAxis = row.dataset.axis;
+        row.click();
+        watch.disconnect();
+      }
+    });
+    watch.observe(document, { childList: true, subtree: true });
+  });
+  await openDesk(page);
+
+  const clicked = await page.evaluate(
+    () => (window as unknown as { clickedAxis?: string }).clickedAxis,
+  );
+  expect(clicked).toBeDefined();
+  await expect(page.locator(`tr[data-axis="${clicked}"]`)).toHaveAttribute("aria-current", "true");
+  await expect(evidence(page).getByRole("button", { name: /^Verify / })).toBeVisible();
+});
+
 test("rejecting a proposed value stages the analyst's own", async ({ page }) => {
   await openDesk(page);
   await expect(page.getByText(/^pending: /)).toHaveCount(0);
@@ -132,6 +160,37 @@ test("desk renders a never-enriched firm", async ({ page }) => {
   await expect(evidence(page).getByRole("spinbutton", { name: /value$/ })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(problems).toEqual([]);
+});
+
+test("the queue's search and show-all survive the sidebar drawer at 390px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openDesk(page);
+  const drawer = page.locator(".bp6-drawer");
+  const open = async (): Promise<void> => {
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(drawer).toBeVisible();
+  };
+
+  await open();
+  const search = drawer.getByRole("textbox", { name: "Search firms" });
+  await search.fill("advis");
+  const showAll = drawer.getByRole("checkbox", { name: "Show all firms" });
+  await showAll.check();
+  await expect(drawer.getByText(/matching · searching all firms/)).toBeVisible();
+
+  // Closing and reopening the drawer remounts the queue; what was typed and ticked stays.
+  await drawer.getByRole("button", { name: "Close" }).click();
+  await expect(drawer).toBeHidden();
+  await open();
+  await expect(drawer.getByRole("textbox", { name: "Search firms" })).toHaveValue("advis");
+  await expect(drawer.getByRole("checkbox", { name: "Show all firms" })).toBeChecked();
+
+  // Widening the window swaps the drawer for the fixed rail; the same two settings are there.
+  await drawer.getByRole("button", { name: "Close" }).click();
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const rail = page.getByRole("complementary", { name: "Workspace" });
+  await expect(rail.getByRole("textbox", { name: "Search firms" })).toHaveValue("advis");
+  await expect(rail.getByRole("checkbox", { name: "Show all firms" })).toBeChecked();
 });
 
 test("view a source", async ({ page }) => {

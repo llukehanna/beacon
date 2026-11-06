@@ -15,7 +15,8 @@ const STAGES = [
   "Passed",
 ];
 
-for (const width of [1440, 768, 390]) {
+// 640-720 and 900-960 are where nine columns are narrowest (the sidebar takes 228 px from 900).
+for (const width of [1440, 960, 900, 768, 720, 680, 640, 390]) {
   test(`home funnel shows every stage on one line at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await openRoute(page, home);
@@ -26,6 +27,9 @@ for (const width of [1440, 768, 390]) {
       const lineHeight = await label.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
       const box = await label.boundingBox();
       expect(box!.height, `${stage} label wraps`).toBeLessThanOrEqual(lineHeight + 1);
+      // A label wider than its column spills into the next one.
+      const spill = await label.evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(spill, `${stage} label overflows its column`).toBeLessThanOrEqual(0);
     }
 
     const overflow = await page.evaluate(
@@ -58,9 +62,8 @@ test("home registers its actions in the command palette", async ({ page }) => {
 test("home funnel bar opens pipeline filtered to that stage", async ({ page }) => {
   await openRoute(page, home);
   const bar = page.locator('a[data-stage="Qualified"]');
-  const funnelCount = Number(
-    /: (\d+) firms$/.exec((await bar.getAttribute("aria-label")) ?? "")?.[1],
-  );
+  // The link reads "<count> <stage>": its name is what it shows.
+  const funnelCount = Number(/^(\d+)/.exec((await bar.innerText()).trim())?.[1]);
   expect(funnelCount).toBeGreaterThan(0);
 
   await bar.click();

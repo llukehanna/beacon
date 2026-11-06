@@ -18,9 +18,11 @@ const asTrend = (t: Trend | null) =>
 const daysOf = (t: Trend | null) =>
   visibleTrend(asTrend(t)).points === null ? undefined : `${t!.points.length} days`;
 
-function Card({ to, label, children }: { to: string; label: string; children: React.ReactNode }) {
+// The link is named by what the card says (label, value, meaning), not by a fixed label that
+// would leave the number out.
+function Card({ to, children }: { to: string; children: React.ReactNode }) {
   return (
-    <Link to={to} className={styles.card} aria-label={label}>
+    <Link to={to} className={styles.card}>
       {children}
     </Link>
   );
@@ -46,7 +48,7 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
 
   return (
     <div className={styles.row}>
-      <Card to="/accuracy" label="Grounded in a source: open accuracy">
+      <Card to="/accuracy">
         <Metric
           highlighted
           label="Grounded in a source"
@@ -64,7 +66,7 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
           tone="accent"
         />
       </Card>
-      <Card to="/accuracy" label="Honest abstention: open accuracy">
+      <Card to="/accuracy">
         <Metric
           label="Honest abstention"
           aside={daysOf(trends.abstention)}
@@ -76,7 +78,7 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
           hideDelta
         />
       </Card>
-      <Card to="/accuracy" label="Analyst agreement: open accuracy">
+      <Card to="/accuracy">
         <Metric
           label="Analyst agreement"
           aside={`${count(trust.decidedFindings)} decided`}
@@ -91,7 +93,7 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
           tone="green"
         />
       </Card>
-      <Card to="/pipeline" label="Firms in coverage: open pipeline">
+      <Card to="/pipeline">
         <Metric
           label="Firms in coverage"
           aside={`${count(mandates.length)} mandate${mandates.length === 1 ? "" : "s"}`}

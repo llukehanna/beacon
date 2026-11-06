@@ -125,9 +125,7 @@ export function AgentRunStrip({
               <div className={styles.providerRow}>
                 <span>{label}</span>
                 {data !== undefined && (
-                  <span className={`${styles.hits} ${hits === 0 ? styles.hitsNone : ""}`}>
-                    {plural(hits, "hit", "hits")}
-                  </span>
+                  <span className={styles.hits}>{plural(hits, "hit", "hits")}</span>
                 )}
               </div>
               {data !== undefined ? (

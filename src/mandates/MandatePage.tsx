@@ -125,7 +125,7 @@ export default function MandatePage(): React.ReactElement {
         <Notice className={styles.error}>{String(anyError)}</Notice>
       )}
 
-      <main className={styles.scroll}>
+      <div className={styles.scroll}>
         <div className={styles.layout}>
           <NewMandateForm intentRef={intentRef} />
 
@@ -168,7 +168,7 @@ export default function MandatePage(): React.ReactElement {
             )}
           </div>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

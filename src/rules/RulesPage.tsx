@@ -121,7 +121,7 @@ export default function RulesPage(): React.ReactElement {
         <Notice className={styles.error}>{String(error)}</Notice>
       )}
 
-      <main className={styles.scroll}>
+      <div className={styles.scroll}>
         {loading && <Skeleton lines={4} />}
         {!isLoading && rules.length === 0 && (
           <EmptyState
@@ -168,7 +168,7 @@ export default function RulesPage(): React.ReactElement {
             explainModelId={explainModelId}
           />
         )}
-      </main>
+      </div>
     </div>
   );
 }

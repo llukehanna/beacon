@@ -1,5 +1,7 @@
 .funnel {
   padding-bottom: 14px;
+  /* The labels' room depends on the panel, not the window (the sidebar takes 228 px from 900). */
+  container-type: inline-size;
 }
 
 .loading {
@@ -111,6 +113,18 @@
   color: var(--tx3);
   font-size: 12px;
   white-space: nowrap;
+}
+
+/* Nine columns in under ~720 px leave "Discovered" a pixel to spare: set the labels a size down. */
+@container (max-width: 720px) {
+  .stages {
+    gap: 4px;
+    padding: 16px 12px 0;
+  }
+
+  .label {
+    font-size: 11px;
+  }
 }
 
 /* A narrow screen turns the columns into rows: label, bar, count. */

@@ -34,7 +34,7 @@
 }
 
 .abstained {
-  color: var(--tx3);
+  color: var(--tx2);
   background: rgba(255, 255, 255, 0.04);
 }
 

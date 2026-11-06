@@ -214,7 +214,10 @@ export default function StatusBar({ counts }: { counts: ShellCounts }): React.Re
   const { pathname } = useLocation();
   const { lastSyncedAt, unreachable } = useSyncSummary();
   const now = useNow();
-  const hints = [...(pathname === "/desk" ? DESK_HINTS : GO_HINTS), { keys: ["?"], label: "all" }];
+  const hints = [
+    ...(pathname === "/desk" ? DESK_HINTS : GO_HINTS),
+    { keys: ["?"], label: "shortcuts" },
+  ];
 
   return (
     <footer className={styles.bar} aria-label="Status">

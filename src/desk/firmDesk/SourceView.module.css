@@ -50,7 +50,7 @@
 }
 
 .num {
-  color: rgba(255, 255, 255, 0.28);
+  color: var(--tx3);
   font: 11px/2 var(--font-mono);
   text-align: right;
 }

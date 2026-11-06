@@ -99,9 +99,9 @@ export default function AppShell(): React.ReactElement {
             onSearch={() => setPalette(true)}
             onSearchIntent={() => setPaletteUsed(true)}
           />
-          <div id="main" tabIndex={-1} className={styles.main}>
+          <main id="main" tabIndex={-1} className={styles.main}>
             <Outlet />
-          </div>
+          </main>
         </div>
         <StatusBar counts={counts} />
         <CommandPalette

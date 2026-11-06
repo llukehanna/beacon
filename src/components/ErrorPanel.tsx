@@ -16,10 +16,13 @@ export function ErrorPanel({
   role?: "alert" | "status";
 }) {
   return (
-    <div className={styles.wrap} role={role}>
+    <div className={styles.wrap}>
       <Panel className={styles.panel}>
-        <h1 className={styles.title}>{title}</h1>
-        <p className={styles.message}>{children}</p>
+        {/* The alert is the message; the buttons under it are not announced with it. */}
+        <div role={role}>
+          <h1 className={styles.title}>{title}</h1>
+          <p className={styles.message}>{children}</p>
+        </div>
         {actions !== undefined && <div className={styles.actions}>{actions}</div>}
       </Panel>
     </div>

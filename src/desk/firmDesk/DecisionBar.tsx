@@ -134,7 +134,8 @@ export function DecisionBar({
   const actRef = React.useRef(act);
   actRef.current = act;
   const commitRef = React.useRef<(() => void) | null>(null);
-  commitRef.current = dirty && !enrichPending ? onCommit : null;
+  const canCommit = dirty && !enrichPending;
+  commitRef.current = canCommit ? onCommit : null;
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
@@ -153,15 +154,17 @@ export function DecisionBar({
   }, []);
 
   const commands = React.useMemo<Command[]>(() => {
-    const list: Command[] = [
-      {
+    const list: Command[] = [];
+    // Offered only while there is something staged to commit, like the button and the shortcut.
+    if (canCommit) {
+      list.push({
         id: "desk:commit",
         label: "Commit enrichment",
         group: "Actions",
         hint: "⌘↵",
         run: () => commitRef.current?.(),
-      },
-    ];
+      });
+    }
     if (canQualify) {
       list.push({
         id: "desk:qualify",
@@ -190,7 +193,7 @@ export function DecisionBar({
       });
     }
     return list;
-  }, [canQualify, canAdvance, canPass, nextState]);
+  }, [canCommit, canQualify, canAdvance, canPass, nextState]);
   useCommands(commands);
 
   const items = confirmItems(firm, mirror, edits);
