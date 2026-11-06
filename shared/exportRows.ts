@@ -229,7 +229,7 @@ export function exportRows(
       }
       const fromFinding = axisValue(def, auth.value);
       if (fromFinding === null) {
-        // The finding has no usable value, so the firm's own value is not its to be credited.
+        // The finding has no usable value: use the firm's own value, uncited.
         row[def.axis] = own;
         cites.push(EMPTY_CITATION(def.axis));
         continue;

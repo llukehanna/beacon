@@ -122,8 +122,8 @@ test("keyboard focus stays on the trigger after choosing an item", async ({ page
   await page.keyboard.press("ArrowDown");
   const started = page.waitForEvent("download");
   await page.keyboard.press("Enter");
-  await started;
   await expect(exportMenu(page)).toBeFocused();
+  await started;
   await expect(exportMenu(page)).toHaveText("Export");
   await expect(exportMenu(page)).toBeFocused();
 });
