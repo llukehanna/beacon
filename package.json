@@ -22,7 +22,8 @@
     "deploy:presenter": "npm run build && wrangler deploy --env presenter",
     "cf:dev": "npm run build && wrangler dev --env=\"\"",
     "e2e": "playwright test --grep-invert @shots",
-    "shots": "playwright test --grep @shots"
+    "shots": "playwright test --grep @shots",
+    "media:record": "tsx scripts/record-demo.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
