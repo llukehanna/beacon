@@ -11,7 +11,7 @@ import {
   rejectDecisionByFirm,
 } from "@/desk/pipelineRows";
 import { type Command, useCommands } from "@/shell/commands";
-import { Button, EmptyState, SidePanel } from "@/ui";
+import { Button, ButtonLink, EmptyState, SidePanel } from "@/ui";
 import { PASSED } from "../../shared/vocab";
 import { Filters } from "./Filters";
 import { FirmDetail } from "./FirmDetail";
@@ -174,7 +174,7 @@ export default function PipelinePage(): React.ReactElement {
       <EmptyState
         title="No firms yet"
         body="Run a search from a mandate and the firms it finds will be listed here, stage by stage."
-        action={<Button onClick={() => navigate("/mandate")}>Open Mandates</Button>}
+        action={<ButtonLink to="/mandate">Open Mandates</ButtonLink>}
       />
     ) : narrowed ? (
       <EmptyState
@@ -213,9 +213,9 @@ export default function PipelinePage(): React.ReactElement {
               aria-label="Search firms"
             />
           </div>
-          <Button variant="primary" onClick={() => navigate("/mandate")}>
+          <ButtonLink to="/mandate" variant="primary">
             New search
-          </Button>
+          </ButtonLink>
         </div>
       </header>
       {error !== undefined && error !== null && (
