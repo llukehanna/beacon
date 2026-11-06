@@ -66,3 +66,7 @@
   color: var(--tx3);
   font-size: 11px;
 }
+
+.tour {
+  margin-top: 18px;
+}

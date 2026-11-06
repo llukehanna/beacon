@@ -163,6 +163,7 @@ export function AxisGrid({
                   key={row.axis}
                   data-axis={row.axis}
                   data-state={row.state}
+                  data-tour={row.state === "conflict" ? "conflict-row" : undefined}
                   data-selected={isSelected ? "true" : undefined}
                   aria-current={isSelected ? "true" : undefined}
                   tabIndex={row.axis === tabStop ? 0 : -1}
