@@ -53,7 +53,7 @@ export default function PipelinePage(): React.ReactElement {
 
   const wide = useMediaQuery("(min-width: 1280px)");
   const cards = useMediaQuery("(max-width: 899px)");
-  const scrollRef = React.useRef<HTMLElement>(null);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
 
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);
   const [query, setQuery] = React.useState("");
@@ -225,7 +225,7 @@ export default function PipelinePage(): React.ReactElement {
       )}
       <div className={styles.layout} data-panel={wide && panelOpen ? "column" : undefined}>
         <div className={styles.col}>
-          <main ref={scrollRef} className={styles.scroll}>
+          <div ref={scrollRef} className={styles.scroll}>
             <StageTabs value={stage} counts={counts} loading={loading} onChange={setStage} />
             <Filters profile={profile} onProfile={setProfile} sort={sort} onSort={setSort} />
             <FirmList
@@ -240,7 +240,7 @@ export default function PipelinePage(): React.ReactElement {
               onSort={(key) => setSort((current) => nextSort(current, key))}
               now={now}
             />
-          </main>
+          </div>
         </div>
         <SidePanel
           open={panelOpen}

@@ -29,6 +29,12 @@ const COUNT_TITLE: Partial<Record<NavItem["to"], string>> = {
   "/review": "Drift events waiting on a decision",
 };
 
+/** What a count badge counts, in words for a screen reader: "586 open firms". */
+function countLabel(to: NavItem["to"], n: number): string {
+  const s = n === 1 ? "" : "s";
+  return to === "/desk" ? `${n} open firm${s}` : `${n} drift event${s} to review`;
+}
+
 function countFor(to: NavItem["to"], counts: ShellCounts): number | undefined {
   if (to === "/desk") {
     return counts.open;
@@ -77,7 +83,8 @@ export default function Sidebar({
               <span>{item.label}</span>
               {count !== undefined && count > 0 && (
                 <span className={styles.count} title={COUNT_TITLE[item.to]}>
-                  {count}
+                  <span aria-hidden="true">{count}</span>
+                  <span className="sr-only">{countLabel(item.to, count)}</span>
                 </span>
               )}
             </Link>

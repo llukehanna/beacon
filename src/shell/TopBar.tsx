@@ -51,6 +51,7 @@ export default function TopBar({
   showMenu: boolean;
 }): React.ReactElement {
   const crumbs = useCrumbs();
+  const { pathname } = useLocation();
   return (
     <header className={styles.top}>
       {showMenu && (
@@ -70,7 +71,8 @@ export default function TopBar({
             const last = i === crumbs.length - 1;
             return (
               <li key={`${i}-${c.label}`} aria-current={last ? "page" : undefined}>
-                {c.to !== undefined && !last ? (
+                {/* A crumb that points at this very page is not a link: one tab stop fewer. */}
+                {c.to !== undefined && !last && c.to !== pathname ? (
                   <Link to={c.to}>{c.label}</Link>
                 ) : (
                   <span>{c.label}</span>
@@ -83,8 +85,8 @@ export default function TopBar({
       <button
         type="button"
         className={styles.search}
-        aria-label="Search and commands"
         aria-haspopup="dialog"
+        aria-keyshortcuts="Control+K Meta+K"
         onClick={onSearch}
         onPointerEnter={onSearchIntent}
         onFocus={onSearchIntent}

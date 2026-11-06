@@ -108,7 +108,7 @@ export default function ReviewPage(): React.ReactElement {
         </p>
       )}
       <div className={styles.layout} data-panel={wide && panelOpen ? "column" : undefined}>
-        <main className={styles.scroll}>
+        <div className={styles.scroll}>
           {!driftLoading && drifts.length === 0 ? (
             <EmptyState
               title="No firms have moved since qualification"
@@ -123,7 +123,7 @@ export default function ReviewPage(): React.ReactElement {
               loading={loading}
             />
           )}
-        </main>
+        </div>
         <SidePanel
           open={panelOpen}
           asDrawer={!wide}

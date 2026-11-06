@@ -149,7 +149,7 @@ export default function SearchPage(): React.ReactElement {
         }
       />
 
-      <main className={styles.scroll}>
+      <div className={styles.scroll}>
         <Panel className={styles.mandate}>
           <div className={styles.kicker}>Mandate</div>
           <h2 className={styles.headline} data-loading={mandateQuery.isLoading || undefined}>
@@ -212,7 +212,7 @@ export default function SearchPage(): React.ReactElement {
                 : `${totalPicked} filter${totalPicked === 1 ? "" : "s"} across geography, products, and industries.`}
           </span>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

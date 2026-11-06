@@ -116,7 +116,7 @@ test("slash opens the palette outside text fields and escape closes it", async (
   await page.keyboard.type("a/b");
   await expect(palette).toBeHidden();
 
-  await page.getByRole("button", { name: "Search and commands" }).click();
+  await page.getByRole("button", { name: /Search firms, run actions/ }).click();
   await expect(palette).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(palette).toBeHidden();

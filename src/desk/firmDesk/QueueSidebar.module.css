@@ -151,13 +151,19 @@
   box-shadow: inset 2px 0 0 var(--acc);
 }
 
-.dim {
-  opacity: 0.6;
+/* A screened firm steps back in colour, not by fading the row, so its text stays readable. */
+.dim .nameText,
+.dim .score {
+  color: var(--tx3);
 }
 
 .dim .nameText {
   text-decoration: line-through;
   text-decoration-color: var(--tx4);
+}
+
+.dim .bar {
+  opacity: 0.5;
 }
 
 .name {

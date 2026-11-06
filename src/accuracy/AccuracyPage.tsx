@@ -72,7 +72,7 @@ export default function AccuracyPage(): React.ReactElement {
         <Notice className={styles.error}>{String(error)}</Notice>
       )}
 
-      <main className={styles.scroll}>
+      <div className={styles.scroll}>
         {data === undefined && isLoading && (
           <div className={styles.metrics} aria-busy="true">
             {[0, 1, 2, 3].map((i) => (
@@ -119,7 +119,7 @@ export default function AccuracyPage(): React.ReactElement {
             </p>
           </>
         )}
-      </main>
+      </div>
     </div>
   );
 }

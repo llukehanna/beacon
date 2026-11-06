@@ -68,6 +68,7 @@
 }
 
 .search {
+  position: relative;
   display: flex;
   flex: none;
   align-items: center;
@@ -110,7 +111,12 @@
     width: auto;
   }
 
+  /* The button keeps its name when the text is hidden: it stays in the accessibility tree. */
   .searchText {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
   }
 }

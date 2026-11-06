@@ -90,10 +90,6 @@
   font: 400 11px var(--font-mono);
 }
 
-.hitsNone {
-  opacity: 0.8;
-}
-
 .coverage {
   position: relative;
   height: 3px;

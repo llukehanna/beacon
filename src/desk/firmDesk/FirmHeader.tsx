@@ -170,13 +170,13 @@ export function FirmHeader({
 
       <div className={styles.scorebox}>
         <div className={styles.scoreRow}>
-          <span
-            className={`${styles.big} ${after.hardRejected ? styles.muted : ""}`}
-            aria-label={formatScore(score)}
-          >
-            {score}
+          <span className={`${styles.big} ${after.hardRejected ? styles.muted : ""}`}>
+            <span aria-hidden="true">{score}</span>
+            <span className="sr-only">{formatScore(score)}</span>
           </span>
-          <span className={styles.of}>/ {MAX_POSSIBLE}</span>
+          <span className={styles.of} aria-hidden="true">
+            / {MAX_POSSIBLE}
+          </span>
           {delta !== 0 && (
             <span className={`${styles.delta} ${delta < 0 ? styles.down : ""}`}>
               {signed(delta)} since enrichment

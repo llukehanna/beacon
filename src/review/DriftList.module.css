@@ -59,10 +59,13 @@
   outline-offset: -2px;
 }
 
-/* A resolved event stays readable but steps back. */
-.row[data-resolved] .text,
-.row[data-resolved] .mark {
-  opacity: 0.7;
+/* A resolved event stays readable but steps back: quieter text, not faded text. */
+.row[data-resolved] .text {
+  color: var(--tx2);
+}
+
+.row[data-resolved] .reason {
+  color: var(--tx3);
 }
 
 .mark {

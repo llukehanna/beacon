@@ -36,12 +36,7 @@ export function PipelineFunnel({ counts }: { counts: Record<Lifecycle, number> |
         <ol className={styles.stages}>
           {bars.map(({ stage, count, px }) => (
             <li key={stage} className={stage === PASSED ? styles.passed : undefined}>
-              <Link
-                to={stageHref(stage)}
-                className={styles.stage}
-                data-stage={stage}
-                aria-label={`${stage}: ${count} firms`}
-              >
+              <Link to={stageHref(stage)} className={styles.stage} data-stage={stage}>
                 <span className={styles.plot}>
                   <span className={styles.count} data-empty={count === 0 || undefined}>
                     {count.toLocaleString("en-US")}

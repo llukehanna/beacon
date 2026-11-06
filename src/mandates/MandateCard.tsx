@@ -2,7 +2,7 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useLinks } from "@/data/hooks";
 import { ButtonLink, Chip, Panel } from "@/ui";
-import { type MandateFirmCounts, formatMandateFirmCounts } from "../../shared/mandateFirms";
+import { type MandateFirmCounts } from "../../shared/mandateFirms";
 import styles from "./MandateCard.module.css";
 import {
   FIRM_COUNT_PAGE_SIZE,
@@ -93,7 +93,6 @@ export function MandateCard({
       {/* Same union, same wording as Home's mandate row. */}
       <div
         className={styles.counts}
-        aria-label={countsLoading ? undefined : formatMandateFirmCounts(counts)}
         title="Scoped = every firm in this mandate's lists and searches. From searches = the subset a Search run attached."
       >
         {countsLoading ? (

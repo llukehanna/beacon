@@ -131,6 +131,11 @@ export function EnrichmentPanel({
   );
   const projection = React.useMemo(() => projectProposals(base, edits, rows), [base, edits, rows]);
 
+  // The grid shows once the provider readings are in as well as the findings: until then a row
+  // can be picked whose evidence has nothing to show yet, and the summary above the grid
+  // reads as final while the cells under it are still empty.
+  const gridLoading = findingsLoading || (findings.length > 0 && observations.isLoading);
+
   // Where the wide layout opens: the first axis that needs a decision, once per firm.
   const autoSelected = React.useRef<string | undefined>(undefined);
   React.useEffect(() => {
@@ -143,7 +148,8 @@ export function EnrichmentPanel({
     const first = open ?? rows.find((r) => r.state !== "empty");
     if (first !== undefined) {
       autoSelected.current = firm.firmId;
-      setSelectedAxis(first.axis);
+      // Never replaces a pick made since this effect was scheduled: it keeps what is there.
+      setSelectedAxis((picked) => picked ?? first.axis);
     }
   }, [wide, selectedAxis, rows, firm.firmId]);
 
@@ -357,7 +363,7 @@ export function EnrichmentPanel({
             onFile={onFile}
             selected={selectedAxis}
             onSelect={selectAxis}
-            loading={findingsLoading}
+            loading={gridLoading}
           />
 
           <SpineAxes firm={firm} mirror={after} />

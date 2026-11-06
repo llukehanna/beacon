@@ -26,7 +26,7 @@ const DESK_ROWS: Row[] = [
   { keys: [FIRM_DECISION_KEYS.qualify.label], label: "Qualify the firm" },
   { keys: [FIRM_DECISION_KEYS.advance.label], label: "Advance the firm to its next stage" },
   { keys: [FIRM_DECISION_KEYS.pass.label], label: "Pass on the firm (a note is required)" },
-  { keys: ["Esc"], label: "Clear the selected axis" },
+  { keys: ["Esc"], label: "Clear focus" },
 ];
 
 function Section({ title, rows }: { title: string; rows: Row[] }): React.ReactElement {
