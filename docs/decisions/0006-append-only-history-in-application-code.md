@@ -14,7 +14,7 @@ Every write is a named action, and the actions treat history this way (as `serve
 - A `ResearchFinding` is inserted once and afterwards changes only its status and verification stamp. An analyst override inserts a new finding.
 - A `DriftEvent` changes only its status and resolution. A `ProposedRule` changes only its status and who decided it, and when. A `HardScreenConfig` is inserted per version and only its active flag is switched off.
 - The `Firm` row is current state and is updated in place.
-- The API has no generic write endpoint: the only write routes are `/api/actions` and `/api/reset`.
+- The API has no generic write endpoint: the only write routes are `/api/actions` and `/api/reset`. (`/api/links` is a POST so it can take many keys in a body, but it only reads.)
 
 ## Consequences
 

@@ -14,7 +14,7 @@ Claude reads the records, but an answer is only kept if it can be traced to the 
 - **Grounding.** An answer is kept only if the provider covers the axis, the value is valid for the axis, the quote appears word for word in the record (ignoring whitespace) and is at least a short sentence, and the quote contains the value. This holds for labels, numbers (as whole tokens) and true/false answers (`server/extraction/grounding.ts`). A rejected answer is dropped.
 - **Offline recording.** `npm run extract` sends every firm through the Message Batches API (Claude Haiku 4.5) with a dollar cap, and writes one fixture line per firm with tokens, cost and latency (`fixtures/extraction/claude-haiku-4-5.jsonl`). The seed loads them as `Extraction` objects, and the **Run agent** button grounds the stored answers again, so no visitor action calls a model.
 - **Staleness.** A stored answer is used only when its record hash and prompt version match the current code. Otherwise the firm falls back to a rule-based extractor that returns the same shape.
-- **Recorded run.** All 700 firms; 6,455 of 6,472 values passed grounding; the run cost $1.39 (`docs/evals.json`).
+- **Recorded run.** All 700 firms; 6,455 of 6,472 values passed grounding (recomputed in `docs/evals.json`); the run cost $1.39 (stated in `docs/architecture.md` and `src/about/facts.ts`, `RECORDED_RUN`).
 
 ## Consequences
 
