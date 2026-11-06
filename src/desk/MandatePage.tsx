@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import DemoFooter from "@/components/DemoFooter";
 import { Term } from "@/components/Term";
 import { useLinks, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
@@ -25,9 +24,7 @@ import {
   mandateFirmCounts,
   searchListFirmIds,
 } from "./mandateFirms";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
-import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
 
 // ─── Small primitives (match the other Nocturne screens) ────────────────
 
@@ -493,18 +490,11 @@ function MandatePage(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <aside style={SIDEBAR_STYLE}>
-        <BrandMark section="Mandates" />
-        <WorkspaceNavLinks />
-        <DemoFooter />
-      </aside>
-
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
           style={{

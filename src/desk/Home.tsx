@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import DemoFooter from "@/components/DemoFooter";
 import { useOsdkQuery } from "@/data/hooks";
 import type {
   HomeSummary,
@@ -10,7 +9,6 @@ import type {
 } from "../../shared/summaries";
 import { PASSED } from "../../shared/vocab";
 import { formatMandateFirmCounts } from "./mandateFirms";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import { LIFECYCLE_BUCKETS, type Lifecycle } from "./pipelineBuckets";
 import { formatScore } from "./scoreFormat";
@@ -20,8 +18,6 @@ import {
   DIVERGENCE_FG,
   DIVERGENCE_PHRASE,
   OUTCOME_ACQUIRED,
-  SIDEBAR_STYLE,
-  VOID_BG,
   driftReasonPresentation,
   outcomeLabel,
 } from "./tokens";
@@ -543,18 +539,11 @@ function Home(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <aside style={SIDEBAR_STYLE}>
-        <BrandMark section="Home" />
-        <WorkspaceNavLinks />
-        <DemoFooter />
-      </aside>
-
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
           style={{

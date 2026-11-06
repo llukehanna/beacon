@@ -1,5 +1,4 @@
 import React from "react";
-import DemoFooter from "@/components/DemoFooter";
 import { Term } from "@/components/Term";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
@@ -13,16 +12,13 @@ import {
 } from "@/data/ontology";
 import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab";
 import { lookalikesFor, parseChangedAxes, reasonText, resolutionLabel } from "./driftReview";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import { latestRejection } from "./pipelineRows";
 import { formatScore } from "./scoreFormat";
 import {
   DIVERGENCE_FG,
   type DriftReasonStyle,
-  SIDEBAR_STYLE,
   TIER_COLOR,
-  VOID_BG,
   driftReasonPresentation,
   isOutcomeDivergence,
   outcomeLabel,
@@ -770,17 +766,11 @@ function Review(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <aside style={SIDEBAR_STYLE}>
-        <BrandMark section="Review" />
-        <WorkspaceNavLinks />
-        <DemoFooter />
-      </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
           style={{

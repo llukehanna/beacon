@@ -1,16 +1,12 @@
 import React from "react";
-import DemoFooter from "@/components/DemoFooter";
 import { Term } from "@/components/Term";
 import { useOsdkQuery } from "@/data/hooks";
 import type { AccuracySummary } from "../../shared/summaries";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 import {
   DIVERGENCE_BG,
   DIVERGENCE_BORDER,
   DIVERGENCE_FG,
-  SIDEBAR_STYLE,
-  VOID_BG,
   outcomeChipStyle,
   outcomeLabel,
 } from "./tokens";
@@ -137,17 +133,11 @@ function Accuracy(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <aside style={SIDEBAR_STYLE}>
-        <BrandMark section="Accuracy" />
-        <WorkspaceNavLinks />
-        <DemoFooter />
-      </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
           style={{

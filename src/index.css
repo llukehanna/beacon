@@ -22,10 +22,12 @@
   flex: 1;
 }
 
+/* The app shell owns the whole viewport. */
 #root {
-  margin: 0 auto;
-  max-width: 1280px;
-  padding: calc(var(--bp-surface-spacing) * 8);
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
 }
 
 body {

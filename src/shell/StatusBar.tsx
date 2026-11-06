@@ -1,6 +1,11 @@
 import React from "react";
+import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { ActionFailedError, resetDemo } from "@/data/api";
+import { Button, Kbd } from "@/ui";
+import styles from "./StatusBar.module.css";
+import { type SyncSummary, summarizeSync, syncedAgo } from "./status";
+import type { ShellCounts } from "./useShellData";
 
 const RATE_LIMITED_MESSAGE = "The demo was reset in the last few minutes — try again shortly.";
 
@@ -11,18 +16,37 @@ function failureMessage(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
-const noteStyle: React.CSSProperties = {
-  fontSize: 11,
-  lineHeight: 1.4,
-  color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
-};
+/** The whole query cache as one status; re-read whenever any query settles. */
+function useSyncSummary(): SyncSummary {
+  const cache = useQueryClient().getQueryCache();
+  // useSyncExternalStore needs a stable snapshot, so the summary travels as a string.
+  const snapshot = React.useSyncExternalStore(
+    (notify) => cache.subscribe(notify),
+    () => {
+      const s = summarizeSync(cache.getAll().map((q) => q.state));
+      return `${s.lastSyncedAt ?? ""}|${s.unreachable ? 1 : 0}`;
+    },
+  );
+  const [at, bad] = snapshot.split("|");
+  return { lastSyncedAt: at === "" ? null : Number(at), unreachable: bad === "1" };
+}
+
+/** Seconds-resolution clock for the "Synced Ns ago" text; stops ticking when the tab is hidden. */
+function useNow(): number {
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+  return now;
+}
 
 /**
- * Bottom-of-sidebar notice that this is a shared demo on synthetic data, with a throttled reset.
- * Reset is destructive for every visitor, so it asks first in a small popover: focus moves to
- * Cancel, Tab stays inside, and Escape cancels and returns focus to the Reset button.
+ * Reset-the-demo control. Reset is destructive for every visitor, so it asks first in a small
+ * popover: focus moves to Cancel, Tab stays inside, and Escape cancels and returns focus to the
+ * Reset button.
  */
-export default function DemoFooter(): React.ReactElement {
+function ResetDemo(): React.ReactElement {
   const qc = useQueryClient();
   const [busy, setBusy] = React.useState(false);
   const [confirming, setConfirming] = React.useState(false);
@@ -30,7 +54,7 @@ export default function DemoFooter(): React.ReactElement {
   const triggerRef = React.useRef<HTMLButtonElement>(null);
   const cancelRef = React.useRef<HTMLButtonElement>(null);
   const confirmRef = React.useRef<HTMLButtonElement>(null);
-  const wrapRef = React.useRef<HTMLDivElement>(null);
+  const wrapRef = React.useRef<HTMLSpanElement>(null);
   const titleId = React.useId();
   const bodyId = React.useId();
 
@@ -123,67 +147,26 @@ export default function DemoFooter(): React.ReactElement {
   };
 
   return (
-    <div
-      ref={wrapRef}
-      aria-label="Demo notice"
-      role="group"
-      style={{
-        position: "relative",
-        flex: "none",
-        marginTop: "auto",
-        paddingTop: 8,
-        borderTop: "1px solid var(--color-divider)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 8,
-      }}
-    >
-      <span style={{ ...noteStyle, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
-        Demo data · resets daily
-      </span>
+    <span ref={wrapRef} className={styles.reset}>
+      <span className={styles.note}>Demo data · resets daily</span>
       <button
         ref={triggerRef}
         type="button"
-        className="btn btn-secondary"
+        className={styles.resetButton}
         aria-label="Reset demo"
         aria-haspopup="dialog"
         aria-expanded={confirming}
         disabled={busy}
         onClick={() => setConfirming((v) => !v)}
-        style={{ flex: "none", padding: "3px 10px", fontSize: 12 }}
       >
         {busy ? "Resetting…" : "Reset"}
       </button>
       {/* Always mounted so screen readers announce changes; the visible note floats above the
-          row so the footer stays one line tall. */}
+          bar so it stays one line tall. */}
       <span
         role="status"
-        style={
-          message === null || confirming
-            ? {
-                position: "absolute",
-                width: 1,
-                height: 1,
-                overflow: "hidden",
-                clip: "rect(0 0 0 0)",
-              }
-            : {
-                ...noteStyle,
-                position: "absolute",
-                left: 0,
-                right: 0,
-                bottom: "calc(100% + 8px)",
-                zIndex: 20,
-                padding: "8px 10px",
-                borderRadius: "var(--radius-md)",
-                background: "var(--color-surface)",
-                border: "1px solid var(--color-divider)",
-                color: message.error
-                  ? "#f4948b"
-                  : "color-mix(in srgb, var(--color-text) 72%, transparent)",
-              }
-        }
+        className={message === null || confirming ? styles.srOnly : styles.toast}
+        data-error={message?.error === true ? "" : undefined}
       >
         {message?.text ?? ""}
       </span>
@@ -192,51 +175,81 @@ export default function DemoFooter(): React.ReactElement {
           role="dialog"
           aria-labelledby={titleId}
           aria-describedby={bodyId}
-          style={{
-            position: "absolute",
-            left: 0,
-            right: 0,
-            bottom: "calc(100% + 8px)",
-            zIndex: 20,
-            boxSizing: "border-box",
-            padding: 14,
-            display: "flex",
-            flexDirection: "column",
-            gap: 12,
-            borderRadius: "var(--radius-md)",
-            background: "var(--color-surface)",
-            border: "1px solid color-mix(in srgb, var(--color-text) 22%, transparent)",
-            boxShadow: "0 12px 32px rgba(0, 0, 0, 0.45)",
-          }}
+          className={styles.popover}
         >
-          <div id={titleId} style={{ fontSize: 13, fontWeight: 600 }}>
+          <div id={titleId} className={styles.popoverTitle}>
             Reset the demo for everyone?
           </div>
-          <div
-            id={bodyId}
-            style={{
-              fontSize: 12,
-              lineHeight: 1.45,
-              color: "color-mix(in srgb, var(--color-text) 72%, transparent)",
-            }}
-          >
+          <div id={bodyId} className={styles.popoverBody}>
             This restores the seeded data and clears all changes made since the last reset.
           </div>
-          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button ref={cancelRef} type="button" className="btn btn-ghost" onClick={close}>
+          <div className={styles.popoverActions}>
+            <Button ref={cancelRef} variant="ghost" onClick={close}>
               Cancel
-            </button>
-            <button
-              ref={confirmRef}
-              type="button"
-              className="btn btn-primary"
-              onClick={() => void onConfirm()}
-            >
+            </Button>
+            <Button ref={confirmRef} variant="primary" onClick={() => void onConfirm()}>
               Reset
-            </button>
+            </Button>
           </div>
         </div>
       )}
-    </div>
+    </span>
+  );
+}
+
+const DESK_HINTS: ReadonlyArray<{ keys: string[]; label: string }> = [
+  { keys: ["↑", "↓"], label: "move between axes" },
+  { keys: ["⌘↵"], label: "commit" },
+];
+
+const GO_HINTS: ReadonlyArray<{ keys: string[]; label: string }> = [
+  { keys: ["G"], label: "then a letter to go" },
+];
+
+/**
+ * 30 px status bar: how fresh the data is (amber when the server cannot be reached), the queue and
+ * review counts, the demo notice with its reset, and the shortcuts that matter on this screen.
+ */
+export default function StatusBar({ counts }: { counts: ShellCounts }): React.ReactElement {
+  const { pathname } = useLocation();
+  const { lastSyncedAt, unreachable } = useSyncSummary();
+  const now = useNow();
+  const hints = [...(pathname === "/desk" ? DESK_HINTS : GO_HINTS), { keys: ["?"], label: "all" }];
+
+  return (
+    <footer className={styles.bar} aria-label="Status">
+      {/* Only the failure is announced; the ticking age is not a live region. */}
+      <span className={styles.sync} data-state={unreachable ? "down" : "up"}>
+        <span aria-live="polite" aria-atomic="true">
+          {unreachable && (
+            <>
+              <span aria-hidden="true">●</span> Can&apos;t reach server
+            </>
+          )}
+        </span>
+        {!unreachable && (
+          <>
+            <span aria-hidden="true">●</span>{" "}
+            {lastSyncedAt === null ? "Connecting…" : `Synced ${syncedAgo(now - lastSyncedAt)}`}
+          </>
+        )}
+      </span>
+      {counts.open !== undefined && counts.review !== undefined && (
+        <span className={styles.counts}>
+          {counts.open} open firm{counts.open === 1 ? "" : "s"} · {counts.review} need review
+        </span>
+      )}
+      <ResetDemo />
+      <span className={styles.hints}>
+        {hints.map((h) => (
+          <span key={h.label}>
+            {h.keys.map((k) => (
+              <Kbd key={k}>{k}</Kbd>
+            ))}{" "}
+            {h.label}
+          </span>
+        ))}
+      </span>
+    </footer>
   );
 }

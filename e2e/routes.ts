@@ -9,8 +9,9 @@ export interface AppRoute {
   heading: (page: Page) => ReturnType<Page["locator"]>;
 }
 
+// The shell's top bar is also a <header>, so look inside the page area.
 const headerText = (text: string) => (page: Page) =>
-  page.locator("header").getByText(text, { exact: true });
+  page.locator("#main header").getByText(text, { exact: true });
 
 export const ROUTES: AppRoute[] = [
   { path: "/", slug: "home", heading: headerText("Home") },
