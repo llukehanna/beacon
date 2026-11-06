@@ -125,6 +125,58 @@ test("the palette moves to the next open event", async ({ page }) => {
   await expect(queueRows(page).nth(1)).toHaveAttribute("aria-pressed", "true");
 });
 
+test("the palette cannot fire a second decision while one is pending", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openRoute(page, review);
+  const keep = detail(page).getByRole("button", { name: "Keep in pipeline", exact: true });
+  const open = await queueRows(page).count();
+  for (let i = 0; i < open && !(await keep.isVisible()); i += 1) {
+    await queueRows(page).nth(i).click();
+  }
+  await expect(keep).toBeVisible();
+
+  // The server answers slowly, and with an error, so nothing is written.
+  let posts = 0;
+  await page.route("**/api/actions", async (route) => {
+    posts += 1;
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    await route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+  });
+  await keep.click();
+  await expect(detail(page).getByRole("button", { name: "Keeping…" })).toBeDisabled();
+
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByRole("combobox").fill("in the pipeline");
+  await expect(palette.getByRole("option").first()).toContainText("in the pipeline");
+  await page.keyboard.press("Enter");
+
+  await expect(detail(page).getByRole("alert")).toContainText("Keep in pipeline failed");
+  expect(posts).toBe(1);
+});
+
+test("the palette opens the note form for a passed firm with no note carried over", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openRoute(page, review);
+  const keep = detail(page).getByRole("button", { name: "Keep passed…" });
+  const open = await queueRows(page).count();
+  for (let i = 0; i < open && !(await keep.isVisible()); i += 1) {
+    await queueRows(page).nth(i).click();
+  }
+  await expect(keep).toBeVisible();
+
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await palette.getByRole("combobox").fill("passed…");
+  await page.keyboard.press("Enter");
+
+  const note = detail(page).getByRole("textbox", { name: "Reason to keep this firm passed" });
+  await expect(note).toBeVisible();
+  await expect(note).toHaveValue("");
+});
+
 test("keeping a firm passed needs a note, and resolves the event", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openRoute(page, review);

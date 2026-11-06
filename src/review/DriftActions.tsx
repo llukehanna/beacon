@@ -25,24 +25,48 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
   const [notePanel, setNotePanel] = React.useState<"keepPassed" | "pass" | null>(null);
   const [note, setNote] = React.useState("");
 
+  // One decision at a time: while any is in flight the buttons are disabled and the palette
+  // commands (which call the handlers directly) stand down too.
+  const anyPending =
+    reEngage.isPending || keepPassed.isPending || acknowledge.isPending || pass.isPending;
+
   const closeNotePanel = (): void => {
     setNote("");
     setNotePanel(null);
   };
+  // A note written for one decision never carries over to the other.
+  const openNotePanel = (next: "keepPassed" | "pass"): void => {
+    if (next !== notePanel) {
+      setNote("");
+    }
+    setNotePanel(next);
+  };
   // Each decision is applied once; a failure stays on screen (and the note with it).
   const onReEngage = (): void => {
+    if (anyPending) {
+      return;
+    }
     void reEngage.applyAction({ firm, driftEvent: drift } as never).catch(() => undefined);
   };
   const onAcknowledge = (): void => {
+    if (anyPending) {
+      return;
+    }
     void acknowledge.applyAction({ driftEvent: drift, note: null } as never).catch(() => undefined);
   };
   const onKeepPassed = (): void => {
+    if (anyPending) {
+      return;
+    }
     void keepPassed
       .applyAction({ driftEvent: drift, rationale: note.trim() } as never)
       .then(closeNotePanel)
       .catch(() => undefined);
   };
   const onPass = (): void => {
+    if (anyPending) {
+      return;
+    }
     void pass
       .applyAction({ firm, rejectionRationale: note.trim() } as never)
       .then(closeNotePanel)
@@ -50,8 +74,8 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
   };
 
   // The palette runs the latest handlers without being re-registered on every render.
-  const latest = React.useRef({ onReEngage, onAcknowledge });
-  latest.current = { onReEngage, onAcknowledge };
+  const latest = React.useRef({ onReEngage, onAcknowledge, openNotePanel });
+  latest.current = { onReEngage, onAcknowledge, openNotePanel };
   const commands = React.useMemo<Command[]>(() => {
     if (kind === "passed") {
       return [
@@ -65,7 +89,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
           id: "review:keep-passed",
           label: `Keep ${firmName} passed…`,
           group: "Actions",
-          run: () => setNotePanel("keepPassed"),
+          run: () => latest.current.openNotePanel("keepPassed"),
         },
       ];
     }
@@ -83,7 +107,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
                 id: "review:pass",
                 label: `Pass on ${firmName}…`,
                 group: "Actions" as const,
-                run: () => setNotePanel("pass"),
+                run: () => latest.current.openNotePanel("pass"),
               },
             ]
           : []),
@@ -126,7 +150,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
               <Button variant="primary" disabled={busy} onClick={onReEngage}>
                 {reEngage.isPending ? "Re-engaging…" : "Re-engage"}
               </Button>
-              <Button disabled={busy} onClick={() => setNotePanel("keepPassed")}>
+              <Button disabled={busy} onClick={() => openNotePanel("keepPassed")}>
                 Keep passed…
               </Button>
             </>
@@ -136,7 +160,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
                 {acknowledge.isPending ? "Keeping…" : "Keep in pipeline"}
               </Button>
               {canPass && (
-                <Button disabled={busy} onClick={() => setNotePanel("pass")}>
+                <Button disabled={busy} onClick={() => openNotePanel("pass")}>
                   Pass…
                 </Button>
               )}

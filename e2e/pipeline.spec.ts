@@ -172,3 +172,17 @@ test("the palette shows the passed firms", async ({ page }) => {
   await expect(page).toHaveURL(/\/pipeline\?stage=Passed$/);
   await expect(stageTab(page, "Passed")).toBeChecked();
 });
+
+test("a passed firm's card keeps its reason on one line and clips nothing", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/pipeline?stage=Passed");
+  const cards = page.getByRole("listbox", { name: "Firms" }).getByRole("option");
+  await expect(cards.first()).toBeVisible();
+
+  const clipped = await cards.evaluateAll((els) =>
+    els.filter((el) => el.scrollHeight > el.clientHeight).map((el) => el.textContent),
+  );
+  expect(clipped).toEqual([]);
+  expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
+  await page.screenshot({ path: "test-results/shots/pipeline-passed-390.png" });
+});
