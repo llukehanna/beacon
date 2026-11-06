@@ -115,9 +115,18 @@ export default function PipelinePage(): React.ReactElement {
   // Lookalikes are asked for on demand: nothing is compared until the panel is open.
   const [lookalikesOpen, setLookalikesOpen] = React.useState(false);
   const approvedFirms = React.useMemo(
-    () => (lookalikesOpen ? visibleRows.filter((r) => isQualifiedOrLater(r.bucket)) : []),
+    () =>
+      lookalikesOpen
+        ? visibleRows.filter((r) => isQualifiedOrLater(r.bucket)).map((r) => r.firm as FirmLike)
+        : [],
     [lookalikesOpen, visibleRows],
   );
+  const lookalikesToggle = React.useRef<HTMLButtonElement>(null);
+  // Closing removes the panel, and with it the focus, so the toggle takes the focus back.
+  const closeLookalikes = React.useCallback(() => {
+    setLookalikesOpen(false);
+    lookalikesToggle.current?.focus();
+  }, []);
   const selectedRow = React.useMemo(
     () => visibleRows.find((r) => r.firm.firmId === selectedId),
     [visibleRows, selectedId],
@@ -263,8 +272,9 @@ export default function PipelinePage(): React.ReactElement {
             <Filters profile={profile} onProfile={setProfile} sort={sort} onSort={setSort} />
             <div className={styles.lookalikes}>
               <Button
+                ref={lookalikesToggle}
                 aria-expanded={lookalikesOpen}
-                aria-controls="approved-lookalikes"
+                aria-controls={lookalikesOpen ? "approved-lookalikes" : undefined}
                 onClick={() => setLookalikesOpen((open) => !open)}
                 disabled={loading}
               >
@@ -274,9 +284,9 @@ export default function PipelinePage(): React.ReactElement {
             {lookalikesOpen && (
               <div id="approved-lookalikes">
                 <ApprovedLookalikes
-                  approved={approvedFirms.map((r) => r.firm as FirmLike)}
+                  approved={approvedFirms}
                   universe={firms as FirmLike[]}
-                  onClose={() => setLookalikesOpen(false)}
+                  onClose={closeLookalikes}
                 />
               </div>
             )}

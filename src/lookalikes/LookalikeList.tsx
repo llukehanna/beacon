@@ -30,7 +30,9 @@ export function LookalikeList({
               <TierTag tier={row.tier} />
             </span>
             <StageChip stage={row.stage} />
-            <span className={styles.score}>{row.score}% alike</span>
+            <span className={styles.score}>
+              {row.matched} of {row.compared} fields matched
+            </span>
           </div>
           <ul className={styles.reasons} aria-label={`Why ${row.name} is alike`}>
             {row.reasons.map((reason) => (

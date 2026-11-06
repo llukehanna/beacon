@@ -36,7 +36,7 @@ test("more like this lists firms with reasons", async ({ page }) => {
     expect(href).toMatch(/^\/desk\?firmId=.+/);
     expect(href).not.toContain(encodeURIComponent(id));
     await expect(item).toContainText(/Tier\s*[ABCR]/);
-    await expect(item).toContainText(/\d+% alike/);
+    await expect(item).toContainText(/\d+ of \d+ fields matched/);
     const reasons = await item.locator("ul > li").allInnerTexts();
     expect(reasons.length).toBeGreaterThan(0);
     for (const reason of reasons) {
@@ -117,6 +117,10 @@ test("with no approved targets in view the pipeline says so", async ({ page }) =
   await expect(approvedPanel(page)).toContainText("No approved targets in this view");
   await approvedPanel(page).getByRole("button", { name: "Close" }).click();
   await expect(approvedPanel(page)).toHaveCount(0);
+  // Focus goes back to the toggle, which no longer points at a panel that is not there.
+  const toggle = page.getByRole("button", { name: "Find lookalikes of approved targets" });
+  await expect(toggle).toBeFocused();
+  await expect(toggle).not.toHaveAttribute("aria-controls", /.+/);
 });
 
 test("lookalike panels keep to 390 px", async ({ page }) => {

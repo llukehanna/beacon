@@ -3,6 +3,7 @@ import type { FirmLike } from "./exportRows.js";
 import {
   APPROVED_CAP,
   DEFAULT_K,
+  MIN_COMPARABLE_FIELDS,
   lookalikes,
   lookalikesOfApproved,
   moreLikeThis,
@@ -109,6 +110,41 @@ describe("lookalikes", () => {
   it("returns nothing for a firm without a single comparable field, or for k of 0", () => {
     expect(lookalikes({ firmId: "t" }, [firm("a")])).toEqual([]);
     expect(lookalikes(firm("t"), [firm("a")], 0)).toEqual([]);
+  });
+
+  it("reports how many fields matched out of how many the target has", () => {
+    const [hit] = lookalikes(firm("t"), [
+      unlike("c", { sector: "Healthcare Services", dealSizeMUsd: 48 }),
+    ]);
+    expect(hit).toMatchObject({ matched: 2, compared: 9 });
+    expect(hit.reasons).toHaveLength(2);
+  });
+
+  it("gives a target with fewer than three fields on file no lookalikes", () => {
+    expect(MIN_COMPARABLE_FIELDS).toBe(3);
+    const sparse = (over: Partial<FirmLike>): FirmLike => ({ firmId: "t", ...over });
+    const universe = [firm("a"), firm("b")];
+    // One shared field would read as 100% on thin evidence, so nothing is listed.
+    expect(lookalikes(sparse({ sector: "Healthcare Services" }), universe)).toEqual([]);
+    expect(
+      lookalikes(sparse({ sector: "Healthcare Services", ownership: "Partnership" }), universe),
+    ).toEqual([]);
+    // Three fields is enough.
+    const out = lookalikes(
+      sparse({ sector: "Healthcare Services", ownership: "Partnership", firmType: "CF" }),
+      universe,
+    );
+    expect(out.map((l) => l.firmId)).toEqual(["a", "b"]);
+    expect(out[0]).toMatchObject({ matched: 3, compared: 3, score: 100 });
+  });
+
+  it("does not compare a zero amount: 0 reads as not entered, so two zeros are no match", () => {
+    const target = firm("t", { dealSizeMUsd: 0, dealsPerMdL3y: 0 });
+    const [hit] = lookalikes(target, [
+      unlike("c", { sector: "Healthcare Services", dealSizeMUsd: 0, dealsPerMdL3y: 0 }),
+    ]);
+    expect(hit.reasons).toEqual(["Same sub-sector: Healthcare Services"]);
+    expect(hit.compared).toBe(7);
   });
 
   it("drops a firm that matches on nothing", () => {

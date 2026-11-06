@@ -7,7 +7,7 @@
  * Similarity reads only fields on the firm record. Each field the target has a value for is
  * compared with the same field on the candidate, and a candidate earns that field's weight when
  * the two agree: the same text, or two numbers within 10% of each other. A field either side
- * leaves empty is never a match. The score is the share of the target's comparable weight that
+ * leaves empty (or, for an amount, at zero) is never a match. The score is the share of the target's comparable weight that
  * the candidate matched, 0 to 100. Every reason names a field that matched and the two values, so
  * a reason can never say something the record does not.
  *
@@ -28,6 +28,11 @@ import { PASSED } from "./vocab.js";
 export const DEFAULT_K = 5;
 /** How many lookalikes of approved targets the Pipeline lists. */
 export const APPROVED_CAP = 20;
+/**
+ * A target needs at least this many fields on file before anything is called like it. With fewer,
+ * one shared field would read as a near-perfect match on thin evidence.
+ */
+export const MIN_COMPARABLE_FIELDS = 3;
 /** Two numbers match when they differ by no more than this share of the larger. */
 const TOLERANCE_PERCENT = 10;
 
@@ -35,6 +40,10 @@ export interface Lookalike {
   firmId: string;
   /** 0 to 100: the share of the target's comparable fields this firm matched, by weight. */
   score: number;
+  /** How many fields matched, out of `compared`: the plain count the pages show. */
+  matched: number;
+  /** How many fields the target has on file to compare. */
+  compared: number;
   /** One line per matched field, with the value: "Same sub-sector: Healthcare". */
   reasons: string[];
 }
@@ -104,7 +113,13 @@ const text = (v: unknown): string | null => {
   const t = v.trim();
   return t === "" ? null : t;
 };
-const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+/**
+ * A usable amount: finite and above zero. Deal size and deal velocity are never really zero for an
+ * advisory firm, so a 0 is read as "not entered" and is not compared (two zeros would otherwise
+ * claim a match that nothing supports).
+ */
+const num = (v: unknown): number | null =>
+  typeof v === "number" && Number.isFinite(v) && v > 0 ? v : null;
 
 /** Equal, or apart by no more than the tolerance share of the larger one (integer arithmetic on the ratio). */
 function within(a: number, b: number): boolean {
@@ -140,30 +155,64 @@ function profileOf(target: FirmLike): Profile {
 }
 
 interface Match {
+  firm: FirmLike;
   firmId: string;
   weight: number;
-  reasons: string[];
+  count: number;
 }
 
+type TextEntry = Profile["texts"][number];
+type NumberEntry = Profile["numbers"][number];
+
+/** The candidate's value for a text field when it equals the target's, else null. */
+function textHit({ feature, folded }: TextEntry, candidate: FirmLike): string | null {
+  const theirs = text(candidate[feature.key]);
+  return theirs !== null && theirs.toLowerCase() === folded ? theirs : null;
+}
+
+/** The candidate's value for a number field when it is within tolerance of the target's, else null. */
+function numberHit({ feature, value }: NumberEntry, candidate: FirmLike): number | null {
+  const theirs = num(candidate[feature.key]);
+  return theirs !== null && within(value, theirs) ? theirs : null;
+}
+
+/** Weight and count of the fields that matched; no strings are built here, only for the kept few. */
 function compare(profile: Profile, candidate: FirmLike): Match | null {
-  const firmId = candidate.firmId ?? "";
   let weight = 0;
+  let count = 0;
+  for (const entry of profile.texts) {
+    if (textHit(entry, candidate) !== null) {
+      weight += entry.feature.weight;
+      count += 1;
+    }
+  }
+  for (const entry of profile.numbers) {
+    if (numberHit(entry, candidate) !== null) {
+      weight += entry.feature.weight;
+      count += 1;
+    }
+  }
+  return weight === 0 ? null : { firm: candidate, firmId: candidate.firmId ?? "", weight, count };
+}
+
+/** One line per matched field, naming the field and the values that matched. */
+function reasonsOf(profile: Profile, candidate: FirmLike): string[] {
   const reasons: string[] = [];
-  for (const { feature, folded } of profile.texts) {
-    const theirs = text(candidate[feature.key]);
-    if (theirs !== null && theirs.toLowerCase() === folded) {
-      weight += feature.weight;
-      reasons.push(`${feature.label}: ${feature.show(theirs)}`);
+  for (const entry of profile.texts) {
+    const theirs = textHit(entry, candidate);
+    if (theirs !== null) {
+      reasons.push(`${entry.feature.label}: ${entry.feature.show(theirs)}`);
     }
   }
-  for (const { feature, value } of profile.numbers) {
-    const theirs = num(candidate[feature.key]);
-    if (theirs !== null && within(value, theirs)) {
-      weight += feature.weight;
-      reasons.push(`${feature.label}: ${feature.show(value)} vs ${feature.show(theirs)}`);
+  for (const entry of profile.numbers) {
+    const theirs = numberHit(entry, candidate);
+    if (theirs !== null) {
+      reasons.push(
+        `${entry.feature.label}: ${entry.feature.show(entry.value)} vs ${entry.feature.show(theirs)}`,
+      );
     }
   }
-  return weight === 0 ? null : { firmId, weight, reasons };
+  return reasons;
 }
 
 /** Best first: more matched weight, then the lower firm id. */
@@ -173,6 +222,7 @@ const better = (a: Match, b: Match): boolean =>
 /**
  * The `k` firms in `universe` most like `target`, best first. The target itself is never in the
  * result, and a firm that matches on nothing is not a lookalike, so fewer than `k` may come back.
+ * A target with fewer than MIN_COMPARABLE_FIELDS fields on file has no lookalikes.
  */
 export function lookalikes(
   target: FirmLike,
@@ -180,7 +230,8 @@ export function lookalikes(
   k: number = DEFAULT_K,
 ): Lookalike[] {
   const profile = profileOf(target);
-  if (profile.total === 0 || k <= 0) {
+  const compared = profile.texts.length + profile.numbers.length;
+  if (compared < MIN_COMPARABLE_FIELDS || k <= 0) {
     return [];
   }
   const targetId = target.firmId ?? "";
@@ -207,7 +258,9 @@ export function lookalikes(
   return best.map((m) => ({
     firmId: m.firmId,
     score: Math.round((100 * m.weight) / profile.total),
-    reasons: m.reasons,
+    matched: m.count,
+    compared,
+    reasons: reasonsOf(profile, m.firm),
   }));
 }
 
