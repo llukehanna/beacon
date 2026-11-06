@@ -41,4 +41,5 @@
   color: var(--tx3);
   font-size: 11.5px;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
