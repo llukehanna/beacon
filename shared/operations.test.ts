@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { percentiles, summarizeRuns, usd, windowLabel } from "./operations.js";
+import { P95_MIN_RUNS, percentiles, summarizeRuns, usd, windowLabel } from "./operations.js";
 
 describe("percentiles", () => {
   it("is null when nothing was measured", () => {
@@ -11,6 +11,12 @@ describe("percentiles", () => {
     expect(percentiles([10, 20, 30, 40])).toEqual({ p50: 20, p95: 40 });
     const hundred = Array.from({ length: 100 }, (_, i) => i + 1);
     expect(percentiles(hundred)).toEqual({ p50: 50, p95: 95 });
+  });
+
+  it("returns the slowest run as p95 until there are P95_MIN_RUNS runs", () => {
+    const upTo = (n: number) => Array.from({ length: n }, (_, i) => (i + 1) * 10);
+    expect(percentiles(upTo(P95_MIN_RUNS - 1))!.p95).toBe((P95_MIN_RUNS - 1) * 10);
+    expect(percentiles(upTo(P95_MIN_RUNS))!.p95).toBe((P95_MIN_RUNS - 1) * 10);
   });
 
   it("does not depend on input order and leaves the input alone", () => {

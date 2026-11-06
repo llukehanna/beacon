@@ -3,7 +3,7 @@ import { ExternalLink } from "@/about/DocLayout";
 import { ARCHITECTURE_DOC_URL, RECORDED_RUN } from "@/about/facts";
 import { SectionHead } from "@/home/SectionHead";
 import { EmptyState, Notice, Panel, Skeleton } from "@/ui";
-import { usd, windowLabel } from "../../shared/operations";
+import { P95_MIN_RUNS, usd, windowLabel } from "../../shared/operations";
 import type { DaySpend, OperationsSummary } from "../../shared/summaries";
 import styles from "./OperationsPanel.module.css";
 import { evalCount } from "./evalsModel";
@@ -40,7 +40,10 @@ function LatencyTable({ data }: { data: OperationsSummary }): React.ReactElement
                   </th>
                   <td className={styles.num}>{evalCount(a.count)}</td>
                   <td className={styles.num}>{ms(a.p50Ms)}</td>
-                  <td className={styles.num}>{ms(a.p95Ms)}</td>
+                  <td className={styles.num}>
+                    {ms(a.p95Ms)}
+                    {a.count < P95_MIN_RUNS && "*"}
+                  </td>
                   <td className={styles.num} data-errors={a.errors > 0 || undefined}>
                     {evalCount(a.errors)}
                   </td>
@@ -52,8 +55,10 @@ function LatencyTable({ data }: { data: OperationsSummary }): React.ReactElement
       )}
       <p className={styles.caption}>
         Wall-clock time for each action, from the request reaching the action to its result,
-        including the database transaction. p50 is the middle run and p95 the slowest one in twenty.
-        Errors are actions that were refused or failed.
+        including the database transaction. p50 is the middle run and p95 the slowest one in twenty;
+        with fewer than {P95_MIN_RUNS} runs (marked *) p95 is simply the slowest run.
+        clusterRejections includes its Claude call when Claude clustering is switched on. Errors are
+        actions that were refused or failed.
       </p>
     </Panel>
   );
@@ -100,9 +105,10 @@ function SpendTable({ data }: { data: OperationsSummary }): React.ReactElement {
       )}
       <p className={styles.caption}>
         Live Claude calls only: token counts come from the API response and cost from this
-        repository&rsquo;s price table. The cap is {data.dailyCallCap} calls per UTC day. Claude
-        clustering is off unless it is switched on, so an empty table is the normal state of the
-        public demo.
+        repository&rsquo;s price table; a call answered by a model with no listed price is priced at
+        claude-opus-5 rates, so its cost is then an estimate. The cap is {data.dailyCallCap} calls
+        per UTC day. Claude clustering is off unless it is switched on, so an empty table is the
+        normal state of the public demo.
       </p>
     </Panel>
   );

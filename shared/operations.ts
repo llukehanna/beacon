@@ -18,6 +18,9 @@ export interface ActionStat {
   p95Ms: number;
 }
 
+/** Below this many runs the nearest-rank p95 is the slowest run itself (ceil(0.95 * n) = n for n up to 19). */
+export const P95_MIN_RUNS = 20;
+
 /** The 50th and 95th percentile by nearest rank (a value that was actually measured); null when there is nothing to measure. */
 export function percentiles(durations: readonly number[]): { p50: number; p95: number } | null {
   if (durations.length === 0) {
