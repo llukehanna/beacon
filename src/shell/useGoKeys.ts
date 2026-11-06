@@ -1,13 +1,14 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { GO_KEYS, isGoKey, isTypingTarget, modalIsOpen } from "./keys";
+import { GO_KEYS, goKeysIgnore, isGoKey, isTypingTarget, modalIsOpen } from "./keys";
 
 /** How long G waits for the key that names the route. */
 const GO_WINDOW_MS = 1500;
 
 /**
  * Global keyboard navigation: `G` then a letter jumps to a route, `?` asks for the shortcut list.
- * Never fires while the user is typing, with a modifier held, or while a dialog is open. The
+ * Never fires while the user is typing, with a modifier (Shift included) held, or while a dialog
+ * is open. The
  * listener runs in the capture phase so the key that completes a jump is not also read by a
  * screen's own shortcuts (G then P must not pass a gate on the Desk).
  */
@@ -19,7 +20,11 @@ export function useGoKeys(onHelp: () => void): void {
   useEffect(() => {
     let armedAt = 0;
     const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) {
+      if (goKeysIgnore(e)) {
+        // A Shift chord is a screen's own shortcut: it also cancels a pending G.
+        if (e.shiftKey) {
+          armedAt = 0;
+        }
         return;
       }
       if (isTypingTarget(e.target as Element | null) || modalIsOpen()) {

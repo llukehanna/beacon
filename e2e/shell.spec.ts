@@ -19,6 +19,19 @@ test("g then u opens rules", async ({ page }) => {
   await expect(route("/rules").heading(page).first()).toBeVisible();
 });
 
+test("g then Shift+A is not a go key", async ({ page }) => {
+  await openRoute(page, route("/pipeline"));
+
+  await page.keyboard.press("g");
+  await page.keyboard.press("Shift+A");
+
+  await expect(page).toHaveURL(/\/pipeline$/);
+  // A plain G A still goes to Accuracy.
+  await page.keyboard.press("g");
+  await page.keyboard.press("a");
+  await expect(page).toHaveURL(/\/accuracy$/);
+});
+
 test("go keys stay out of text fields", async ({ page }) => {
   await openRoute(page, route("/pipeline"));
   const search = page.getByRole("textbox").first();
