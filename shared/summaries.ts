@@ -100,3 +100,35 @@ export interface AccuracySummary extends AccuracyTables {
   overall: Rates;
   outcomes: OutcomeTally;
 }
+
+/** The checks behind a quote: where it sits in its document and whether it supports the value. */
+export interface GroundingChecks {
+  /** 1-based line of the source document where the quote starts; null when it is not found. */
+  line: number | null;
+  valueInQuote: boolean;
+  words: number;
+}
+
+/** What one provider said about one axis, and whether the quote behind it held up. */
+export interface ProviderObservation {
+  provider: string;
+  /** The value the extraction reported; null when the provider had nothing for the axis. */
+  value: string | null;
+  confidence: "high" | "low" | null;
+  /** True when kept, false when grounding rejected it, null when there was nothing to ground. */
+  grounded: boolean | null;
+  rejectReason: string | null;
+  quote: string | null;
+  documentId: string | null;
+  checks: GroundingChecks | null;
+}
+
+/** Every provider's reading of a firm, per rubric axis (see server/functions/firmObservations). */
+export interface FirmObservations {
+  firmId: string;
+  /** The extraction model whose output was grounded ("rule-based" when none is stored). */
+  model: string;
+  axes: { axis: string; providers: ProviderObservation[] }[];
+  /** Per provider, how many of the firm's axes it supplied a grounded value for. */
+  hitsByProvider: Record<string, number>;
+}
