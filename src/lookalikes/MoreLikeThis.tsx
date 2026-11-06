@@ -26,7 +26,7 @@ export function MoreLikeThis({
     () => (data === undefined ? [] : moreLikeThis(firmId, data as unknown as FirmLike[])),
     [data, firmId],
   );
-  const headingId = `more-like-${firmId}`;
+  const headingId = React.useId();
   return (
     <Panel
       className={[styles.panel, className ?? ""].filter(Boolean).join(" ")}
@@ -44,7 +44,7 @@ export function MoreLikeThis({
       ) : rows.length === 0 ? (
         <p className={styles.plain}>
           No other firm shares a sector, coverage model, HQ country, size or deal profile with this
-          one.
+          one, or this firm has too few fields on file to compare.
         </p>
       ) : (
         <>

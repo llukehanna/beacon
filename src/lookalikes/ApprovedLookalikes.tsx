@@ -20,11 +20,12 @@ export function ApprovedLookalikes({
   onClose: () => void;
 }): React.ReactElement {
   const rows = React.useMemo(() => lookalikesOfApproved(approved, universe), [approved, universe]);
+  const titleId = React.useId();
   const count = approved.length;
   return (
-    <Panel className={styles.panel} aria-labelledby="approved-lookalikes-title">
+    <Panel className={styles.panel} aria-labelledby={titleId}>
       <div className={styles.head}>
-        <h2 id="approved-lookalikes-title" className={styles.heading}>
+        <h2 id={titleId} className={styles.heading}>
           Lookalikes of approved targets
         </h2>
         <Button variant="ghost" onClick={onClose}>
