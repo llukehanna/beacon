@@ -82,7 +82,7 @@ const LEGEND: ReadonlyArray<{ term: string; text: string }> = [
   { term: "Analyst in the browser", text: "The React app. Every screen reads through the API." },
   {
     term: "API",
-    text: "A small Cloudflare Worker. It serves read-only queries and the route that applies actions.",
+    text: "A small Cloudflare Worker. It serves read-only queries, the route that applies actions, and the demo reset.",
   },
   {
     term: "Actions",

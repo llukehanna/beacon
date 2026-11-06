@@ -104,3 +104,18 @@ export function dropOption(
   const group = groups.find((g) => g.label === label);
   return group ? toggleCategory(values, group, groups) : toggleValue(values, label);
 }
+
+/**
+ * Drops one option, but leaves picked any of `keep` that the drop would have taken with it (a
+ * category's sub-options): the value another reading of the text still stands on.
+ */
+export function dropOptionKeeping(
+  values: readonly string[],
+  label: string,
+  groups: readonly FacetGroup[],
+  keep: readonly string[],
+): string[] {
+  const held = keep.filter((k) => hasValue(values, k));
+  const next = dropOption(values, label, groups);
+  return [...next, ...held.filter((k) => !hasValue(next, k))];
+}

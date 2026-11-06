@@ -147,6 +147,107 @@ test("interpret pre-fills filters from the mandate", async ({ page }) => {
   await expect(europe).toHaveAttribute("aria-pressed", "true");
 });
 
+test("moving from one mandate's search to another's leaves the first one's picks behind", async ({
+  page,
+}) => {
+  await openRoute(page, route("/mandate"));
+  await page
+    .getByRole("region", { name: /European mid-market advisory/ })
+    .getByRole("link", { name: /Interpret & run search/ })
+    .click();
+  const geography = page.getByRole("group", { name: "Geography" });
+  const europe = geography.getByRole("button", { name: /^Europe/ });
+  await expect(europe).toHaveAttribute("aria-pressed", "true");
+  const strip = page.getByRole("group", { name: "Read from the mandate" });
+  await expect(strip).toContainText("Europe");
+
+  // Straight from one search page to the other: the palette's mandate command.
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  await page.keyboard.type("Private credit advisory");
+  await palette.getByRole("option", { name: /Private credit advisory specialists/ }).click();
+
+  await expect(
+    page.getByRole("heading", { level: 2, name: /Private credit advisory/ }),
+  ).toBeVisible();
+  await expect(strip.getByRole("listitem")).toHaveCount(1);
+  await expect(strip).toContainText("Private credit advisory");
+  await expect(strip).not.toContainText("Europe");
+  await expect(europe).toHaveAttribute("aria-pressed", "false");
+  await expect(
+    page.getByText("1 filter across geography, products, and industries."),
+  ).toBeVisible();
+});
+
+test("the pre-fill never overwrites what the visitor picked", async ({ page }) => {
+  await openRoute(page, route("/mandate"));
+  const link = page
+    .getByRole("region", { name: /European mid-market advisory/ })
+    .getByRole("link", { name: /Interpret & run search/ });
+  const href = await link.getAttribute("href");
+  expect(href).not.toBeNull();
+
+  // Picked after the pre-fill, then the page re-renders under a new query string.
+  await link.click();
+  const geography = page.getByRole("group", { name: "Geography" });
+  const asia = geography.getByRole("button", { name: /^Asia-Pacific/ });
+  const europe = geography.getByRole("button", { name: /^Europe/ });
+  await expect(europe).toHaveAttribute("aria-pressed", "true");
+  await asia.click();
+  await page.evaluate(() => {
+    history.pushState({}, "", `${location.pathname}?again=1`);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  });
+  await expect(page).toHaveURL(/again=1/);
+  await expect(asia).toHaveAttribute("aria-pressed", "true");
+  await expect(europe).toHaveAttribute("aria-pressed", "true");
+
+  // Picked before the mandate has loaded: the mandate's reading is not applied on top.
+  await page.route("**/api/objects?*", async (r) => {
+    await new Promise((done) => setTimeout(done, 1500));
+    await r.continue();
+  });
+  await page.goto(href ?? "/");
+  await asia.click();
+  await expect(asia).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("heading", { level: 2, name: /European mid-market advisory/ }),
+  ).toBeVisible();
+  await page.waitForLoadState("networkidle");
+  await expect(page.getByRole("group", { name: "Read from the mandate" })).toHaveCount(0);
+  await expect(asia).toHaveAttribute("aria-pressed", "true");
+  await expect(europe).toHaveAttribute("aria-pressed", "false");
+});
+
+test("taking back one chip leaves the other chips' picks", async ({ page }) => {
+  await openRoute(page, route("/mandate"));
+  await page
+    .getByRole("region", { name: /Sector-focused sell-side M&A/ })
+    .getByRole("link", { name: /Interpret & run search/ })
+    .click();
+  const strip = page.getByRole("group", { name: "Read from the mandate" });
+  const geography = page.getByRole("group", { name: "Geography" });
+  const us = strip.getByRole("listitem").filter({ hasText: "geography: United States" });
+  const canada = strip.getByRole("listitem").filter({ hasText: "geography: Canada" });
+  await expect(us).toBeVisible();
+  await expect(canada).toBeVisible();
+  await expect(geography.getByRole("button", { name: "United States" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  await canada.getByRole("button", { name: /^Remove Canada/ }).click();
+  await expect(geography.getByRole("button", { name: "Canada" })).toHaveAttribute(
+    "aria-pressed",
+    "false",
+  );
+  await expect(geography.getByRole("button", { name: "United States" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(us).toBeVisible();
+});
+
 test("the search page fits a 390px screen with the longest chips", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openRoute(page, route("/mandate"));
@@ -155,7 +256,7 @@ test("the search page fits a 390px screen with the longest chips", async ({ page
     .getByRole("link", { name: /Interpret & run search/ })
     .click();
   const strip = page.getByRole("group", { name: "Read from the mandate" });
-  await expect(strip.getByRole("listitem")).toHaveCount(3);
+  await expect(strip.getByRole("listitem")).toHaveCount(4);
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth - window.innerWidth,
   );

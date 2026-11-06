@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { SEED_MANDATES } from "../server/seed/history.js";
 import { interpretMandate, searchVocabulary } from "./interpretMandate.js";
@@ -28,7 +29,8 @@ describe("interpretMandate", () => {
     expect(read(SEED_MANDATES[0].title).matches).toEqual([
       { phrase: "Sector-focused", facet: "products", value: "Sector-focused M&A" },
       { phrase: "sell-side M&A", facet: "products", value: "Sell-side M&A" },
-      { phrase: "North America", facet: "geographies", value: "Americas" },
+      { phrase: "North America", facet: "geographies", value: "United States" },
+      { phrase: "North America", facet: "geographies", value: "Canada" },
     ]);
     expect(read(SEED_MANDATES[2].title).matches).toEqual([
       { phrase: "Private credit advisory", facet: "products", value: "Private credit advisory" },
@@ -72,6 +74,21 @@ describe("interpretMandate", () => {
           .sort(),
       ).toEqual(["Europe", "Sell-side M&A"]);
     }
+  });
+
+  it("reads North America as the United States and Canada, not the whole region", () => {
+    const values = read("North American boutiques").matches.map((m) => m.value);
+    expect(values).toEqual(["United States", "Canada"]);
+  });
+
+  it("matches without a regular-expression lookbehind", () => {
+    // Safari 16.0 to 16.3 throws on a lookbehind when the pattern is built.
+    const source = readFileSync(new URL("./interpretMandate.ts", import.meta.url), "utf8");
+    expect(source).not.toContain("(?<!");
+    expect(source).not.toContain("(?<=");
+    expect(read("Europe").matches).toHaveLength(1);
+    expect(read("Europe").matches[0].phrase).toBe("Europe");
+    expect(read("(Europe)").matches).toHaveLength(1);
   });
 
   it("matches whole words only", () => {

@@ -45,10 +45,11 @@ export function searchVocabulary(): MandateVocabulary {
 
 // Other ways to write an option. An entry whose value is not in the vocabulary is ignored, so this
 // table can never widen what a mandate may select.
-const SYNONYMS: ReadonlyArray<readonly [phrase: string, facet: string, value: string]> = [
-  ["north america", FACET_GEOGRAPHIES, "Americas"],
-  ["north american", FACET_GEOGRAPHIES, "Americas"],
-  ["latin america", FACET_GEOGRAPHIES, "Americas"],
+const SYNONYMS: ReadonlyArray<readonly [phrase: string, facet: string, ...values: string[]]> = [
+  // North America is the two countries of the Americas list that are in it, not the whole region.
+  ["north america", FACET_GEOGRAPHIES, "United States", "Canada"],
+  ["north american", FACET_GEOGRAPHIES, "United States", "Canada"],
+  ["latin america", FACET_GEOGRAPHIES, "Mexico", "Brazil"],
   ["european", FACET_GEOGRAPHIES, "Europe"],
   ["emea", FACET_GEOGRAPHIES, "Europe"],
   ["middle east", FACET_GEOGRAPHIES, "Middle East & Africa"],
@@ -104,21 +105,34 @@ const NOTABLE_UNMAPPED: readonly string[] = [
 
 interface Term {
   phrase: string;
-  facet: string;
-  value: string;
+  /** What the phrase selects: usually one option, two for "North America". */
+  targets: Array<{ facet: string; value: string }>;
 }
 
 const WORD_CHAR = "\\p{L}\\p{N}";
 const GAP = "[\\s\\-\\u2010-\\u2015]+";
 
-/** A case-insensitive, word-bounded pattern where spaces and hyphens in `phrase` may be either. */
-function phrasePattern(phrase: string): RegExp {
+interface Span {
+  start: number;
+  end: number;
+}
+
+/**
+ * Where `phrase` occurs in `text`, whole words only, case-insensitive; spaces and hyphens in the
+ * phrase may be either. The leading boundary is a captured character rather than a lookbehind,
+ * which Safari 16.0 to 16.3 cannot parse.
+ */
+function occurrences(text: string, phrase: string): Span[] {
   const body = phrase
     .trim()
     .split(/[\s-]+/)
     .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
     .join(GAP);
-  return new RegExp(`(?<![${WORD_CHAR}])${body}(?![${WORD_CHAR}])`, "iu");
+  const pattern = new RegExp(`(^|[^${WORD_CHAR}])(${body})(?![${WORD_CHAR}])`, "giu");
+  return [...text.matchAll(pattern)].map((m) => {
+    const start = m.index + m[1].length;
+    return { start, end: start + m[2].length };
+  });
 }
 
 function termsFor(vocabulary: MandateVocabulary): Term[] {
@@ -127,23 +141,21 @@ function termsFor(vocabulary: MandateVocabulary): Term[] {
   for (const { facet, groups } of vocabulary.facets) {
     for (const group of groups) {
       for (const label of [group.label, ...group.subs]) {
-        terms.push({ phrase: label, facet, value: label });
+        terms.push({ phrase: label, targets: [{ facet, value: label }] });
         known.set(`${facet}\u0000${label.toLowerCase()}`, label);
       }
     }
   }
-  for (const [phrase, facet, value] of SYNONYMS) {
-    const canonical = known.get(`${facet}\u0000${value.toLowerCase()}`);
-    if (canonical !== undefined) {
-      terms.push({ phrase, facet, value: canonical });
+  for (const [phrase, facet, ...values] of SYNONYMS) {
+    const targets = values.flatMap((value) => {
+      const canonical = known.get(`${facet}\u0000${value.toLowerCase()}`);
+      return canonical === undefined ? [] : [{ facet, value: canonical }];
+    });
+    if (targets.length > 0) {
+      terms.push({ phrase, targets });
     }
   }
   return terms;
-}
-
-interface Span {
-  start: number;
-  end: number;
 }
 
 const overlaps = (taken: readonly Span[], s: Span): boolean =>
@@ -157,29 +169,23 @@ export function interpretMandate(text: string, vocabulary: MandateVocabulary): I
   const byLength = [...termsFor(vocabulary)].sort((a, b) => b.phrase.length - a.phrase.length);
   for (const term of byLength) {
     // A phrase may occur more than once; only a free occurrence counts, and only the first.
-    const pattern = new RegExp(phrasePattern(term.phrase), "giu");
-    for (const m of text.matchAll(pattern)) {
-      const span = { start: m.index, end: m.index + m[0].length };
-      if (overlaps(taken, span)) {
-        continue;
-      }
-      taken.push(span);
-      found.push({ phrase: m[0], facet: term.facet, value: term.value, start: span.start });
-      break;
+    const span = occurrences(text, term.phrase).find((o) => !overlaps(taken, o));
+    if (span === undefined) {
+      continue;
+    }
+    taken.push(span);
+    const phrase = text.slice(span.start, span.end);
+    for (const { facet, value } of term.targets) {
+      found.push({ phrase, facet, value, start: span.start });
     }
   }
 
   const unmatched: string[] = [];
   for (const phrase of NOTABLE_UNMAPPED) {
-    const pattern = new RegExp(phrasePattern(phrase), "giu");
-    for (const m of text.matchAll(pattern)) {
-      const span = { start: m.index, end: m.index + m[0].length };
-      if (overlaps(taken, span)) {
-        continue;
-      }
+    const span = occurrences(text, phrase).find((o) => !overlaps(taken, o));
+    if (span !== undefined) {
       taken.push(span);
-      unmatched.push(m[0]);
-      break;
+      unmatched.push(text.slice(span.start, span.end));
     }
   }
 
