@@ -103,4 +103,10 @@
     position: static;
     overflow: visible;
   }
+
+  /* Whatever floats above the page: the guided tour card, toasts, and the palette or any dialog. */
+  :global(html[data-print="tear-sheet"]) :global([data-tour-card]),
+  :global(html[data-print="tear-sheet"]) :global(.bp6-portal) {
+    display: none;
+  }
 }

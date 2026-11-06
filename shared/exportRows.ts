@@ -239,7 +239,9 @@ export function exportRows(
       cites.push({
         axis: def.axis,
         provider: provider === null ? null : providerLabel(provider),
-        quote: text(auth.sourceQuote) ?? text(auth.sourceExcerpt),
+        // Only a finding read from a source document has a source sentence. An analyst's entry
+        // keeps a note in sourceExcerpt, which is not a quotation, so it is never cited.
+        quote: text(auth.sourceDocumentId) === null ? null : text(auth.sourceQuote),
         model: text(auth.extractionModel),
       });
     }

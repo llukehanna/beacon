@@ -3,9 +3,9 @@
  * checks behind it, and the reason text for a reading that was turned down. Pure.
  */
 import type { ProviderObservation } from "../../../shared/summaries";
-import { type AxisDef } from "../../../shared/vocab";
+import { type AxisDef, PROVIDER_TRUST } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
-import { type AxisRow } from "./axisRows";
+import { type AxisRow, openConflictFindings } from "./axisRows";
 
 /** Mirrors the server's grounding rule: a shorter quote is a fragment, not a statement. */
 const MIN_QUOTE_WORDS = 4;
@@ -50,7 +50,8 @@ export function evidenceChecks(def: AxisDef, reading: ProviderObservation): Chec
   ];
 }
 
-const providerOf = (documentId: string | null | undefined): string | null => {
+/** The provider a source document belongs to ("dealdb:acme" is Deal DB's); null when there is none. */
+export const providerOf = (documentId: string | null | undefined): string | null => {
   const at = (documentId ?? "").indexOf(":");
   return at > 0 ? (documentId as string).slice(0, at) : null;
 };
@@ -95,4 +96,14 @@ export function isAnalystEntered(
   finding: Pick<FindingLike, "sourceDocumentId"> | undefined,
 ): boolean {
   return finding !== undefined && state !== "abstained" && !finding.sourceDocumentId;
+}
+
+const trustIndex = (f: Pick<FindingLike, "provider">): number => {
+  const i = PROVIDER_TRUST.findIndex((p) => p === f.provider);
+  return i < 0 ? PROVIDER_TRUST.length : i;
+};
+
+/** The sides of an open conflict as the evidence panel lists them: the two most trusted sources. */
+export function conflictSides(row: Pick<AxisRow, "findings">): FindingLike[] {
+  return [...openConflictFindings(row)].sort((a, b) => trustIndex(a) - trustIndex(b)).slice(0, 2);
 }
