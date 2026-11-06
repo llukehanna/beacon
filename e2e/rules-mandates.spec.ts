@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { readFileSync } from "node:fs";
 import { ROUTES, openRoute } from "./routes";
 
 const route = (path: string) => {
@@ -77,6 +78,58 @@ test("accuracy keeps its breakdowns, outcomes and the passed-then-acquired line"
   await expect(page.getByRole("region", { name: "Outcomes" })).toBeVisible();
   await expect(page.getByText(/Of firms we passed,/)).toBeVisible();
   await expect(page.getByText(/firms? with no outcome observed yet/)).toBeVisible();
+});
+
+test("accuracy evals tab shows the eval report", async ({ page }) => {
+  const report = JSON.parse(readFileSync("docs/evals.json", "utf8")) as {
+    reconciled: { precision: number; coverage: number };
+    abstention: { calibration: number };
+    tierAgreement: number;
+    slots: { total: number };
+    providers: { provider: string; precision: number }[];
+    failures: { kind: string; count: number; examples: { firmId: string }[] }[];
+  };
+  const pct = (v: number): string => (v * 100).toFixed(1);
+
+  await openRoute(page, route("/accuracy"));
+  await page.getByRole("tab", { name: "Evals" }).click();
+  await expect(page).toHaveURL(/\/accuracy\?tab=evals$/);
+
+  await expect(page.getByText("Against synthetic ground truth.").first()).toBeVisible();
+  const metric = (label: string) => page.locator("section", { hasText: new RegExp(`^${label}`) });
+  for (const [label, value] of [
+    ["Reconciled precision", report.reconciled.precision],
+    ["Coverage", report.reconciled.coverage],
+    ["Abstention calibration", report.abstention.calibration],
+    ["Tier agreement", report.tierAgreement],
+  ] as const) {
+    await expect(
+      metric(label)
+        .filter({ hasText: `${pct(value)}%` })
+        .first(),
+    ).toBeVisible();
+  }
+
+  const providers = page.getByRole("region", { name: "Providers against ground truth" });
+  await expect(providers.getByText(`${pct(report.providers[3].precision)}%`)).toBeVisible();
+
+  const taxonomy = page.getByRole("region", { name: "Failure taxonomy" });
+  await expect(
+    taxonomy.getByText(`${report.slots.total.toLocaleString("en-US")} firm axes`),
+  ).toBeVisible();
+  const wrong = report.failures[0];
+  await expect(
+    taxonomy.getByText(wrong.count.toLocaleString("en-US"), { exact: false }).first(),
+  ).toBeVisible();
+  const example = wrong.examples[0];
+  await expect(
+    taxonomy.getByRole("link", { name: new RegExp(example.firmId) }).first(),
+  ).toHaveAttribute("href", `/desk?firmId=${example.firmId}`);
+  await expect(page.getByRole("link", { name: /docs\/evals\.md/ })).toBeVisible();
+
+  // The tab is in the URL: a fresh load of it opens the same view.
+  await page.reload();
+  await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
 });
 
 test("a mandate card opens that mandate's search page, which keeps its picks", async ({ page }) => {

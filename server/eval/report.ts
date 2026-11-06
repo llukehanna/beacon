@@ -2,11 +2,12 @@
  * The evaluation report: build it from the pipeline and the rule-recovery run, test it against
  * its floors, render it as JSON and Markdown, and say whether committed copies are stale. Pure.
  */
-import type { EvalReport } from "../../shared/evalReport.js";
+import { type EvalReport, FAILURE_TEXT } from "../../shared/evalReport.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { EXTRACTION_PROMPT_VERSION } from "../extraction/contract.js";
 import { DOCUMENT_VERSION } from "../extraction/documents.js";
+import { failureTaxonomy } from "./failures.js";
 import { computeMetrics, rate } from "./metrics.js";
 import { evaluateFirms } from "./pipeline.js";
 import { evaluateRuleRecovery } from "./rules.js";
@@ -43,6 +44,7 @@ export async function buildReport(
       fixtures: models.length === 0 ? "rule-based" : models.join(" + "),
     },
     ...computeMetrics(evals),
+    ...failureTaxonomy(evals),
     recordedRun: { values: rows.length, grounded: rows.filter((r) => r.grounded).length },
     ruleRecovery: await evaluateRuleRecovery(firms),
     thresholds: { ...THRESHOLDS },
@@ -126,7 +128,7 @@ ${table(
   ],
 )}
 
-The extraction is read from the committed recordings, so the run needs no network and gives the same figures every time. The grounding row counts recorded answers whose quote is in the source record and states the value. It says whether an answer quotes its record faithfully, not whether the value is right: the records include each provider's deliberate errors, which the sections below score against the truth.
+The extraction is read from the committed recordings, so the run needs no network and gives the same figures every time. The grounding row counts recorded answers whose quote is in the source record and contains the value as a word or substring. It says whether an answer quotes its record faithfully, not whether the value is right: the records include each provider's deliberate errors, which the sections below score against the truth.
 
 ## Providers
 
@@ -173,13 +175,32 @@ ${table(
   ],
 )}
 
+## Failure taxonomy
+
+Against synthetic ground truth. Of the ${report.slots.total.toLocaleString("en-US")} firm axes the agent enriches, ${report.slots.correct.toLocaleString("en-US")} (${pct(report.slots.total === 0 ? null : report.slots.correct / report.slots.total)}) end with the true value settled. Each of the others is in exactly one row below. The universe has no time dimension, so there is no "stale value" row: a source is wrong or right, never out of date.
+
+${table(
+  ["Kind", "Axes", "Share of axes", "Meaning", "Examples (firm, axis)"],
+  report.failures.map((f) => [
+    FAILURE_TEXT[f.kind].label,
+    f.count.toLocaleString("en-US"),
+    pct(report.slots.total === 0 ? null : f.count / report.slots.total),
+    FAILURE_TEXT[f.kind].meaning,
+    f.examples.length === 0
+      ? "none"
+      : f.examples.map((e) => `\`${e.firmId}\` ${e.axis}`).join("; "),
+  ]),
+)}
+
+[error-analysis.md](error-analysis.md) reads these rows and says what Beacon does about each.
+
 ## Tier agreement
 
 Against synthetic ground truth: ${pct(report.tierAgreement)} of firms get the same tier from the agent's settled values as from the true values. Axes the agent abstained on or left in conflict count as unknown, so this is the tier before an analyst finishes the enrichment.
 
 ## Rule recovery
 
-Against synthetic ground truth. The seed's rejection patterns are planted in memory (small firms, generalists, small deals, low deal volume, plus rejections that no screening rule can express) and the ${rules.method} clusterer proposes screening rules from them. It recovered ${rules.recovered} of ${rules.planted} planted patterns. This clusterer matches rationale wording and firm facts against a fixed list of candidate rules, so the figure checks the learning loop end to end; it does not measure open-ended discovery.
+Against synthetic ground truth. The seed's rejection patterns are planted in memory (small firms, generalists, small deals, low deal volume, plus rejections that no screening rule can express) and the ${rules.method} clusterer proposes screening rules from them. It recovered ${rules.recovered} of ${rules.planted} planted patterns. This clusterer matches rationale wording and firm facts against a fixed list of candidate rules, so the figure checks the learning loop end to end; it does not measure open-ended discovery. The patterns, selection rules and wording are the seed's, planted into the bare generated universe with this run's own value stream, so the exact firms and values differ from the seeded database.
 
 ## Thresholds
 
@@ -191,6 +212,7 @@ ${table(["Measure", "Floor", "Measured", "Result"], thresholdRows)}
 
 - The universe, the sources and their errors are generated. The figures say the pipeline does what it should on this data, not how it would do on real firms.
 - Precision counts a numeric reading in the right rubric band as correct, even when the figure itself differs.
+- Grounding is a word or substring match. It confirms the quote is verbatim in the record and contains the value, not which axis the quoted sentence is about.
 
 ## Reproduce
 

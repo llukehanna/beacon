@@ -39,6 +39,71 @@
     "calibration": 1
   },
   "tierAgreement": 0.5243,
+  "slots": {
+    "total": 7079,
+    "correct": 4505
+  },
+  "failures": [
+    {
+      "kind": "wrong-source-wins",
+      "count": 329,
+      "examples": [
+        {
+          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
+          "axis": "web_activity"
+        },
+        {
+          "firmId": "zephyrleasecurities_australia",
+          "axis": "md_pedigree"
+        },
+        {
+          "firmId": "rosalescallowaylindqvistpartners_unitedstates",
+          "axis": "md_pedigree"
+        }
+      ]
+    },
+    {
+      "kind": "conflict-surfaced",
+      "count": 141,
+      "examples": [
+        {
+          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
+          "axis": "md_pedigree"
+        },
+        {
+          "firmId": "penroseeskerabernathy_unitedstates",
+          "axis": "fee_generating_count"
+        },
+        {
+          "firmId": "stonewickgroup_japan",
+          "axis": "deals_per_md_l3y"
+        }
+      ]
+    },
+    {
+      "kind": "abstained-correctly",
+      "count": 2104,
+      "examples": [
+        {
+          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
+          "axis": "deals_per_md_l3y"
+        },
+        {
+          "firmId": "kowalskicapitalpartners_unitedkingdom",
+          "axis": "deal_size_usd_m"
+        },
+        {
+          "firmId": "eastwickbrandtiverson_unitedstates",
+          "axis": "md_pedigree"
+        }
+      ]
+    },
+    {
+      "kind": "abstained-wrongly",
+      "count": 0,
+      "examples": []
+    }
+  ],
   "recordedRun": {
     "values": 6472,
     "grounded": 6455
