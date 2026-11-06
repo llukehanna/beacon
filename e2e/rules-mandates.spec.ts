@@ -92,6 +92,13 @@ test("a mandate card opens that mandate's search page, which keeps its picks", a
     page.getByRole("heading", { level: 1, name: "Interpret & run search" }),
   ).toBeVisible();
 
+  // The mandate's own words pre-fill the pickers; this test is about picking by hand.
+  const readBack = page.getByRole("button", { name: /^Remove .* \(read from/ });
+  while ((await readBack.count()) > 0) {
+    await readBack.first().click();
+  }
+  await expect(page.getByText(/No filters picked/)).toBeVisible();
+
   const geography = page.getByRole("group", { name: "Geography" });
   const europe = geography.getByRole("button", { name: /^Europe/ });
   await europe.click();
@@ -107,6 +114,35 @@ test("a mandate card opens that mandate's search page, which keeps its picks", a
   await expect(page.getByRole("button", { name: "Remove Narnia" })).toBeVisible();
   await page.getByRole("button", { name: "Remove Narnia" }).click();
   await expect(page.getByRole("button", { name: "Remove Narnia" })).toHaveCount(0);
+});
+
+test("interpret pre-fills filters from the mandate", async ({ page }) => {
+  await openRoute(page, route("/mandate"));
+  await page
+    .getByRole("region", { name: /European mid-market advisory/ })
+    .getByRole("link", { name: /Interpret & run search/ })
+    .click();
+  await expect(page).toHaveURL(/\/search\/[^/]+$/);
+
+  const strip = page.getByRole("group", { name: "Read from the mandate" });
+  const europeChip = strip.getByRole("listitem").filter({ hasText: "geography: Europe" });
+  await expect(europeChip).toBeVisible();
+  await expect(europeChip).toContainText("“European”");
+
+  const geography = page.getByRole("group", { name: "Geography" });
+  const europe = geography.getByRole("button", { name: /^Europe/ });
+  await expect(europe).toHaveAttribute("aria-pressed", "true");
+  // Reading the mandate never runs the search.
+  await expect(page).toHaveURL(/\/search\//);
+  await expect(page.getByRole("button", { name: "Run search" })).toBeEnabled();
+
+  await europeChip.getByRole("button", { name: /^Remove Europe/ }).click();
+  await expect(europeChip).toHaveCount(0);
+  await expect(europe).toHaveAttribute("aria-pressed", "false");
+
+  // A pick of the visitor's own is not undone by anything the page does afterwards.
+  await europe.click();
+  await expect(europe).toHaveAttribute("aria-pressed", "true");
 });
 
 test("an unknown path shows the not-found page inside the shell", async ({ page }) => {
