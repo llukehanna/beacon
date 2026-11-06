@@ -13,7 +13,7 @@ import {
   ruleBasedExtraction,
 } from "./contract.js";
 import { type SourceDocument, documentsHash, firmDocuments } from "./documents.js";
-import { groundExtraction } from "./grounding.js";
+import { type GroundingResult, groundExtraction } from "./grounding.js";
 
 /**
  * The stored extraction for these documents, or the rule-based one. Rows made against other
@@ -48,6 +48,25 @@ export function extractionFromRows(
 }
 
 /**
+ * What the agent reads for a firm: its four documents, the extraction in force (stored rows when
+ * current, otherwise rule-based), and that extraction after grounding. The one place this is
+ * decided, so the agent's plans and the per-provider view of them cannot drift apart.
+ */
+export function groundFirm(
+  firm: ObjectOf<"Firm">,
+  rows: readonly ObjectOf<"Extraction">[],
+): {
+  docs: SourceDocument[];
+  extraction: { output: ExtractionOutput; model: string };
+  grounded: GroundingResult;
+} {
+  const docs = firmDocuments(firm);
+  const extraction = extractionFromRows(docs, rows);
+  const grounded = groundExtraction(firm, docs, extraction.output, extraction.model);
+  return { docs, extraction, grounded };
+}
+
+/**
  * One entry per axis the firm's model enriches (and `include` accepts), each with the findings
  * the agent would record for it: read, grounded, then reconciled.
  */
@@ -58,9 +77,7 @@ export function planFirmAxes(
   include: (axis: AxisDef) => boolean = () => true,
 ): { axis: AxisDef; plans: FindingPlan[] }[] {
   const model = firmModel(firm);
-  const docs = firmDocuments(firm);
-  const extraction = extractionFromRows(docs, rows);
-  const grounded = groundExtraction(firm, docs, extraction.output, extraction.model);
+  const { grounded } = groundFirm(firm, rows);
   return ENRICH_AXES.filter((axis) => axis.models.includes(model) && include(axis)).map((axis) => ({
     axis,
     plans: reconcileAxis(
