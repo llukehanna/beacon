@@ -73,6 +73,16 @@ describe("figures on the About and Trust pages", () => {
     }
   });
 
+  it("match the recorded run's grounding figures recomputed by the evaluation", () => {
+    const evals = JSON.parse(read("docs/evals.json")) as {
+      recordedRun: { values: number; grounded: number };
+    };
+    expect(evals.recordedRun).toEqual({
+      values: RECORDED_RUN.valuesExtracted,
+      grounded: RECORDED_RUN.valuesGrounded,
+    });
+  });
+
   it("match the recorded run in docs/architecture.md", () => {
     const doc = read("docs/architecture.md");
     const n = (v: number): string => v.toLocaleString("en-US");

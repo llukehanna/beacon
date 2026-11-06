@@ -53,7 +53,7 @@ export const MIN_FIRMS_PER_RULE = 4;
 export const RECORDED_RUN = {
   firms: 700,
   valuesExtracted: 6_472,
-  valuesGrounded: 6_471,
+  valuesGrounded: 6_455,
   extractionCost: "$1.39",
   clusteringCost: "$0.05",
   model: "Claude Haiku 4.5",
