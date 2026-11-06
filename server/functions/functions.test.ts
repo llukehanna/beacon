@@ -25,6 +25,7 @@ import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES, type ObjectOf } from "../../shared/schema.js";
 import { mirrorScore } from "../../shared/scoreMirror.js";
 import type { AccuracySummary, HomeSummary } from "../../shared/summaries.js";
+import { findingTrends } from "../../shared/trends.js";
 import {
   type FirmOutcomeLike,
   accuracyTables,
@@ -239,6 +240,35 @@ describe("homeSummary", () => {
   it("counts the funnel like the client", () => {
     expect(summary.funnel).toEqual(client.funnel);
     expect(Object.values(summary.funnel).reduce((a, b) => a + b, 0)).toBe(client.firms.length);
+  });
+
+  it("includes trends, activity and headline", async () => {
+    expect(summary.activity.length).toBeGreaterThanOrEqual(1);
+    expect(summary.activity.length).toBeLessThanOrEqual(7);
+    for (const item of summary.activity) {
+      expect(new Date(item.at).toISOString(), item.title).toBe(item.at);
+    }
+    const times = summary.activity.map((i) => Date.parse(i.at));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+
+    expect(summary.headline).not.toBeNull();
+    expect(summary.headline!.enrichedFirms).toBeGreaterThan(0);
+    expect(summary.headline!.windowHours).toBe(24);
+
+    // The query hands the pure module the same columns the objects carry: nothing is lost on
+    // the way. A series the seeded history cannot support is null, never an invented line.
+    const findings = await listAll(db, "ResearchFinding");
+    expect(summary.trends).toEqual(findingTrends(withIds(findings)));
+    for (const trend of Object.values(summary.trends)) {
+      if (trend !== null) {
+        expect(trend.points.length).toBeGreaterThanOrEqual(4);
+        for (const p of trend.points) {
+          expect(p.value).toBeGreaterThanOrEqual(0);
+          expect(p.value).toBeLessThanOrEqual(100);
+          expect(p.n).toBeGreaterThanOrEqual(5);
+        }
+      }
+    }
   });
 
   it("lists the same inbox rows, with the same content, in the same order", () => {

@@ -3,7 +3,9 @@
  * mirror Foundry query functions: the server aggregates, the client receives
  * a few kilobytes of numbers instead of every row.
  */
+import type { ActivityItem, HeadlineCounts } from "./activityFeed.js";
 import type { Lifecycle } from "./pipelineBuckets.js";
+import type { FindingTrends } from "./trends.js";
 import type { AccuracyTables, OutcomeTally, Rates } from "./trustMetrics.js";
 
 /** Where a needs-you row sends the analyst. */
@@ -79,6 +81,15 @@ export interface HomeSummary {
     passed: number;
     passedAndAcquired: number;
   };
+  /**
+   * Daily rate history behind the metric cards; a null entry means the data does not support
+   * a trend (too few days with enough findings) and the card shows its value alone.
+   */
+  trends: FindingTrends;
+  /** Newest-first agent activity, built from existing timestamps. */
+  activity: ActivityItem[];
+  /** What the agent's latest runs did; null when no firm has been enriched. */
+  headline: HeadlineCounts | null;
 }
 
 export interface AccuracySummary extends AccuracyTables {
