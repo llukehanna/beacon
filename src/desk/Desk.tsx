@@ -2156,7 +2156,7 @@ function AxisCard({
   };
 
   return (
-    <div style={findingCardShell("none")}>
+    <div data-testid="finding-card" style={findingCardShell("none")}>
       <div
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}
       >
