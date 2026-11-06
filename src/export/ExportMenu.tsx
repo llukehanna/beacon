@@ -47,7 +47,7 @@ export function ExportMenu({
       } else {
         const fmt = CRM_FORMATS[kind];
         const csv = toCsv(fmt.headers, rows.map(fmt.map));
-        saveBlob(csvBlob(csv), exportFileName(`${name} ${fmt.label}`, "csv", now));
+        saveBlob(csvBlob(csv), exportFileName(name, "csv", now, fmt.label));
       }
     } catch (e) {
       setError(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -76,7 +76,8 @@ export function ExportMenu({
       <MenuButton
         label={busy ? "Exporting…" : "Export"}
         items={items}
-        disabled={busy || firms.length === 0}
+        busy={busy}
+        disabled={firms.length === 0}
       />
       {error !== null && (
         <span className={styles.error} role="alert">

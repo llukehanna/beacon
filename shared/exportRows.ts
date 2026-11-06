@@ -227,7 +227,14 @@ export function exportRows(
         cites.push(EMPTY_CITATION(def.axis));
         continue;
       }
-      row[def.axis] = axisValue(def, auth.value) ?? own;
+      const fromFinding = axisValue(def, auth.value);
+      if (fromFinding === null) {
+        // The finding has no usable value, so the firm's own value is not its to be credited.
+        row[def.axis] = own;
+        cites.push(EMPTY_CITATION(def.axis));
+        continue;
+      }
+      row[def.axis] = fromFinding;
       const provider = text(auth.provider);
       cites.push({
         axis: def.axis,
@@ -247,8 +254,10 @@ export function exportRows(
 export type Cell = string | number | null;
 
 /**
- * A spreadsheet runs a cell that starts with = + - @ (or a tab or carriage return) as a formula.
- * A leading apostrophe makes it text; Excel and Sheets show the cell without the apostrophe.
+ * A spreadsheet runs a CSV cell that starts with = + - @ (or a tab or carriage return) as a
+ * formula. A leading apostrophe makes it text (the OWASP guidance); it stays visible in the cell.
+ * The workbook does not use this: it writes every text cell as a string cell, which Excel never
+ * evaluates, so names keep their literal text.
  */
 export function neutralise(cell: Cell): Cell {
   return typeof cell === "string" && /^[=+\-@\t\r]/.test(cell) ? `'${cell}` : cell;
@@ -335,16 +344,28 @@ export function scoreLine(r: Pick<ExportRow, "tier" | "score">): string {
 
 // ─── File names ──────────────────────────────────────────────────────────
 
-/** `beacon-<name>-<yyyy-mm-dd>.<ext>`, with the name cut down to lowercase words and hyphens. */
-export function exportFileName(name: string, ext: "xlsx" | "csv", now: Date): string {
-  const slug =
-    name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 48)
-      .replace(/-+$/g, "") || "targets";
+function slugOf(text: string, max: number): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, max)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * `beacon-<name>[-<suffix>]-<yyyy-mm-dd>.<ext>`, with the name cut down to lowercase words and
+ * hyphens. The name is shortened before the suffix is added, so a long name never cuts the
+ * suffix off.
+ */
+export function exportFileName(
+  name: string,
+  ext: "xlsx" | "csv",
+  now: Date,
+  suffix?: string,
+): string {
   const pad = (n: number): string => String(n).padStart(2, "0");
   const day = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  return `beacon-${slug}-${day}.${ext}`;
+  const parts = ["beacon", slugOf(name, 48) || "targets", slugOf(suffix ?? "", 16), day];
+  return `${parts.filter(Boolean).join("-")}.${ext}`;
 }

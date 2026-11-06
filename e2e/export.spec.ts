@@ -109,6 +109,23 @@ test("mandate cards offer an export and the page keeps to 390 px", async ({ page
     () => document.documentElement.scrollWidth - window.innerWidth,
   );
   expect(overflow).toBeLessThanOrEqual(0);
+  // The menu itself sits inside the viewport, not just the page's scroll width.
+  const box = (await page.getByRole("menu").boundingBox())!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(390);
+});
+
+test("keyboard focus stays on the trigger after choosing an item", async ({ page }) => {
+  await openRoute(page, pipeline);
+  await exportMenu(page).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  const started = page.waitForEvent("download");
+  await page.keyboard.press("Enter");
+  await started;
+  await expect(exportMenu(page)).toBeFocused();
+  await expect(exportMenu(page)).toHaveText("Export");
+  await expect(exportMenu(page)).toBeFocused();
 });
 
 test("the pipeline keeps to 390 px with the export menu open", async ({ page }) => {
