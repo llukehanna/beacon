@@ -104,8 +104,21 @@ export function EvidencePanel(props: EvidenceProps): React.ReactElement {
 export function EvidenceDrawer({
   isOpen,
   onClose,
+  touring = false,
   ...props
-}: EvidenceProps & { isOpen: boolean; onClose: () => void }): React.ReactElement {
+}: EvidenceProps & {
+  isOpen: boolean;
+  onClose: () => void;
+  /** While the guided tour runs its card owns the focus, so the drawer must not take it. */
+  touring?: boolean;
+}): React.ReactElement {
+  // Spread, not written out: a drawer normally takes focus and keeps it, which is right except
+  // while the tour card holds it.
+  const focusProps = {
+    autoFocus: !touring,
+    enforceFocus: !touring,
+    shouldReturnFocusOnClose: !touring,
+  };
   return (
     <Drawer
       isOpen={isOpen}
@@ -114,6 +127,7 @@ export function EvidenceDrawer({
       size="min(400px, 100vw)"
       title={props.row?.label ?? "Evidence"}
       className={`${styles.drawer} ${EVIDENCE_DRAWER_CLASS} bp6-dark`}
+      {...focusProps}
     >
       <Panel variant="drawer" {...props} />
     </Drawer>

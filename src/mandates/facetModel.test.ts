@@ -1,6 +1,15 @@
 import { describe, expect, it } from "vitest";
 import type { FacetGroup } from "../../shared/taxonomy";
-import { customValues, findIdx, mergeValues, toggleCategory, toggleValue } from "./facetModel";
+import {
+  customValues,
+  dropOption,
+  dropOptionKeeping,
+  findIdx,
+  mergeValues,
+  pickOption,
+  toggleCategory,
+  toggleValue,
+} from "./facetModel";
 
 const energy: FacetGroup = { label: "Energy", subs: ["Oil and Gas", "Renewables"] };
 const infra: FacetGroup = { label: "Infrastructure", subs: ["Oil and Gas", "Utilities"] };
@@ -48,5 +57,39 @@ describe("customValues", () => {
 describe("mergeValues", () => {
   it("merges lists without blanks or repeats", () => {
     expect(mergeValues(["Audit", " "], ["audit", "Tax"])).toEqual(["Audit", "Tax"]);
+  });
+});
+
+describe("pickOption and dropOption", () => {
+  it("pick a category with its sub-options, or a sub-option alone, and never twice", () => {
+    expect(pickOption([], "Energy", groups)).toEqual(["Energy", "Oil and Gas", "Renewables"]);
+    expect(pickOption([], "Utilities", groups)).toEqual(["Utilities"]);
+    expect(pickOption(["utilities"], "Utilities", groups)).toEqual(["utilities"]);
+  });
+
+  it("drop what pickOption added, and ignore what is not picked", () => {
+    expect(dropOption(["Energy", "Oil and Gas", "Renewables"], "Energy", groups)).toEqual([]);
+    expect(dropOption(["Utilities", "Hydrogen"], "Utilities", groups)).toEqual(["Hydrogen"]);
+    expect(dropOption(["Hydrogen"], "Utilities", groups)).toEqual(["Hydrogen"]);
+  });
+});
+
+describe("dropOptionKeeping", () => {
+  it("drops a category but keeps a listed sub-option that is picked", () => {
+    expect(
+      dropOptionKeeping(["Energy", "Oil and Gas", "Renewables"], "Energy", groups, ["Renewables"]),
+    ).toEqual(["Renewables"]);
+  });
+
+  it("does not bring back a kept option the visitor had already unpicked", () => {
+    expect(dropOptionKeeping(["Energy", "Oil and Gas"], "Energy", groups, ["Renewables"])).toEqual(
+      [],
+    );
+  });
+
+  it("drops a sub-option and leaves its category and the rest", () => {
+    expect(
+      dropOptionKeeping(["Energy", "Oil and Gas", "Renewables"], "Oil and Gas", groups, ["Energy"]),
+    ).toEqual(["Energy", "Renewables"]);
   });
 });

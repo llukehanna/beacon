@@ -1,0 +1,14 @@
+.csp.csp {
+  padding: 10px 14px 10px 14px;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  list-style: none;
+  gap: 4px;
+}
+
+.csp code {
+  padding: 0;
+  background: none;
+  color: var(--tx);
+}

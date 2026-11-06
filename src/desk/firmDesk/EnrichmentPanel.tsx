@@ -3,6 +3,7 @@ import { useFirmObservations } from "@/data/firmObservations";
 import { useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { ResearchFinding, enrichFirmAction, verifyFindingAction } from "@/data/ontology";
 import { isTypingTarget } from "@/shell/keys";
+import { useTourStepId } from "@/tour/tourContext";
 import { ENRICH_AXES } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
 import { HARD_GATE_PASS_WHEN, effectiveAxisValue, verifiedBaselineEdits } from "../findingActions";
@@ -157,6 +158,30 @@ export function EnrichmentPanel({
   }, [wide, selectedAxis, rows, firm.firmId]);
 
   const selectedRow = rows.find((r) => r.axis === selectedAxis);
+  // The tour's "every value cites its source" stop points into the evidence panel. Under 1280 px
+  // that panel is a drawer, so the stop opens it on the first conflict (a view change only) and
+  // closes it when the tour moves on.
+  const tourStepId = useTourStepId();
+  const tourEvidence = tourStepId === "evidence";
+  const tourOpenedDrawer = React.useRef(false);
+  React.useEffect(() => {
+    if (wide) {
+      return;
+    }
+    if (tourEvidence && !tourOpenedDrawer.current) {
+      const row = rows.find((r) => r.state === "conflict") ?? rows.find((r) => r.state !== "empty");
+      if (row !== undefined) {
+        tourOpenedDrawer.current = true;
+        setSelectedAxis(row.axis);
+        setProvider(undefined);
+        setDrawerOpen(true);
+      }
+    } else if (!tourEvidence && tourOpenedDrawer.current) {
+      tourOpenedDrawer.current = false;
+      setDrawerOpen(false);
+    }
+  }, [wide, tourEvidence, rows]);
+
   const selectAxis = React.useCallback((axis: string, source?: string) => {
     setSelectedAxis(axis);
     setProvider(source);
@@ -391,6 +416,7 @@ export function EnrichmentPanel({
           {...evidence}
           isOpen={drawerOpen && selectedRow !== undefined}
           onClose={() => setDrawerOpen(false)}
+          touring={tourStepId !== null}
         />
       )}
     </div>

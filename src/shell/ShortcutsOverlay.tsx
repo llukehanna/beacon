@@ -1,6 +1,7 @@
 import React from "react";
 import { Dialog, DialogBody } from "@blueprintjs/core";
-import { Kbd } from "@/ui";
+import { useTour } from "@/tour/tourContext";
+import { Button, Kbd } from "@/ui";
 import styles from "./ShortcutsOverlay.module.css";
 import { FIRM_DECISION_KEYS, NAV_ITEMS } from "./keys";
 
@@ -60,6 +61,7 @@ export default function ShortcutsOverlay({
   isOpen: boolean;
   onClose: () => void;
 }): React.ReactElement {
+  const { start } = useTour();
   return (
     <Dialog
       isOpen={isOpen}
@@ -72,6 +74,15 @@ export default function ShortcutsOverlay({
           <div>
             <Section title="Go to" rows={GO_ROWS} />
             <Section title="Anywhere" rows={[{ keys: ["?"], label: "Show this list" }]} />
+            <Button
+              className={styles.tour}
+              onClick={() => {
+                onClose();
+                start();
+              }}
+            >
+              Take the 60-second tour
+            </Button>
           </div>
           <Section title="On the Desk" rows={DESK_ROWS} />
         </div>

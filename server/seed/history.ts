@@ -23,7 +23,7 @@ import { pickShowcaseFirms } from "./showcase.js";
 
 type FirmObj = ObjectOf<"Firm">;
 
-const MANDATES = [
+export const SEED_MANDATES = [
   {
     title: "Sector-focused sell-side M&A boutiques in North America",
     archetype: "CF",
@@ -160,7 +160,7 @@ export async function seedHistory(
   }
 
   // 1. Mandates and searches.
-  for (const m of MANDATES) {
+  for (const m of SEED_MANDATES) {
     await act("runMandateSearch", m);
   }
   const mandates = await all(db, "Mandate", { orderBy: ["createdAt"] });
