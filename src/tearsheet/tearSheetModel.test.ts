@@ -344,7 +344,7 @@ describe("market signals on the sheet", () => {
           axis: "fee_generating_count",
           value: "2",
           provider: "market_signal",
-          findingStatus: "verified",
+          findingStatus: "signal",
           sourceExcerpt: "Acme loses a partner",
         }),
       ],
@@ -353,6 +353,7 @@ describe("market signals on the sheet", () => {
     });
     const item = sheet.evidence.find((e) => e.axis === "Fee-earning heads");
     expect(item).toMatchObject({
+      status: "signal",
       provider: "Synthetic market signal",
       quote: null,
       model: null,

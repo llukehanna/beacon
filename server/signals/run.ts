@@ -10,8 +10,14 @@
  * a run well inside a Cloudflare Worker's free-plan CPU budget.
  */
 import { randomUUID } from "node:crypto";
-import { SYNTHETIC_LABEL } from "../../shared/marketSignals.js";
+import {
+  EFFECT_MOVED as MOVED,
+  SIGNAL_AXES,
+  SYNTHETIC_LABEL,
+  EFFECT_UNCHANGED as UNCHANGED,
+} from "../../shared/marketSignals.js";
 import { OBJECT_TYPES } from "../../shared/schema.js";
+import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import { snapshotScore } from "../actions/common.js";
 import { computeDriftForFirm, openOutcomeDivergence } from "../actions/drift.js";
 import type { ActionContext } from "../actions/types.js";
@@ -72,7 +78,7 @@ async function write(
     }
     if (plan.openOutcomeDrift) {
       const firm = (await getObject(tx, "Firm", plan.firmId))!;
-      const drift = await openOutcomeDivergence(ctx, firm);
+      const drift = await openOutcomeDivergence(ctx, firm, { source: SYNTHETIC_LABEL });
       if (drift !== null) {
         drifts.push(drift);
       }
@@ -109,16 +115,38 @@ export async function applyDueSignals(
     const firms = new Map<string, FirmState>(
       firmRows.map((r) => [String(r.firmId), toWire("Firm", r) as FirmState]),
     );
+    // When an analyst last checked each axis the signals touch: a later check outranks older news.
+    const checks = await tx.query<{ firmId: string; axis: string; at: Date | string }>(
+      `SELECT "firmId", "axis", max(coalesce("verifiedAt", "retrievedAt")) AS at
+         FROM research_finding
+        WHERE "firmId" = ANY($1::text[]) AND "axis" = ANY($2::text[])
+          AND lower(coalesce("findingStatus", '')) <> 'superseded'
+          AND lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
+          AND (coalesce("verifiedByHuman", false) OR lower(coalesce("findingStatus", '')) = 'verified')
+        GROUP BY "firmId", "axis"`,
+      [firmIds, [...new Set(Object.values(SIGNAL_AXES).flat())]],
+    );
+    const checked = new Map(
+      checks.map((c) => [`${c.firmId}\u0000${c.axis}`, new Date(c.at).getTime()]),
+    );
     const at = (s: SignalRow): string => (opts.backfill ? s.effectiveDate : now.toISOString());
-    const plans = planSignals(signals, firms, at);
+    const plans = planSignals(
+      signals,
+      firms,
+      at,
+      (firmId, axis) => checked.get(`${firmId}\u0000${axis}`) ?? null,
+    );
     const drifts = await write(tx, plans, newId);
+    // Every claimed signal is stamped so it is not tried again; `effect` says whether it changed anything.
+    const unchanged = plans.filter((p) => p.effect === "unchanged").map((p) => p.signalId);
     await tx.query(
       `UPDATE ${OBJECT_TYPES.MarketSignal.table}
-          SET "appliedAt" = ${opts.backfill ? `"effectiveDate"` : "$2"}
+          SET "appliedAt" = ${opts.backfill ? `"effectiveDate"` : "$3"},
+              "effect" = CASE WHEN "signalId" = ANY($2::text[]) THEN '${UNCHANGED}' ELSE '${MOVED}' END
         WHERE "signalId" = ANY($1::text[]) AND "appliedAt" IS NULL`,
       opts.backfill
-        ? [signals.map((s) => s.signalId)]
-        : [signals.map((s) => s.signalId), now.toISOString()],
+        ? [signals.map((s) => s.signalId), unchanged]
+        : [signals.map((s) => s.signalId), unchanged, now.toISOString()],
     );
     return { applied: signals.map((s) => s.signalId), drifts };
   });

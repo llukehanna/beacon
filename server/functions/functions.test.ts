@@ -106,7 +106,19 @@ beforeAll(async () => {
     // Only the analyst's own value is credited by status; another provider's is merely pending.
     f("edge_other_verified", { provider: "dealdb", findingStatus: "verified" }, "14"),
     // A synthetic market signal's finding is news, not a reading of a source: no trust figure counts it.
-    f("edge_market_signal", { provider: "market_signal", findingStatus: "verified" }, "15"),
+    f("edge_market_signal", { provider: "market_signal", findingStatus: "signal" }, "15"),
+    // A newer market signal does not settle an axis the agent abstained on: it still needs the analyst.
+    f("edge_signal_over_abstained", { confidenceTier: "abstain" }, "16"),
+    f(
+      "edge_signal_over_abstained",
+      {
+        provider: "market_signal",
+        findingStatus: "signal",
+        confidenceTier: undefined,
+        retrievedAt: "2026-09-10T00:00:00.000Z",
+      },
+      "17",
+    ),
   ]);
 }, 600_000);
 
@@ -384,8 +396,9 @@ describe("homeSummary", () => {
     const sql = await needsYouAxes(db);
     const reference = needsYouAxisCountByFirm(withIds(await listAll(db, "ResearchFinding")));
     expect(Object.fromEntries(sql)).toEqual(Object.fromEntries(reference));
-    // The edge-case firm gets exactly the axes that should abstain: edge_abstained, edge_tie and
-    // edge_status_abstained (superseded, conflict-grouped, verified-first and latest-wins do not).
+    // The edge-case firm gets exactly the axes that should abstain: edge_abstained, edge_tie,
+    // edge_status_abstained and edge_signal_over_abstained (superseded, conflict-grouped,
+    // verified-first and latest-wins do not).
     const edgeFirm = (
       await listAll(db, "ResearchFinding", { where: { findingId: { $eq: "edge-1" } } })
     )[0].firmId!;
@@ -393,7 +406,7 @@ describe("homeSummary", () => {
       await listAll(db, "ResearchFinding", { where: { firmId: { $eq: edgeFirm } } })
     ).filter((x) => !x.findingId!.startsWith("edge-"));
     const seededAxes = needsYouAxisCountByFirm(withIds(others)).get(edgeFirm) ?? 0;
-    expect(sql.get(edgeFirm)).toBe(seededAxes + 3);
+    expect(sql.get(edgeFirm)).toBe(seededAxes + 4);
   });
 
   it("selects every Firm column the rules and the score can read, and only real ones", () => {

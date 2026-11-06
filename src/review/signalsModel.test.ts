@@ -42,6 +42,11 @@ describe("buildSignalsView", () => {
     expect(view.rows[1].kind).toBe("Senior hire");
   });
 
+  it("shows a signal that was applied and changed nothing as No change", () => {
+    const view = buildSignalsView([signal("a", { effect: "unchanged" })], firms, NOW);
+    expect(view.rows[0]).toMatchObject({ moved: "No change", label: "Synthetic market signal" });
+  });
+
   it("leaves out a signal that has not come due yet", () => {
     const view = buildSignalsView(
       [signal("later", { effectiveDate: "2026-11-07T01:00:00.000Z", appliedAt: undefined })],

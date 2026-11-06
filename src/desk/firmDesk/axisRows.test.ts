@@ -241,3 +241,35 @@ describe("summaryText", () => {
     );
   });
 });
+
+describe("an axis a market signal alone has spoken for", () => {
+  const def = ENRICH_AXES.find((a) => a.axis === "fee_generating_count")!;
+  const signal: FindingLike = {
+    findingId: "s1",
+    axis: "fee_generating_count",
+    value: "3",
+    provider: "market_signal",
+    findingStatus: "signal",
+    retrievedAt: "2026-06-01T00:00:00Z",
+  };
+
+  it("is the signal state, not verified", () => {
+    const [row] = buildAxisRows([def], undefined, [signal]);
+    expect(row.state).toBe("signal");
+    expect(authoritativeFinding(row)?.findingId).toBe("s1");
+  });
+
+  it("gives way to a human-verified finding", () => {
+    const mine: FindingLike = {
+      ...signal,
+      findingId: "m1",
+      provider: "analyst",
+      findingStatus: "verified",
+      verifiedByHuman: true,
+      value: "4",
+    };
+    const [row] = buildAxisRows([def], undefined, [signal, mine]);
+    expect(row.state).toBe("verified");
+    expect(authoritativeFinding(row)?.findingId).toBe("m1");
+  });
+});

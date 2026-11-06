@@ -102,10 +102,14 @@ describe("planSignals", () => {
       provider: "market_signal",
       sourceType: "market_signal",
       sourceExcerpt: "Acme loses a partner",
-      findingStatus: "verified",
+      findingStatus: "signal",
       verifiedByHuman: false,
       retrievedAt: AT,
     });
+    // Never "verified", and never confident: nothing was checked and nothing was read.
+    expect(plan.finding?.findingStatus).not.toBe("verified");
+    expect(plan.finding?.confidence).toBeUndefined();
+    expect(plan.finding?.confidenceTier).toBeUndefined();
     expect(plan.finding?.sourceQuote).toBeUndefined();
     expect(plan.finding?.sourceDocumentId).toBeUndefined();
     expect(plan.finding?.extractionModel).toBeUndefined();
@@ -127,6 +131,7 @@ describe("planSignals", () => {
     expect(passed.firmPatch).toEqual({
       outcome: "acquired_by_competitor",
       outcomeObservedAt: acquisition.effectiveDate,
+      outcomeSource: "market_signal",
     });
     expect(passed.finding).toBeNull();
     const [pipeline] = planSignals([acquisition], firms(), at);
@@ -151,6 +156,45 @@ describe("planSignals", () => {
     expect(plans[1].after.total).toBe(12);
   });
 
+  it("never fills an axis with no value on file", () => {
+    const [plan] = planSignals(
+      [signal({ signalId: "s1", kind: "senior_hire", newValue: "5" })],
+      firms({ ...FOURTEEN, feeGeneratingCount: null }),
+      at,
+    );
+    expect(plan).toMatchObject({ skipped: "no_value", effect: "unchanged", firmPatch: null });
+    expect(plan.finding).toBeNull();
+  });
+
+  it("lets an analyst's later check outrank older news, but not an earlier one", () => {
+    const sigDate = Date.parse("2026-08-30T00:00:00.000Z");
+    const later = planSignals([signal({ signalId: "s1" })], firms(), at, () => sigDate + 1);
+    expect(later[0]).toMatchObject({
+      skipped: "analyst_newer",
+      effect: "unchanged",
+      firmPatch: null,
+    });
+    expect(later[0].finding).toBeNull();
+    expect(later[0].checkTier).toBe(false);
+    const earlier = planSignals([signal({ signalId: "s2" })], firms(), at, () => sigDate - 1);
+    expect(earlier[0]).toMatchObject({ skipped: null, effect: "moved" });
+    const other = planSignals([signal({ signalId: "s3" })], firms(), at, (_f, axis) =>
+      axis === "firm_age" ? sigDate + 1 : null,
+    );
+    expect(other[0].effect).toBe("moved");
+  });
+
+  it("writes no finding for a move clamped to the value already on file", () => {
+    const [plan] = planSignals([signal({ signalId: "s1", newValue: "9" })], firms(), at);
+    expect(plan).toMatchObject({ skipped: null, effect: "unchanged", firmPatch: null });
+    expect(plan.finding).toBeNull();
+    expect(plan.checkTier).toBe(false);
+  });
+
+  it("reports an axis move as moved", () => {
+    expect(planSignals([signal({ signalId: "s1" })], firms(), at)[0].effect).toBe("moved");
+  });
+
   it("skips what it cannot apply, and anything already applied", () => {
     const reasons = planSignals(
       [
@@ -172,6 +216,12 @@ describe("planSignals", () => {
       "bad_value",
       "bad_value",
     ]);
+    expect(
+      planSignals([signal({ signalId: "x", kind: "rumour" })], firms(), at).map((p) => [
+        p.effect,
+        p.finding,
+      ]),
+    ).toEqual([["unchanged", null]]);
   });
 });
 

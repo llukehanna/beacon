@@ -69,10 +69,11 @@ describe("worker scheduled", () => {
     expect(applyDueSignals).not.toHaveBeenCalled();
   });
 
-  it("treats a trigger it does not know as the nightly one", async () => {
+  it("never resets for a trigger it does not know: it only applies the signals that are due", async () => {
+    await worker.scheduled({ cron: "30 4 * * *" }, env, ctx);
     await worker.scheduled({}, env, ctx);
-    expect(resetPost).toHaveBeenCalledOnce();
-    expect(applyDueSignals).toHaveBeenCalledOnce();
+    expect(resetPost).not.toHaveBeenCalled();
+    expect(applyDueSignals).toHaveBeenCalledTimes(2);
   });
 });
 

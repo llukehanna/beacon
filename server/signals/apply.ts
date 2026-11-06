@@ -8,21 +8,27 @@
  * Every signal is synthetic (see shared/marketSignals.ts). How each kind moves the rubric
  * (shared/scoreMirror.ts):
  *
+ * A signal only adjusts an axis that already has a value, and never one an analyst has verified
+ * since the signal's date: that value outranks the news, the signal is still listed, and nothing
+ * moves.
+ *
  *   departure          Fee-Generating. A senior fee-earner leaves, so the count falls to
  *                      min(newValue, current): <2 scores 0, 2-3 scores 1, 4 or more scores 2.
  *   senior_hire        Fee-Generating. A senior fee-earner joins: max(newValue, current).
  *   deal_announcement  Deal Size (<$25m 0, $25-150m 1, >$150m 2) or Deals per MD (<1.5 0,
  *                      1.5-3.5 1, >3.5 2): the figure moves to the announced newValue.
  *   acquisition        No rubric axis. A rival buys the firm: the firm's market outcome becomes
- *                      acquired_by_competitor and, when the firm is Passed, an outcome_diverged
- *                      drift event opens ("we passed, the market did not") so it resurfaces in
- *                      Review. On a firm still in the pipeline only the outcome is recorded.
+ *                      acquired_by_competitor (its source recorded as the market signal) and,
+ *                      when the firm is Passed, an outcome_diverged drift event opens ("we passed,
+ *                      the market did not") so it resurfaces in Review. On a firm still in the
+ *                      pipeline only the outcome is recorded.
  *
- * An axis move writes a verified ResearchFinding from provider MARKET_SIGNAL with the headline as
- * its note. It has no source document and no quote, so no export or tear sheet cites it as a
- * grounded sentence. When the new value changes the score, the run re-scores through the same
- * rubric, and a qualified or passed firm whose tier moved opens a drift event through the same
- * rule enrichFirm uses (computeDriftForFirm).
+ * An axis move writes a ResearchFinding from provider MARKET_SIGNAL with its own status ("signal",
+ * never "verified"), no confidence, and the headline as its note. It has no source document and no
+ * quote, so no export or tear sheet cites it as a grounded sentence. A signal that changes nothing
+ * (skipped, or clamped to the value already on file) writes no finding. When the new value changes
+ * the score, the run re-scores through the same rubric, and a qualified or passed firm whose tier
+ * moved opens a drift event through the same rule enrichFirm uses (computeDriftForFirm).
  */
 import { SIGNAL_AXES, isApplied, isSignalKind } from "../../shared/marketSignals.js";
 import type { Props } from "../../shared/schema.js";
@@ -51,7 +57,13 @@ export interface SignalRow {
 export type FirmState = Props<"Firm">;
 
 export type SkipReason =
-  "already_applied" | "unknown_firm" | "unknown_kind" | "unsupported_axis" | "bad_value";
+  | "already_applied"
+  | "unknown_firm"
+  | "unknown_kind"
+  | "unsupported_axis"
+  | "bad_value"
+  | "no_value"
+  | "analyst_newer";
 
 export interface SignalPlan {
   signalId: string;
@@ -60,6 +72,8 @@ export interface SignalPlan {
   at: string;
   /** Set when the signal changes nothing and only needs to be marked applied. */
   skipped: SkipReason | null;
+  /** "moved" when the signal changed something; "unchanged" when it was applied and changed nothing. */
+  effect: "moved" | "unchanged";
   /** Fields to change on the firm; null when none change. */
   firmPatch: Props<"Firm"> | null;
   /** The finding that records the move, without its id; null when the signal moves no axis. */
@@ -137,6 +151,8 @@ export function planSignals(
   signals: readonly SignalRow[],
   firms: ReadonlyMap<string, FirmState>,
   at: (signal: SignalRow) => string,
+  /** When an analyst last verified a firm's axis (epoch ms), or null when none has. */
+  verifiedAt: (firmId: string, axis: string) => number | null = () => null,
 ): SignalPlan[] {
   const working = new Map(firms);
   return signals.map((signal): SignalPlan => {
@@ -145,6 +161,7 @@ export function planSignals(
     const skip = (skipped: SkipReason, score?: { total: number; tier: string }): SignalPlan => ({
       ...base,
       skipped,
+      effect: "unchanged",
       firmPatch: null,
       finding: null,
       before: score ?? { total: 0, tier: "" },
@@ -168,11 +185,13 @@ export function planSignals(
       const firmPatch: Props<"Firm"> = {
         outcome: ACQUIRED_BY_COMPETITOR,
         outcomeObservedAt: signal.effectiveDate,
+        outcomeSource: MARKET_SIGNAL,
       };
       working.set(signal.firmId, { ...firm, ...firmPatch });
       return {
         ...base,
         skipped: null,
+        effect: "moved",
         firmPatch,
         finding: null,
         before,
@@ -186,16 +205,39 @@ export function planSignals(
     if (typeof move === "string") {
       return skip(move, before);
     }
+    // A signal adjusts a value on file; it never fills an empty field.
+    if (move.current === null) {
+      return skip("no_value", before);
+    }
+    // An analyst's check made after the news outranks it: the signal is listed, nothing moves.
+    const verified = verifiedAt(signal.firmId, move.axis);
+    if (verified !== null && verified > Date.parse(signal.effectiveDate)) {
+      return skip("analyst_newer", before);
+    }
+    // Clamped to the value already on file: applied, but nothing changed and nothing is written.
+    if (move.current === move.next) {
+      return {
+        ...base,
+        skipped: null,
+        effect: "unchanged",
+        firmPatch: null,
+        finding: null,
+        before,
+        after: before,
+        checkTier: false,
+        openOutcomeDrift: false,
+      };
+    }
     const def = axisByName(move.axis)!;
     const patch = { [move.field]: move.next } as Props<"Firm">;
-    const changed = move.current !== move.next;
     const moved = { ...firm, ...patch };
     const afterScore = scoreFirm(moved);
     working.set(signal.firmId, moved);
     return {
       ...base,
       skipped: null,
-      firmPatch: changed ? patch : null,
+      effect: "moved",
+      firmPatch: patch,
       finding: {
         firmId: signal.firmId,
         axis: move.axis,
@@ -205,15 +247,14 @@ export function planSignals(
         sourceType: MARKET_SIGNAL,
         // A note, not a quotation: the signal has no source document, so nothing cites it.
         sourceExcerpt: (signal.headline ?? "").trim(),
-        confidence: 1,
-        confidenceTier: "high",
-        findingStatus: "verified",
+        // Its own status: "verified" means a person checked the value, and no one has.
+        findingStatus: "signal",
         verifiedByHuman: false,
         retrievedAt: base.at,
       },
       before,
       after: { total: afterScore.weightedTotal, tier: afterScore.tier },
-      checkTier: changed,
+      checkTier: true,
       openOutcomeDrift: false,
     };
   });

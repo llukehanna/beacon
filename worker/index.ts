@@ -114,26 +114,27 @@ export default {
    * Cron Triggers. The nightly one (04:00 UTC) runs the same reset (and throttle) as the demo bar's
    * button, then applies the market signals that have come due. The hourly one only applies them,
    * a bounded batch per run. Both fire at 04:00; the hourly one stands down then, so it cannot
-   * race the reset it would otherwise run beside. Any other expression is treated as the nightly one.
+   * race the reset it would otherwise run beside. Only the exact nightly expression resets: any
+   * other (or none) applies the due signals and nothing more, the safe direction.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === HOURLY_CRON) {
-      const due = new Date(controller.scheduledTime ?? Date.now());
-      if (due.getUTCHours() === NIGHTLY_HOUR_UTC) {
-        return;
-      }
-      const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));
+    if (controller.cron === NIGHTLY_CRON) {
+      const res = await withDb(env, ctx, async () => {
+        const resetRes = await reset.POST();
+        return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
+      });
       if (!res.ok) {
-        throw new Error(`Hourly market signals failed: ${res.status} ${await res.text()}`);
+        throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
       }
       return;
     }
-    const res = await withDb(env, ctx, async () => {
-      const resetRes = await reset.POST();
-      return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
-    });
+    const due = new Date(controller.scheduledTime ?? Date.now());
+    if (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC) {
+      return;
+    }
+    const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));
     if (!res.ok) {
-      throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
+      throw new Error(`Market signals failed: ${res.status} ${await res.text()}`);
     }
   },
 };

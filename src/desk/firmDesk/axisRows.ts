@@ -9,7 +9,8 @@ import { type FindingLike, classifyAxis, pickAuthoritative } from "../axisState"
 import { FINDING_AXIS_TO_KEY, displayFindingValue } from "../findingActions";
 import { displayAxis } from "./deskModel";
 
-export type RowState = "conflict" | "proposed" | "verified" | "abstained" | "rejected" | "empty";
+export type RowState =
+  "conflict" | "proposed" | "verified" | "abstained" | "rejected" | "signal" | "empty";
 
 export interface CellView {
   value: string | null;

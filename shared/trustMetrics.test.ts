@@ -100,6 +100,22 @@ describe("accuracyTables", () => {
   });
 });
 
+describe("outcomes recorded by a market signal", () => {
+  it("are counted apart, so the panel can say they are synthetic", () => {
+    const tally = tallyOutcomes([
+      {
+        lifecycleState: "Passed",
+        outcome: "acquired_by_competitor",
+        outcomeSource: "market_signal",
+      },
+      { lifecycleState: "Passed", outcome: "acquired_by_competitor" },
+      { lifecycleState: "Passed", outcomeSource: "market_signal" },
+    ]);
+    expect(tally.fromSignals).toBe(1);
+    expect(tally.passedAndAcquired).toBe(2);
+  });
+});
+
 describe("a synthetic market signal's finding", () => {
   const signal = f("s", { provider: "market_signal", findingStatus: "verified", axis: "firm_age" });
   const real = f("r", { provider: "dealdb", axis: "firm_age", verifiedByHuman: true });

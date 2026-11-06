@@ -118,6 +118,8 @@ export interface FirmOutcomeLike {
   disposition?: string | null;
   outcome?: string | null;
   outcomeObservedAt?: string | number | Date | null;
+  /** Who reported the outcome: "market_signal" for a synthetic market signal, empty for an analyst. */
+  outcomeSource?: string | null;
 }
 
 // A firm counts as "passed" (we decided not to pursue) when either its
@@ -150,6 +152,8 @@ export interface OutcomeTally {
   counts: Record<string, number>;
   passed: number;
   passedAndAcquired: number;
+  /** Firms whose outcome came from a synthetic market signal rather than an analyst. */
+  fromSignals: number;
 }
 
 export const NULL_OUTCOME_KEY = "__null__";
@@ -166,8 +170,12 @@ export function tallyOutcomeGroups(groups: readonly FirmOutcomeGroup[]): Outcome
   }
   let passed = 0;
   let passedAndAcquired = 0;
+  let fromSignals = 0;
   for (const f of groups) {
     const raw = (f.outcome ?? "").trim().toLowerCase();
+    if (raw !== "" && (f.outcomeSource ?? "").trim().toLowerCase() === MARKET_SIGNAL) {
+      fromSignals += f.n;
+    }
     const bucket = raw === "" ? NULL_OUTCOME_KEY : raw;
     if (bucket in counts) {
       counts[bucket] += f.n;
@@ -183,7 +191,7 @@ export function tallyOutcomeGroups(groups: readonly FirmOutcomeGroup[]): Outcome
       }
     }
   }
-  return { counts, passed, passedAndAcquired };
+  return { counts, passed, passedAndAcquired, fromSignals };
 }
 
 export function tallyOutcomes(firms: readonly FirmOutcomeLike[]): OutcomeTally {

@@ -4,8 +4,9 @@ import { formatObservedDate } from "@/desk/firmDesk/deskModel";
 import { scoreFraction } from "@/desk/scoreFormat";
 import { TIER_COLOR, TIER_LABEL, outcomeChipStyle, outcomeLabel } from "@/desk/tokens";
 import { Button, ButtonLink, Chip } from "@/ui";
+import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import { MAX_POSSIBLE } from "../../shared/scoreMirror";
-import { LIFECYCLE_STAGES } from "../../shared/vocab";
+import { LIFECYCLE_STAGES, MARKET_SIGNAL } from "../../shared/vocab";
 import styles from "./FirmDetail.module.css";
 import { StageChip } from "./chips";
 import { type Row, activityText, firmFacts, isOut, rejectText } from "./pipelineModel";
@@ -13,20 +14,27 @@ import { type Row, activityText, firmFacts, isOut, rejectText } from "./pipeline
 function OutcomeChip({
   outcome,
   observedAt,
+  source,
 }: {
   outcome: string;
   observedAt: unknown;
+  /** Who reported it: a synthetic market signal is named on the chip. */
+  source?: string | null;
 }): React.ReactElement {
   const style = outcomeChipStyle(outcome);
   const label = outcomeLabel(outcome);
   const date = formatObservedDate(observedAt);
+  const synthetic = source === MARKET_SIGNAL;
   return (
     <Chip
-      title={date === null ? `Outcome: ${label}` : `Outcome: ${label} · ${date}`}
+      title={[`Outcome: ${label}`, date, synthetic ? SYNTHETIC_LABEL : null]
+        .filter(Boolean)
+        .join(" · ")}
       style={{ color: style.fg, background: style.bg, boxShadow: `0 0 0 1px ${style.border}` }}
     >
       Outcome: {label}
       {date !== null && <span className={styles.dim}>· {date}</span>}
+      {synthetic && <span className={styles.dim}>· {SYNTHETIC_LABEL}</span>}
     </Chip>
   );
 }
@@ -77,7 +85,11 @@ export function FirmDetail({
         </div>
         {firm.outcome && firm.outcome.trim() !== "" && (
           <div className={styles.outcome}>
-            <OutcomeChip outcome={firm.outcome} observedAt={firm.outcomeObservedAt} />
+            <OutcomeChip
+              outcome={firm.outcome}
+              observedAt={firm.outcomeObservedAt}
+              source={firm.outcomeSource}
+            />
           </div>
         )}
       </div>

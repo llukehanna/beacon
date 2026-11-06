@@ -57,12 +57,17 @@ export interface SignalLike {
   axis?: string | null;
   newValue?: string | null;
   appliedAt?: unknown;
+  effect?: string | null;
 }
 
 const nonEmpty = (s: string | null | undefined): string | null => {
   const t = (s ?? "").trim();
   return t === "" ? null : t;
 };
+
+/** What an applied signal did: it changed something, or it was applied and changed nothing. */
+export const EFFECT_MOVED = "moved";
+export const EFFECT_UNCHANGED = "unchanged";
 
 /** A signal that has been applied: its effects are in the firm's score and findings. */
 export const isApplied = (s: SignalLike): boolean =>
@@ -73,6 +78,9 @@ export const isApplied = (s: SignalLike): boolean =>
  * acquisition records.
  */
 export function axisMovedText(s: SignalLike): string {
+  if (s.effect === EFFECT_UNCHANGED) {
+    return "No change";
+  }
   if (s.kind === "acquisition") {
     return "Market outcome: acquired by a competitor";
   }
