@@ -4,10 +4,18 @@ import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { Mandate, Search, runSearchAction } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, Chip, Notice, PageHeader, Panel } from "@/ui";
+import {
+  FACET_GEOGRAPHIES,
+  FACET_INDUSTRIES,
+  FACET_PRODUCTS,
+  type MandateMatch,
+  interpretMandate,
+  searchVocabulary,
+} from "../../shared/interpretMandate";
 import { INDUSTRY_GROUPS, PRODUCT_GROUPS, REGIONS } from "../../shared/taxonomy";
 import { FacetPicker } from "./FacetPicker";
 import styles from "./SearchPage.module.css";
-import { mergeValues } from "./facetModel";
+import { dropOption, mergeValues, pickOption } from "./facetModel";
 
 // /search/:mandateId: where a mandate's intent sentence becomes a Search. The analyst's picks on
 // this page are the interpretation of the mandate: which regions, service lines and sector groups
@@ -31,6 +39,12 @@ interface SearchShape {
 }
 
 const FIXED_BREADTH = "exhaustive";
+
+const FACET_LABEL: Readonly<Record<string, string>> = {
+  [FACET_GEOGRAPHIES]: "geography",
+  [FACET_PRODUCTS]: "products",
+  [FACET_INDUSTRIES]: "industries",
+};
 
 export default function SearchPage(): React.ReactElement {
   const { mandateId } = useParams<{ mandateId: string }>();
@@ -83,6 +97,55 @@ export default function SearchPage(): React.ReactElement {
   const [geographies, setGeographies] = React.useState<string[]>([]);
   const [products, setProducts] = React.useState<string[]>([]);
   const [industries, setIndustries] = React.useState<string[]>([]);
+
+  // The mandate's own words pre-fill the pickers once, and only while the visitor has not picked
+  // anything. `read` holds what was applied, so the chips below it can be taken back one by one.
+  const mandateText = (mandate?.intentStatement ?? "").trim() || (mandate?.title ?? "").trim();
+  const touched = React.useRef(false);
+  const readFor = React.useRef<string | null>(null);
+  const [read, setRead] = React.useState<{
+    matches: MandateMatch[];
+    unmatched: string[];
+    none: boolean;
+  } | null>(null);
+  const pickers = {
+    [FACET_GEOGRAPHIES]: { groups: REGIONS, values: geographies, set: setGeographies },
+    [FACET_PRODUCTS]: { groups: PRODUCT_GROUPS, values: products, set: setProducts },
+    [FACET_INDUSTRIES]: { groups: INDUSTRY_GROUPS, values: industries, set: setIndustries },
+  } as const;
+  const edited =
+    (set: (next: string[]) => void) =>
+    (next: string[]): void => {
+      touched.current = true;
+      set(next);
+    };
+
+  React.useEffect(() => {
+    if (mandateId === undefined || mandateText === "" || readFor.current === mandateId) {
+      return;
+    }
+    readFor.current = mandateId;
+    if (touched.current) {
+      return;
+    }
+    const out = interpretMandate(mandateText, searchVocabulary());
+    setRead({ ...out, none: out.matches.length === 0 });
+    for (const m of out.matches) {
+      const p = pickers[m.facet as keyof typeof pickers];
+      p.set((cur) => pickOption(cur, m.value, p.groups));
+    }
+    // `pickers` is rebuilt every render; only the mandate's text decides when to read it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mandateId, mandateText]);
+
+  const takeBack = (match: MandateMatch): void => {
+    const p = pickers[match.facet as keyof typeof pickers];
+    touched.current = true;
+    p.set((cur) => dropOption(cur, match.value, p.groups));
+    setRead((cur) =>
+      cur === null ? cur : { ...cur, matches: cur.matches.filter((m) => m !== match) },
+    );
+  };
 
   const awaiting = runStartedAt !== null && run.error === undefined;
   const canRun = mandateInstance !== undefined && !run.isPending && !awaiting;
@@ -160,6 +223,45 @@ export default function SearchPage(): React.ReactElement {
             geographies, service lines, and sector groups that qualify a firm. Broad categories
             cascade to their sub-options; deselect any you don&rsquo;t want.
           </p>
+          {read !== null && (
+            <div className={styles.read} role="group" aria-label="Read from the mandate">
+              <div className={styles.readLabel}>Read from the mandate</div>
+              {read.none ? (
+                <p className={styles.readNote}>
+                  Nothing in the mandate text mapped to a filter; set them below.
+                </p>
+              ) : (
+                <ul className={styles.readList}>
+                  {read.matches.map((m) => (
+                    <li key={`${m.facet}:${m.value}`}>
+                      <Chip className={styles.readChip}>
+                        <span>
+                          &ldquo;{m.phrase}&rdquo; &rarr; {FACET_LABEL[m.facet] ?? m.facet}:{" "}
+                          {m.value}
+                        </span>
+                        <button
+                          type="button"
+                          className={styles.readRemove}
+                          aria-label={`Remove ${m.value} (read from “${m.phrase}”)`}
+                          onClick={() => takeBack(m)}
+                        >
+                          <span aria-hidden="true">×</span>
+                        </button>
+                      </Chip>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {read.unmatched.length > 0 && (
+                <p className={styles.readNote}>
+                  No filter for: {read.unmatched.join(", ")}. The search does not narrow on it.
+                </p>
+              )}
+              <p className={styles.readNote}>
+                Pre-filled from the text above; nothing runs until you press Run search.
+              </p>
+            </div>
+          )}
         </Panel>
 
         <Panel>
@@ -169,7 +271,7 @@ export default function SearchPage(): React.ReactElement {
             helper="Regions or specific countries / cities the mandate targets. Blank = no geographic filter."
             groups={REGIONS}
             values={geographies}
-            onChange={setGeographies}
+            onChange={edited(setGeographies)}
             customPlaceholder="Add another country or region, then press Enter"
           />
         </Panel>
@@ -180,7 +282,7 @@ export default function SearchPage(): React.ReactElement {
             helper="Which service lines the target firm should offer."
             groups={PRODUCT_GROUPS}
             values={products}
-            onChange={setProducts}
+            onChange={edited(setProducts)}
             customPlaceholder="Add another product / service, then press Enter"
           />
         </Panel>
@@ -191,7 +293,7 @@ export default function SearchPage(): React.ReactElement {
             helper="Which sector groups the target firm should cover. Adds are always allowed."
             groups={INDUSTRY_GROUPS}
             values={industries}
-            onChange={setIndustries}
+            onChange={edited(setIndustries)}
             customPlaceholder="Add another industry, then press Enter"
           />
         </Panel>

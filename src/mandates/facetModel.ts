@@ -78,3 +78,29 @@ export function mergeValues(...lists: ReadonlyArray<readonly string[]>): string[
   }
   return out;
 }
+
+/** Picks one option as a tile click would: a category brings its sub-options; a repeat is a no-op. */
+export function pickOption(
+  values: readonly string[],
+  label: string,
+  groups: readonly FacetGroup[],
+): string[] {
+  if (hasValue(values, label)) {
+    return [...values];
+  }
+  const group = groups.find((g) => g.label === label);
+  return group ? toggleCategory(values, group, groups) : [...values, label];
+}
+
+/** Drops one option as a second tile click would; an option that is not picked is left alone. */
+export function dropOption(
+  values: readonly string[],
+  label: string,
+  groups: readonly FacetGroup[],
+): string[] {
+  if (!hasValue(values, label)) {
+    return [...values];
+  }
+  const group = groups.find((g) => g.label === label);
+  return group ? toggleCategory(values, group, groups) : toggleValue(values, label);
+}

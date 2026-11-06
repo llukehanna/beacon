@@ -48,6 +48,66 @@
   line-height: 1.5;
 }
 
+.read {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.readLabel {
+  color: var(--tx3);
+  font: 500 10.5px var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.readList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.readChip.readChip {
+  max-width: 100%;
+  padding-right: 2px;
+  white-space: normal;
+}
+
+.readRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--tx2);
+  cursor: pointer;
+  font: 500 14px/1 var(--font-ui);
+}
+
+.readRemove:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--tx);
+}
+
+.readRemove:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 1px;
+}
+
+.readNote {
+  margin: 8px 0 0;
+  color: var(--tx2);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 /* The run action stays in reach however long the pickers grow. */
 .runBar {
   position: sticky;
