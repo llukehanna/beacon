@@ -13,5 +13,10 @@ export default defineConfig({
   },
   server: { port: 8080 },
   // Each server test boots a fresh in-memory PGlite; under a full parallel run that alone can pass 5 s.
-  test: { testTimeout: 30_000, exclude: [...configDefaults.exclude, "e2e/**"] },
+  // The same boot happens in beforeAll hooks, which otherwise stop at the 10 s hook default.
+  test: {
+    testTimeout: 30_000,
+    hookTimeout: 30_000,
+    exclude: [...configDefaults.exclude, "e2e/**"],
+  },
 });
