@@ -8,7 +8,7 @@
 import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
-import { USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
+import { USER, axisByName } from "../../shared/vocab.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
@@ -19,16 +19,7 @@ import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { planFirmAxes } from "../extraction/plan.js";
-import {
-  DEAL_VOLUME_RATIONALE,
-  GENERALIST_RATIONALE,
-  MISC_RATIONALE,
-  REJECTION_COUNTS,
-  dealSizeRationale,
-  plantedDealSize,
-  plantedDealVolume,
-  smallFirmRationale,
-} from "./rejections.js";
+import { planRejections } from "./rejections.js";
 import { pickShowcaseFirms } from "./showcase.js";
 
 type FirmObj = ObjectOf<"Firm">;
@@ -224,58 +215,23 @@ export async function seedHistory(
   }
 
   // 4. Rejections that form clusters the learning loop can find.
-  const taken = new Set(qualified);
-  const pool = async () =>
-    (await all(db, "Firm", { orderBy: ["firmName"] })).filter(
-      (f) =>
-        !taken.has(f.$primaryKey) &&
-        ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
-        (f.firmType ?? "CF") === "CF",
-    );
-  const reject = async (id: string, why: string) => {
-    taken.add(id);
-    await act("rejectFirm", { firm: id, rejectionRationale: why });
-  };
-  const notGeneralist = (f: FirmObj) => !/generalist/i.test(f.coverageModel ?? "");
-
-  for (const f of (await pool())
-    .filter((x) => (x.employees ?? 99) < 10)
-    .slice(0, REJECTION_COUNTS.small)) {
-    await reject(f.$primaryKey, smallFirmRationale(f.employees));
-  }
-  for (const f of (await pool())
-    .filter((x) => !notGeneralist(x))
-    .slice(0, REJECTION_COUNTS.generalist)) {
-    await reject(f.$primaryKey, GENERALIST_RATIONALE);
-  }
-  for (const f of (await pool())
-    .filter((x) => x.dealSizeMUsd === undefined && (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, REJECTION_COUNTS.dealSize)) {
-    const size = plantedDealSize(r);
-    await act("enrichFirm", {
-      firm: f.$primaryKey,
-      dealSizeMUsd: size,
-      fieldsEnteredManually: JSON.stringify(["dealSizeMUsd"]),
-    });
-    await reject(f.$primaryKey, dealSizeRationale(size));
-  }
-  for (const f of (await pool())
-    .filter((x) => x.dealsPerMdL3y === undefined && (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, REJECTION_COUNTS.dealVolume)) {
-    const volume = plantedDealVolume(r);
-    await act("enrichFirm", {
-      firm: f.$primaryKey,
-      dealsPerMdL3y: volume,
-      fieldsEnteredManually: JSON.stringify(["dealsPerMdL3y"]),
-    });
-    await reject(f.$primaryKey, DEAL_VOLUME_RATIONALE);
-  }
-  const misc = (await pool())
-    .filter((x) => (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, REJECTION_COUNTS.misc);
-  for (const f of misc) {
-    await reject(f.$primaryKey, MISC_RATIONALE);
-  }
+  const { noise: misc } = await planRejections(
+    {
+      firms: () => all(db, "Firm", { orderBy: ["firmName"] }),
+      record: async (firm, facts) => {
+        await act("enrichFirm", {
+          firm: firm.$primaryKey,
+          ...facts,
+          fieldsEnteredManually: JSON.stringify(Object.keys(facts)),
+        });
+      },
+      reject: async (firm, why) => {
+        await act("rejectFirm", { firm: firm.$primaryKey, rejectionRationale: why });
+      },
+      draw: r,
+    },
+    new Set(qualified),
+  );
 
   // 5. Learn from the rejections; approve the clearest rule: the employees rule, or else the one
   // with the most supporting firms (a recorded Claude reply need not propose employees).

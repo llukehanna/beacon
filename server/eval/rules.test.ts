@@ -6,8 +6,8 @@ import { evaluateRuleRecovery, plantRejections } from "./rules.js";
 const universe = generateUniverse().map(asFirmObject);
 
 describe("plantRejections", () => {
-  it("plants the seed's patterns, each firm rejected once, with the analyst's words", () => {
-    const { rows, planted } = plantRejections(universe);
+  it("plants the seed's patterns, each firm rejected once, with the analyst's words", async () => {
+    const { rows, planted } = await plantRejections(universe);
     expect(planted.map((p) => p.predicate.axis)).toEqual([
       "employees",
       "coverage_model",

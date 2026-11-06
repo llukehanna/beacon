@@ -1,24 +1,15 @@
 /**
  * Rule recovery: plant the seed's rejection patterns in memory, run the clusterer over them, and
- * count how many planted patterns come back as proposals. Pure: no DB, no network, and no Claude
+ * count how many planted patterns come back as proposals. The firms and their rationale come from
+ * `planRejections`, the same function the seed calls. Pure: no DB, no network, and no Claude
  * call; the default clusterer is the deterministic heuristic.
  */
 import type { EvalReport } from "../../shared/evalReport.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
-import { sortedRows } from "../db/ordering.js";
 import { rng } from "../enrichment/random.js";
-import {
-  DEAL_VOLUME_RATIONALE,
-  GENERALIST_RATIONALE,
-  MISC_RATIONALE,
-  REJECTION_COUNTS,
-  dealSizeRationale,
-  plantedDealSize,
-  plantedDealVolume,
-  smallFirmRationale,
-} from "../seed/rejections.js";
+import { PLANTED_PREDICATES, planRejections } from "../seed/rejections.js";
 
 export interface PlantedPattern {
   predicate: { axis: string; operator: string; threshold: string };
@@ -28,75 +19,54 @@ export interface PlantedPattern {
 
 type FirmObj = ObjectOf<"Firm">;
 
-const generalist = (f: FirmObj): boolean => /generalist/i.test(f.coverageModel ?? "");
-
 /**
- * The rejections the seed makes, taken from the generated universe by the seed's own selection
- * rules, plus the noise rejections ("weak MD experience") that no hard-screen rule can express.
+ * The seed's rejections over the generated universe, as the clusterer reads them, plus the
+ * patterns they were planted as. Unlike the seeded history, nothing else has happened to the
+ * universe first (no enrichment, no firm qualified), and the values the analyst enters come from
+ * a stream of their own rather than the history's; the patterns are the seed's all the same.
  */
-export function plantRejections(universe: readonly FirmObj[]): {
+export async function plantRejections(universe: readonly FirmObj[]): Promise<{
   rows: RejectionRow[];
   planted: PlantedPattern[];
-} {
-  const r = rng("beacon-eval-rule-recovery");
-  const taken = new Set<string>();
+}> {
+  const firms = new Map(universe.map((f) => [f.$primaryKey, f]));
   const rows: RejectionRow[] = [];
-  const pool = () =>
-    sortedRows("Firm", universe, ["firmName"]).filter(
-      (f) => !taken.has(f.$primaryKey) && (f.firmType ?? "CF") === "CF",
-    );
-  const reject = (firm: FirmObj, rationale: string, facts: Partial<FirmObj> = {}): string => {
-    taken.add(firm.$primaryKey);
-    const decisionId = `eval-rejection-${String(rows.length + 1).padStart(3, "0")}`;
-    rows.push({
-      decisionId,
-      firmId: firm.$primaryKey,
-      rationale,
-      firm: { ...firm, ...facts },
-    });
-    return decisionId;
-  };
-
-  const small = pool()
-    .filter((f) => (f.employees ?? 99) < 10)
-    .slice(0, REJECTION_COUNTS.small)
-    .map((f) => reject(f, smallFirmRationale(f.employees)));
-  const generalists = pool()
-    .filter(generalist)
-    .slice(0, REJECTION_COUNTS.generalist)
-    .map((f) => reject(f, GENERALIST_RATIONALE));
-  const smallDeals = pool()
-    .filter((f) => f.dealSizeMUsd === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
-    .slice(0, REJECTION_COUNTS.dealSize)
-    .map((f) => {
-      const size = plantedDealSize(r);
-      return reject(f, dealSizeRationale(size), { dealSizeMUsd: size });
-    });
-  const lowVolume = pool()
-    .filter((f) => f.dealsPerMdL3y === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
-    .slice(0, REJECTION_COUNTS.dealVolume)
-    .map((f) => reject(f, DEAL_VOLUME_RATIONALE, { dealsPerMdL3y: plantedDealVolume(r) }));
-  pool()
-    .filter((f) => (f.employees ?? 0) >= 10 && !generalist(f))
-    .slice(0, REJECTION_COUNTS.misc)
-    .forEach((f) => reject(f, MISC_RATIONALE));
-
-  const planted: PlantedPattern[] = [
-    { predicate: { axis: "employees", operator: "<", threshold: "10" }, decisionIds: small },
+  const decisionOf = new Map<string, string>();
+  const { patterns } = await planRejections(
     {
-      predicate: { axis: "coverage_model", operator: "==", threshold: "Generalist" },
-      decisionIds: generalists,
+      firms: () => [...firms.values()],
+      record: (firm, facts) => {
+        firms.set(firm.$primaryKey, { ...firm, ...facts });
+      },
+      reject: (firm, rationale) => {
+        const decisionId = `eval-rejection-${String(rows.length + 1).padStart(3, "0")}`;
+        decisionOf.set(firm.$primaryKey, decisionId);
+        rows.push({
+          decisionId,
+          firmId: firm.$primaryKey,
+          rationale,
+          firm: firms.get(firm.$primaryKey) ?? firm,
+        });
+      },
+      draw: rng("beacon-eval-rule-recovery"),
     },
-    {
-      predicate: { axis: "deal_size_usd_m", operator: "<", threshold: "30" },
-      decisionIds: smallDeals,
-    },
-    {
-      predicate: { axis: "deals_per_md_l3y", operator: "<", threshold: "2" },
-      decisionIds: lowVolume,
-    },
-  ];
-  return { rows, planted: planted.filter((p) => p.decisionIds.length > 0) };
+    new Set(),
+  );
+  const planted = patterns
+    .map((p) => ({
+      predicate: PLANTED_PREDICATES.find((x) => x.key === p.key)!,
+      decisionIds: p.firmIds.map((id) => decisionOf.get(id)!),
+    }))
+    .filter((p) => p.decisionIds.length > 0)
+    .map(({ predicate, decisionIds }) => ({
+      predicate: {
+        axis: predicate.axis,
+        operator: predicate.operator,
+        threshold: predicate.threshold,
+      },
+      decisionIds,
+    }));
+  return { rows, planted };
 }
 
 /**
@@ -107,7 +77,7 @@ export async function evaluateRuleRecovery(
   universe: readonly FirmObj[],
   clusterer: Clusterer = heuristicClusterer,
 ): Promise<EvalReport["ruleRecovery"]> {
-  const { rows, planted } = plantRejections(universe);
+  const { rows, planted } = await plantRejections(universe);
   const { proposals } = await clusterer(rows);
   const recovered = planted.filter((p) =>
     proposals.some(
