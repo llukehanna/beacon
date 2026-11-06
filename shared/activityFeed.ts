@@ -11,7 +11,7 @@
  */
 import { isAbstainedFinding, isVerifiedFinding } from "./axisState.js";
 import { axisLabel } from "./trustMetrics.js";
-import { AGENT, ANALYST, providerLabel } from "./vocab.js";
+import { AGENT, ANALYST, MARKET_SIGNAL, providerLabel } from "./vocab.js";
 
 export type ActivityKind = "enriched" | "conflict" | "abstained" | "rule_proposed" | "drift";
 
@@ -232,7 +232,10 @@ export function buildActivity(input: ActivityInput, limit = FEED_LIMIT): Activit
 
   // Enriched: one item per firm per run, counted from what that run wrote.
   const agentFindings = scoped.filter(
-    (f) => lower(f.provider) !== ANALYST && ms(f.retrievedAt) !== null,
+    (f) =>
+      lower(f.provider) !== ANALYST &&
+      lower(f.provider) !== MARKET_SIGNAL &&
+      ms(f.retrievedAt) !== null,
   );
   for (const run of groupBy(
     agentFindings,

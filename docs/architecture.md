@@ -10,7 +10,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>14 object tables)]
+  Actions --> PG[(Postgres<br/>15 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -18,7 +18,7 @@ flowchart LR
 
 ## Ontology first
 
-`shared/schema.ts` declares the 14 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, the search join objects, and the two operations metrics, action runs and model calls), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
+`shared/schema.ts` declares the 15 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, market signals, the search join objects, and the two operations metrics, action runs and model calls), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
 
 - **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names. `ensureSchema` runs it on every cold start and then adds any property column an existing table lacks, so a new property reaches a database created before it. It reads `information_schema` first and runs `ALTER TABLE` (under a 5 s lock timeout) only for columns actually missing, so a current database is never locked; a saved demo snapshot taken earlier restores the new column empty until the next `npm run seed`.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
@@ -121,6 +121,10 @@ sequenceDiagram
 ## Drift
 
 When the live score of a firm at Qualified or any later stage, or of a Passed firm, moves after its last decision, Beacon raises a drift event. Firms at Qualified or later (Qualified through Closed) drift on any tier change. Passed firms drift only when they improve, because the reason for passing may no longer hold. A passed firm later acquired by a competitor raises an "outcome diverged" event. The Review page lets the analyst re-engage a passed firm, keep it passed with a rationale, or acknowledge the drift on a firm that stays in the pipeline.
+
+## Market signals
+
+Market signals are synthetic: invented news about a firm (a senior hire, a departure, a deal announcement, an acquisition) that makes a decided firm move without anyone touching it, and every screen that shows one is labelled "Synthetic market signal". The seed generates about 48 of them from a seeded random source, dated from 21 days before the seed to 23 hours after it. Those dated before the seed are applied while the demo is built, so their findings, score changes and drift events are part of the seeded history. The rest stay unapplied in the snapshot. An hourly Cron Trigger applies the signals that have come due, at most 10 per run, in one transaction: the pure planner `server/signals/apply.ts` decides what each writes (a verified finding with no quote, a firm change, a new score version) and `server/signals/run.ts` writes it, sets `appliedAt`, and opens a drift event through the same rule `enrichFirm` uses, or an "outcome diverged" event for an acquisition of a passed firm. A signal that already has `appliedAt` is never applied twice. The nightly reset restores the unapplied signals with the rest of the snapshot, so they replay each day, and the findings they write are left out of the trust figures because they are news, not a reading of a source.
 
 ## Demo operations
 

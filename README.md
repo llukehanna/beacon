@@ -44,7 +44,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>source records → grounding → reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>14 object tables)]
+  Actions --> PG[(Postgres<br/>15 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -115,7 +115,7 @@ npm run deploy:presenter
 | `server/clustering/` | Claude and heuristic rule proposers                                                                   |
 | `server/seed/`       | 700-firm synthetic universe and a history built by the real actions                                   |
 | `api/`               | Thin HTTP adapters (`Request` → `Response`)                                                           |
-| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset                      |
+| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset and hourly signals   |
 | `src/`               | The React app; `src/data/` is the typed data layer                                                    |
 
 ## Data

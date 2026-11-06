@@ -21,6 +21,7 @@ import {
   ACQUIRED_BY_COMPETITOR,
   AGENT,
   ANALYST,
+  MARKET_SIGNAL,
   PASSED,
   normalizeLifecycle,
   providerLabel,
@@ -42,6 +43,13 @@ export interface Rates {
   total: number; // all findings in the group
   decided: number; // agree + override
 }
+
+/**
+ * A finding written by a synthetic market signal. It records news, not a reading of a source, so
+ * it is left out of every trust figure: it was never right or wrong about a value.
+ */
+export const isMarketSignalFinding = (f: Pick<RatedFinding, "provider">): boolean =>
+  (f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL;
 
 export function classify(f: RatedFinding): "abstain" | "agree" | "override" | "pending" {
   const ct = (f.confidenceTier ?? "").toLowerCase();
@@ -81,7 +89,8 @@ export function ratesFromCounts({ agree, override, abstain, total }: RateCounts)
   };
 }
 
-export function countFindings(findings: readonly RatedFinding[]): RateCounts {
+export function countFindings(all: readonly RatedFinding[]): RateCounts {
+  const findings = all.filter((f) => !isMarketSignalFinding(f));
   const c: RateCounts = { agree: 0, override: 0, abstain: 0, total: findings.length };
   for (const f of findings) {
     const cls = classify(f);
@@ -273,6 +282,9 @@ export interface FindingCell extends RateCounts {
 export function cellsFromFindings(findings: readonly RatedFinding[]): FindingCell[] {
   const cells = new Map<string, FindingCell>();
   for (const f of findings) {
+    if (isMarketSignalFinding(f)) {
+      continue;
+    }
     const provider = f.provider ?? "";
     const axis = (f.axis ?? "").trim();
     const key = JSON.stringify([provider, axis]);

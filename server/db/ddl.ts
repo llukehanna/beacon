@@ -35,6 +35,9 @@ export function ddl(): string {
     `CREATE INDEX IF NOT EXISTS qualification_score_firm ON qualification_score ("firmId");`,
     `CREATE INDEX IF NOT EXISTS drift_event_firm ON drift_event ("firmId");`,
     `CREATE INDEX IF NOT EXISTS search_membership_search ON search_membership ("searchId");`,
+    `CREATE INDEX IF NOT EXISTS market_signal_firm ON market_signal ("firmId");`,
+    // The hourly run asks only for what is unapplied and due; the partial index keeps that one cheap lookup.
+    `CREATE INDEX IF NOT EXISTS market_signal_due ON market_signal ("effectiveDate") WHERE "appliedAt" IS NULL;`,
   ].join("\n");
 }
 

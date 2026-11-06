@@ -81,6 +81,7 @@ describe("buildTearSheet", () => {
       axis: "Firm age",
       value: "9",
       status: "proposed",
+      synthetic: false,
       provider: "Deal DB",
       quote: "The firm has been operating for 9 years.",
       model: "claude-haiku-4-5",
@@ -292,6 +293,84 @@ describe("buildTearSheet", () => {
       rules: [],
     });
     expect(ran.researched).toBe(true);
+  });
+});
+
+describe("market signals on the sheet", () => {
+  const signal = (id: string, over: Record<string, unknown> = {}) => ({
+    signalId: id,
+    firmId: "acme_us",
+    kind: "departure",
+    effectiveDate: "2026-05-02T00:00:00.000Z",
+    appliedAt: "2026-05-02T00:00:00.000Z",
+    headline: "Acme loses a partner",
+    axis: "fee_generating_count",
+    newValue: "2",
+    ...over,
+  });
+
+  it("lists the applied signals newest first, each labelled synthetic, and none that is still to come", () => {
+    const sheet = buildTearSheet({
+      firm,
+      findings: [],
+      decisions: [],
+      rules: [],
+      signals: [
+        signal("older", { effectiveDate: "2026-04-20T00:00:00.000Z", kind: "senior_hire" }),
+        signal("newer"),
+        signal("later", { effectiveDate: "2099-01-01T00:00:00.000Z", appliedAt: undefined }),
+      ],
+    });
+    expect(sheet.signals.map((s) => s.id)).toEqual(["newer", "older"]);
+    expect(sheet.signals[0]).toMatchObject({
+      headline: "Acme loses a partner",
+      kind: "Departure",
+      moved: "Fee-earning heads → 2",
+      label: "Synthetic market signal",
+    });
+    expect(sheet.signals[1].kind).toBe("Senior hire");
+  });
+
+  it("has no signals when none is given", () => {
+    expect(buildTearSheet({ firm, findings: [], decisions: [], rules: [] }).signals).toEqual([]);
+  });
+
+  it("credits a signal's finding to the synthetic signal, never to an analyst, and never quotes it", () => {
+    const sheet = buildTearSheet({
+      firm,
+      findings: [
+        finding({
+          findingId: "ms1",
+          axis: "fee_generating_count",
+          value: "2",
+          provider: "market_signal",
+          findingStatus: "verified",
+          sourceExcerpt: "Acme loses a partner",
+        }),
+      ],
+      decisions: [],
+      rules: [],
+    });
+    const item = sheet.evidence.find((e) => e.axis === "Fee-earning heads");
+    expect(item).toMatchObject({
+      provider: "Synthetic market signal",
+      quote: null,
+      model: null,
+      synthetic: true,
+    });
+    expect(sheet.hasQuotes).toBe(false);
+  });
+
+  it("does not call a signal's finding research", () => {
+    const sheet = buildTearSheet({
+      firm,
+      findings: [
+        finding({ findingId: "ms1", axis: "firm_age", value: "9", provider: "market_signal" }),
+      ],
+      decisions: [],
+      rules: [],
+    });
+    expect(sheet.researched).toBe(false);
   });
 });
 

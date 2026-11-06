@@ -6,7 +6,7 @@
  * with too few days left has no trend at all (null), so a card never shows a
  * sparkline or delta the data cannot support.
  */
-import { type RatedFinding, classify } from "./trustMetrics.js";
+import { type RatedFinding, classify, isMarketSignalFinding } from "./trustMetrics.js";
 import { ANALYST } from "./vocab.js";
 
 export interface TrendPoint {
@@ -89,7 +89,11 @@ export interface GroundedCounts {
  * (no source by design). The denominator of both the grounded trend and the grounded count.
  */
 function isAgentValue(f: TrendFinding): boolean {
-  return classify(f) !== "abstain" && (f.provider ?? "").trim().toLowerCase() !== ANALYST;
+  return (
+    classify(f) !== "abstain" &&
+    (f.provider ?? "").trim().toLowerCase() !== ANALYST &&
+    !isMarketSignalFinding(f)
+  );
 }
 
 const isCited = (f: TrendFinding) => (f.sourceQuote ?? "").trim() !== "";
@@ -123,6 +127,9 @@ export function findingTrends(
   const abstention: TrendEvent[] = [];
   const agreement: TrendEvent[] = [];
   for (const f of findings) {
+    if (isMarketSignalFinding(f)) {
+      continue; // News, not a reading of a source: no trust figure counts it.
+    }
     const cls = classify(f);
     if (f.retrievedAt) {
       abstention.push({ at: f.retrievedAt, hit: cls === "abstain" });

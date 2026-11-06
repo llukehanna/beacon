@@ -18,8 +18,15 @@ import { rejectDecisionByFirm } from "@/desk/pipelineRows";
 import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
 import { mirrorScore } from "@/desk/scoreMirror";
 import { firmFacts } from "@/pipeline/pipelineModel";
+import {
+  SYNTHETIC_LABEL,
+  type SignalLike,
+  axisMovedText,
+  isApplied,
+  kindLabel,
+} from "../../shared/marketSignals";
 import { MAX_POSSIBLE } from "../../shared/scoreMirror";
-import { ENRICH_AXES, providerLabel } from "../../shared/vocab";
+import { ENRICH_AXES, MARKET_SIGNAL, providerLabel } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
 export interface DecisionInput {
@@ -38,6 +45,22 @@ export interface TearSheetInput {
   decisions: readonly DecisionInput[];
   /** The approved screening rules, as the Desk ranks on them. */
   rules: readonly ActiveConfigRule[];
+  /** The firm's market signals; only the applied ones are reported. */
+  signals?: readonly SignalLike[];
+}
+
+/** An applied market signal as the sheet lists it. Always synthetic. */
+export interface SignalLine {
+  id: string;
+  headline: string;
+  /** "Departure", "Senior hire", ... */
+  kind: string;
+  /** The day it took effect (yyyy-mm-dd), on the reader's calendar. */
+  date: string;
+  /** What it moved: "Fee-earning heads → 3". */
+  moved: string;
+  /** Always "Synthetic market signal". */
+  label: string;
 }
 
 export interface AxisLine {
@@ -63,6 +86,8 @@ export interface EvidenceItem extends Citation {
   value: string;
   /** Verified by an analyst, or still only proposed. */
   status: "verified" | "proposed";
+  /** Written by a synthetic market signal: news, not an analyst's check. */
+  synthetic: boolean;
 }
 
 export interface ConflictSide extends Citation {
@@ -108,6 +133,8 @@ export interface TearSheet {
   conflicts: ConflictItem[];
   abstentions: AbstentionItem[];
   decisions: FirmDecision[];
+  /** Applied market signals, newest first. */
+  signals: SignalLine[];
 }
 
 const nonEmpty = (s: string | null | undefined): string | null => {
@@ -122,6 +149,10 @@ const nonEmpty = (s: string | null | undefined): string | null => {
  * is an analyst's entry: its `sourceExcerpt` holds a note, not a quotation, so it is never cited.
  */
 function citationOf(f: FindingLike): Citation {
+  // A market signal is invented news with no document: it is credited as such, never as an analyst.
+  if ((f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL) {
+    return { provider: SYNTHETIC_LABEL, quote: null, model: null };
+  }
   const documentProvider = providerOf(f.sourceDocumentId);
   if (nonEmpty(f.sourceDocumentId) === null) {
     return { provider: "Analyst", quote: null, model: null };
@@ -148,7 +179,32 @@ const decidedAtMs = (d: DecisionInput): number => {
   return Number.isNaN(t) ? 0 : t;
 };
 
-export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetInput): TearSheet {
+/** The applied signals, newest first, worded for the sheet. */
+export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
+  const at = (s: SignalLike): number => {
+    const t = new Date(s.effectiveDate as string | number).getTime();
+    return Number.isNaN(t) ? 0 : t;
+  };
+  return signals
+    .filter(isApplied)
+    .sort((a, b) => at(b) - at(a) || (b.signalId ?? "").localeCompare(a.signalId ?? ""))
+    .map((s) => ({
+      id: s.signalId ?? "",
+      headline: nonEmpty(s.headline) ?? "No headline",
+      kind: kindLabel(s.kind),
+      date: at(s) === 0 ? "" : localDay(at(s)),
+      moved: axisMovedText(s),
+      label: SYNTHETIC_LABEL,
+    }));
+}
+
+export function buildTearSheet({
+  firm,
+  findings,
+  decisions,
+  rules,
+  signals = [],
+}: TearSheetInput): TearSheet {
   const mirror = mirrorScore(toScoreInput(firm));
   const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" } as never, rules);
   const hard = mirror.hardRejected || verdict.hardScreened;
@@ -204,6 +260,7 @@ export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetIn
           axis: row.label,
           value: displayFindingValue(row.axis, f.value),
           status: row.state,
+          synthetic: (f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL,
           ...citationOf(f),
         });
       }
@@ -245,5 +302,6 @@ export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetIn
     conflicts,
     abstentions,
     decisions: firmDecisions(decisions),
+    signals: signalLines(signals),
   };
 }

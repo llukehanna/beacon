@@ -8,17 +8,20 @@ function DriftRow({
   row,
   selected,
   tabbable,
+  tourAnchor,
   onSelect,
   onKeyDown,
 }: {
   row: DriftRowModel;
   selected: boolean;
   tabbable: boolean;
+  /** The guided tour points here: the first open event, which stays short however long the queue grows. */
+  tourAnchor: boolean;
   onSelect: (id: string) => void;
   onKeyDown: (e: React.KeyboardEvent) => void;
 }): React.ReactElement {
   return (
-    <li className={styles.item}>
+    <li className={styles.item} data-tour={tourAnchor ? "drift-list" : undefined}>
       <button
         type="button"
         className={styles.row}
@@ -112,14 +115,15 @@ export function DriftList({
     }
   };
 
-  const renderRows = (rows: readonly DriftRowModel[]): React.ReactElement => (
+  const renderRows = (rows: readonly DriftRowModel[], anchorFirst = false): React.ReactElement => (
     <ul className={styles.list}>
-      {rows.map((r) => (
+      {rows.map((r, i) => (
         <DriftRow
           key={r.id}
           row={r}
           selected={r.id === selectedId}
           tabbable={r.id === tabStop}
+          tourAnchor={anchorFirst && i === 0}
           onSelect={onSelect}
           onKeyDown={onKeyDown}
         />
@@ -129,7 +133,11 @@ export function DriftList({
 
   return (
     <div className={styles.queue} ref={listRef}>
-      <Panel className={styles.panel} aria-label="Needs review" data-tour="drift-list">
+      <Panel
+        className={styles.panel}
+        aria-label="Needs review"
+        data-tour={!loading && open.length === 0 ? "drift-list" : undefined}
+      >
         <SectionHead title="Needs review" count={loading ? undefined : open.length} />
         {loading && (
           <div className={styles.pad}>
@@ -144,7 +152,7 @@ export function DriftList({
             />
           </div>
         )}
-        {renderRows(open)}
+        {renderRows(open, true)}
       </Panel>
       {resolved.length > 0 && (
         <Panel className={styles.panel} aria-label="Resolved">

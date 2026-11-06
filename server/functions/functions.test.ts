@@ -105,6 +105,8 @@ beforeAll(async () => {
     f("edge_analyst", { provider: "analyst", findingStatus: "verified" }, "13"),
     // Only the analyst's own value is credited by status; another provider's is merely pending.
     f("edge_other_verified", { provider: "dealdb", findingStatus: "verified" }, "14"),
+    // A synthetic market signal's finding is news, not a reading of a source: no trust figure counts it.
+    f("edge_market_signal", { provider: "market_signal", findingStatus: "verified" }, "15"),
   ]);
 }, 600_000);
 
@@ -431,6 +433,13 @@ describe("accuracySummary", () => {
     const analyst = sql.find((c) => c.axis === "edge_analyst");
     expect(analyst).toMatchObject({ provider: "analyst", agree: 1, override: 0, total: 1 });
     expect(sql.find((c) => c.axis === "edge_other_verified")).toMatchObject({ agree: 0 });
+    // Market-signal findings exist in the world, and neither side counts them.
+    const stored = await listAll(db, "ResearchFinding", {
+      where: { provider: { $eq: "market_signal" } },
+    });
+    expect(stored.length).toBeGreaterThan(1);
+    expect(sql.some((c) => c.provider === "market_signal")).toBe(false);
+    expect(js.some((c) => c.provider === "market_signal")).toBe(false);
   });
 
   it("reports the agent's abstentions as 'No source' rather than a provider row", async () => {
