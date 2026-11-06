@@ -41,6 +41,25 @@ describe("ensureSchema", () => {
     expect(await getMeta(db, "lastResetAt")).not.toBeNull();
   });
 
+  it("adds ProposedRule.proposedAt to a proposed_rule table created without it", async () => {
+    const db = await createPgliteDb();
+    await ensureSchema(db);
+    await db.exec(`ALTER TABLE proposed_rule DROP COLUMN "proposedAt"`);
+    await db.exec(
+      `INSERT INTO proposed_rule ("proposedRuleId", "ruleStatus") VALUES ('rule-old', 'pending')`,
+    );
+
+    await ensureSchema(db);
+    const [row] = await db.query<{ proposedAt: Date | null }>(
+      `SELECT "proposedAt" FROM proposed_rule WHERE "proposedRuleId" = 'rule-old'`,
+    );
+    expect(row.proposedAt, "an existing row keeps its place and has no time").toBeNull();
+    const [{ data_type }] = await db.query<{ data_type: string }>(
+      `SELECT data_type FROM information_schema.columns WHERE table_name = 'proposed_rule' AND column_name = 'proposedAt'`,
+    );
+    expect(data_type).toBe("timestamp with time zone");
+  });
+
   it("is idempotent", async () => {
     const db = await createPgliteDb();
     await ensureSchema(db);
@@ -59,7 +78,7 @@ describe("ensureSchema", () => {
     const repair: string[] = [];
     await ensureSchema(spied(db, repair));
     const alters = repair.filter((s) => /\bALTER\b/i.test(s));
-    expect(alters).toEqual([`ALTER TABLE firm ADD COLUMN "successionRisk" text`]);
+    expect(alters).toEqual([`ALTER TABLE firm ADD COLUMN IF NOT EXISTS "successionRisk" text`]);
     expect(repair.indexOf(`SET LOCAL lock_timeout = '5s'`)).toBeGreaterThanOrEqual(0);
     expect(repair.indexOf(`SET LOCAL lock_timeout = '5s'`)).toBeLessThan(repair.indexOf(alters[0]));
   });

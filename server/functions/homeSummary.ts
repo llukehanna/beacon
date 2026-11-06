@@ -15,6 +15,7 @@ import {
 } from "../../shared/activeScreening.js";
 import {
   type ActivityFinding,
+  type ActivityRule,
   abstainedSinceByFirm,
   buildActivity,
   latestRunHeadline,
@@ -135,7 +136,8 @@ async function openDrifts(q: Queryable) {
 
 export async function pendingRules(q: Queryable) {
   return q.query<PendingRule>(
-    `SELECT "proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel"
+    `SELECT "proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel",
+            "supportingFirmCount", "proposedAt"
        FROM proposed_rule
       WHERE lower(coalesce("ruleStatus", 'pending')) = 'pending'
       ORDER BY "proposedRuleId"`,
@@ -199,6 +201,30 @@ interface PendingRule {
   ruleOperator: string | null;
   ruleThreshold: string | null;
   ruleModel: string | null;
+  supportingFirmCount: number | null;
+  /** Null for a rule proposed before the column existed. */
+  proposedAt: Date | string | null;
+}
+
+/** Pending rules as the activity feed takes them; one with no readable predicate is left out. */
+export function feedRules(rules: readonly PendingRule[]): ActivityRule[] {
+  return rules.flatMap((r) => {
+    const text = summarizePredicate(
+      orUndefined(r.predicateAxis),
+      orUndefined(r.ruleOperator),
+      orUndefined(r.ruleThreshold),
+    );
+    return text === null
+      ? []
+      : [
+          {
+            proposedRuleId: r.proposedRuleId,
+            text,
+            proposedAt: iso(r.proposedAt),
+            supportingFirmCount: r.supportingFirmCount,
+          },
+        ];
+  });
 }
 
 /**
@@ -374,7 +400,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
           orUndefined(r.ruleThreshold),
         ) ?? "malformed proposal",
       screens: null,
-      // A proposal carries no time of its own (see the activity feed below).
+      // The inbox row stays undated; the proposal time feeds the activity feed below.
       at: null,
     }));
 
@@ -394,8 +420,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     needsYouCounts[item.destination] += 1;
   }
 
-  // Agent activity. A pending rule has no recorded proposal time (ProposedRule carries only
-  // ruleDecidedAt), so no rule_proposed items are fed in rather than inventing one.
+  // Agent activity. A pending rule is fed in with its recorded proposal time; one without it
+  // (proposed before the column existed) or without a readable predicate is left out of the feed.
   const activityInput = {
     firms: firms.map((f) => ({
       firmId: f.firmId,
@@ -403,6 +429,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       enrichedAt: enrichedAt.get(f.firmId) ?? null,
     })),
     findings: timedFindings,
+    proposedRules: feedRules(rules),
     driftEvents: drifts.map((d) => ({
       driftEventId: d.driftEventId,
       firmId: d.firmId,

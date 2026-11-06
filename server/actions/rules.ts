@@ -253,6 +253,7 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
         supportingDecisionIds: JSON.stringify(support),
         projectedScreenCount: queue.filter((f) => matchesPredicate(f, pred)).length,
         ruleStatus: "pending",
+        proposedAt: iso(ctx.now),
         mandateScope: "All mandates",
       });
       created.push(proposedRuleId);
