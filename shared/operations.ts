@@ -1,13 +1,8 @@
 /**
- * Operations metrics, pure: how an action's latency reads (p50, p95), how runs group per action,
- * and how the measurement window is worded. The server feeds it rows; nothing here touches a database.
+ * Operations metrics, pure: how an action's latency reads (p50, p95) and how the measurement window
+ * is worded. The server computes the per-action figures in SQL (server/functions/operationsSummary.ts);
+ * `percentiles` is the definition that SQL is tested against.
  */
-
-export interface RunSample {
-  actionName: string;
-  durationMs: number;
-  ok: boolean;
-}
 
 export interface ActionStat {
   actionName: string;
@@ -29,26 +24,6 @@ export function percentiles(durations: readonly number[]): { p50: number; p95: n
   const sorted = [...durations].sort((a, b) => a - b);
   const at = (p: number): number => sorted[Math.max(1, Math.ceil((p / 100) * sorted.length)) - 1];
   return { p50: at(50), p95: at(95) };
-}
-
-/** One row per action that ran, busiest first (ties by name). */
-export function summarizeRuns(runs: readonly RunSample[]): ActionStat[] {
-  const byAction = new Map<string, RunSample[]>();
-  for (const r of runs) {
-    byAction.set(r.actionName, [...(byAction.get(r.actionName) ?? []), r]);
-  }
-  return [...byAction.entries()]
-    .map(([actionName, rs]) => {
-      const p = percentiles(rs.map((r) => r.durationMs))!;
-      return {
-        actionName,
-        count: rs.length,
-        errors: rs.filter((r) => !r.ok).length,
-        p50Ms: p.p50,
-        p95Ms: p.p95,
-      };
-    })
-    .sort((a, b) => b.count - a.count || a.actionName.localeCompare(b.actionName));
 }
 
 /** "2026-11-06 04:00 UTC" from an ISO time; null when it does not parse. */
