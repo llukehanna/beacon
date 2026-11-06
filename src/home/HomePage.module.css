@@ -1,0 +1,88 @@
+.page {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-areas:
+    "head    head"
+    "error   error"
+    "metrics metrics"
+    "funnel  feed"
+    "needs   feed";
+  grid-template-rows: auto auto auto auto 1fr;
+  align-content: start;
+  gap: 18px 22px;
+  padding: 26px 30px 36px;
+}
+
+.head {
+  grid-area: head;
+  min-width: 0;
+}
+
+.error.error {
+  grid-area: error;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240, 113, 103, 0.12);
+  color: #f4948b;
+  font-size: 12px;
+}
+
+.metrics {
+  grid-area: metrics;
+}
+
+.funnel {
+  grid-area: funnel;
+  min-width: 0;
+}
+
+.needs {
+  grid-area: needs;
+  min-width: 0;
+}
+
+.feed {
+  display: flex;
+  grid-area: feed;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.feed > * {
+  flex: 1;
+}
+
+/* Without room for the funnel beside the feed, the funnel takes the full width. */
+@media (max-width: 1359px) {
+  .grid {
+    grid-template-areas:
+      "head    head"
+      "error   error"
+      "metrics metrics"
+      "funnel  funnel"
+      "needs   feed";
+    grid-template-rows: auto auto auto auto auto;
+    grid-template-columns: minmax(0, 1fr) 340px;
+  }
+}
+
+@media (max-width: 1099px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "head"
+      "error"
+      "metrics"
+      "funnel"
+      "needs"
+      "feed";
+    grid-template-rows: none;
+    padding: 20px 16px 28px;
+  }
+}

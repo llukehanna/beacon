@@ -4,7 +4,12 @@
   overflow: visible;
 }
 
-.spark path {
+.area {
+  fill: color-mix(in srgb, currentColor 12%, transparent);
+  stroke: none;
+}
+
+.line {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.6;

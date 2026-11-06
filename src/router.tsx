@@ -3,7 +3,7 @@ import { createBrowserRouter } from "react-router-dom";
 import RouteError from "@/RouteError";
 import Titled from "@/Titled";
 import Loading from "@/components/Loading";
-import Home from "@/desk/Home";
+import Home from "@/home/HomePage";
 import AppShell from "@/shell/AppShell";
 
 // Home is the start-of-day page and stays in the initial bundle. Every other
