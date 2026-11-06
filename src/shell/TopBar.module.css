@@ -50,7 +50,7 @@
 .crumbs li + li::before {
   content: "/";
   margin: 0 7px;
-  opacity: 0.5;
+  color: var(--tx4);
 }
 
 .crumbs li:last-child {
