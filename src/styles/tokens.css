@@ -20,6 +20,13 @@
   --amber: #f0b955;
   --green: #4fd19a;
   --red: #f07167;
+  /* Readable tints of the semantic colours, for text on their own faint backgrounds. */
+  --red-tx: #f4948b;
+  --green-tx: #8ee5c0;
+  --amber-tx: #f3c978;
+  /* A firm we passed that the market bought: the one colour outside the three above. */
+  --violet: #c9a9f7;
+  --violet-bg: rgba(155, 127, 224, 0.16);
 
   --font-ui: "Geist Variable", "Geist", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "Geist Mono Variable", "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;

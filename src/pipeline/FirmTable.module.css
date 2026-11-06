@@ -12,6 +12,33 @@
   border-collapse: collapse;
 }
 
+/* Fixed widths: Stage and Fit each own their cell, so a chip can't run into the next column, and
+   Firm (the first column) takes whatever width is left. */
+.table col:nth-child(2) {
+  width: 60px;
+}
+
+.table col:nth-child(3) {
+  width: 120px;
+}
+
+.table col:nth-child(4) {
+  width: 112px;
+}
+
+.table col:nth-child(5),
+.table col:nth-child(8) {
+  width: 156px;
+}
+
+.table col:nth-child(6) {
+  width: 56px;
+}
+
+.table col:nth-child(7) {
+  width: 48px;
+}
+
 .table thead th {
   position: sticky;
   top: 0;

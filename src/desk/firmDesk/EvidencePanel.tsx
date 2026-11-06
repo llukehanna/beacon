@@ -114,7 +114,6 @@ export function EvidenceDrawer({
       size="min(400px, 100vw)"
       title={props.row?.label ?? "Evidence"}
       className={`${styles.drawer} ${EVIDENCE_DRAWER_CLASS} bp6-dark`}
-      portalClassName="dsn"
     >
       <Panel variant="drawer" {...props} />
     </Drawer>

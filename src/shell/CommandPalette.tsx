@@ -168,7 +168,6 @@ export default function CommandPalette({
       isOpen={isOpen}
       onClose={onClose}
       className={`bp6-dark ${styles.dialog}`}
-      portalClassName="dsn"
       aria-labelledby="palette-title"
       canOutsideClickClose
     >

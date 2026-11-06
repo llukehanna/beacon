@@ -1,0 +1,16 @@
+.wrap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.note {
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.error {
+  color: var(--red-tx);
+  font-size: 12px;
+}

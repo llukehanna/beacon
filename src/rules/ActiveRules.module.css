@@ -1,0 +1,209 @@
+.panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table thead th {
+  height: 36px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--tx3);
+  font-size: 11.5px;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.numHead {
+  text-align: right !important;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.row > td {
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--tx2);
+  vertical-align: top;
+}
+
+.row:hover > td {
+  background: rgba(255, 255, 255, 0.015);
+}
+
+/* The detail row continues the row above it, so the pair reads as one. */
+.row[data-open] > td {
+  border-bottom-color: transparent;
+}
+
+.detailRow > td {
+  padding: 4px 12px 16px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.015);
+}
+
+.detailRow > td > * + * {
+  margin-top: 12px;
+}
+
+.ruleCell {
+  min-width: 0;
+  max-width: 420px;
+}
+
+.summary {
+  display: -webkit-box;
+  margin-top: 6px;
+  overflow: hidden;
+  color: var(--tx2);
+  font-size: 12.5px;
+  line-height: 1.45;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.version {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(79, 209, 154, 0.12);
+  color: var(--green-tx);
+  font: 600 11.5px var(--font-mono);
+}
+
+.num {
+  color: var(--tx);
+  font: 500 13px var(--font-mono);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.unit {
+  color: var(--tx3);
+  font: 400 11.5px var(--font-ui);
+}
+
+.none {
+  color: var(--tx3);
+}
+
+.by {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.actionCell {
+  width: 1%;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.details {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.note {
+  margin: 0;
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.history {
+  margin: 0;
+  color: var(--tx2);
+  font: 11.5px/1.5 var(--font-mono);
+  overflow-wrap: anywhere;
+}
+
+/* Under 900 px each rule becomes a card: the rule on top, then version, screen count and who
+   decided on one line, then the actions. */
+@media (max-width: 899px) {
+  .scroll {
+    overflow-x: visible;
+  }
+
+  .table,
+  .table tbody,
+  .table tr,
+  .table td {
+    display: block;
+  }
+
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+  }
+
+  .table .row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 14px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .row[data-open] {
+    border-bottom-color: transparent;
+  }
+
+  .row > td {
+    padding: 0;
+    border: 0;
+  }
+
+  .row:hover > td {
+    background: none;
+  }
+
+  .row > td {
+    text-align: left;
+  }
+
+  .ruleCell {
+    flex: 1 1 100%;
+    max-width: none;
+  }
+
+  .actionCell {
+    flex: 1 1 100%;
+    width: auto;
+  }
+
+  .actions {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    margin-left: -8px;
+  }
+
+  .detailRow > td {
+    padding: 4px 16px 16px;
+  }
+}

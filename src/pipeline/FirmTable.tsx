@@ -153,13 +153,13 @@ export function FirmTable({
             column, and Firm takes whatever width is left. */}
         <colgroup>
           <col />
-          <col className={styles.colType} style={{ width: 60 }} />
-          <col className={styles.colSector} style={{ width: 120 }} />
-          <col style={{ width: 112 }} />
-          <col style={{ width: 156 }} />
-          <col style={{ width: 56 }} />
-          <col style={{ width: 48 }} />
-          <col className={styles.colActivity} style={{ width: 156 }} />
+          <col className={styles.colType} />
+          <col className={styles.colSector} />
+          <col />
+          <col />
+          <col />
+          <col />
+          <col className={styles.colActivity} />
         </colgroup>
         <thead>
           <tr aria-rowindex={1}>

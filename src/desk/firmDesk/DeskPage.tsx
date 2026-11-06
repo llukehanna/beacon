@@ -15,7 +15,6 @@ import { AGENT } from "../../../shared/vocab";
 import { type ScreeningRule, toScreeningRules } from "../activeScreening";
 import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
-import "../nocturne.css";
 import { type ActiveConfigRule, orderEnrichmentQueue, toQueueFirm } from "../queue";
 import styles from "./DeskPage.module.css";
 import {

@@ -1,7 +1,6 @@
 import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Drawer } from "@blueprintjs/core";
-import "@/desk/nocturne.css";
 import styles from "./AppShell.module.css";
 import CommandPalette from "./CommandPalette";
 import ShortcutsOverlay from "./ShortcutsOverlay";
@@ -72,7 +71,7 @@ export default function AppShell(): React.ReactElement {
 
   return (
     <SidebarSlotContext.Provider value={slot}>
-      <div className={`${styles.shell} dsn`}>
+      <div className={styles.shell}>
         <a href="#main" className={styles.skip} onClick={focusMain}>
           Skip to content
         </a>
@@ -84,7 +83,6 @@ export default function AppShell(): React.ReactElement {
             size={288}
             title="Navigation"
             className={`${styles.drawer} bp6-dark`}
-            portalClassName="dsn"
           >
             {sidebar}
           </Drawer>

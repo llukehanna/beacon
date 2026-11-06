@@ -2,7 +2,7 @@ import React from "react";
 import { Term } from "@/components/Term";
 import { parseChangedAxes, resolutionLabel } from "@/desk/driftReview";
 import { formatScore } from "@/desk/scoreFormat";
-import { DIVERGENCE_FG, TIER_COLOR, isOutcomeDivergence, outcomeLabel } from "@/desk/tokens";
+import { TIER_COLOR, isOutcomeDivergence, outcomeLabel } from "@/desk/tokens";
 import { Button } from "@/ui";
 import { DriftActions } from "./DriftActions";
 import styles from "./DriftDetail.module.css";
@@ -105,9 +105,7 @@ export function DriftDetail({
           </div>
           <div>
             <h3 className={styles.kicker}>Market observed</h3>
-            <p className={styles.observed} style={{ color: DIVERGENCE_FG }}>
-              {outcomeLabel(item.observedOutcome)}
-            </p>
+            <p className={styles.observed}>{outcomeLabel(item.observedOutcome)}</p>
           </div>
         </section>
       )}

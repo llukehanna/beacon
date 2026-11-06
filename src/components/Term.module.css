@@ -17,7 +17,7 @@
 }
 
 .term:focus-visible {
-  outline: 1px solid var(--color-accent, #8a95ff);
+  outline: 1px solid var(--acc);
   outline-offset: 2px;
 }
 
@@ -26,10 +26,12 @@
   z-index: 1000;
   max-width: 280px;
   padding: 8px 10px;
-  border-radius: var(--radius-md, 8px);
-  background: var(--color-surface, #111317);
-  box-shadow: var(--shadow-md, 0 6px 18px rgba(0, 0, 0, 0.55));
-  color: var(--color-text, #ecedef);
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow:
+    0 0 0 1px var(--line2),
+    0 6px 18px rgba(0, 0, 0, 0.55);
+  color: var(--tx);
   font-size: 12px;
   font-weight: 400;
   line-height: 1.45;

@@ -1,0 +1,48 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.top > code {
+  flex: 0 1 auto;
+}
+
+.plain {
+  margin: 0;
+  color: var(--tx);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.figure {
+  font: 600 12px var(--font-mono);
+}
+
+.actions,
+.decline {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--tx3);
+  font-size: 12px;
+}

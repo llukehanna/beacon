@@ -1,10 +1,11 @@
+import type { ReactNode } from "react";
 import styles from "./Metric.module.css";
 import { Panel } from "./Panel";
 import { Sparkline } from "./Sparkline";
 import { type MetricTrend, visibleTrend } from "./metricTrend";
 
 interface MetricProps {
-  label: string;
+  label: ReactNode;
   value: string | number;
   unit?: string;
   /** One line saying what the number means, so it never stands alone. */

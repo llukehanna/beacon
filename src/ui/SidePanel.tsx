@@ -33,7 +33,6 @@ export function SidePanel({
         size="min(420px, 100vw)"
         title={title}
         className={`${styles.drawer} bp6-dark`}
-        portalClassName="dsn"
       >
         <div className={styles.body}>{children}</div>
       </Drawer>
