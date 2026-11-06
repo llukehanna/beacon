@@ -239,6 +239,7 @@ export const OBJECT_TYPES = {
       ruleStatus: "string",
       ruleDecidedBy: "string",
       ruleDecidedAt: "timestamp",
+      proposedAt: "timestamp",
       mandateScope: "string",
     },
   },
