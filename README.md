@@ -6,6 +6,10 @@ Acquisition-target sourcing for a corporate development team. Analysts turn a ma
 
 **Live demo:** https://beacon.lukeghanna.com (synthetic data, resets daily)
 
+[![A 22-second walk through Home, the desk with a source conflict and its cited evidence, Rules and Review](docs/media/golden-path.gif)](docs/media/golden-path.mp4)
+
+Full-quality video: [golden-path.mp4](docs/media/golden-path.mp4).
+
 ![Enrichment desk: a conflict between two sources, cited proposals, and abstentions](docs/screenshots/desk.png)
 
 ## What it does
@@ -20,6 +24,11 @@ Acquisition-target sourcing for a corporate development team. Analysts turn a ma
 | Home                               | Rules                                         | Review                                       |
 | ---------------------------------- | --------------------------------------------- | -------------------------------------------- |
 | ![Home](docs/screenshots/home.png) | ![Proposed rules](docs/screenshots/rules.png) | ![Drift review](docs/screenshots/review.png) |
+
+## More
+
+- [Development history](docs/development-history.md): how the project got here, with dates.
+- [Production roadmap](docs/production-roadmap.md): what a production deployment would need that the demo does not have.
 
 ## Architecture
 
