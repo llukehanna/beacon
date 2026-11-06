@@ -3,7 +3,7 @@ import type { ProviderObservation } from "../../../shared/summaries";
 import { ENRICH_AXES } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
 import { buildAxisRows } from "./axisRows";
-import { evidenceChecks, pickReading, rejectReasonText } from "./evidenceModel";
+import { evidenceChecks, isAnalystEntered, pickReading, rejectReasonText } from "./evidenceModel";
 
 const axis = (name: string) => {
   const def = ENRICH_AXES.find((a) => a.axis === name);
@@ -96,5 +96,18 @@ describe("rejectReasonText", () => {
   it("says what happened in plain words and passes unknown reasons through", () => {
     expect(rejectReasonText("quote_not_in_document")).toMatch(/not in the source/i);
     expect(rejectReasonText("something_new")).toBe("something_new");
+  });
+});
+
+describe("isAnalystEntered", () => {
+  it("is true for a verified finding with no source document", () => {
+    expect(isAnalystEntered("verified", { sourceDocumentId: null })).toBe(true);
+    expect(isAnalystEntered("verified", {})).toBe(true);
+  });
+
+  it("is false for a cited finding, an abstention, or no finding", () => {
+    expect(isAnalystEntered("proposed", { sourceDocumentId: "dealdb:f1" })).toBe(false);
+    expect(isAnalystEntered("abstained", { sourceDocumentId: null })).toBe(false);
+    expect(isAnalystEntered("empty", undefined)).toBe(false);
   });
 });

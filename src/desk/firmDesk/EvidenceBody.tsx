@@ -26,7 +26,8 @@ import {
   stringifyOverride,
 } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
-import { evidenceChecks, pickReading, rejectReasonText } from "./evidenceModel";
+import { evidenceChecks, isAnalystEntered, pickReading, rejectReasonText } from "./evidenceModel";
+import { type OnFile } from "./onFile";
 
 type Staged = string | number | boolean;
 
@@ -100,6 +101,7 @@ export function EvidenceBody({
   row,
   model,
   edits,
+  onFile,
   getCurrent,
   applyEdit,
   queueVerify,
@@ -109,6 +111,8 @@ export function EvidenceBody({
   row: AxisRow;
   model: Model;
   edits: EditMap;
+  /** What the firm record holds for this axis, if anything. */
+  onFile: OnFile | undefined;
   getCurrent: (editKey: string) => Staged | null | undefined;
   applyEdit: (editKey: string, value: Staged) => void;
   queueVerify: (f: FindingLike, overrideValue?: string) => void;
@@ -132,12 +136,17 @@ export function EvidenceBody({
   const finding = authoritativeFinding(row);
   const proposed = row.state === "proposed" && finding !== undefined;
   const said = row.readings.filter((r) => r.value !== null);
-  const reading =
-    (provider !== undefined ? said.find((r) => r.provider === provider) : undefined) ??
-    pickReading(row, finding ?? sides[0]);
+  // A value the analyst entered (or any finding with no source document) has no source: showing
+  // a provider's document and checks under it would present them as its evidence.
+  const analystEntered = isAnalystEntered(row.state, finding);
+  const reading = analystEntered
+    ? undefined
+    : ((provider !== undefined ? said.find((r) => r.provider === provider) : undefined) ??
+      pickReading(row, finding ?? sides[0]));
   const cited = finding ?? sides[0];
-  const source =
-    reading?.documentId != null
+  const source = analystEntered
+    ? null
+    : reading?.documentId != null
       ? { documentId: reading.documentId, quote: reading.quote }
       : cited?.sourceDocumentId
         ? { documentId: cited.sourceDocumentId, quote: cited.sourceQuote ?? null }
@@ -277,6 +286,13 @@ export function EvidenceBody({
           )}
         </div>
 
+        {onFile !== undefined && (
+          <p className={styles.onFile}>
+            On file: <span>{onFile.text}</span>
+            {onFile.band !== null && ` · scores ${onFile.band} of 2`}
+          </p>
+        )}
+
         {row.state === "conflict" ? (
           <div className={styles.sides} role="group" aria-label="Conflicting values">
             {sides.map((f, i) => {
@@ -379,6 +395,24 @@ export function EvidenceBody({
             )}
             {source !== null && <SourceView documentId={source.documentId} quote={source.quote} />}
             <Checks row={row} reading={reading} />
+          </div>
+        )}
+        {analystEntered && said.length > 0 && (
+          <div className={styles.asked}>
+            <p className={styles.askedHead}>What each source said</p>
+            <ul aria-label="What each source said">
+              {said.map((r) => (
+                <li key={r.provider}>
+                  <span>{providerLabel(r.provider)}</span>
+                  <span className={styles.askedWhy}>
+                    {displayFindingValue(row.axis, r.value)}
+                    {r.grounded === false
+                      ? ` (turned down: ${rejectReasonText(r.rejectReason ?? "")})`
+                      : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
         {said.length === 0 && source !== null && (

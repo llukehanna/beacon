@@ -26,6 +26,7 @@ import {
   toScoreInput,
 } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
+import { buildOnFile } from "./onFile";
 import { projectProposals } from "./projection";
 import { useMediaQuery } from "./useMediaQuery";
 
@@ -112,16 +113,23 @@ export function EnrichmentPanel({
   );
 
   const observations = useFirmObservations(firm.firmId);
+  // The observations are what the providers would say; they are only what the agent saw once
+  // it has run, so a firm with no findings shows none of them.
+  const seen = findings.length > 0 ? observations.data : undefined;
   const rows = React.useMemo(
     () =>
       buildAxisRows(
         ENRICH_AXES.filter((a) => a.models.includes(after.model)),
-        observations.data,
+        seen,
         overlaidFindings,
       ),
-    [after.model, observations.data, overlaidFindings],
+    [after.model, seen, overlaidFindings],
   );
   const counts = React.useMemo(() => summarizeRows(rows), [rows]);
+  const onFile = React.useMemo(
+    () => buildOnFile(rows, firm, edits, after),
+    [rows, firm, edits, after],
+  );
   const projection = React.useMemo(() => projectProposals(base, edits, rows), [base, edits, rows]);
 
   // Where the wide layout opens: the first axis that needs a decision, once per firm.
@@ -331,6 +339,7 @@ export function EnrichmentPanel({
     firmsLoading,
     model: after.model,
     edits,
+    onFile,
     getCurrent,
     applyEdit: setAxis,
     queueVerify,
@@ -358,6 +367,7 @@ export function EnrichmentPanel({
             rows={rows}
             counts={counts}
             edits={edits}
+            onFile={onFile}
             selected={selectedAxis}
             onSelect={selectAxis}
             loading={findingsLoading}

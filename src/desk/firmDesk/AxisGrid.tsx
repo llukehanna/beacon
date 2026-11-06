@@ -1,16 +1,29 @@
 import React from "react";
-import { ConfidenceBars, EmptyState, Skeleton, StatusPill } from "@/ui";
+import { ConfidenceBars, Skeleton, StatusPill } from "@/ui";
 import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import { formatAxisValue } from "../findingActions";
 import styles from "./AxisGrid.module.css";
 import { type AxisRow, type RowCounts, type RowState, summaryText } from "./axisRows";
 import { type EditMap } from "./deskModel";
 import { rejectReasonText } from "./evidenceModel";
+import { type OnFile } from "./onFile";
 
 /** The pending value an analyst has staged for an axis, as the row shows it. */
 function stagedText(row: AxisRow, edits: EditMap): string | null {
   const v = edits[row.def.actionParam];
   return v === undefined || v === "" ? null : formatAxisValue(row.def.actionParam, v);
+}
+
+/** The on-file line under an axis name, for rows where the sources give the value no home. */
+function fileLine(row: AxisRow, file: OnFile | undefined, noteShowsIt: boolean): string | null {
+  if (
+    file === undefined ||
+    noteShowsIt ||
+    (row.state !== "empty" && row.state !== "rejected" && row.state !== "abstained")
+  ) {
+    return null;
+  }
+  return `on file: ${file.text}${file.band === null ? "" : ` · ${file.band}/2`}`;
 }
 
 function RowStatus({ state }: { state: RowState }): React.ReactElement {
@@ -60,6 +73,7 @@ export function AxisGrid({
   rows,
   counts,
   edits,
+  onFile,
   selected,
   onSelect,
   loading,
@@ -67,6 +81,8 @@ export function AxisGrid({
   rows: AxisRow[];
   counts: RowCounts;
   edits: EditMap;
+  /** What the firm record holds per axis (see onFile.ts). */
+  onFile: Record<string, OnFile>;
   selected: string | undefined;
   onSelect: (axis: string, provider?: string) => void;
   /** True while the findings load. */
@@ -102,14 +118,7 @@ export function AxisGrid({
       </div>
     );
   }
-  if (rows.every((r) => r.state === "empty")) {
-    return (
-      <EmptyState
-        title="No findings yet"
-        body="Beacon has not scored this firm against the rubric. Run the agent from the strip above to query every source."
-      />
-    );
-  }
+  const noFindings = rows.every((r) => r.state === "empty");
 
   return (
     <section className={styles.section} aria-label="Axes by source">
@@ -117,6 +126,12 @@ export function AxisGrid({
         <h2 className={styles.title}>Axes by source</h2>
         <span className={styles.summary}>{summaryText(counts)}</span>
       </div>
+      {noFindings && (
+        <p className={styles.note} role="status">
+          <strong>No findings yet.</strong> Run the agent from the strip above to query every
+          source, or set a value yourself: select an axis to enter one.
+        </p>
+      )}
       <div className={styles.wrap}>
         <table className={styles.table}>
           <thead>
@@ -165,6 +180,11 @@ export function AxisGrid({
                 >
                   <th scope="row" className={styles.ax}>
                     <span className={styles.axName}>{row.label}</span>
+                    {fileLine(row, onFile[row.axis], noSource) !== null && (
+                      <span className={styles.onFile}>
+                        {fileLine(row, onFile[row.axis], noSource)}
+                      </span>
+                    )}
                     {staged !== null && (
                       <span className={styles.pending} title={`Staged for commit: ${staged}`}>
                         pending: {staged}
@@ -175,6 +195,7 @@ export function AxisGrid({
                   {noSource ? (
                     <td colSpan={PROVIDER_TRUST.length} className={styles.abstainNote}>
                       No source had it. Beacon abstained instead of guessing.
+                      {onFile[row.axis] !== undefined && ` On file: ${onFile[row.axis].text}.`}
                     </td>
                   ) : (
                     PROVIDER_TRUST.map((p) => (
