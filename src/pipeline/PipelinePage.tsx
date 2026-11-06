@@ -10,8 +10,10 @@ import {
   nextSort,
   rejectDecisionByFirm,
 } from "@/desk/pipelineRows";
+import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, SidePanel } from "@/ui";
+import type { FirmLike } from "../../shared/exportRows";
 import { PASSED } from "../../shared/vocab";
 import { Filters } from "./Filters";
 import { FirmDetail } from "./FirmDetail";
@@ -99,6 +101,16 @@ export default function PipelinePage(): React.ReactElement {
   );
   const counts = React.useMemo(() => stageCounts(rows), [rows]);
   const visibleRows = React.useMemo(() => rowsForStage(rows, stage), [rows, stage]);
+  // The export is the list as filtered, with the score and tier each row shows.
+  const exportFirms = React.useMemo(
+    () =>
+      visibleRows.map((r): FirmLike => ({
+        ...(r.firm as FirmLike),
+        score: r.score.total,
+        tier: r.score.tier,
+      })),
+    [visibleRows],
+  );
   const selectedRow = React.useMemo(
     () => visibleRows.find((r) => r.firm.firmId === selectedId),
     [visibleRows, selectedId],
@@ -213,6 +225,10 @@ export default function PipelinePage(): React.ReactElement {
               aria-label="Search firms"
             />
           </div>
+          <ExportMenu
+            name={stage === "all" ? "pipeline" : `pipeline ${stage}`}
+            firms={exportFirms}
+          />
           <ButtonLink to="/mandate" variant="primary">
             New search
           </ButtonLink>

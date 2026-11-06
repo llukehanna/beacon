@@ -10,7 +10,9 @@ import {
   ReviewDecision,
   Search,
 } from "@/data/ontology";
+import { ExportMenu } from "@/export/ExportMenu";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
+import type { FindingLike, FirmLike } from "../../../shared/exportRows";
 import { AGENT } from "../../../shared/vocab";
 import { type ScreeningRule, toScreeningRules } from "../activeScreening";
 import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
@@ -395,6 +397,13 @@ function Desk(): React.ReactElement {
           searchIndex={searchIndex}
           memberCount={filteredData?.length ?? 0}
           loading={memberFirmIds === null}
+          exportAction={
+            <ExportMenu
+              name={`${pinnedIntent} ${pinnedSearch?.name ?? `search ${searchIndex ?? ""}`}`}
+              firms={(filteredData ?? []) as unknown as FirmLike[]}
+              findings={allFindings as unknown as FindingLike[] | undefined}
+            />
+          }
           onClear={onClearSearchFilter}
         />
       )}

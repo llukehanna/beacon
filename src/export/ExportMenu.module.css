@@ -1,0 +1,11 @@
+.export {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.error {
+  color: var(--red-tx);
+  font-size: 12px;
+}

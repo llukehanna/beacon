@@ -3,18 +3,22 @@ import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, Search, SearchList, SearchMembership } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
 import { EmptyState, Notice, PageHeader, Panel, Skeleton } from "@/ui";
+import type { FirmLike as ExportFirm } from "../../shared/exportRows";
 import {
   EMPTY_COUNTS,
   type FirmLike,
   type MembershipLike,
   type SearchLike,
-  mandateFirmCounts,
+  countMandateFirms,
+  mandateFirmIds,
   searchListFirmIds,
 } from "../../shared/mandateFirms";
 import { MandateCard, SearchListRow } from "./MandateCard";
 import styles from "./MandatePage.module.css";
 import { NewMandateForm } from "./NewMandateForm";
 import { FIRM_COUNT_PAGE_SIZE, type MandateLike, type SearchListLike } from "./mandateModel";
+
+const NO_FIRMS: readonly ExportFirm[] = [];
 
 /**
  * Mandates: leadership sets a mandate as a free-text intent, and each mandate spawns one or more
@@ -61,9 +65,9 @@ export default function MandatePage(): React.ReactElement {
     $select: ["firmId"] as never,
   });
 
-  const countsByMandate = React.useMemo(
+  const idsByMandate = React.useMemo(
     () =>
-      mandateFirmCounts({
+      mandateFirmIds({
         searches: (searchObjData ?? []) as unknown as SearchLike[],
         memberships: (membershipData ?? []) as unknown as MembershipLike[],
         firms: (firmData ?? []) as unknown as FirmLike[],
@@ -78,6 +82,24 @@ export default function MandatePage(): React.ReactElement {
       searchListLinks.linkedObjectsBySourcePrimaryKey,
     ],
   );
+
+  const countsByMandate = React.useMemo(() => countMandateFirms(idsByMandate), [idsByMandate]);
+
+  // The scoped firms behind each card's count, as the export writes them.
+  const firmsByMandate = React.useMemo(() => {
+    const byId = new Map<string, ExportFirm>();
+    for (const f of (firmData ?? []) as unknown as ExportFirm[]) {
+      byId.set(f.firmId ?? "", f);
+    }
+    const out = new Map<string, ExportFirm[]>();
+    for (const [mid, ids] of idsByMandate) {
+      out.set(
+        mid,
+        [...ids.scoped].flatMap((id) => byId.get(id) ?? []),
+      );
+    }
+    return out;
+  }, [idsByMandate, firmData]);
 
   const searchesByMandate = React.useMemo(() => {
     const m = new Map<string, SearchListLike[]>();
@@ -147,6 +169,7 @@ export default function MandatePage(): React.ReactElement {
                 mandate={m}
                 searches={searchesByMandate.get(m.mandateId) ?? []}
                 counts={countsByMandate.get(m.mandateId) ?? EMPTY_COUNTS}
+                firms={firmsByMandate.get(m.mandateId) ?? NO_FIRMS}
                 countsLoading={searchListLinks.isLoading && countsByMandate.size === 0}
               />
             ))}

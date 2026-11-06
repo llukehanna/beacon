@@ -40,6 +40,7 @@
     "react": "^18",
     "react-dom": "^18",
     "react-router-dom": "^6.30.6",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
@@ -62,6 +63,7 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
+    "fflate": "^0.8.3",
     "globals": "^15.15.0",
     "prettier": "^3.0.0",
     "tsx": "^4.23.15",
