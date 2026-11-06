@@ -1,5 +1,5 @@
 {
-  "inputHash": "53c3bb41",
+  "inputHash": "68f7340c",
   "model": "claude-opus-5",
   "proposals": [
     {
@@ -7,15 +7,15 @@
       "ruleOperator": "<",
       "ruleThreshold": "10",
       "ruleModel": "CF",
-      "summary": "Screen out CF firms with fewer than 10 employees — they are too small to absorb an integration.",
+      "summary": "Reject corporate finance firms with fewer than 10 employees — too small to absorb an integration.",
       "supportingDecisionIds": [
-        "rd-seed-00915",
-        "rd-seed-00917",
-        "rd-seed-00919",
-        "rd-seed-00921",
-        "rd-seed-00923",
-        "rd-seed-00925",
-        "rd-seed-00927"
+        "rd-seed-00918",
+        "rd-seed-00920",
+        "rd-seed-00922",
+        "rd-seed-00924",
+        "rd-seed-00926",
+        "rd-seed-00928",
+        "rd-seed-00930"
       ]
     },
     {
@@ -23,13 +23,13 @@
       "ruleOperator": "==",
       "ruleThreshold": "Generalist",
       "ruleModel": "CF",
-      "summary": "Screen out CF firms with a Generalist coverage model — no sector depth means an unfocused franchise.",
+      "summary": "Reject firms with a Generalist coverage model — no sector depth and an unfocused franchise.",
       "supportingDecisionIds": [
-        "rd-seed-00929",
-        "rd-seed-00931",
-        "rd-seed-00933",
-        "rd-seed-00935",
-        "rd-seed-00937"
+        "rd-seed-00932",
+        "rd-seed-00934",
+        "rd-seed-00936",
+        "rd-seed-00938",
+        "rd-seed-00940"
       ]
     },
     {
@@ -37,13 +37,13 @@
       "ruleOperator": "<",
       "ruleThreshold": "20",
       "ruleModel": "CF",
-      "summary": "Screen out CF firms with average deal size under $20m — below our deal-size floor.",
+      "summary": "Reject firms whose average deal size is below $20m — under our deal-size floor.",
       "supportingDecisionIds": [
-        "rd-seed-00942",
-        "rd-seed-00947",
-        "rd-seed-00952",
-        "rd-seed-00957",
-        "rd-seed-00962"
+        "rd-seed-00945",
+        "rd-seed-00950",
+        "rd-seed-00955",
+        "rd-seed-00960",
+        "rd-seed-00965"
       ]
     },
     {
@@ -51,14 +51,14 @@
       "ruleOperator": "<",
       "ruleThreshold": "1.5",
       "ruleModel": "CF",
-      "summary": "Screen out CF firms averaging fewer than 1.5 deals per MD over the last three years — weak deal volume.",
+      "summary": "Reject firms averaging fewer than 1.5 deals per MD over the last three years — weak deal volume.",
       "supportingDecisionIds": [
-        "rd-seed-00967",
-        "rd-seed-00972",
-        "rd-seed-00977",
-        "rd-seed-00982"
+        "rd-seed-00970",
+        "rd-seed-00975",
+        "rd-seed-00980",
+        "rd-seed-00985"
       ]
     }
   ],
-  "createdAt": "2026-11-06T07:28:40.147Z"
+  "createdAt": "2026-11-06T12:45:48.854Z"
 }

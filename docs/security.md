@@ -38,7 +38,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 
 - Claude reads the synthetic source records offline, once per firm, through the Message Batches API (Claude Haiku 4.5) with `npm run extract`. The answers are committed as fixtures. <!-- source: scripts/extract.ts, README.md, docs/architecture.md -->
 - The seed, the demo and CI read the committed fixtures and need no API key. A visitor pressing Run agent grounds stored answers again and calls no model. <!-- source: README.md, docs/architecture.md -->
-- The recorded run extracted 6,472 values across all 700 firms; 6,455 passed the grounding check. It cost $1.39. Clustering the seed's rejections into rule proposals cost a further $0.05. <!-- source: docs/architecture.md -->
+- The recorded run extracted 6,472 values across all 700 firms; 6,455 passed the grounding check. It cost $1.39. Clustering the seed's rejections into rule proposals cost a further $0.04. <!-- source: docs/architecture.md -->
 - The live app can make one kind of Claude call: rule clustering. It runs only when `CLAUDE_CLUSTERING=on`; otherwise a keyword heuristic proposes the rules. <!-- source: server/clustering/choose.ts -->
 - The guard allows at most one Claude clustering call per 10 minutes and 24 per UTC day, across all visitors. Past either limit the heuristic runs instead. <!-- source: server/clustering/choose.ts, server/db/meta.ts -->
 - Both limits are claimed atomically before the action's transaction opens, so a rolled-back action does not refund them. <!-- source: server/clustering/choose.ts, server/actions/apply.ts -->

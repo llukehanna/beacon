@@ -57,7 +57,7 @@ export const RECORDED_RUN = {
   valuesExtracted: 6_472,
   valuesGrounded: 6_455,
   extractionCost: "$1.39",
-  clusteringCost: "$0.05",
+  clusteringCost: "$0.04",
   model: "Claude Haiku 4.5",
 } as const;
 
