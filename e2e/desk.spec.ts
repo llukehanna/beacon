@@ -60,6 +60,44 @@ test("evidence panel shows grounding checks", async ({ page }) => {
   await expect(evidence(page).getByRole("button", { name: /^Verify / })).toBeVisible();
 });
 
+test("rejecting a proposed value stages the analyst's own", async ({ page }) => {
+  await openDesk(page);
+  await expect(page.getByText(/^pending: /)).toHaveCount(0);
+
+  await gridRow(page, "proposed").click();
+  await evidence(page)
+    .getByRole("button", { name: /^Reject/ })
+    .click();
+  const editor = evidence(page).getByRole("region", { name: "Your value" });
+  await expect(editor).toContainText("and use your own");
+  // Categorical axes offer the rubric's options; numeric ones a number field.
+  const options = editor.getByRole("radio");
+  if ((await options.count()) > 0) {
+    await options.last().click();
+  } else {
+    await editor.getByRole("spinbutton").fill("7");
+    await editor.getByRole("button", { name: "Reject and use value" }).click();
+  }
+
+  await expect(page.getByText(/^pending: /)).toBeVisible();
+  await expect(commitEnrichment(page)).toBeEnabled();
+});
+
+test("the evidence panel is a drawer under 1280px", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await openDesk(page);
+  await expect(evidence(page)).toHaveCount(0);
+
+  await gridRow(page, "proposed").click();
+  const drawer = page.locator(".bp6-drawer");
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole("button", { name: /^Verify / })).toBeVisible();
+  await expect(drawer.getByRole("list", { name: "Grounding checks" })).toBeVisible();
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+});
+
 test("desk renders a never-enriched firm", async ({ page }) => {
   const problems: string[] = [];
   page.on("console", (msg) => {
@@ -81,7 +119,17 @@ test("desk renders a never-enriched firm", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expect(page.getByText("No agent run yet")).toBeVisible();
   await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
-  await expect(page.getByText("No findings yet")).toBeVisible();
+  // The rubric axes are still listed, and each one can be answered by hand.
+  await expect(page.getByText("No findings yet.")).toBeVisible();
+  await expect(page.locator('tr[data-state="empty"]').first()).toBeVisible();
+  // No provider readings are shown for a run that has not happened.
+  await expect(
+    page.locator('tr[data-axis="services_fit"] [role="img"][aria-label*="confidence"]'),
+  ).toHaveCount(0);
+  await page.locator('tr[data-axis="services_fit"]').click();
+  await expect(evidence(page).getByRole("radio").first()).toBeVisible();
+  await page.locator('tr[data-axis="firm_age"]').click();
+  await expect(evidence(page).getByRole("spinbutton", { name: /value$/ })).toBeVisible();
   await page.waitForLoadState("networkidle");
   expect(problems).toEqual([]);
 });

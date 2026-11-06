@@ -101,6 +101,34 @@
   font: 11px var(--font-mono);
 }
 
+.onFile {
+  display: block;
+  max-width: 28ch;
+  overflow: hidden;
+  color: var(--tx3);
+  font: 11px var(--font-mono);
+  text-overflow: ellipsis;
+}
+
+.note {
+  margin: 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.025) 0 6px,
+    transparent 6px 12px
+  );
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx2);
+  font-size: 12.5px;
+}
+
+.note strong {
+  color: var(--tx);
+  font-weight: 500;
+}
+
 .w {
   color: var(--tx3);
   font: 12px var(--font-mono);

@@ -8,6 +8,7 @@ import { HistoryTab } from "./HistoryTab";
 import { type AxisRow } from "./axisRows";
 import { type EditMap, type FirmView } from "./deskModel";
 import { EVIDENCE_DRAWER_CLASS } from "./dialogs";
+import { type OnFile } from "./onFile";
 
 type Staged = string | number | boolean;
 type Tab = "evidence" | "history";
@@ -20,6 +21,7 @@ export interface EvidenceProps {
   firmsLoading: boolean;
   model: Model;
   edits: EditMap;
+  onFile: Record<string, OnFile>;
   getCurrent: (editKey: string) => Staged | null | undefined;
   applyEdit: (editKey: string, value: Staged) => void;
   queueVerify: (f: FindingLike, overrideValue?: string) => void;
@@ -73,6 +75,7 @@ function Panel({
             row={props.row}
             model={props.model}
             edits={props.edits}
+            onFile={props.onFile[props.row.axis]}
             getCurrent={props.getCurrent}
             applyEdit={props.applyEdit}
             queueVerify={props.queueVerify}

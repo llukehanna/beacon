@@ -84,3 +84,15 @@ const REASON_TEXT: Record<string, string> = {
 export function rejectReasonText(reason: string): string {
   return REASON_TEXT[reason] ?? reason;
 }
+
+/**
+ * True when the finding speaking for an axis cites no source document (an analyst's entry): no
+ * provider's document or checks may be shown under it. An abstention has none either, but there
+ * the provider readings are exactly what the panel explains, so it is not "entered".
+ */
+export function isAnalystEntered(
+  state: AxisRow["state"],
+  finding: Pick<FindingLike, "sourceDocumentId"> | undefined,
+): boolean {
+  return finding !== undefined && state !== "abstained" && !finding.sourceDocumentId;
+}

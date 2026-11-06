@@ -220,6 +220,11 @@ export function editorForEditKey(editKey: string, model: Model): AxisEditor | un
   return undefined;
 }
 
+/** The rubric mirror's axis label for a firm field (e.g. dealSizeMUsd is "Deal Size"); undefined for gates. */
+export function mirrorLabelForEditKey(editKey: string, model: Model): string | undefined {
+  return EDITOR_LABELS[model].find((label) => editorForAxis(label, model)?.editKey === editKey);
+}
+
 // ─── Search filter (rediscovery) ─────────────────────────────────────────
 // When the desk is opened from Interpret & run search, ?search=<id> pins
 // the queue to that search's firm set. Each firm carries a rediscovery
