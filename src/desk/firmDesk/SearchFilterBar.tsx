@@ -11,6 +11,7 @@ export function SearchFilterBar({
   searchIndex,
   memberCount,
   loading,
+  exportAction,
   onClear,
 }: {
   intentText: string;
@@ -20,6 +21,8 @@ export function SearchFilterBar({
   searchIndex?: number;
   memberCount: number;
   loading: boolean;
+  /** Export for the search's results. */
+  exportAction?: React.ReactNode;
   onClear: () => void;
 }): React.ReactElement {
   const label = (searchName ?? "").trim() || (searchIndex ? `Search #${searchIndex}` : "Search");
@@ -33,6 +36,7 @@ export function SearchFilterBar({
         <span className={styles.sep}>·</span>
         {loading ? "loading firms…" : `${memberCount} firm${memberCount === 1 ? "" : "s"}`}
       </span>
+      {exportAction}
       <Button variant="ghost" onClick={onClear}>
         Clear
       </Button>

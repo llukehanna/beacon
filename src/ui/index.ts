@@ -4,6 +4,7 @@ export { ConfidenceBars } from "./ConfidenceBars";
 export { EmptyState } from "./EmptyState";
 export { Kbd } from "./Kbd";
 export { Input, Textarea } from "./Field";
+export { MenuButton, type MenuItem } from "./MenuButton";
 export { Metric } from "./Metric";
 export { MonogramTile } from "./MonogramTile";
 export { Notice } from "./Notice";

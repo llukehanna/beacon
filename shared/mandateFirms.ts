@@ -92,11 +92,19 @@ export function searchListFirmIds(
   return out;
 }
 
+export interface MandateFirmIds {
+  /** SearchList ∪ SearchMembership ∪ discoveredVia. */
+  scoped: ReadonlySet<string>;
+  /** SearchMembership ∪ discoveredVia. */
+  fromSearches: ReadonlySet<string>;
+}
+
 /**
- * mandateId → { scoped, fromSearches }. Mandates with no firms by any route
- * are absent; callers should fall back to EMPTY_COUNTS.
+ * mandateId → the firm ids behind its counts. Mandates with no firms by any
+ * route are absent. This is the list an export writes; `mandateFirmCounts` is
+ * its sizes.
  */
-export function mandateFirmCounts(input: MandateFirmInput): Map<string, MandateFirmCounts> {
+export function mandateFirmIds(input: MandateFirmInput): Map<string, MandateFirmIds> {
   const { searches, memberships, firms, searchLists, searchListFirmIds: listFirmIds } = input;
 
   // searchId → mandateId, from both object types. SearchList rows carry the
@@ -163,14 +171,33 @@ export function mandateFirmCounts(input: MandateFirmInput): Map<string, MandateF
     scopedSets.set(mid, set);
   }
 
-  const out = new Map<string, MandateFirmCounts>();
+  const out = new Map<string, MandateFirmIds>();
   for (const mid of new Set([...scopedSets.keys(), ...searchSets.keys()])) {
     out.set(mid, {
-      scoped: scopedSets.get(mid)?.size ?? 0,
-      fromSearches: searchSets.get(mid)?.size ?? 0,
+      scoped: scopedSets.get(mid) ?? new Set(),
+      fromSearches: searchSets.get(mid) ?? new Set(),
     });
   }
   return out;
+}
+
+/** The sizes of `mandateFirmIds`' sets. */
+export function countMandateFirms(
+  ids: ReadonlyMap<string, MandateFirmIds>,
+): Map<string, MandateFirmCounts> {
+  const out = new Map<string, MandateFirmCounts>();
+  for (const [mid, set] of ids) {
+    out.set(mid, { scoped: set.scoped.size, fromSearches: set.fromSearches.size });
+  }
+  return out;
+}
+
+/**
+ * mandateId → { scoped, fromSearches }. Mandates with no firms by any route
+ * are absent; callers should fall back to EMPTY_COUNTS.
+ */
+export function mandateFirmCounts(input: MandateFirmInput): Map<string, MandateFirmCounts> {
+  return countMandateFirms(mandateFirmIds(input));
 }
 
 /**

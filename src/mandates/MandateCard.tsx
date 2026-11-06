@@ -1,7 +1,9 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { useLinks } from "@/data/hooks";
+import { ExportMenu } from "@/export/ExportMenu";
 import { ButtonLink, Chip, Panel } from "@/ui";
+import type { FirmLike } from "../../shared/exportRows";
 import { type MandateFirmCounts } from "../../shared/mandateFirms";
 import styles from "./MandateCard.module.css";
 import {
@@ -66,12 +68,15 @@ export function MandateCard({
   mandate,
   searches,
   counts,
+  firms,
   countsLoading,
 }: {
   mandate: MandateLike;
   searches: SearchListLike[];
   /** The mandate-level union, identical to Home's; the rows below count one list each. */
   counts: MandateFirmCounts;
+  /** The scoped firms those counts are of: what Export writes. */
+  firms: readonly FirmLike[];
   countsLoading: boolean;
 }): React.ReactElement {
   const headline = mandateHeadline(mandate);
@@ -105,7 +110,7 @@ export function MandateCard({
         )}
       </div>
 
-      <div>
+      <div className={styles.actions}>
         <ButtonLink
           to={searchPath}
           variant="primary"
@@ -113,6 +118,7 @@ export function MandateCard({
         >
           Interpret &amp; run search <span aria-hidden="true">→</span>
         </ButtonLink>
+        <ExportMenu name={headline} firms={firms} />
       </div>
 
       {searches.length === 0 ? (
