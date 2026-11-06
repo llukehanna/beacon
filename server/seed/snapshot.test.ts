@@ -97,6 +97,24 @@ describe("resetFromSnapshot", () => {
     expect(n).toBe(0);
   }, 300_000);
 
+  it("restores a snapshot taken before ProposedRule.proposedAt existed, leaving it empty", async () => {
+    const takenAt = new Date("2026-09-22T12:00:00.000Z");
+    const db = await createTestDb();
+    await resetDemo(db, takenAt, { newId: sequentialIds() });
+    const [{ n: proposed }] = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM proposed_rule WHERE "proposedAt" IS NOT NULL`,
+    );
+    expect(proposed, "the seed proposes rules with a time").toBeGreaterThan(0);
+    await saveSnapshot(db, takenAt);
+    await db.exec(`ALTER TABLE snapshot_proposed_rule DROP COLUMN "proposedAt"`);
+    await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
+    const [{ rules, stamped }] = await db.query<{ rules: number; stamped: number }>(
+      `SELECT count(*)::int AS rules, count("proposedAt")::int AS stamped FROM proposed_rule`,
+    );
+    expect(rules).toBeGreaterThan(0);
+    expect(stamped).toBe(0);
+  }, 300_000);
+
   it("restores a snapshot taken before a table existed, leaving it empty", async () => {
     const takenAt = new Date("2026-09-22T12:00:00.000Z");
     const db = await createTestDb();

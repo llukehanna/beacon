@@ -5,6 +5,7 @@ import {
   isEvaluable,
   toScreeningRules,
 } from "../../shared/activeScreening.js";
+import { buildActivity } from "../../shared/activityFeed.js";
 import { needsYouAxisCountByFirm } from "../../shared/axisState.js";
 import {
   type MembershipLike,
@@ -41,6 +42,7 @@ import { createTestDb } from "../testing.js";
 import { findingCells } from "./findings.js";
 import {
   VISIBLE_ROWS,
+  feedRules,
   homeSummary,
   loadLeanFirms,
   needsYouAxes,
@@ -292,6 +294,31 @@ describe("homeSummary", () => {
           expect(p.n).toBeGreaterThanOrEqual(5);
         }
       }
+    }
+  });
+
+  it("feeds proposed rules into the activity feed with their recorded time", async () => {
+    const rows = await db.query<{ proposedRuleId: string; proposedAt: Date | string | null }>(
+      `SELECT "proposedRuleId", "proposedAt" FROM proposed_rule WHERE lower(coalesce("ruleStatus", 'pending')) = 'pending'`,
+    );
+    expect(rows.length).toBeGreaterThan(1);
+    // The seeded rules were proposed by the real action, so each carries a time.
+    for (const r of rows) {
+      expect(r.proposedAt, r.proposedRuleId).not.toBeNull();
+    }
+    // Every pending rule is fed in: the full feed has one rule_proposed item per rule, dated by proposedAt.
+    const full = buildActivity(
+      { firms: [], findings: [], proposedRules: feedRules(await runPendingRules()) },
+      1000,
+    );
+    const proposed = full.filter((i) => i.kind === "rule_proposed");
+    expect(proposed.map((i) => i.at).sort()).toEqual(
+      rows.map((r) => new Date(r.proposedAt!).toISOString()).sort(),
+    );
+    for (const item of proposed) {
+      expect(new Date(item.at).toISOString()).toBe(item.at);
+      expect(item.title).toMatch(/^Rule proposed: \S+ \S+ \S+/);
+      expect(item.detail).toMatch(/^Supported by \d+ firms?$/);
     }
   });
 
