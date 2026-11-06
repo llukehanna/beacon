@@ -2,6 +2,7 @@ import React from "react";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useOsdkAction } from "@/data/hooks";
 import { runAgentEnrichmentAction } from "@/data/ontology";
+import { type Command, useCommands } from "@/shell/commands";
 import { Button, Skeleton } from "@/ui";
 import { AGENT, PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import styles from "./AgentRunStrip.module.css";
@@ -32,7 +33,28 @@ export function AgentRunStrip({
 
   const { data, isLoading, error } = useFirmObservations(firm.firmId);
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
-  const run = (): void => void runAgent.applyAction({ firm: actionFirm } as never);
+  const run = (): void => {
+    if (!runAgent.isPending) {
+      void runAgent.applyAction({ firm: actionFirm } as never);
+    }
+  };
+
+  // "Run agent" in the command palette, for the firm on screen. The ref keeps the registered
+  // command pointing at the current firm without re-registering on every render.
+  const runRef = React.useRef(run);
+  runRef.current = run;
+  const commands = React.useMemo<Command[]>(
+    () => [
+      {
+        id: "desk:run-agent",
+        label: ran ? "Re-run agent on this firm" : "Run agent on this firm",
+        group: "Actions",
+        run: () => runRef.current(),
+      },
+    ],
+    [ran],
+  );
+  useCommands(commands);
 
   const axes = data?.axes.length ?? 0;
   const failure =

@@ -10,12 +10,11 @@ import { type ActiveConfigRule } from "../queue";
 import { mirrorScore } from "../scoreMirror";
 import { AgentRunStrip } from "./AgentRunStrip";
 import { AxisGrid } from "./AxisGrid";
+import { DecisionBar } from "./DecisionBar";
 import styles from "./EnrichmentPanel.module.css";
 import { EvidenceDrawer, EvidencePanel } from "./EvidencePanel";
 import { FirmHeader } from "./FirmHeader";
-import { HardGates } from "./HardGates";
 import { SpineAxes } from "./SpineAxes";
-import { ConfirmChecklist, YourCallRail } from "./YourCallRail";
 import { buildAxisRows, summarizeRows } from "./axisRows";
 import {
   type EditMap,
@@ -155,18 +154,6 @@ export function EnrichmentPanel({
     setDrawerOpen(true);
   }, []);
 
-  // The hard-gate cards share the grid's selection.
-  const focused =
-    selectedRow?.def.kind === "gate" ? `gate:${selectedRow.def.actionParam}` : undefined;
-  const setFocused = React.useCallback(
-    (key: string | undefined) => {
-      const gate = key?.startsWith("gate:") ? key.slice(5) : undefined;
-      const row = rows.find((r) => r.def.kind === "gate" && r.def.actionParam === gate);
-      setSelectedAxis(row?.axis);
-      setProvider(undefined);
-    },
-    [rows],
-  );
   const getCurrent = React.useCallback(
     (editKey: string) =>
       effectiveAxisValue(firm as unknown as Record<string, unknown>, edits, editKey),
@@ -375,25 +362,17 @@ export function EnrichmentPanel({
 
           <SpineAxes firm={firm} mirror={after} />
 
-          <HardGates
+          <DecisionBar
             firm={firm}
+            actionFirm={actionFirm}
+            mirror={after}
             edits={edits}
-            setAxis={setAxis}
-            focused={focused}
-            setFocused={setFocused}
+            onCommit={onCommit}
+            dirty={dirty}
+            enrichPending={enrich.isPending}
+            enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
           />
-
-          <ConfirmChecklist firm={firm} mirror={after} edits={edits} />
         </div>
-
-        <YourCallRail
-          firm={firm}
-          actionFirm={actionFirm}
-          onCommit={onCommit}
-          dirty={dirty}
-          enrichPending={enrich.isPending}
-          enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
-        />
       </div>
 
       {wide ? (

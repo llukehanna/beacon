@@ -14,10 +14,14 @@ function stagedText(row: AxisRow, edits: EditMap): string | null {
   return v === undefined || v === "" ? null : formatAxisValue(row.def.actionParam, v);
 }
 
-/** The on-file line under an axis name, for rows where the sources give the value no home. */
+/**
+ * The on-file line under an axis name, for rows where the sources give the value no home. A staged
+ * value gets the "pending" line instead, so it is never called "on file" before it is committed.
+ */
 function fileLine(row: AxisRow, file: OnFile | undefined, noteShowsIt: boolean): string | null {
   if (
     file === undefined ||
+    file.pending ||
     noteShowsIt ||
     (row.state !== "empty" && row.state !== "rejected" && row.state !== "abstained")
   ) {
@@ -195,7 +199,8 @@ export function AxisGrid({
                   {noSource ? (
                     <td colSpan={PROVIDER_TRUST.length} className={styles.abstainNote}>
                       No source had it. Beacon abstained instead of guessing.
-                      {onFile[row.axis] !== undefined && ` On file: ${onFile[row.axis].text}.`}
+                      {onFile[row.axis] !== undefined &&
+                        ` ${onFile[row.axis].pending ? "Pending" : "On file"}: ${onFile[row.axis].text}.`}
                     </td>
                   ) : (
                     PROVIDER_TRUST.map((p) => (

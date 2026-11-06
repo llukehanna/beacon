@@ -1,0 +1,35 @@
+.memory {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(138, 149, 255, 0.07);
+  box-shadow: 0 0 0 1px rgba(138, 149, 255, 0.2);
+}
+
+.memory > :only-child {
+  flex: 1;
+}
+
+.icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--acc);
+}
+
+.sentence {
+  color: var(--tx2);
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.sentence strong {
+  color: var(--tx);
+  font: 500 12.5px var(--font-mono);
+}
+
+.sentence em {
+  color: var(--tx);
+  font-style: italic;
+}

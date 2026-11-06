@@ -61,3 +61,49 @@
 .down {
   color: var(--red);
 }
+
+.decisions {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.decisions li {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.decisionRow {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.decision {
+  color: var(--tx);
+  font-weight: 500;
+}
+
+.rejected {
+  color: #f4948b;
+}
+
+.decisionRow .total {
+  margin-left: 0;
+  color: var(--tx2);
+}
+
+.decisionRow .when {
+  margin-left: auto;
+}
+
+.rationale {
+  margin: 4px 0 0;
+  color: var(--tx2);
+  font-size: 12.5px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}

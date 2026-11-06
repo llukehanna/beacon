@@ -2,7 +2,7 @@ import React from "react";
 import { Dialog, DialogBody } from "@blueprintjs/core";
 import { Kbd } from "@/ui";
 import styles from "./ShortcutsOverlay.module.css";
-import { NAV_ITEMS } from "./keys";
+import { FIRM_DECISION_KEYS, NAV_ITEMS } from "./keys";
 
 interface Row {
   keys: string[];
@@ -14,12 +14,19 @@ const GO_ROWS: Row[] = NAV_ITEMS.map((n) => ({
   label: n.label,
 }));
 
+// Every key listed here is bound. Plain letters act on the selected axis; Shift chords decide the
+// whole firm (see FIRM_DECISION_KEYS).
 const DESK_ROWS: Row[] = [
   { keys: ["↑", "↓"], label: "Move between axes" },
-  { keys: ["0", "1", "2"], label: "Choose the focused axis's option" },
-  { keys: ["P", "F"], label: "Pass or fail the focused gate" },
+  { keys: ["0", "1", "2"], label: "Choose the selected axis's option" },
+  { keys: ["P", "F"], label: "Pass or fail the selected gate" },
+  { keys: ["V"], label: "Verify the proposed value" },
+  { keys: ["R"], label: "Reject the proposed value and enter your own" },
   { keys: ["⌘↵"], label: "Commit enrichment" },
-  { keys: ["Esc"], label: "Clear the focused axis" },
+  { keys: [FIRM_DECISION_KEYS.qualify.label], label: "Qualify the firm" },
+  { keys: [FIRM_DECISION_KEYS.advance.label], label: "Advance the firm to its next stage" },
+  { keys: [FIRM_DECISION_KEYS.pass.label], label: "Pass on the firm (a note is required)" },
+  { keys: ["Esc"], label: "Clear the selected axis" },
 ];
 
 function Section({ title, rows }: { title: string; rows: Row[] }): React.ReactElement {
@@ -58,13 +65,17 @@ export default function ShortcutsOverlay({
       isOpen={isOpen}
       onClose={onClose}
       title="Keyboard shortcuts"
-      className="bp6-dark"
+      className={`bp6-dark ${styles.dialog}`}
       portalClassName="dsn"
     >
       <DialogBody>
-        <Section title="Go to" rows={GO_ROWS} />
-        <Section title="On the Desk" rows={DESK_ROWS} />
-        <Section title="Anywhere" rows={[{ keys: ["?"], label: "Show this list" }]} />
+        <div className={styles.columns}>
+          <div>
+            <Section title="Go to" rows={GO_ROWS} />
+            <Section title="Anywhere" rows={[{ keys: ["?"], label: "Show this list" }]} />
+          </div>
+          <Section title="On the Desk" rows={DESK_ROWS} />
+        </div>
       </DialogBody>
     </Dialog>
   );

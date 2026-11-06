@@ -63,7 +63,7 @@ const AXIS_DISPLAY_LABEL: Record<string, string> = {
   coverage_model: "Sector coverage",
   geographic_footprint: "Geographic fit",
   employees: "Employees",
-  // Hard-gate axes render with the same labels as the HardGates row so
+  // Hard-gate axes render with the same labels as the hard-gate checklist so
   // the analyst reads one vocabulary. Two spellings for the balance-sheet
   // gate mirror FINDING_AXIS_TO_KEY's alias.
   advisory_conflict: "Advisory conflict",

@@ -16,12 +16,14 @@
 }
 
 .scroll {
+  --gx: 24px;
+  --gb: 28px;
   display: flex;
   flex: 1;
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 22px 24px 28px;
+  padding: 22px var(--gx) var(--gb);
   overflow-y: auto;
 }
 
@@ -33,5 +35,13 @@
 @media (max-width: 1279px) {
   .layout {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 899px) {
+  .scroll {
+    --gx: 16px;
+    --gb: 20px;
+    padding-top: 16px;
   }
 }

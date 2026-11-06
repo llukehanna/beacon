@@ -1,6 +1,8 @@
 import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { ReviewDecision } from "@/data/ontology";
+import { Skeleton } from "@/ui";
+import styles from "./DecisionMemory.module.css";
 import { type FirmView, describeCohort, truncateAtWord } from "./deskModel";
 
 // ─── Decision memory banner ─────────────────────────────────────────────
@@ -127,61 +129,34 @@ export function DecisionMemory({
   const rationaleCount = banner.topRationale?.count ?? 0;
 
   return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: 12,
-        borderRadius: "var(--radius-md)",
-        background: "color-mix(in srgb, var(--color-accent) 8%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--color-accent) 22%, transparent)",
-      }}
-    >
+    <div className={styles.memory}>
       <svg
+        className={styles.icon}
         width="15"
         height="15"
         viewBox="0 0 24 24"
         fill="none"
-        stroke="var(--color-accent)"
+        stroke="currentColor"
         strokeWidth={2}
-        style={{ flex: "none" }}
+        aria-hidden="true"
       >
         <circle cx="12" cy="12" r="9" />
         <path d="M12 8v4M12 16h.01" />
       </svg>
-      {/* Single flowing sentence — every dynamic value is inline text
-          inside one <span> so nothing wraps to a new line or renders as a
-          nested block. Numbers wrap in <strong>; the rationale uses <em>
-          without decorative quotes so the sentence reads naturally. */}
-      <span
-        style={{
-          fontSize: 13,
-          lineHeight: 1.55,
-          color: "color-mix(in srgb, var(--color-text) 78%, transparent)",
-          display: "inline",
-        }}
-      >
-        You&rsquo;ve reviewed <strong style={{ fontWeight: 600 }}>{uniqueFirms}</strong>{" "}
-        {cohortLabel} firm{uniqueFirms === 1 ? "" : "s"}.
+      {/* Single flowing sentence: every dynamic value is inline text inside one <span> so nothing
+          wraps to a new line or renders as a nested block. Numbers wrap in <strong>; the
+          rationale uses <em> without decorative quotes so the sentence reads naturally. */}
+      <span className={styles.sentence}>
+        You&rsquo;ve reviewed <strong>{uniqueFirms}</strong> {cohortLabel} firm
+        {uniqueFirms === 1 ? "" : "s"}.
         {rejects > 0 && (
           <>
             {" "}
-            <strong style={{ fontWeight: 600 }}>{rejects}</strong> passed
+            <strong>{rejects}</strong> passed
             {hasRationale && banner.topRationale ? (
               <>
                 {" "}
-                &mdash; most-cited reason:{" "}
-                <em
-                  style={{
-                    fontStyle: "italic",
-                    color: "var(--color-text)",
-                    display: "inline",
-                  }}
-                  title={banner.topRationale.text}
-                >
-                  {rationaleText}
-                </em>
+                &mdash; most-cited reason: <em title={banner.topRationale.text}>{rationaleText}</em>
                 {rationaleCount > 1 ? ` (${rationaleCount}×)` : ""}
               </>
             ) : null}
@@ -190,7 +165,7 @@ export function DecisionMemory({
         )}
         {advances > 0 && (
           <>
-            <strong style={{ fontWeight: 600 }}>{advances}</strong> advanced.
+            <strong>{advances}</strong> advanced.
           </>
         )}
       </span>
@@ -200,40 +175,8 @@ export function DecisionMemory({
 
 function DecisionMemorySkeleton(): React.ReactElement {
   return (
-    <div
-      aria-busy="true"
-      aria-label="Loading decision precedent"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: 12,
-        borderRadius: "var(--radius-md)",
-        background: "color-mix(in srgb, var(--color-accent) 6%, transparent)",
-        border: "1px solid color-mix(in srgb, var(--color-accent) 15%, transparent)",
-      }}
-    >
-      <span
-        style={{
-          width: 15,
-          height: 15,
-          borderRadius: "50%",
-          background: "color-mix(in srgb, var(--color-text) 12%, transparent)",
-          flex: "none",
-        }}
-      />
-      <span
-        style={{
-          display: "block",
-          height: 12,
-          borderRadius: "var(--radius-sm)",
-          flex: 1,
-          background:
-            "linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0%, color-mix(in srgb, var(--color-text) 18%, transparent) 50%, color-mix(in srgb, var(--color-text) 6%, transparent) 100%)",
-          backgroundSize: "200% 100%",
-          animation: "beacon-shimmer 1.6s linear infinite",
-        }}
-      />
+    <div className={styles.memory} aria-busy="true" aria-label="Loading decision precedent">
+      <Skeleton height={14} />
     </div>
   );
 }
