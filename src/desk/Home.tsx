@@ -133,8 +133,8 @@ const DESTINATION_PATH: Record<Destination, string> = {
 // the desk's teal; rule rows take the blue of /rules' own Pending chip.
 const JUDGMENT_RAIL = "color-mix(in srgb, var(--color-accent) 55%, transparent)";
 const JUDGMENT_FG = "var(--color-accent-300)";
-const RULE_RAIL = "color-mix(in srgb, #4a90d9 55%, transparent)";
-const RULE_FG = "#8ec1ee";
+const RULE_RAIL = "color-mix(in srgb, #8a95ff 55%, transparent)";
+const RULE_FG = "#b4bbff";
 
 /** How one needs-you item reads on screen; the summary carries only the data. */
 interface InboxItem {
@@ -587,8 +587,8 @@ function Home(): React.ReactElement {
           <div
             style={{
               padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >

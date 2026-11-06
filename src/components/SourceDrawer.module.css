@@ -1,6 +1,6 @@
 .drawer {
-  background: var(--color-bg, #161826);
-  color: var(--color-text, #e9e9ed);
+  background: var(--color-bg, #0c0d10);
+  color: var(--color-text, #ecedef);
 }
 
 .content {
@@ -19,12 +19,12 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: color-mix(in srgb, var(--color-text, #e9e9ed) 68%, transparent);
+  color: color-mix(in srgb, var(--color-text, #ecedef) 68%, transparent);
 }
 
 .provider {
   font-weight: 600;
-  color: var(--color-text, #e9e9ed);
+  color: var(--color-text, #ecedef);
 }
 
 .docTitle {
@@ -41,13 +41,13 @@
   line-height: inherit;
   padding: 12px 14px;
   border-radius: var(--radius-md, 8px);
-  background: var(--color-surface, #232532);
+  background: var(--color-surface, #111317);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 
 .body mark {
-  background: color-mix(in srgb, #cba24f 38%, transparent);
+  background: color-mix(in srgb, #f0b955 38%, transparent);
   color: inherit;
   padding: 1px 2px;
   border-radius: 2px;
@@ -56,10 +56,10 @@
 .note {
   margin: 0;
   font-size: 12px;
-  color: color-mix(in srgb, var(--color-text, #e9e9ed) 62%, transparent);
+  color: color-mix(in srgb, var(--color-text, #ecedef) 62%, transparent);
 }
 
 .status {
   font-size: 13px;
-  color: color-mix(in srgb, var(--color-text, #e9e9ed) 68%, transparent);
+  color: color-mix(in srgb, var(--color-text, #ecedef) 68%, transparent);
 }

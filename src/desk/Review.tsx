@@ -314,8 +314,8 @@ function DriftCard({
               fontSize: 11,
               padding: "3px 9px",
               borderRadius: "var(--radius-chip)",
-              background: "rgba(87,185,138,.14)",
-              color: "#8fe3c0",
+              background: "rgba(79,209,154,.14)",
+              color: "#7fe0b5",
             }}
           >
             {resolutionLabel(drift.resolution)}
@@ -517,8 +517,8 @@ function DriftCard({
                 marginTop: 12,
                 padding: "8px 12px",
                 borderRadius: "var(--radius-md)",
-                background: "rgba(207,112,112,.12)",
-                color: "#e79191",
+                background: "rgba(240,113,103,.12)",
+                color: "#f4948b",
                 fontSize: 12,
               }}
             >
@@ -816,8 +816,8 @@ function Review(): React.ReactElement {
           <div
             style={{
               padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >

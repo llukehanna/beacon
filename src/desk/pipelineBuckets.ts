@@ -34,9 +34,9 @@ export const STATUS_CHIP: Record<Lifecycle, StatusStyle> = {
     dot: "var(--color-accent-400)",
   },
   Qualified: {
-    bg: "rgba(87,185,138,.18)",
-    fg: "#8fe3c0",
-    dot: "#57b98a",
+    bg: "rgba(79,209,154,.18)",
+    fg: "#7fe0b5",
+    dot: "#4fd19a",
   },
   Outreach: {
     bg: "color-mix(in srgb, var(--color-accent) 14%, transparent)",
@@ -51,9 +51,9 @@ export const STATUS_CHIP: Record<Lifecycle, StatusStyle> = {
     dot: "var(--color-accent)",
   },
   Closed: {
-    bg: "rgba(87,185,138,.30)",
-    fg: "#b5f0d8",
-    dot: "#57b98a",
+    bg: "rgba(79,209,154,.30)",
+    fg: "#b0efd5",
+    dot: "#4fd19a",
   },
   Passed: {
     bg: "var(--color-neutral-800)",

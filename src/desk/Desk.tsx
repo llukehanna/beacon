@@ -706,8 +706,8 @@ function RediscoveryBadge({ info }: { info: RediscoveryInfo }): React.ReactEleme
         borderRadius: "var(--radius-sm)",
         fontWeight: 600,
         letterSpacing: "0.02em",
-        color: isNew ? "#9be9ca" : "#c9a9f7",
-        background: isNew ? "rgba(87,185,138,.18)" : "rgba(155,127,224,.16)",
+        color: isNew ? "#8ee5c0" : "#c9a9f7",
+        background: isNew ? "rgba(79,209,154,.18)" : "rgba(155,127,224,.16)",
         whiteSpace: "nowrap",
         cursor: "help",
       }}
@@ -1649,7 +1649,7 @@ function AxisBreakdown({
             >
               <BandChip band={bandInt} />
               {badge?.label != null && (
-                <span style={{ fontSize: 11, fontWeight: 500, color: "#e79191" }}>
+                <span style={{ fontSize: 11, fontWeight: 500, color: "#f4948b" }}>
                   {badge.label}
                 </span>
               )}
@@ -1669,8 +1669,8 @@ function AxisBreakdown({
             marginTop: 4,
             padding: "8px 12px",
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.14)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.14)",
+            color: "#f4948b",
             fontSize: 13,
             fontWeight: 500,
           }}
@@ -2187,7 +2187,7 @@ function AxisCard({
         <div
           style={{
             fontSize: 11,
-            color: "#f2d488",
+            color: "#f5d58f",
             marginTop: 4,
             overflowWrap: "anywhere",
           }}
@@ -2231,14 +2231,14 @@ function AxisCard({
             marginTop: 8,
             padding: "8px 10px",
             borderRadius: "var(--radius-md)",
-            background: "rgba(203,162,79,.10)",
-            border: "1px solid color-mix(in srgb, #cba24f 40%, transparent)",
+            background: "rgba(240,185,85,.10)",
+            border: "1px solid color-mix(in srgb, #f0b955 40%, transparent)",
             display: "flex",
             flexDirection: "column",
             gap: 6,
           }}
         >
-          <div style={{ fontSize: 12, color: "#e6c878", lineHeight: 1.4 }}>
+          <div style={{ fontSize: 12, color: "#f3c978", lineHeight: 1.4 }}>
             You set <strong>{formatAxisValue(conflict.editKey, conflict.mine)}</strong>
             {" · "}
             agent proposes <strong>{formatAxisValue(conflict.editKey, conflict.theirs)}</strong>
@@ -2274,7 +2274,7 @@ function AxisCard({
           style={{
             marginTop: 8,
             fontSize: 11,
-            color: "#e79191",
+            color: "#f4948b",
           }}
         >
           {unroutable}
@@ -2387,7 +2387,7 @@ function AbstainFindingCard({
   const editKey = FINDING_AXIS_TO_KEY[rawAxis];
   const kind = editKey === undefined ? "text" : axisInputKind(editKey);
   const [text, setText] = React.useState("");
-  const border = "1px solid color-mix(in srgb, #cf7070 45%, transparent)";
+  const border = "1px solid color-mix(in srgb, #f07167 45%, transparent)";
 
   const submitText = (): void => {
     if (editKey === undefined || text.trim() === "") {
@@ -2427,7 +2427,7 @@ function AbstainFindingCard({
         </span>
         <FindingStatusChip status={"abstained"} />
       </div>
-      <div style={{ fontSize: 13, color: "#e79191", marginTop: 4, fontWeight: 500 }}>
+      <div style={{ fontSize: 13, color: "#f4948b", marginTop: 4, fontWeight: 500 }}>
         No source had this, needs you
       </div>
       {body}
@@ -2438,7 +2438,7 @@ function AbstainFindingCard({
   // input with a note rather than pretending the input does anything.
   if (editKey === undefined) {
     return shell(
-      <div style={{ marginTop: 8, fontSize: 11, color: "#e79191" }}>
+      <div style={{ marginTop: 8, fontSize: 11, color: "#f4948b" }}>
         Not routable. Enter this value in the axis breakdown above.
       </div>,
     );
@@ -2505,7 +2505,7 @@ function AbstainFindingCard({
           style={{
             flex: 1,
             height: 32,
-            borderColor: "color-mix(in srgb, #cf7070 40%, transparent)",
+            borderColor: "color-mix(in srgb, #f07167 40%, transparent)",
           }}
         />
         {unit !== undefined && (
@@ -2570,7 +2570,7 @@ function ConflictFindingCard({
   const errorText = resolve.error !== undefined ? String(resolve.error) : threwError;
 
   return (
-    <div style={findingCardShell("1px solid color-mix(in srgb, #cba24f 40%, transparent)")}>
+    <div style={findingCardShell("1px solid color-mix(in srgb, #f0b955 40%, transparent)")}>
       <div
         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6 }}
       >
@@ -2584,8 +2584,8 @@ function ConflictFindingCard({
             fontSize: 10,
             padding: "2px 7px",
             borderRadius: "var(--radius-chip)",
-            color: "#e6c878",
-            background: "rgba(203,162,79,.20)",
+            color: "#f3c978",
+            background: "rgba(240,185,85,.20)",
           }}
         >
           Conflict
@@ -2630,7 +2630,7 @@ function ConflictFindingCard({
                   style={{
                     fontSize: 16,
                     fontWeight: 600,
-                    color: "#e6c878",
+                    color: "#f3c978",
                     overflowWrap: "anywhere",
                   }}
                 >
@@ -2674,8 +2674,8 @@ function ConflictFindingCard({
             marginTop: 8,
             padding: "6px 10px",
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontSize: 11,
           }}
         >
@@ -2844,8 +2844,8 @@ function FindingsSection({
             padding: "8px 12px",
             marginBottom: 8,
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontSize: 12,
           }}
         >
@@ -2858,8 +2858,8 @@ function FindingsSection({
             padding: "8px 12px",
             marginBottom: 8,
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontSize: 12,
           }}
         >
@@ -2973,9 +2973,9 @@ function FindingsSection({
           {groups.abstained.length > 0 && (
             <div
               style={{
-                border: "1px solid color-mix(in srgb, #cf7070 30%, transparent)",
+                border: "1px solid color-mix(in srgb, #f07167 30%, transparent)",
                 borderRadius: "var(--radius-md)",
-                background: "rgba(207,112,112,.06)",
+                background: "rgba(240,113,103,.06)",
               }}
             >
               <button
@@ -3003,8 +3003,8 @@ function FindingsSection({
                     width: 18,
                     height: 18,
                     borderRadius: "var(--radius-chip)",
-                    background: "rgba(207,112,112,.24)",
-                    color: "#f4abab",
+                    background: "rgba(240,113,103,.24)",
+                    color: "#f7aaa3",
                     fontSize: 11,
                     fontWeight: 600,
                     fontVariantNumeric: "tabular-nums",
@@ -3012,7 +3012,7 @@ function FindingsSection({
                 >
                   {groups.abstained.length}
                 </span>
-                <span style={{ fontSize: 13, color: "#e79191", fontWeight: 500 }}>
+                <span style={{ fontSize: 13, color: "#f4948b", fontWeight: 500 }}>
                   {groups.abstained.length === 1 ? "1 axis" : `${groups.abstained.length} axes`} had
                   no source, needs you
                 </span>
@@ -3081,8 +3081,8 @@ function FindingsSection({
                     width: 18,
                     height: 18,
                     borderRadius: "var(--radius-chip)",
-                    background: "rgba(87,185,138,.20)",
-                    color: "#9be9ca",
+                    background: "rgba(79,209,154,.20)",
+                    color: "#8ee5c0",
                     fontSize: 11,
                     fontWeight: 600,
                     fontVariantNumeric: "tabular-nums",
@@ -3453,10 +3453,10 @@ function YourCallRail({
           style={{
             padding: 12,
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            border: "1px solid color-mix(in srgb, #cf7070 40%, transparent)",
+            background: "rgba(240,113,103,.12)",
+            border: "1px solid color-mix(in srgb, #f07167 40%, transparent)",
             fontSize: 12,
-            color: "#e79191",
+            color: "#f4948b",
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 500 }}>
@@ -3648,7 +3648,7 @@ function YourCallRail({
                 terminalKind !== null
                   ? "color-mix(in srgb, var(--color-text) 45%, transparent)"
                   : noteMissing
-                    ? "#e79191"
+                    ? "#f4948b"
                     : "color-mix(in srgb, var(--color-text) 45%, transparent)",
             }}
           >
@@ -4545,8 +4545,8 @@ function Desk(): React.ReactElement {
               role="alert"
               style={{
                 padding: "8px 24px",
-                background: "rgba(207,112,112,.12)",
-                color: "#e79191",
+                background: "rgba(240,113,103,.12)",
+                color: "#f4948b",
                 fontSize: 12,
               }}
             >

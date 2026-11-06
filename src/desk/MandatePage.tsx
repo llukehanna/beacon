@@ -378,8 +378,8 @@ function NewMandateForm(): React.ReactElement {
           style={{
             padding: "8px 12px",
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontSize: 12,
           }}
         >
@@ -535,8 +535,8 @@ function MandatePage(): React.ReactElement {
           <div
             style={{
               padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >

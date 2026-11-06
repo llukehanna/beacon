@@ -1,0 +1,25 @@
+.spark {
+  width: 110px;
+  height: 36px;
+  overflow: visible;
+}
+
+.spark path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.accent {
+  color: var(--acc);
+}
+
+.green {
+  color: var(--green);
+}
+
+.muted {
+  color: var(--tx3);
+}
