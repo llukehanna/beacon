@@ -56,8 +56,9 @@ test("Tab reaches the desk's grid without walking the queue", async ({ page }) =
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
 
   // The queue holds hundreds of firms; its list is one tab stop (arrow keys move within it), so
-  // the sidebar costs a handful of presses and the first grid row comes right after.
-  const MAX_PRESSES = 15;
+  // the sidebar costs a handful of presses (its footer's About and Trust links among them) and the
+  // first grid row comes right after.
+  const MAX_PRESSES = 17;
   let presses = 0;
   while (presses < MAX_PRESSES) {
     await page.keyboard.press("Tab");

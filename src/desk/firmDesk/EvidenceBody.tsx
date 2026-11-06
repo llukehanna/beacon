@@ -403,7 +403,7 @@ export function EvidenceBody({
         )}
 
         {said.length > 0 && reading !== undefined && (
-          <div className={styles.readings}>
+          <div className={styles.readings} data-tour="evidence">
             {said.length > 1 && (
               <div className={styles.switch} role="group" aria-label="Source to show">
                 {said.map((r) => (

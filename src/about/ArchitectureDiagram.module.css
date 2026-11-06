@@ -1,0 +1,43 @@
+.svg {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+  margin-inline: auto;
+}
+
+.box {
+  fill: var(--s2);
+  stroke: var(--line2);
+}
+
+.offline {
+  fill: transparent;
+  stroke: var(--acc);
+  stroke-dasharray: 5 4;
+}
+
+.title {
+  fill: var(--tx);
+  font: 600 12px var(--font-ui);
+}
+
+.sub {
+  fill: var(--tx2);
+  font: 400 10.5px var(--font-ui);
+}
+
+.line {
+  stroke: var(--tx3);
+  stroke-width: 1.25;
+}
+
+.offlineLine {
+  stroke: var(--acc);
+  stroke-width: 1.25;
+  stroke-dasharray: 5 4;
+}
+
+.head {
+  fill: var(--tx3);
+}

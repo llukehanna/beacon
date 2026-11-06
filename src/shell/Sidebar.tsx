@@ -10,7 +10,7 @@ import {
   TimelineLineChart,
 } from "@blueprintjs/icons";
 import styles from "./Sidebar.module.css";
-import { NAV_ITEMS, type NavItem, navItemFor } from "./keys";
+import { FOOTER_LINKS, NAV_ITEMS, type NavItem, navItemFor } from "./keys";
 import { mandateSubtitle } from "./status";
 import { type ShellCounts, useDeskScope } from "./useShellData";
 
@@ -92,6 +92,13 @@ export default function Sidebar({
         })}
       </nav>
       <div ref={slotRef} className={styles.slot} />
+      <nav aria-label="About and trust" className={styles.footer}>
+        {FOOTER_LINKS.map((l) => (
+          <Link key={l.to} to={l.to} aria-current={pathname === l.to ? "page" : undefined}>
+            {l.label}
+          </Link>
+        ))}
+      </nav>
     </div>
   );
 }

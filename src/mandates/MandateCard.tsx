@@ -77,7 +77,7 @@ export function MandateCard({
   const headline = mandateHeadline(mandate);
   const searchPath = `/search/${encodeURIComponent(mandate.mandateId)}`;
   return (
-    <Panel className={styles.card} aria-label={headline}>
+    <Panel className={styles.card} aria-label={headline} data-tour="mandate">
       <div className={styles.head}>
         <h2 className={styles.title}>
           <Link to={searchPath} className={styles.titleLink}>

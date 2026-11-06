@@ -7,6 +7,7 @@ import type { HomeSummary } from "../../shared/summaries";
 import { ActivityFeed } from "./ActivityFeed";
 import { Headline } from "./Headline";
 import styles from "./HomePage.module.css";
+import { IntroCard } from "./IntroCard";
 import { MetricRow } from "./MetricRow";
 import { NeedsYou } from "./NeedsYou";
 import { PipelineFunnel } from "./PipelineFunnel";
@@ -57,6 +58,9 @@ export default function HomePage(): React.ReactElement {
   return (
     <div className={styles.page}>
       <div className={styles.grid}>
+        <div className={styles.intro}>
+          <IntroCard />
+        </div>
         <div className={styles.head}>
           <Headline
             dateLine={dateLine}

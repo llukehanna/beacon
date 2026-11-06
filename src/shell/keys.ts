@@ -111,3 +111,14 @@ export function navItemFor(pathname: string): NavItem | undefined {
   }
   return NAV_ITEMS.find((n) => (n.to === "/" ? pathname === "/" : pathname.startsWith(n.to)));
 }
+
+/** The two pages linked from the sidebar footer. They have no go-to key. */
+export const FOOTER_LINKS = [
+  { to: "/about", label: "About" },
+  { to: "/trust", label: "Trust" },
+] as const;
+
+/** The footer page a path belongs to, for the breadcrumb. */
+export function footerLinkFor(pathname: string): (typeof FOOTER_LINKS)[number] | undefined {
+  return FOOTER_LINKS.find((l) => l.to === pathname);
+}
