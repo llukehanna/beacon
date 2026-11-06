@@ -180,3 +180,21 @@ export function formatNoteDate(ms: number): string {
     year: "numeric",
   });
 }
+
+/** What an active rule's row has open under it: its details, and at most one change form. */
+export interface RowOpen {
+  detailsOpen: boolean;
+  mode: "amend" | "unapprove" | null;
+}
+
+/**
+ * The row's "Details" / "Hide details" button. It reads "Hide details" whenever anything is open,
+ * so with a change form open it closes the form and leaves the details closed; otherwise it
+ * toggles the details.
+ */
+export function toggleDetails(open: RowOpen): RowOpen {
+  if (open.mode !== null) {
+    return { detailsOpen: false, mode: null };
+  }
+  return { detailsOpen: !open.detailsOpen, mode: null };
+}

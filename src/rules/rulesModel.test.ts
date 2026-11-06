@@ -8,6 +8,7 @@ import {
   groupRules,
   groupVersions,
   parseSupportingIds,
+  toggleDetails,
   truncatePredicateAtWord,
   versionHistory,
 } from "./rulesModel";
@@ -113,5 +114,32 @@ describe("groupRules", () => {
     expect(g.pending.map((r) => r.proposedRuleId)).toEqual(["a"]);
     expect(g.approved.map((r) => r.proposedRuleId)).toEqual(["b"]);
     expect(g.declined.map((r) => r.proposedRuleId)).toEqual(["c", "d"]);
+  });
+});
+
+describe("toggleDetails", () => {
+  it("opens and closes the details", () => {
+    expect(toggleDetails({ detailsOpen: false, mode: null })).toEqual({
+      detailsOpen: true,
+      mode: null,
+    });
+    expect(toggleDetails({ detailsOpen: true, mode: null })).toEqual({
+      detailsOpen: false,
+      mode: null,
+    });
+  });
+
+  it("closes an open change form and leaves the details closed, as 'Hide details' says", () => {
+    expect(toggleDetails({ detailsOpen: false, mode: "amend" })).toEqual({
+      detailsOpen: false,
+      mode: null,
+    });
+  });
+
+  it("closes the form and the details together when both are open", () => {
+    expect(toggleDetails({ detailsOpen: true, mode: "unapprove" })).toEqual({
+      detailsOpen: false,
+      mode: null,
+    });
   });
 });

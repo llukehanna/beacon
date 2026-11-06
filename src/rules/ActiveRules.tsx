@@ -16,6 +16,7 @@ import {
   displayDecider,
   effectivePredicate,
   parseSupportingIds,
+  toggleDetails,
   versionHistory,
 } from "./rulesModel";
 import { useRuleScreen } from "./useRuleScreen";
@@ -118,8 +119,9 @@ function ActiveRuleRow(props: RowProps): React.ReactElement {
               aria-expanded={expanded}
               aria-controls={detailId}
               onClick={() => {
-                setMode(null);
-                setDetailsOpen((v) => !v);
+                const next = toggleDetails({ detailsOpen, mode });
+                setDetailsOpen(next.detailsOpen);
+                setMode(next.mode);
               }}
             >
               {expanded ? "Hide details" : "Details"}
