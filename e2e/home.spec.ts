@@ -54,3 +54,22 @@ test("home registers its actions in the command palette", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/mandate$/);
 });
+
+test("home funnel bar opens pipeline filtered to that stage", async ({ page }) => {
+  await openRoute(page, home);
+  const bar = page.locator('a[data-stage="Qualified"]');
+  const funnelCount = Number(
+    /: (\d+) firms$/.exec((await bar.getAttribute("aria-label")) ?? "")?.[1],
+  );
+  expect(funnelCount).toBeGreaterThan(0);
+
+  await bar.click();
+
+  await expect(page).toHaveURL(/\/pipeline\?stage=Qualified$/);
+  await expect(page.getByRole("radio", { name: /^Qualified/ })).toBeChecked();
+  // The page lists exactly the firms the bar counted, all at that stage.
+  const rows = page.locator("tr[data-index]");
+  await expect(rows).toHaveCount(funnelCount);
+  await expect(rows.locator('[data-stage="Qualified"]')).toHaveCount(funnelCount);
+  await expect(page.locator("#main header")).toContainText(`${funnelCount} of `);
+});

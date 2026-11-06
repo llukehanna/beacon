@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { relativeAge } from "./age";
+import { relativeAge, toIsoTime } from "./age";
 
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const ago = (ms: number) => new Date(NOW - ms).toISOString();
@@ -29,5 +29,20 @@ describe("relativeAge", () => {
     expect(relativeAge(null, NOW)).toBeNull();
     expect(relativeAge(undefined, NOW)).toBeNull();
     expect(relativeAge("soon", NOW)).toBeNull();
+  });
+});
+
+describe("toIsoTime", () => {
+  it("normalises strings, epoch milliseconds and dates", () => {
+    expect(toIsoTime("2026-11-05T12:00:00Z")).toBe("2026-11-05T12:00:00.000Z");
+    expect(toIsoTime(NOW)).toBe("2026-11-05T12:00:00.000Z");
+    expect(toIsoTime(new Date(NOW))).toBe("2026-11-05T12:00:00.000Z");
+  });
+
+  it("returns null for anything unreadable", () => {
+    expect(toIsoTime("soon")).toBeNull();
+    expect(toIsoTime(null)).toBeNull();
+    expect(toIsoTime(undefined)).toBeNull();
+    expect(toIsoTime({})).toBeNull();
   });
 });

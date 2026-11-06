@@ -1,0 +1,56 @@
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.failure {
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240, 113, 103, 0.12);
+  color: #f4948b;
+  font-size: 12px;
+}
+
+.noteForm {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.note {
+  min-height: 84px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx);
+  font: 13px/1.45 var(--font-ui);
+  resize: vertical;
+  transition: box-shadow var(--dur) var(--ease);
+}
+
+.note::placeholder {
+  color: var(--tx3);
+}
+
+.note:hover {
+  box-shadow: 0 0 0 1px var(--line2);
+}
+
+.note:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--acc);
+}

@@ -7,6 +7,7 @@ export { Metric } from "./Metric";
 export { MonogramTile } from "./MonogramTile";
 export { Panel } from "./Panel";
 export { Skeleton } from "./Skeleton";
+export { SidePanel } from "./SidePanel";
 export { Sparkline } from "./Sparkline";
 export { StatusPill, type FindingStatus } from "./StatusPill";
 export { confidenceBarCount, type ConfidenceLevel } from "./confidence";

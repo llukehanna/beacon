@@ -1,0 +1,65 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.head {
+  flex: none;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.title.title {
+  margin: 0;
+  font: 600 20px/1.2 var(--font-ui);
+  letter-spacing: -0.025em;
+}
+
+.sub {
+  margin: 2px 0 0;
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.error.error {
+  flex: none;
+  margin: 0;
+  padding: 8px 24px;
+  background: rgba(240, 113, 103, 0.12);
+  color: #f4948b;
+  font-size: 12px;
+}
+
+/* The queue and, when a drift event is selected on a wide screen, the 400 px detail column. */
+.layout {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 0;
+}
+
+.layout[data-panel="column"] {
+  grid-template-columns: minmax(0, 1fr) 400px;
+}
+
+.scroll {
+  min-width: 0;
+  padding: 20px 24px 28px;
+  overflow-y: auto;
+}
+
+@media (max-width: 899px) {
+  .head {
+    padding: 14px 16px;
+  }
+
+  .error.error {
+    padding: 8px 16px;
+  }
+
+  .scroll {
+    padding: 14px 16px 24px;
+  }
+}
