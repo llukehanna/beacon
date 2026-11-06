@@ -23,6 +23,8 @@ export const ROUTES: AppRoute[] = [
   { path: "/rules", slug: "rules", heading: headerText("Proposed hard-screen rules") },
   { path: "/accuracy", slug: "accuracy", heading: headerText("Trust metrics") },
   { path: "/mandate", slug: "mandate", heading: headerText("Mandates") },
+  { path: "/about", slug: "about", heading: headerText("About Beacon") },
+  { path: "/trust", slug: "trust", heading: headerText("Trust and security") },
 ];
 
 /** Opens a route and waits for its main heading and for the data requests to settle. */
