@@ -9,7 +9,7 @@ import AppShell from "@/shell/AppShell";
 // Home is the start-of-day page and stays in the initial bundle. Every other
 // surface is split into its own chunk and fetched on first navigation.
 const Accuracy = lazy(() => import("@/desk/Accuracy"));
-const Desk = lazy(() => import("@/desk/Desk"));
+const Desk = lazy(() => import("@/desk/firmDesk/DeskPage"));
 const MandatePage = lazy(() => import("@/desk/MandatePage"));
 const Pipeline = lazy(() => import("@/desk/Pipeline"));
 const Review = lazy(() => import("@/desk/Review"));
