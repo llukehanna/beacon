@@ -49,7 +49,10 @@ export function missingColumnStatements(
     }
     return Object.entries(t.properties)
       .filter(([name]) => !have.has(name))
-      .map(([name, type]) => `ALTER TABLE ${t.table} ADD COLUMN "${name}" ${SQL_TYPE[type]}`);
+      .map(
+        ([name, type]) =>
+          `ALTER TABLE ${t.table} ADD COLUMN IF NOT EXISTS "${name}" ${SQL_TYPE[type]}`,
+      );
   });
 }
 
