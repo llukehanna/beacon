@@ -13,7 +13,7 @@ import {
   mandateFirmCounts,
   searchListFirmIds,
 } from "../../shared/mandateFirms.js";
-import { bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
+import { OPEN_BUCKETS, bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
 import {
   QUEUE_FIELDS,
   SCORE_INPUT_FIELDS,
@@ -24,7 +24,7 @@ import {
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES, type ObjectOf } from "../../shared/schema.js";
 import { mirrorScore } from "../../shared/scoreMirror.js";
-import type { AccuracySummary, HomeSummary } from "../../shared/summaries.js";
+import type { AccuracySummary, HomeSummary, ShellCounts } from "../../shared/summaries.js";
 import { findingTrends, groundedCounts } from "../../shared/trends.js";
 import {
   type FirmOutcomeLike,
@@ -243,6 +243,24 @@ describe("homeSummary", () => {
   it("counts the funnel like the client", () => {
     expect(summary.funnel).toEqual(client.funnel);
     expect(Object.values(summary.funnel).reduce((a, b) => a + b, 0)).toBe(client.firms.length);
+  });
+
+  it("gives the shell the same counts Home shows, from its own lean query", async () => {
+    const counts = (await runFunction(db, "shellCounts")) as ShellCounts;
+    expect(counts).toEqual({
+      open: OPEN_BUCKETS.reduce((sum, bucket) => sum + summary.funnel[bucket], 0),
+      review: summary.needsYouCounts.review,
+      activeMandates: summary.mandates.length,
+    });
+    // Not vacuous: a hard-rejected firm still reads "Discovered" in its lifecycleState, so
+    // counting that column alone would overshoot the funnel's open count.
+    const byColumn = client.firms.filter((f) =>
+      ["Discovered", "Screening"].includes(f.lifecycleState ?? ""),
+    ).length;
+    expect(counts.open).toBeGreaterThan(0);
+    expect(counts.open).toBeLessThan(byColumn);
+    expect(counts.review).toBeGreaterThan(0);
+    expect(counts.activeMandates).toBeGreaterThan(0);
   });
 
   it("includes trends, activity and headline", async () => {

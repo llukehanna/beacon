@@ -46,6 +46,12 @@ import { toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
 
+/** Drift events that still wait on a decision (what /review lists and the Home inbox counts). */
+export const OPEN_DRIFT_WHERE = `lower(coalesce("driftStatus", '')) <> 'resolved'`;
+
+/** Active mandates: `active === false` retires one; null predates the flag and still counts. */
+export const ACTIVE_MANDATE_WHERE = `"active" IS DISTINCT FROM false`;
+
 /** Rows in the Home inbox before "+N more". */
 export const VISIBLE_ROWS = 7;
 
@@ -122,7 +128,7 @@ async function openDrifts(q: Queryable) {
     `SELECT "driftEventId", "firmId", "driftReason", "priorTier", "priorScore", "newTier", "newScore",
             "detectedAt"
        FROM drift_event
-      WHERE lower(coalesce("driftStatus", '')) <> 'resolved'
+      WHERE ${OPEN_DRIFT_WHERE}
       ORDER BY "detectedAt" DESC NULLS LAST, "driftEventId" ASC`,
   );
 }
@@ -265,9 +271,8 @@ async function activeMandates(q: Queryable): Promise<MandateSummary[]> {
       archetype: string | null;
       priority: string | null;
     }>(
-      // active === false retires a mandate; null predates the flag and still counts.
       `SELECT "mandateId", "title", "intentStatement", "archetype", "priority" FROM mandate
-        WHERE "active" IS DISTINCT FROM false
+        WHERE ${ACTIVE_MANDATE_WHERE}
         ORDER BY "createdAt" DESC NULLS LAST, "mandateId" ASC`,
     ),
     mandateCounts(q),

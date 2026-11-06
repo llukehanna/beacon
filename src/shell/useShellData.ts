@@ -1,7 +1,7 @@
 import { useSearchParams } from "react-router-dom";
 import { useOsdkObjects, useOsdkQuery } from "@/data/hooks";
 import { Firm, Mandate, Search } from "@/data/ontology";
-import type { HomeSummary } from "../../shared/summaries";
+import type { ShellCounts as ShellCountsSummary } from "../../shared/summaries";
 
 export interface ShellCounts {
   /** Firms the funnel counts as open (Discovered or Screening); undefined while loading. */
@@ -12,17 +12,16 @@ export interface ShellCounts {
   activeMandates: number | undefined;
 }
 
-/** Counts for the sidebar and status bar, from the summary query Home already uses. */
+/**
+ * Counts for the sidebar and status bar. A lean query of their own (`shellCounts`), because the
+ * shell asks on every route; the figures use the same definitions as Home's summary.
+ */
 export function useShellCounts(): ShellCounts {
-  const { data } = useOsdkQuery<HomeSummary>("homeSummary");
+  const { data } = useOsdkQuery<ShellCountsSummary>("shellCounts");
   if (data === undefined) {
     return { open: undefined, review: undefined, activeMandates: undefined };
   }
-  return {
-    open: data.funnel.Discovered + data.funnel.Screening,
-    review: data.needsYouCounts.review,
-    activeMandates: data.mandates.length,
-  };
+  return { open: data.open, review: data.review, activeMandates: data.activeMandates };
 }
 
 interface DeskScope {
