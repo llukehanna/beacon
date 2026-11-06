@@ -574,7 +574,7 @@ describe("hard-gate polarity — Pass always means cleared", () => {
   });
 
   it("every gate declares a polarity — no undefined entries", () => {
-    // If a gate lands in HARD_GATES (Desk.tsx) without an entry here,
+    // If a gate lands in HARD_GATES (firmDesk/hardGateConfig.tsx) without an entry here,
     // formatAxisValue silently falls back to raw booleans — the copy
     // reads "You set true · agent proposes false" and the analyst loses
     // the Pass/Fail framing. Assert we're covering exactly four gates.
