@@ -643,7 +643,7 @@ describe("axisInputKind — abstain-card input schema", () => {
 describe("hard-gate input-control audit — no gate axis renders as dropdown/text", () => {
   // Enumerate every raw finding-axis vocabulary term that maps to a hard
   // gate. If any one of these ever resolved to "enum" or "text", the
-  // AbstainFindingCard would render a <select> or free-text box for what
+  // evidence panel's value editor would render a <select> or free-text box for what
   // must be a Pass/Fail toggle — the exact bug this test is here to catch.
   const gateAxisVariants = Object.entries(FINDING_AXIS_TO_KEY)
     .filter(([, editKey]) => HARD_GATE_EDIT_KEYS.has(editKey))

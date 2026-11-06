@@ -1,0 +1,210 @@
+import React from "react";
+import { ConfidenceBars, EmptyState, Skeleton, StatusPill } from "@/ui";
+import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
+import { formatAxisValue } from "../findingActions";
+import styles from "./AxisGrid.module.css";
+import { type AxisRow, type RowCounts, type RowState, summaryText } from "./axisRows";
+import { type EditMap } from "./deskModel";
+import { rejectReasonText } from "./evidenceModel";
+
+/** The pending value an analyst has staged for an axis, as the row shows it. */
+function stagedText(row: AxisRow, edits: EditMap): string | null {
+  const v = edits[row.def.actionParam];
+  return v === undefined || v === "" ? null : formatAxisValue(row.def.actionParam, v);
+}
+
+function RowStatus({ state }: { state: RowState }): React.ReactElement {
+  return state === "empty" ? (
+    <span className={styles.none}>No finding</span>
+  ) : (
+    <StatusPill status={state} />
+  );
+}
+
+function ProviderCell({ row, provider }: { row: AxisRow; provider: string }): React.ReactElement {
+  const cell = row.cells[provider];
+  const turnedDown = row.rejections.find((r) => r.provider === provider);
+  const name = providerLabel(provider);
+  if (cell.value !== null) {
+    return (
+      <span className={`${styles.val} ${row.def.kind === "enum" ? styles.words : ""}`}>
+        <span className={styles.valText}>{cell.value}</span>
+        <ConfidenceBars level={cell.confidence} />
+      </span>
+    );
+  }
+  if (turnedDown !== undefined) {
+    return (
+      <span
+        className={styles.turnedDown}
+        title={`${name} said ${turnedDown.value}. ${rejectReasonText(turnedDown.reason)}`}
+      >
+        <span className={styles.valText}>{turnedDown.value}</span>
+        <span className={styles.turnedDownTag}>not grounded</span>
+      </span>
+    );
+  }
+  return (
+    <span className={styles.nil} role="img" aria-label={`${name} had no value`}>
+      ·
+    </span>
+  );
+}
+
+/**
+ * The axis by source grid: a row per rubric axis, a column per provider showing what that
+ * provider said, and a status showing what Beacon decided. Selecting a row fills the evidence
+ * panel; the arrow keys move the selection.
+ */
+export function AxisGrid({
+  rows,
+  counts,
+  edits,
+  selected,
+  onSelect,
+  loading,
+}: {
+  rows: AxisRow[];
+  counts: RowCounts;
+  edits: EditMap;
+  selected: string | undefined;
+  onSelect: (axis: string, provider?: string) => void;
+  /** True while the findings load. */
+  loading: boolean;
+}): React.ReactElement {
+  const tbodyRef = React.useRef<HTMLTableSectionElement>(null);
+  const tabStop = selected ?? rows[0]?.axis;
+
+  // When the selection moves from one axis to another, the focus follows it if it was on a row,
+  // and the row is brought into view. A first selection (the page opening on one) never scrolls.
+  const before = React.useRef<string | undefined>(undefined);
+  React.useEffect(() => {
+    const moved = before.current !== undefined && selected !== undefined;
+    before.current = selected;
+    const body = tbodyRef.current;
+    if (!moved || body === null) {
+      return;
+    }
+    const target = body.querySelector<HTMLElement>(`tr[data-axis="${selected}"]`);
+    if (target === null) {
+      return;
+    }
+    if (body.contains(document.activeElement) && document.activeElement !== target) {
+      target.focus({ preventScroll: true });
+    }
+    target.scrollIntoView?.({ block: "nearest" });
+  }, [selected]);
+
+  if (loading) {
+    return (
+      <div className={styles.wrap} aria-busy="true" aria-label="Loading findings">
+        <Skeleton height={39 * 6} />
+      </div>
+    );
+  }
+  if (rows.every((r) => r.state === "empty")) {
+    return (
+      <EmptyState
+        title="No findings yet"
+        body="Beacon has not scored this firm against the rubric. Run the agent from the strip above to query every source."
+      />
+    );
+  }
+
+  return (
+    <section className={styles.section} aria-label="Axes by source">
+      <div className={styles.head}>
+        <h2 className={styles.title}>Axes by source</h2>
+        <span className={styles.summary}>{summaryText(counts)}</span>
+      </div>
+      <div className={styles.wrap}>
+        <table className={styles.table}>
+          <thead>
+            <tr>
+              <th scope="col">Axis</th>
+              <th scope="col">Weight</th>
+              {PROVIDER_TRUST.map((p) => (
+                <th scope="col" key={p}>
+                  {providerLabel(p)}
+                </th>
+              ))}
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody ref={tbodyRef}>
+            {rows.map((row) => {
+              const staged = stagedText(row, edits);
+              const noSource =
+                row.state === "abstained" &&
+                row.readings.length > 0 &&
+                row.readings.every((r) => r.value === null);
+              const isSelected = row.axis === selected;
+              return (
+                <tr
+                  key={row.axis}
+                  data-axis={row.axis}
+                  data-state={row.state}
+                  data-selected={isSelected ? "true" : undefined}
+                  aria-current={isSelected ? "true" : undefined}
+                  tabIndex={row.axis === tabStop ? 0 : -1}
+                  className={[
+                    styles.row,
+                    row.state === "conflict" ? styles.cf : "",
+                    row.state === "abstained" ? styles.ab : "",
+                    isSelected ? styles.sel : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                  onClick={() => onSelect(row.axis)}
+                  onKeyDown={(e) => {
+                    if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+                      e.preventDefault();
+                      onSelect(row.axis);
+                    }
+                  }}
+                >
+                  <th scope="row" className={styles.ax}>
+                    <span className={styles.axName}>{row.label}</span>
+                    {staged !== null && (
+                      <span className={styles.pending} title={`Staged for commit: ${staged}`}>
+                        pending: {staged}
+                      </span>
+                    )}
+                  </th>
+                  <td className={styles.w}>{row.weight}</td>
+                  {noSource ? (
+                    <td colSpan={PROVIDER_TRUST.length} className={styles.abstainNote}>
+                      No source had it. Beacon abstained instead of guessing.
+                    </td>
+                  ) : (
+                    PROVIDER_TRUST.map((p) => (
+                      <td
+                        key={p}
+                        data-label={providerLabel(p)}
+                        data-empty={
+                          row.cells[p].value === null &&
+                          !row.rejections.some((r) => r.provider === p)
+                            ? "true"
+                            : undefined
+                        }
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelect(row.axis, row.cells[p].value !== null ? p : undefined);
+                        }}
+                      >
+                        <ProviderCell row={row} provider={p} />
+                      </td>
+                    ))
+                  )}
+                  <td className={styles.status}>
+                    <RowStatus state={row.state} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}

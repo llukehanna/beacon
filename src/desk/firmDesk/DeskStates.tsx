@@ -1,7 +1,6 @@
 import React from "react";
 import { Button, EmptyState, Skeleton } from "@/ui";
 import styles from "./DeskStates.module.css";
-import { EvidenceColumn } from "./EvidenceColumn";
 
 /** Nothing selected yet. */
 export function PickAFirm(): React.ReactElement {
@@ -37,7 +36,15 @@ export function FirmSkeleton(): React.ReactElement {
           ))}
         </div>
       </div>
-      <EvidenceColumn />
+      <aside className={styles.skeletonAside} aria-hidden="true">
+        <div className={styles.skeletonTabs} />
+        <div className={styles.skeletonEvidence}>
+          <Skeleton height={14} />
+          <Skeleton height={34} />
+          <Skeleton height={140} />
+          <Skeleton height={60} />
+        </div>
+      </aside>
     </div>
   );
 }

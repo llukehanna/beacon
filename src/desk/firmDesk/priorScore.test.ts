@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { priorScoreBefore } from "./priorScore";
+import { enrichmentDelta, priorScoreBefore } from "./priorScore";
 
 const row = (computedAt: string, weightedTotal: number) => ({ computedAt, weightedTotal });
 
@@ -35,5 +35,20 @@ describe("priorScoreBefore", () => {
         "2026-11-05T11:00:00.000Z",
       ),
     ).toBe(11);
+  });
+});
+
+describe("enrichmentDelta", () => {
+  it("is the stored total less the earlier one", () => {
+    expect(enrichmentDelta(9, 6, false)).toBe(3);
+    expect(enrichmentDelta(5, 6, false)).toBe(-1);
+  });
+
+  it("is zero with no earlier score", () => {
+    expect(enrichmentDelta(9, null, false)).toBe(0);
+  });
+
+  it("is zero for a hard-rejected firm, whose total of zero is not a change", () => {
+    expect(enrichmentDelta(0, 8, true)).toBe(0);
   });
 });

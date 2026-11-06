@@ -24,8 +24,8 @@ export function AgentRunStrip({
   firm: FirmView;
   actionFirm: unknown;
 }): React.ReactElement {
-  const enrichedAt = (firm as { enrichedAt?: string | null }).enrichedAt ?? null;
-  const enrichedBy = (firm as { enrichedBy?: string | null }).enrichedBy ?? null;
+  const enrichedAt = firm.enrichedAt ?? null;
+  const enrichedBy = firm.enrichedBy ?? null;
   const when = agoText(enrichedAt, Date.now());
   const ran = enrichedAt !== null && when !== null;
   const byAgent = enrichedBy === AGENT;

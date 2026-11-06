@@ -38,3 +38,20 @@ export function tierMeter(
     typeof prior === "number" && Number.isFinite(prior) && prior !== score ? share(prior) : null;
   return { segments, pin: share(score), ghost, tier };
 }
+
+/**
+ * The tier as the score box words it: "Tier B", or for a total under the C cut-off "Rejected"
+ * when the firm is hard-screened and "Below C" when it is only a low score (enrichment can still
+ * move that).
+ */
+export function tierText(tier: MeterTier, hardScreened: boolean): string {
+  if (tier !== "Rejected") {
+    return `Tier ${tier}`;
+  }
+  return hardScreened ? "Rejected" : "Below C";
+}
+
+/** The lowest meter segment's label follows the same rule; the others are their tier letter. */
+export function segmentLabel(tier: MeterTier, hardScreened: boolean): string {
+  return tier === "Rejected" ? tierText(tier, hardScreened) : tier;
+}
