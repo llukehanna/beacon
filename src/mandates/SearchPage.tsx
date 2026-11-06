@@ -223,7 +223,7 @@ export default function SearchPage(): React.ReactElement {
             geographies, service lines, and sector groups that qualify a firm. Broad categories
             cascade to their sub-options; deselect any you don&rsquo;t want.
           </p>
-          {read !== null && (
+          {read !== null && (read.none || read.matches.length > 0 || read.unmatched.length > 0) && (
             <div className={styles.read} role="group" aria-label="Read from the mandate">
               <div className={styles.readLabel}>Read from the mandate</div>
               {read.none ? (

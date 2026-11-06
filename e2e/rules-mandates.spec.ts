@@ -93,6 +93,8 @@ test("a mandate card opens that mandate's search page, which keeps its picks", a
   ).toBeVisible();
 
   // The mandate's own words pre-fill the pickers; this test is about picking by hand.
+  // Wait for the pre-fill to land first, or it could toggle a pick made below.
+  await expect(page.getByRole("group", { name: "Read from the mandate" })).toBeVisible();
   const readBack = page.getByRole("button", { name: /^Remove .* \(read from/ });
   while ((await readBack.count()) > 0) {
     await readBack.first().click();
@@ -143,6 +145,52 @@ test("interpret pre-fills filters from the mandate", async ({ page }) => {
   // A pick of the visitor's own is not undone by anything the page does afterwards.
   await europe.click();
   await expect(europe).toHaveAttribute("aria-pressed", "true");
+});
+
+test("the search page fits a 390px screen with the longest chips", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openRoute(page, route("/mandate"));
+  await page
+    .getByRole("region", { name: /Sector-focused sell-side M&A/ })
+    .getByRole("link", { name: /Interpret & run search/ })
+    .click();
+  const strip = page.getByRole("group", { name: "Read from the mandate" });
+  await expect(strip.getByRole("listitem")).toHaveCount(3);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth - window.innerWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
+  // The longest chip any mandate can produce also fits: swap its text in and measure again.
+  await strip
+    .getByRole("listitem")
+    .first()
+    .locator("span")
+    .first()
+    .evaluate((el) => {
+      el.textContent =
+        "\u201Cspecial committee\u201D \u2192 products: Board & special committee advisory";
+    });
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+  ).toBeLessThanOrEqual(0);
+  // Every chip, and its remove button, stays inside the screen.
+  for (const box of await strip
+    .locator("li, button")
+    .evaluateAll((els) => els.map((e) => e.getBoundingClientRect().right))) {
+    expect(box).toBeLessThanOrEqual(390);
+  }
+});
+
+test("removing every chip hides the strip", async ({ page }) => {
+  await openRoute(page, route("/mandate"));
+  await page
+    .getByRole("region", { name: /Private credit advisory specialists/ })
+    .getByRole("link", { name: /Interpret & run search/ })
+    .click();
+  const strip = page.getByRole("group", { name: "Read from the mandate" });
+  await expect(strip.getByRole("listitem")).toHaveCount(1);
+  await strip.getByRole("button", { name: /^Remove / }).click();
+  await expect(strip).toHaveCount(0);
 });
 
 test("an unknown path shows the not-found page inside the shell", async ({ page }) => {
