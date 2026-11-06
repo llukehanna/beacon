@@ -5,8 +5,15 @@
 }
 
 .label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
   color: var(--tx3);
   font-size: 12px;
+}
+
+.aside {
+  font-family: var(--font-mono);
 }
 
 .value {
@@ -24,6 +31,7 @@
 .meaning {
   color: var(--tx2);
   font-size: 12px;
+  text-wrap: balance;
 }
 
 .meaning b {

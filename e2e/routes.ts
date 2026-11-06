@@ -14,7 +14,8 @@ const headerText = (text: string) => (page: Page) =>
   page.locator("#main header").getByText(text, { exact: true });
 
 export const ROUTES: AppRoute[] = [
-  { path: "/", slug: "home", heading: headerText("Home") },
+  // The one-sentence headline is Home's title.
+  { path: "/", slug: "home", heading: (page) => page.getByRole("heading", { level: 1 }) },
   // The desk titles the page with the selected firm's name.
   { path: "/desk", slug: "desk", heading: (page) => page.getByRole("heading", { level: 3 }) },
   { path: "/pipeline", slug: "pipeline", heading: headerText("Working set") },
