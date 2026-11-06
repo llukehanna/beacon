@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "generatedFrom": {
+    "documents": "doc-v1",
+    "prompt": "extract-v1",
+    "fixtures": "claude-haiku-4-5"
+  },
+  "firms": 700,
+  "providers": [
+    {
+      "provider": "beacondb",
+      "coverage": 0.2575,
+      "precision": 0.9847
+    },
+    {
+      "provider": "dealdb",
+      "coverage": 0.7093,
+      "precision": 0.9711
+    },
+    {
+      "provider": "filings",
+      "coverage": 0.5443,
+      "precision": 0.9515
+    },
+    {
+      "provider": "websearch",
+      "coverage": 0.5168,
+      "precision": 0.8238
+    }
+  ],
+  "reconciled": {
+    "coverage": 0.6851,
+    "precision": 0.9318,
+    "conflictRate": 0.0283,
+    "higherTrustRight": 0.9078
+  },
+  "abstention": {
+    "rate": 0.295,
+    "calibration": 1
+  },
+  "tierAgreement": 0.5243,
+  "ruleRecovery": {
+    "planted": 4,
+    "recovered": 4,
+    "method": "heuristic"
+  },
+  "thresholds": {
+    "providers.beacondb.precision": 0.95,
+    "providers.dealdb.precision": 0.95,
+    "providers.filings.precision": 0.92,
+    "providers.websearch.precision": 0.8,
+    "reconciled.coverage": 0.65,
+    "reconciled.precision": 0.9,
+    "reconciled.higherTrustRight": 0.85,
+    "abstention.calibration": 0.95,
+    "tierAgreement": 0.5,
+    "ruleRecovery.recoveryRate": 1
+  },
+  "passed": true
+}

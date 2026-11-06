@@ -19,6 +19,16 @@ import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { planFirmAxes } from "../extraction/plan.js";
+import {
+  DEAL_VOLUME_RATIONALE,
+  GENERALIST_RATIONALE,
+  MISC_RATIONALE,
+  REJECTION_COUNTS,
+  dealSizeRationale,
+  plantedDealSize,
+  plantedDealVolume,
+  smallFirmRationale,
+} from "./rejections.js";
 import { pickShowcaseFirms } from "./showcase.js";
 
 type FirmObj = ObjectOf<"Firm">;
@@ -228,42 +238,43 @@ export async function seedHistory(
   };
   const notGeneralist = (f: FirmObj) => !/generalist/i.test(f.coverageModel ?? "");
 
-  for (const f of (await pool()).filter((x) => (x.employees ?? 99) < 10).slice(0, 7)) {
-    await reject(f.$primaryKey, `Too small — ${f.employees} staff; can't absorb an integration.`);
+  for (const f of (await pool())
+    .filter((x) => (x.employees ?? 99) < 10)
+    .slice(0, REJECTION_COUNTS.small)) {
+    await reject(f.$primaryKey, smallFirmRationale(f.employees));
   }
-  for (const f of (await pool()).filter((x) => !notGeneralist(x)).slice(0, 5)) {
-    await reject(f.$primaryKey, "Generalist coverage with no sector depth; unfocused franchise.");
+  for (const f of (await pool())
+    .filter((x) => !notGeneralist(x))
+    .slice(0, REJECTION_COUNTS.generalist)) {
+    await reject(f.$primaryKey, GENERALIST_RATIONALE);
   }
   for (const f of (await pool())
     .filter((x) => x.dealSizeMUsd === undefined && (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, 5)) {
-    const size = 8 + Math.round(r() * 18);
+    .slice(0, REJECTION_COUNTS.dealSize)) {
+    const size = plantedDealSize(r);
     await act("enrichFirm", {
       firm: f.$primaryKey,
       dealSizeMUsd: size,
       fieldsEnteredManually: JSON.stringify(["dealSizeMUsd"]),
     });
-    await reject(f.$primaryKey, `Deal size around $${size}m is below our floor; small deals.`);
+    await reject(f.$primaryKey, dealSizeRationale(size));
   }
   for (const f of (await pool())
     .filter((x) => x.dealsPerMdL3y === undefined && (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, 4)) {
-    const volume = Math.round(r() * 15) / 10;
+    .slice(0, REJECTION_COUNTS.dealVolume)) {
+    const volume = plantedDealVolume(r);
     await act("enrichFirm", {
       firm: f.$primaryKey,
       dealsPerMdL3y: volume,
       fieldsEnteredManually: JSON.stringify(["dealsPerMdL3y"]),
     });
-    await reject(
-      f.$primaryKey,
-      "Too few deals per MD over the last three years; weak deal volume.",
-    );
+    await reject(f.$primaryKey, DEAL_VOLUME_RATIONALE);
   }
   const misc = (await pool())
     .filter((x) => (x.employees ?? 0) >= 10 && notGeneralist(x))
-    .slice(0, 4);
+    .slice(0, REJECTION_COUNTS.misc);
   for (const f of misc) {
-    await reject(f.$primaryKey, "Weak MD experience for our franchise.");
+    await reject(f.$primaryKey, MISC_RATIONALE);
   }
 
   // 5. Learn from the rejections; approve the clearest rule: the employees rule, or else the one
