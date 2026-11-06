@@ -20,7 +20,7 @@ export interface NeedsRow {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-function tierLabel(tier: string | undefined, score: number | undefined): string | null {
+export function tierLabel(tier: string | undefined, score: number | undefined): string | null {
   const t = (tier ?? "").trim();
   if (t === "") {
     return null;
@@ -29,7 +29,7 @@ function tierLabel(tier: string | undefined, score: number | undefined): string 
 }
 
 /** Positive when the firm moved up. Scores decide; tier letters (A best) are the fallback. */
-function direction(
+export function direction(
   priorTier: string | undefined,
   priorScore: number | undefined,
   newTier: string | undefined,

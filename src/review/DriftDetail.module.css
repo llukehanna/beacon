@@ -1,0 +1,177 @@
+.detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.titleRow > button {
+  flex: none;
+  margin: -4px -8px 0 0;
+}
+
+.name.name {
+  margin: 0;
+  font: 600 19px/1.2 var(--font-ui);
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.reasonChip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+
+.when {
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.resolved {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(79, 209, 154, 0.1);
+  color: var(--green);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.kicker.kicker {
+  margin: 0 0 8px;
+  color: var(--tx3);
+  font: 500 10.5px var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tiers {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--s2), var(--s1));
+  box-shadow:
+    inset 0 1px 0 var(--highlight),
+    0 0 0 1px var(--line);
+}
+
+.tiers .kicker {
+  margin-bottom: 10px;
+}
+
+.move {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.move > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.lab {
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.arrow {
+  padding-bottom: 5px;
+  color: var(--tx3);
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tier) 14%, transparent);
+  color: var(--tier);
+  font: 600 14px var(--font-mono);
+  white-space: nowrap;
+}
+
+.quote {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 0 2px 12px;
+  border-left: 2px solid var(--line2);
+}
+
+.why {
+  margin: 0;
+  color: var(--tx);
+  font-size: 13px;
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.observed {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.source {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.toggle {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--acc);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.toggle:hover {
+  color: var(--tx);
+}
+
+.lookalikes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.firmChip {
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx2);
+  font-size: 11.5px;
+}
+
+.more {
+  align-self: center;
+  color: var(--tx2);
+  font-size: 12px;
+}

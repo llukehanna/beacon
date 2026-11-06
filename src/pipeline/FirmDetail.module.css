@@ -1,0 +1,179 @@
+.detail {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.titleRow > button {
+  flex: none;
+  margin: -4px -8px 0 0;
+}
+
+.name.name {
+  margin: 0;
+  font: 600 19px/1.2 var(--font-ui);
+  letter-spacing: -0.02em;
+  overflow-wrap: anywhere;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.hq {
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.outcome {
+  margin-top: 8px;
+}
+
+.dim {
+  margin-left: 4px;
+  opacity: 0.75;
+}
+
+.kicker.kicker {
+  margin: 0 0 8px;
+  color: var(--tx3);
+  font: 500 10.5px var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.kicker span {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* The eight funnel stages: done, now and still ahead. Read-only; stage moves happen on the Desk. */
+.track {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.track li {
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.track li[data-state="done"] {
+  background: rgba(138, 149, 255, 0.1);
+  color: #b4bbff;
+}
+
+.track li[data-state="now"] {
+  background: linear-gradient(180deg, #7984ff, #5560ee);
+  color: #fff;
+  font-weight: 500;
+}
+
+.scorebox {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--s2), var(--s1));
+  box-shadow:
+    inset 0 1px 0 var(--highlight),
+    0 0 0 1px var(--line);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.big {
+  font: 500 30px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+}
+
+.of {
+  color: var(--tx3);
+  font: 500 14px var(--font-mono);
+}
+
+.tier {
+  margin-left: auto;
+  font: 500 12px var(--font-mono);
+}
+
+.bar {
+  position: relative;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 3px;
+}
+
+.note {
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.reject {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(240, 113, 103, 0.1);
+  box-shadow: 0 0 0 1px rgba(240, 113, 103, 0.24);
+  color: #f4948b;
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: 116px minmax(0, 1fr);
+  gap: 7px 10px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--tx3);
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--tx);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  margin-top: auto;
+}
+
+.actions > button {
+  width: 100%;
+}

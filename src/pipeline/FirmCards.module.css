@@ -1,0 +1,104 @@
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 104px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  overflow: hidden;
+  border-radius: 10px;
+  background: rgba(12, 13, 16, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--dur) var(--ease);
+}
+
+.card:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.card[data-selected] {
+  background: rgba(138, 149, 255, 0.07);
+  box-shadow:
+    0 0 0 1px var(--line),
+    inset 2px 0 0 var(--acc);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--tx);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.name[data-out] {
+  color: var(--tx2);
+  text-decoration: line-through;
+  text-decoration-color: var(--tx4);
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.where {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.staff {
+  margin-left: auto;
+  color: var(--tx3);
+  font: 11.5px var(--font-mono);
+  white-space: nowrap;
+}
+
+.bottom {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.bottom > :first-child {
+  min-width: 0;
+}
+
+.activity {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: var(--tx3);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

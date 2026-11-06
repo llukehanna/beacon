@@ -27,3 +27,14 @@ export function relativeAge(iso: string | null | undefined, now: number): string
   }
   return days < 60 ? `${Math.floor(days / 7)}w` : `${Math.floor(days / 30)}mo`;
 }
+
+/** An ISO timestamp for a stored time (ISO string, epoch milliseconds or Date); null when it is unreadable. */
+export function toIsoTime(ts: unknown): string | null {
+  const ms =
+    ts instanceof Date
+      ? ts.getTime()
+      : typeof ts === "string" || typeof ts === "number"
+        ? new Date(ts).getTime()
+        : Number.NaN;
+  return Number.isNaN(ms) ? null : new Date(ms).toISOString();
+}

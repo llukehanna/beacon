@@ -11,8 +11,8 @@ import AppShell from "@/shell/AppShell";
 const Accuracy = lazy(() => import("@/desk/Accuracy"));
 const Desk = lazy(() => import("@/desk/firmDesk/DeskPage"));
 const MandatePage = lazy(() => import("@/desk/MandatePage"));
-const Pipeline = lazy(() => import("@/desk/Pipeline"));
-const Review = lazy(() => import("@/desk/Review"));
+const Pipeline = lazy(() => import("@/pipeline/PipelinePage"));
+const Review = lazy(() => import("@/review/ReviewPage"));
 const Rules = lazy(() => import("@/desk/Rules"));
 const SearchPage = lazy(() => import("@/desk/SearchPage"));
 
