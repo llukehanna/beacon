@@ -4,10 +4,11 @@ import { USER } from "../../shared/vocab.js";
 import { chooseClusterer } from "../clustering/choose.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
-import { ActionError } from "../errors.js";
+import { ActionError, HttpError } from "../errors.js";
+import { type ActionRunRecorder, recordActionRun } from "../operations/record.js";
 import { resolveParams } from "./params.js";
 import { ACTIONS } from "./registry.js";
-import type { ActionResult } from "./types.js";
+import type { ActionDef, ActionResult } from "./types.js";
 import { writeLog } from "./writes.js";
 
 /** Tables that only grow as people use the demo (append-only history and proposals). */
@@ -29,11 +30,17 @@ export interface ApplyOptions {
   clusterer?: Clusterer;
   /** Tests: override MAX_ACTIVITY_ROWS. */
   maxActivityRows?: number;
+  /** Where each run's latency is recorded; `null` records nothing (the seed builds history through actions). */
+  recordRun?: ActionRunRecorder | null;
 }
 
 const defaultId = (prefix: string): string => `${prefix}-${randomUUID()}`;
 
-/** Validate and run one named action: `prepare` (if any) first, then `run` inside a single transaction. */
+/**
+ * Validate and run one named action: `prepare` (if any) first, then `run` inside a single transaction.
+ * One ActionRun is recorded afterwards, outside that transaction, and a failure to record it never
+ * changes what the caller gets back.
+ */
 export async function applyAction(
   db: Db,
   name: string,
@@ -44,6 +51,44 @@ export async function applyAction(
   if (!def) {
     throw new ActionError(`Unknown action "${name}"`, 404);
   }
+  const record = opts.recordRun === undefined ? recordActionRun : opts.recordRun;
+  const startedAt = new Date();
+  const t0 = performance.now();
+  const noteRun = async (ok: boolean, errorKind?: string): Promise<void> => {
+    if (record === null) {
+      return;
+    }
+    try {
+      await record(db, {
+        actionName: name,
+        startedAt,
+        durationMs: performance.now() - t0,
+        ok,
+        errorKind,
+      });
+    } catch (e) {
+      // Operational signal for the server log: a missing measurement must not fail the action.
+      // eslint-disable-next-line no-console
+      console.warn(`Could not record the ${name} run.`, e);
+    }
+  };
+  try {
+    const result = await execute(db, def, raw, opts);
+    await noteRun(true);
+    return result;
+  } catch (e) {
+    await noteRun(false, e instanceof HttpError ? `http_${e.status}` : "internal");
+    throw e;
+  }
+}
+
+async function execute(
+  db: Db,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  def: ActionDef<any, any>,
+  raw: unknown,
+  opts: ApplyOptions,
+): Promise<ActionResult> {
   const limit = opts.maxActivityRows ?? MAX_ACTIVITY_ROWS;
   const [{ n }] = await db.query<{ n: number }>(
     `SELECT (${ACTIVITY_TABLES.map((t) => `(SELECT count(*) FROM ${t})`).join(" + ")})::int AS n`,

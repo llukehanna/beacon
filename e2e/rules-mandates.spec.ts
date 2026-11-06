@@ -132,6 +132,45 @@ test("accuracy evals tab shows the eval report", async ({ page }) => {
   await expect(page.getByRole("tab", { name: "Evals" })).toHaveAttribute("aria-selected", "true");
 });
 
+test("accuracy operations tab renders", async ({ page }) => {
+  // One refused action: it changes nothing, and it is still a run the app measured.
+  const refused = await page.request.post("/api/actions", {
+    data: { action: "rejectFirm", params: {} },
+  });
+  expect(refused.status()).toBe(400);
+
+  await openRoute(page, route("/accuracy"));
+  await page.getByRole("tab", { name: "Operations" }).click();
+  await expect(page).toHaveURL(/\/accuracy\?tab=operations$/);
+
+  await expect(page.getByText(/Measured by this app, since/)).toBeVisible();
+  const latency = page.getByRole("region", { name: "Action latency" });
+  const row = latency.getByRole("row", { name: /rejectFirm/ });
+  await expect(row.getByRole("cell").first()).toHaveText(/^[1-9]\d*$/);
+  await expect(row.getByRole("cell").last()).toHaveText(/^[1-9]\d*$/);
+  await expect(page.getByRole("region", { name: "Model spend" })).toBeVisible();
+  await expect(page.getByText("Not counted here.")).toBeVisible();
+
+  // The tab is in the URL, and Home and End move between tabs.
+  await page.reload();
+  const operations = page.getByRole("tab", { name: "Operations" });
+  await expect(operations).toHaveAttribute("aria-selected", "true");
+  await operations.press("Home");
+  await expect(page.getByRole("tab", { name: "Overview" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("tab", { name: "Overview" }).press("End");
+  await expect(operations).toHaveAttribute("aria-selected", "true");
+
+  // On a phone the tables stay inside the page.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(page.getByRole("region", { name: "Action latency" })).toBeVisible();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+  ).toBeLessThanOrEqual(0);
+});
+
 test("a mandate card opens that mandate's search page, which keeps its picks", async ({ page }) => {
   await openRoute(page, route("/mandate"));
   await expect(page.getByRole("link", { name: "Work in desk →" }).first()).toBeVisible();

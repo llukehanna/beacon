@@ -5,13 +5,14 @@ import { useOsdkQuery } from "@/data/hooks";
 import { Chip, EmptyState, Metric, Notice, PageHeader, Panel, Skeleton } from "@/ui";
 import evalReportJson from "../../docs/evals.json";
 import type { EvalReport } from "../../shared/evalReport";
-import type { AccuracySummary } from "../../shared/summaries";
+import type { AccuracySummary, OperationsSummary } from "../../shared/summaries";
 import { INSUFFICIENT_THRESHOLD } from "../../shared/trustMetrics";
 import styles from "./AccuracyPage.module.css";
 import { BreakdownTable } from "./BreakdownTable";
 import { EvalsPanel } from "./EvalsPanel";
+import { OperationsPanel } from "./OperationsPanel";
 import { OutcomesPanel } from "./OutcomesPanel";
-import { type AccuracyTab, tabFromParam } from "./evalsModel";
+import { type AccuracyTab, tabFromParam, tabTarget } from "./evalsModel";
 
 /** Written by `npm run eval` and bundled at build time; `server/eval` checks it is current in CI. */
 const EVAL_REPORT = evalReportJson as unknown as EvalReport;
@@ -19,6 +20,7 @@ const EVAL_REPORT = evalReportJson as unknown as EvalReport;
 const TABS: readonly { id: AccuracyTab; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "evals", label: "Evals" },
+  { id: "operations", label: "Operations" },
 ];
 
 const count = (n: number) => n.toLocaleString("en-US");
@@ -125,7 +127,8 @@ function Overview({
 /**
  * Accuracy: how often Beacon agreed with the analyst, was overridden or honestly abstained, in
  * total and by provider and axis, and what happened to the firms in the end (Overview); and how
- * the agent does against a generated universe with known true values (Evals). Rates appear once
+ * the agent does against a generated universe with known true values (Evals); and how fast
+ * actions run and what live model calls cost (Operations). Rates appear once
  * enough findings have been decided for them to mean something. The tab is in the URL.
  */
 export default function AccuracyPage(): React.ReactElement {
@@ -133,6 +136,12 @@ export default function AccuracyPage(): React.ReactElement {
   const { data, isLoading, error } = useOsdkQuery<AccuracySummary>("accuracySummary");
   const [params, setParams] = useSearchParams();
   const tab = tabFromParam(params.get("tab"));
+  // Fetched only while its tab is open: the overview should not wait on it, or the reverse.
+  const operations = useOsdkQuery<OperationsSummary>(
+    "operationsSummary",
+    {},
+    { enabled: tab === "operations" },
+  );
   const select = (next: AccuracyTab): void => {
     setParams(
       (prev) => {
@@ -148,13 +157,16 @@ export default function AccuracyPage(): React.ReactElement {
     );
   };
   const onKeyDown = (e: React.KeyboardEvent): void => {
-    const step = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-    if (step === 0) {
+    const to = tabTarget(
+      e.key,
+      TABS.findIndex((t) => t.id === tab),
+      TABS.length,
+    );
+    if (to === null) {
       return;
     }
     e.preventDefault();
-    const at = TABS.findIndex((t) => t.id === tab);
-    const next = TABS[(at + step + TABS.length) % TABS.length].id;
+    const next = TABS[to].id;
     select(next);
     document.getElementById(`accuracy-tab-${next}`)?.focus();
   };
@@ -166,9 +178,11 @@ export default function AccuracyPage(): React.ReactElement {
         sub={
           tab === "evals"
             ? "How the agent does against a generated universe whose true values are known"
-            : isLoading
-              ? "Loading findings…"
-              : "How often Beacon agreed with you, was overridden, or honestly abstained"
+            : tab === "operations"
+              ? "How fast actions run and what live model calls cost"
+              : isLoading
+                ? "Loading findings…"
+                : "How often Beacon agreed with you, was overridden, or honestly abstained"
         }
       />
       <div className={styles.tabs} role="tablist" aria-label="Trust metrics views">
@@ -201,6 +215,12 @@ export default function AccuracyPage(): React.ReactElement {
       >
         {tab === "evals" ? (
           <EvalsPanel report={EVAL_REPORT} />
+        ) : tab === "operations" ? (
+          <OperationsPanel
+            data={operations.data}
+            isLoading={operations.isLoading}
+            error={operations.error}
+          />
         ) : (
           <Overview data={data} isLoading={isLoading} />
         )}

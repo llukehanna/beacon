@@ -4,6 +4,7 @@
  * a few kilobytes of numbers instead of every row.
  */
 import type { ActivityItem, HeadlineCounts } from "./activityFeed.js";
+import type { ActionStat } from "./operations.js";
 import type { Lifecycle } from "./pipelineBuckets.js";
 import type { FindingTrends, GroundedCounts } from "./trends.js";
 import type { AccuracyTables, OutcomeTally, Rates } from "./trustMetrics.js";
@@ -141,4 +142,24 @@ export interface FirmObservations {
   axes: { axis: string; providers: ProviderObservation[] }[];
   /** Per provider, how many of the firm's axes it supplied a grounded value for. */
   hitsByProvider: Record<string, number>;
+}
+
+export interface DaySpend {
+  /** UTC day, YYYY-MM-DD. */
+  day: string;
+  calls: number;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
+/** The Operations tab: action latency and live-model spend since the last reset. */
+export interface OperationsSummary {
+  /** The `lastResetAt` the window starts at; null when none was recorded. */
+  windowStart: string | null;
+  actions: ActionStat[];
+  /** Live Claude calls per UTC day, newest first. */
+  spend: DaySpend[];
+  /** The ceiling on live Claude calls per UTC day (server/clustering/choose.ts). */
+  dailyCallCap: number;
 }

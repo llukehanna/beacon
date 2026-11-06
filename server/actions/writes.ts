@@ -4,12 +4,16 @@
  * a write but can't be tied to a known table makes the answer "unknown"
  * (reported as no types, which clients treat as "refresh everything").
  */
-import { LINKS, OBJECT_TYPES, type ObjectTypeName } from "../../shared/schema.js";
+import { LINKS, OBJECT_TYPES, OPERATIONS_TYPES, type ObjectTypeName } from "../../shared/schema.js";
 import type { Queryable } from "../db/client.js";
 
 /** Which object types a write to each table changes: its own, and the source of any link it joins. */
 const TYPES_BY_TABLE = new Map<string, ObjectTypeName[]>();
 for (const [name, def] of Object.entries(OBJECT_TYPES)) {
+  // Operations metrics are written outside the action's transaction, so no action reports them.
+  if ((OPERATIONS_TYPES as readonly string[]).includes(name)) {
+    continue;
+  }
   TYPES_BY_TABLE.set(def.table, [name as ObjectTypeName]);
 }
 for (const link of LINKS) {

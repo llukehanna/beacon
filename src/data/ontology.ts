@@ -31,6 +31,8 @@ export const ReviewDecision = obj("ReviewDecision");
 export const DriftEvent = obj("DriftEvent");
 export const ProposedRule = obj("ProposedRule");
 export const HardScreenConfig = obj("HardScreenConfig");
+export const ActionRun = obj("ActionRun");
+export const ModelCall = obj("ModelCall");
 
 export const runMandateSearchAction = act("runMandateSearch");
 export const runSearchAction = act("runSearch");

@@ -4,7 +4,7 @@ Beacon was first built on Palantir Foundry. When that environment went away, the
 
 | Foundry (original)                                    | This repo                                                                                                      |
 | ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
-| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 12 object types, 2 traversed links; Postgres tables generated from it                      |
+| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 14 object types (the original 12 plus 2 operations metrics), 2 traversed links; Postgres tables generated from it                      |
 | Pipeline Builder cleaning a licensed data export      | `server/seed/universe.ts`: deterministic synthetic universe                                                    |
 | 30 Actions (function-backed + declarative)            | 18 actions in `server/actions/` (every one the UI or seed calls)                                               |
 | 39 TypeScript v1 Functions                            | Server modules plus pure functions in `shared/`                                                                |

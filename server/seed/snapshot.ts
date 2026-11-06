@@ -7,16 +7,22 @@
  * since the snapshot, which gives the same rows a full rebuild would produce
  * at that moment.
  */
-import { OBJECT_TYPES, type PropType } from "../../shared/schema.js";
+import { OBJECT_TYPES, OPERATIONS_TYPES, type PropType } from "../../shared/schema.js";
 import type { Db, Queryable } from "../db/client.js";
 import { getMeta, setMeta } from "../db/meta.js";
 import { HttpError } from "../errors.js";
 
 const SNAPSHOT_AT = "snapshotAt";
 
-/** Every table the full reset rebuilds, with its columns. */
+const OPERATIONS_TABLES: readonly string[] = OPERATIONS_TYPES.map((n) => OBJECT_TYPES[n].table);
+
+/** Every table the full reset rebuilds, with its columns. Operations metrics are measurements, not demo data: they are not here. */
 const TABLES: Readonly<Record<string, Readonly<Record<string, PropType>>>> = {
-  ...Object.fromEntries(Object.values(OBJECT_TYPES).map((t) => [t.table, t.properties])),
+  ...Object.fromEntries(
+    Object.values(OBJECT_TYPES)
+      .filter((t) => !OPERATIONS_TABLES.includes(t.table))
+      .map((t) => [t.table, t.properties]),
+  ),
   search_list_firm: { searchId: "string", firmId: "string" },
 };
 
@@ -145,7 +151,8 @@ export async function resetFromSnapshot(
   const shift = `interval '${Math.round(now.getTime() - Date.parse(takenAt))} milliseconds'`;
   const firms = await db.transaction(async (tx) => {
     await tx.query(`SET LOCAL TIME ZONE 'UTC'`);
-    await tx.query(`TRUNCATE ${Object.keys(TABLES).join(", ")}`);
+    // The metrics tables are cleared but not restored: the operations window starts at each reset.
+    await tx.query(`TRUNCATE ${[...Object.keys(TABLES), ...OPERATIONS_TABLES].join(", ")}`);
     const columns = await snapshotColumns(tx);
     for (const table of Object.keys(TABLES)) {
       const have = columns.get(snapshotOf(table));

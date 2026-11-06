@@ -260,6 +260,33 @@ export const OBJECT_TYPES = {
       sourceProposedRuleId: "string",
     },
   },
+  ActionRun: {
+    apiName: "ActionRun",
+    table: "action_run",
+    primaryKey: "actionRunId",
+    properties: {
+      actionRunId: "string",
+      actionName: "string",
+      startedAt: "timestamp",
+      durationMs: "integer",
+      ok: "boolean",
+      errorKind: "string",
+    },
+  },
+  ModelCall: {
+    apiName: "ModelCall",
+    table: "model_call",
+    primaryKey: "modelCallId",
+    properties: {
+      modelCallId: "string",
+      purpose: "string",
+      model: "string",
+      inputTokens: "integer",
+      outputTokens: "integer",
+      costUsd: "double",
+      calledAt: "timestamp",
+    },
+  },
 } as const satisfies Record<string, ObjectTypeDef>;
 
 export type ObjectTypeName = keyof typeof OBJECT_TYPES;
@@ -284,6 +311,15 @@ export type Props<N extends ObjectTypeName> = {
 export type ObjectOf<N extends ObjectTypeName> = {
   -readonly [K in keyof PropsOf<N>]?: TsOf<PropsOf<N>[K]>;
 } & { $apiName: N; $primaryKey: string };
+
+/**
+ * Operations metrics: measurements of the running app, not demo data. They are written outside
+ * any action's transaction, left out of the reset snapshot, and cleared whenever the demo resets.
+ */
+export const OPERATIONS_TYPES = [
+  "ActionRun",
+  "ModelCall",
+] as const satisfies readonly ObjectTypeName[];
 
 export function isObjectTypeName(name: string): name is ObjectTypeName {
   return Object.prototype.hasOwnProperty.call(OBJECT_TYPES, name);
