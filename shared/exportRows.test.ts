@@ -32,6 +32,7 @@ const finding = (over: Partial<FindingLike> = {}): FindingLike => ({
   axis: "services_fit",
   value: "Full advisory suite",
   provider: "filings",
+  sourceDocumentId: "filings:f1",
   sourceQuote: "We advise on mergers.",
   extractionModel: "claude-haiku-4-5",
   confidenceTier: "high",
@@ -82,6 +83,30 @@ describe("exportRows", () => {
       provider: "Filings",
       quote: "We advise on mergers.",
       model: "claude-haiku-4-5",
+    });
+  });
+
+  it("cites no quote for an analyst's entry, whatever note its excerpt holds", () => {
+    const { rows, citations } = exportRows(
+      [firm()],
+      [
+        finding({
+          provider: "analyst",
+          sourceDocumentId: null,
+          sourceQuote: null,
+          sourceExcerpt: "Analyst entered Full advisory suite, replacing the Filings value.",
+          extractionModel: null,
+          findingStatus: "verified",
+          verifiedByHuman: true,
+        }),
+      ],
+    );
+    expect(rows[0].services_fit).toBe("Full advisory suite");
+    expect(citations[0].find((c) => c.axis === "services_fit")).toEqual({
+      axis: "services_fit",
+      provider: "Analyst",
+      quote: null,
+      model: null,
     });
   });
 

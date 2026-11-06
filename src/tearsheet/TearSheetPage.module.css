@@ -51,6 +51,7 @@
 }
 
 .sheet {
+  page: tear-sheet;
   --ink: var(--tx);
   --ink2: var(--tx2);
   --rule: var(--line2);
@@ -267,8 +268,9 @@
   }
 }
 
-/* Paper size stays the browser's (A4 or Letter); 16 mm clears every printer's unprintable edge. */
-@page {
+/* Paper size stays the browser's (A4 or Letter); 16 mm clears every printer's unprintable edge.
+   A named page keeps the margin to this sheet instead of every route that prints after it loads. */
+@page tear-sheet {
   margin: 16mm;
 }
 

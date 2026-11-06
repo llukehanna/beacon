@@ -14,6 +14,21 @@ async function showcaseFirm(page: Page): Promise<{ id: string; name: string }> {
   return { id, name };
 }
 
+/** Every object of a type, read through the API the app itself uses. */
+async function allObjects<T>(page: Page, type: string): Promise<T[]> {
+  const out: T[] = [];
+  let token: string | undefined;
+  do {
+    const res = await page.request.get(
+      `/api/objects?type=${type}&pageSize=1000${token === undefined ? "" : `&pageToken=${encodeURIComponent(token)}`}`,
+    );
+    const body = (await res.json()) as { data: T[]; nextPageToken?: string | null };
+    out.push(...body.data);
+    token = body.nextPageToken ?? undefined;
+  } while (token !== undefined);
+  return out;
+}
+
 const tearSheetPath = (id: string) => `/firm/${encodeURIComponent(id)}/tear-sheet`;
 
 test("tear sheet renders a showcase firm", async ({ page }) => {
@@ -133,6 +148,55 @@ test("an unknown firm says so", async ({ page }) => {
   await page.goto(tearSheetPath("no-such-firm"));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Firm not found");
   await expect(page.locator("h1")).toHaveCount(1);
+  await expect(page.getByText("No firm has this id.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Print / Save as PDF" })).toBeDisabled();
+  await expect(page.getByRole("link", { name: "Open the Pipeline" })).toBeVisible();
+});
+
+test("a firm nobody has researched says so instead of reporting a clean bill", async ({ page }) => {
+  const firms = await allObjects<{ firmId: string; firmName: string }>(page, "Firm");
+  const findings = await allObjects<{ firmId: string }>(page, "ResearchFinding");
+  const researched = new Set(findings.map((f) => f.firmId));
+  const bare = firms.find((f) => !researched.has(f.firmId));
+  expect(bare).toBeDefined();
+
+  await page.goto(tearSheetPath(bare!.firmId));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(bare!.firmName);
+  const evidence = page.getByRole("region", { name: "Key evidence" });
+  await expect(evidence).toContainText("No research has run on this firm yet");
+  const open = page.getByRole("region", { name: "Open conflicts and abstentions" });
+  await expect(open).toContainText("No research has run on this firm yet");
+  await expect(open).not.toContainText("No open conflicts");
+  // Nothing is cited, so the page does not claim its quotes were checked.
+  await expect(page.getByText("found verbatim")).toHaveCount(0);
+});
+
+test("a passed firm shows the score it was passed at beside the live score", async ({ page }) => {
+  const firms = await allObjects<{ firmId: string; firmName: string; lifecycleState?: string }>(
+    page,
+    "Firm",
+  );
+  const decisions = await allObjects<{
+    firmId: string;
+    decisionType?: string;
+    scoreAtDecision?: number;
+  }>(page, "ReviewDecision");
+  const passed = new Set(firms.filter((f) => f.lifecycleState === "Passed").map((f) => f.firmId));
+  const rejection = decisions.find(
+    (d) =>
+      passed.has(d.firmId) &&
+      (d.decisionType ?? "").includes("reject") &&
+      typeof d.scoreAtDecision === "number",
+  );
+  expect(rejection).toBeDefined();
+
+  await page.goto(tearSheetPath(rejection!.firmId));
+  const score = page.getByRole("region", { name: "Score and tier" });
+  await expect(score).toContainText(`Score when passed: ${rejection!.scoreAtDecision}/18`);
+  await expect(score).toContainText("The score above is the live one.");
+  await expect(page.getByText(/^Passed · /)).toBeVisible();
+  // The decision that passed it is in the history, with its reason.
+  await expect(page.getByRole("region", { name: "Decision history" })).toContainText("Passed");
 });
 
 test("the command palette opens the open firm's tear sheet", async ({ page }) => {

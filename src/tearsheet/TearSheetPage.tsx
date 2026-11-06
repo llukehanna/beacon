@@ -1,13 +1,14 @@
 import React from "react";
 import { Link, useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ResearchFinding, ReviewDecision } from "@/data/ontology";
+import { type FindingLike } from "@/desk/axisState";
 import { type FirmView } from "@/desk/firmDesk/deskModel";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
+import { formatScore } from "@/desk/scoreFormat";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
-import { type FindingLike } from "../desk/axisState";
-import { formatScore } from "../desk/scoreFormat";
 import styles from "./TearSheetPage.module.css";
 import {
   type AbstentionItem,
@@ -17,9 +18,8 @@ import {
   type EvidenceItem,
   type TearSheet,
   buildTearSheet,
+  localDay,
 } from "./tearSheetModel";
-
-const stamp = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 
 /** Marks the document while the sheet is on screen, so the print rules hide the shell. */
 function usePrintMode(): void {
@@ -53,9 +53,21 @@ function CitationLine({ c }: { c: Citation }): React.ReactElement {
   );
 }
 
-function Evidence({ items }: { items: EvidenceItem[] }): React.ReactElement {
+const NOT_RESEARCHED = "No research has run on this firm yet, so there is nothing to report.";
+
+function Evidence({
+  items,
+  researched,
+}: {
+  items: EvidenceItem[];
+  researched: boolean;
+}): React.ReactElement {
   if (items.length === 0) {
-    return <p className={styles.plain}>No value on this firm is backed by a cited source yet.</p>;
+    return (
+      <p className={styles.plain}>
+        {researched ? "No value on this firm is backed by a cited source yet." : NOT_RESEARCHED}
+      </p>
+    );
   }
   return (
     <ul className={styles.list}>
@@ -203,7 +215,7 @@ function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.Rea
         <h2 id="ts-evidence" className={styles.heading}>
           Key evidence
         </h2>
-        <Evidence items={sheet.evidence} />
+        <Evidence items={sheet.evidence} researched={sheet.researched} />
       </Panel>
 
       <Panel className={styles.section} aria-labelledby="ts-open">
@@ -211,7 +223,9 @@ function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.Rea
           Open conflicts and abstentions
         </h2>
         {sheet.conflicts.length === 0 && sheet.abstentions.length === 0 ? (
-          <p className={styles.plain}>No open conflicts. No abstentions.</p>
+          <p className={styles.plain}>
+            {sheet.researched ? "No open conflicts. No abstentions." : NOT_RESEARCHED}
+          </p>
         ) : (
           <>
             {sheet.conflicts.length > 0 && <Conflicts items={sheet.conflicts} />}
@@ -232,7 +246,7 @@ function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.Rea
               <li key={d.id || d.at} className={styles.item}>
                 <p className={styles.itemHead}>
                   <span className={styles.axis}>{d.label}</span>
-                  <span className={styles.value}>{stamp(d.at)}</span>
+                  <span className={styles.value}>{localDay(d.at)}</span>
                   {d.score !== null && (
                     <span className={styles.tag}>Score then {formatScore(d.score)}</span>
                   )}
@@ -245,8 +259,9 @@ function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.Rea
       </Panel>
 
       <footer className={styles.foot}>
-        Prepared by Beacon on {today}. Scores use the 18-point qualification rubric. Every cited
-        sentence was found verbatim in its source document.
+        Prepared by Beacon on {today}. Scores use the 18-point qualification rubric.
+        {sheet.hasQuotes &&
+          " Each quoted sentence was found verbatim in its source document before it was kept."}
       </footer>
     </article>
   );
@@ -281,6 +296,8 @@ export default function TearSheetPage(): React.ReactElement {
     rules.configLoading ||
     rules.proposedRulesLoading;
   const error = firmQuery.error ?? findingsQuery.error ?? decisionsQuery.error;
+  const queryClient = useQueryClient();
+  const retry = React.useCallback(() => void queryClient.invalidateQueries(), [queryClient]);
 
   const sheet = React.useMemo(
     () =>
@@ -294,7 +311,7 @@ export default function TearSheetPage(): React.ReactElement {
           }),
     [firm, loading, findingsQuery.data, decisionsQuery.data, rules.rankingRules],
   );
-  const today = React.useMemo(() => stamp(Date.now()), []);
+  const today = React.useMemo(() => localDay(Date.now()), []);
 
   // "Save as PDF" names the file after the page title, so it names the firm.
   const name = sheet?.name;
@@ -339,7 +356,12 @@ export default function TearSheetPage(): React.ReactElement {
         {error !== undefined && error !== null ? (
           <>
             <h1 className="sr-only">Tear sheet</h1>
-            <Notice>Couldn&apos;t load the tear sheet: {String(error)}</Notice>
+            <Notice>
+              <span>
+                Couldn&apos;t load this firm&apos;s tear sheet. Check your connection and try again.
+              </span>{" "}
+              <Button onClick={retry}>Try again</Button>
+            </Notice>
           </>
         ) : loading ? (
           <div role="status" aria-label="Loading tear sheet" className={styles.loading}>

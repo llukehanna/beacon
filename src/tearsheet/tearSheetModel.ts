@@ -4,25 +4,22 @@
  * mirror, the axis rows, the hard-screen verdict, the decision list), so the sheet cannot say
  * something the Desk does not.
  */
-import { bucketOfHardRejected } from "../../shared/pipelineBuckets";
+import { type FindingLike } from "@/desk/axisState";
+import { displayFindingValue } from "@/desk/findingActions";
+import { agentHasRun } from "@/desk/firmDesk/agentRun";
+import { type AxisRow, authoritativeFinding, buildAxisRows } from "@/desk/firmDesk/axisRows";
+import { firmDecisionState } from "@/desk/firmDesk/decisionState";
+import { type FirmView, humanAxisValue, toScoreInput } from "@/desk/firmDesk/deskModel";
+import { conflictSides, providerOf } from "@/desk/firmDesk/evidenceModel";
+import { type FirmDecision, firmDecisions } from "@/desk/firmDesk/firmDecisions";
+import { buildOnFile } from "@/desk/firmDesk/onFile";
+import { tierText } from "@/desk/firmDesk/tierMeter";
+import { rejectDecisionByFirm } from "@/desk/pipelineRows";
+import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
+import { mirrorScore } from "@/desk/scoreMirror";
+import { firmFacts } from "@/pipeline/pipelineModel";
 import { MAX_POSSIBLE } from "../../shared/scoreMirror";
-import { ENRICH_AXES, PASSED, normalizeLifecycle, providerLabel } from "../../shared/vocab";
-import { type FindingLike } from "../desk/axisState";
-import { displayFindingValue } from "../desk/findingActions";
-import {
-  type AxisRow,
-  authoritativeFinding,
-  buildAxisRows,
-  openConflictFindings,
-} from "../desk/firmDesk/axisRows";
-import { type FirmView, humanAxisValue, toScoreInput } from "../desk/firmDesk/deskModel";
-import { type FirmDecision, firmDecisions } from "../desk/firmDesk/firmDecisions";
-import { buildOnFile } from "../desk/firmDesk/onFile";
-import { tierText } from "../desk/firmDesk/tierMeter";
-import { rejectDecisionByFirm } from "../desk/pipelineRows";
-import { type ActiveConfigRule, computeHardScreen } from "../desk/queue";
-import { mirrorScore } from "../desk/scoreMirror";
-import { firmFacts } from "../pipeline/pipelineModel";
+import { ENRICH_AXES, providerLabel } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
 export interface DecisionInput {
@@ -85,7 +82,12 @@ export interface AbstentionItem {
 
 export interface TearSheet {
   name: string;
+  /** The lifecycle stage ("Screening", "Passed"). */
   stage: string;
+  /** Whether the agent has run on the firm; when not, an empty evidence list means nothing is known yet. */
+  researched: boolean;
+  /** Whether the sheet cites at least one source sentence. */
+  hasQuotes: boolean;
   /** The profile as label and value pairs, leaving out what is not on file. */
   facts: Array<{ label: string; value: string }>;
   /** The firm's live score. */
@@ -113,13 +115,31 @@ const nonEmpty = (s: string | null | undefined): string | null => {
   return t === "" ? null : t;
 };
 
+/**
+ * Where a finding's value came from. Only a finding read from a source document has a source
+ * sentence, and it is credited to the provider that document belongs to (a corroborated finding
+ * carries the lead source's sentence and model, not both providers'). A finding with no document
+ * is an analyst's entry: its `sourceExcerpt` holds a note, not a quotation, so it is never cited.
+ */
 function citationOf(f: FindingLike): Citation {
-  const provider = nonEmpty(f.provider);
+  const documentProvider = providerOf(f.sourceDocumentId);
+  if (nonEmpty(f.sourceDocumentId) === null) {
+    return { provider: "Analyst", quote: null, model: null };
+  }
+  const provider = documentProvider ?? nonEmpty(f.provider);
   return {
-    provider: provider === null ? "Analyst" : providerLabel(provider),
-    quote: nonEmpty(f.sourceQuote) ?? nonEmpty(f.sourceExcerpt),
+    provider: provider === null ? "Source document" : providerLabel(provider),
+    quote: nonEmpty(f.sourceQuote),
     model: nonEmpty(f.extractionModel),
   };
+}
+
+const pad = (n: number): string => String(n).padStart(2, "0");
+
+/** A day as the reader's own calendar has it (yyyy-mm-dd), not the UTC day. */
+export function localDay(ms: number): string {
+  const d = new Date(ms);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 const decidedAtMs = (d: DecisionInput): number => {
@@ -132,9 +152,11 @@ export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetIn
   const mirror = mirrorScore(toScoreInput(firm));
   const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" } as never, rules);
   const hard = mirror.hardRejected || verdict.hardScreened;
-  const stage = bucketOfHardRejected(firm, hard);
-  const lifecycle = normalizeLifecycle(firm.lifecycleState ?? firm.currentStage);
-  const passed = stage === PASSED || lifecycle === PASSED;
+  // The stage is the firm's lifecycle stage, as the Desk header chip words it. A screen is shown
+  // beside it (score.screenedBecause), never as a stage: a rule-screened firm nobody has passed
+  // is not "Passed".
+  const { stageLabel: stage, terminalKind } = firmDecisionState(firm);
+  const passed = terminalKind === "passed";
 
   // The Desk header words a hard-screened firm's reason from the mirror first, then the rule.
   const screenedBecause = hard
@@ -168,7 +190,7 @@ export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetIn
     if (row.state === "conflict") {
       conflicts.push({
         axis: row.label,
-        sides: openConflictFindings(row).map((f) => ({
+        sides: conflictSides(row).map((f) => ({
           value: displayFindingValue(row.axis, f.value),
           ...citationOf(f),
         })),
@@ -191,6 +213,8 @@ export function buildTearSheet({ firm, findings, decisions, rules }: TearSheetIn
   return {
     name: firm.firmName ?? firm.firmId ?? "",
     stage,
+    researched: agentHasRun(findings),
+    hasQuotes: [...evidence, ...conflicts.flatMap((c) => c.sides)].some((c) => c.quote !== null),
     facts: [
       ...(nonEmpty(firm.firmType) === null
         ? []
