@@ -1,48 +1,50 @@
+/* Legacy variable names, remapped onto the design tokens in src/styles/tokens.css so every
+   screen not yet rebuilt picks up the new palette and fonts. */
 .dsn {
-  --color-bg: #161826;
-  --color-surface: #232532;
-  --color-text: #e9e9ed;
-  --color-accent: #34c2b8;
-  --color-accent-2: #5fcabf;
-  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+  --color-bg: var(--s1);
+  --color-surface: var(--s2);
+  --color-text: var(--tx);
+  --color-accent: var(--acc);
+  --color-accent-2: var(--acc2);
+  --color-divider: var(--line2);
 
-  --color-neutral-100: #f3f5fe;
-  --color-neutral-200: #e4e7f5;
-  --color-neutral-300: #cfd3e5;
-  --color-neutral-400: #b2b6ca;
-  --color-neutral-500: #9397ab;
-  --color-neutral-600: #75798c;
-  --color-neutral-700: #595d6c;
-  --color-neutral-800: #3f424d;
-  --color-neutral-900: #292b31;
+  --color-neutral-100: #ecedef;
+  --color-neutral-200: #d3d6db;
+  --color-neutral-300: #babec6;
+  --color-neutral-400: #9ba1ab;
+  --color-neutral-500: #7d838e;
+  --color-neutral-600: #5f6570;
+  --color-neutral-700: #3b4049;
+  --color-neutral-800: #22252b;
+  --color-neutral-900: #16181d;
 
-  --color-accent-100: #e7faf7;
-  --color-accent-200: #c2f0eb;
-  --color-accent-300: #94e2da;
-  --color-accent-400: #54cfc5;
-  --color-accent-500: #33b7ad;
-  --color-accent-600: #2a938c;
-  --color-accent-700: #24716c;
-  --color-accent-800: #22534f;
-  --color-accent-900: #1d3a38;
+  --color-accent-100: #eef0ff;
+  --color-accent-200: #d6daff;
+  --color-accent-300: #b4bbff;
+  --color-accent-400: #8a95ff;
+  --color-accent-500: #6f7af5;
+  --color-accent-600: #5b66f0;
+  --color-accent-700: #434cc4;
+  --color-accent-800: #2c3270;
+  --color-accent-900: #1d2147;
 
-  --color-accent-2-100: #e7faf7;
-  --color-accent-2-200: #c2f0eb;
-  --color-accent-2-300: #94e2da;
-  --color-accent-2-400: #58ccc3;
-  --color-accent-2-500: #37b0a8;
-  --color-accent-2-600: #2d8d88;
-  --color-accent-2-700: #266d69;
-  --color-accent-2-800: #224f4d;
-  --color-accent-2-900: #1d3937;
+  --color-accent-2-100: #eaf0ff;
+  --color-accent-2-200: #cddaff;
+  --color-accent-2-300: #a9bdff;
+  --color-accent-2-400: #7e9bff;
+  --color-accent-2-500: #5f80f2;
+  --color-accent-2-600: #4a66cc;
+  --color-accent-2-700: #394e9a;
+  --color-accent-2-800: #26335f;
+  --color-accent-2-900: #1a2243;
 
-  --color-section: #262a60;
-  --color-section-glow: #353b80;
-  --color-section-ghost: #4c5397;
+  --color-section: #1a1d3d;
+  --color-section-glow: #262a5a;
+  --color-section-ghost: #3a408f;
 
-  --font-heading: "Inter", system-ui, sans-serif;
-  --font-heading-weight: 500;
-  --font-body: "Inter", system-ui, sans-serif;
+  --font-heading: var(--font-ui);
+  --font-heading-weight: 600;
+  --font-body: var(--font-ui);
 
   /* ── Spacing scale ────────────────────────────────────────────────────
      4 / 8 / 12 / 16 / 24 / 32. Previously a 1.4-ratio scale of fractional
@@ -78,17 +80,15 @@
   --text-display: 32px;
 
   /* ── Radius scale ─────────────────────────────────────────────────────
-     2 / 4 / 6 / 8 / 12. Screens had 2,3,4,5,6,7,10,11,12,20 in play. */
+     2 / 4 / 6 / 8 / 12. Screens had 2,3,4,5,6,7,10,11,12,20 in play.
+     sm / md / lg now come from tokens.css (6 / 8 / 12). */
   --radius-xs: 2px; /* progress bars, rails */
-  --radius-sm: 4px; /* small inline marks */
   --radius-chip: 6px; /* chips, badges, tags */
-  --radius-md: 8px; /* cards, inputs, buttons */
-  --radius-lg: 12px; /* large containers, modals */
   --radius-pill: 999px;
 
-  --shadow-sm: 0 0 0 1px #3f424d;
-  --shadow-md: 0 0 0 1px #595d6c, 0 6px 18px rgba(0, 0, 0, 0.55);
-  --shadow-lg: 0 0 0 1px #9397ab, 0 16px 40px rgba(0, 0, 0, 0.65);
+  --shadow-sm: 0 0 0 1px var(--line);
+  --shadow-md: 0 0 0 1px var(--line2), 0 6px 18px rgba(0, 0, 0, 0.55);
+  --shadow-lg: 0 0 0 1px var(--line2), 0 16px 40px rgba(0, 0, 0, 0.65);
 }
 .dsn {
   background: var(--color-bg);
@@ -549,7 +549,7 @@
   height: 36px;
   padding: 0 6px;
   border-bottom: 0;
-  background: #0f1118;
+  background: var(--s1);
   box-shadow: inset 0 -1px 0 var(--color-divider);
   white-space: nowrap;
   overflow: hidden;

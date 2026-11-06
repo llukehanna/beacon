@@ -27,7 +27,7 @@ export function ProposeRulesButton(): React.ReactElement {
       </button>
       {note !== null && <span style={{ fontSize: 12, opacity: 0.8 }}>{note}</span>}
       {cluster.error !== undefined && (
-        <span style={{ fontSize: 12, color: "#f4abab" }}>{cluster.error.message}</span>
+        <span style={{ fontSize: 12, color: "#f7aaa3" }}>{cluster.error.message}</span>
       )}
     </div>
   );

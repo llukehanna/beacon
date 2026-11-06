@@ -34,9 +34,9 @@ import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
 // ─── Status chip ────────────────────────────────────────────────────────
 
 const RULE_STATUS_CHIP: Record<string, { label: string; fg: string; bg: string }> = {
-  pending: { label: "Pending", fg: "#8ec1ee", bg: "rgba(74,144,217,.16)" },
-  approved: { label: "Approved", fg: "#8fe3c0", bg: "rgba(87,185,138,.16)" },
-  dismissed: { label: "Dismissed", fg: "#e79191", bg: "rgba(207,112,112,.18)" },
+  pending: { label: "Pending", fg: "#b4bbff", bg: "rgba(138,149,255,.16)" },
+  approved: { label: "Approved", fg: "#7fe0b5", bg: "rgba(79,209,154,.16)" },
+  dismissed: { label: "Dismissed", fg: "#f4948b", bg: "rgba(240,113,103,.18)" },
 };
 
 function statusChip(raw: string | undefined): { label: string; fg: string; bg: string } {
@@ -586,8 +586,8 @@ function RuleCard({
           style={{
             padding: "8px 12px",
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontSize: 12,
           }}
         >
@@ -681,7 +681,7 @@ function RuleCard({
               gap: 8,
               flexWrap: "wrap",
               fontSize: 12,
-              color: "#8fe3c0",
+              color: "#7fe0b5",
             }}
           >
             {/* Version tag lives on the same line as authorship so the
@@ -694,8 +694,8 @@ function RuleCard({
                   style={{
                     padding: "1px 6px",
                     borderRadius: "var(--radius-sm)",
-                    background: "color-mix(in srgb, #57b98a 18%, transparent)",
-                    color: "#9be9ca",
+                    background: "color-mix(in srgb, #4fd19a 18%, transparent)",
+                    color: "#8ee5c0",
                     fontWeight: 600,
                     fontSize: 11,
                     fontVariantNumeric: "tabular-nums",
@@ -847,11 +847,11 @@ function RuleCard({
                 gap: 8,
                 padding: 10,
                 borderRadius: "var(--radius-md)",
-                border: "1px solid color-mix(in srgb, #cf7070 32%, transparent)",
-                background: "rgba(207,112,112,.08)",
+                border: "1px solid color-mix(in srgb, #f07167 32%, transparent)",
+                background: "rgba(240,113,103,.08)",
               }}
             >
-              <div style={{ fontSize: 12, color: "#f4abab", fontWeight: 500 }}>
+              <div style={{ fontSize: 12, color: "#f7aaa3", fontWeight: 500 }}>
                 Unapprove this rule?
               </div>
               <div
@@ -896,7 +896,7 @@ function RuleCard({
             paddingTop: 9,
           }}
         >
-          <span style={{ color: "#e79191", fontWeight: 500 }}>Dismissed</span> · by{" "}
+          <span style={{ color: "#f4948b", fontWeight: 500 }}>Dismissed</span> · by{" "}
           {displayDecider(rule.ruleDecidedBy)}
         </div>
       )}
@@ -1068,8 +1068,8 @@ function Rules(): React.ReactElement {
           <div
             style={{
               padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >

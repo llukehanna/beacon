@@ -2,7 +2,7 @@ import React from "react";
 
 function Loading(): React.ReactElement {
   return (
-    <div role="status" style={{ padding: "2rem", textAlign: "center", color: "#5f6b7c" }}>
+    <div role="status" style={{ padding: "2rem", textAlign: "center", color: "#9ba1ab" }}>
       Loading...
     </div>
   );

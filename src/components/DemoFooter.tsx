@@ -180,7 +180,7 @@ export default function DemoFooter(): React.ReactElement {
                 background: "var(--color-surface)",
                 border: "1px solid var(--color-divider)",
                 color: message.error
-                  ? "#e79191"
+                  ? "#f4948b"
                   : "color-mix(in srgb, var(--color-text) 72%, transparent)",
               }
         }

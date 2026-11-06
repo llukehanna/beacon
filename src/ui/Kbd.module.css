@@ -1,0 +1,16 @@
+.kbd {
+  padding: 0 5px;
+  border: 1px solid var(--line2);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: var(--s3);
+  color: var(--tx2);
+  font: 500 10.5px var(--font-mono);
+}
+
+/* On a primary button the hint sits on the indigo fill. */
+:global(.beacon-btn-primary) .kbd {
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #e8eaff;
+}

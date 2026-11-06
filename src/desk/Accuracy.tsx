@@ -179,8 +179,8 @@ function Accuracy(): React.ReactElement {
           <div
             style={{
               padding: "8px 24px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >
@@ -454,7 +454,7 @@ function MetricsTable({ title, rows }: { title: string; rows: MetricsRow[] }): R
         >
           {row.label}
           <RateCell pct={row.r.agreement} sample={row.r.decided} showBar={true} color="inherit" />
-          <RateCell pct={row.r.override} sample={row.r.decided} showBar={false} color="#e6c878" />
+          <RateCell pct={row.r.override} sample={row.r.decided} showBar={false} color="#f3c978" />
           <RateCell
             pct={row.r.abstention}
             sample={row.r.total}

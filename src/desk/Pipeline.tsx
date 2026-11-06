@@ -1333,8 +1333,8 @@ function DetailRail({ row }: { row: Row }): React.ReactElement {
             fontSize: 13,
             padding: 12,
             borderRadius: "var(--radius-md)",
-            background: "rgba(207,112,112,.12)",
-            color: "#e79191",
+            background: "rgba(240,113,103,.12)",
+            color: "#f4948b",
             fontWeight: 500,
           }}
         >
@@ -1522,8 +1522,8 @@ function Pipeline(): React.ReactElement {
           <div
             style={{
               padding: "8px 22px",
-              background: "rgba(207,112,112,.12)",
-              color: "#e79191",
+              background: "rgba(240,113,103,.12)",
+              color: "#f4948b",
               fontSize: 12,
             }}
           >

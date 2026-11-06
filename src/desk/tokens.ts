@@ -1,19 +1,19 @@
 /**
- * Beacon tokens — Nocturne (dark navy + teal accent), sourced from
- * design/beacon-enrichment-desk-direction/project/nocturne-scoped.css
- * and dataProvider.js. Semantic colors here are for JS-only cases (tier
- * badges, band chips, confidence chips). Layout tokens are read from CSS
- * variables (see nocturne.css) via var(--color-*), var(--space-*), etc.
+ * Beacon JS-only colour maps (tier badges, band chips, confidence chips,
+ * finding status). The values follow the palette in src/styles/tokens.css:
+ * amber = conflict, green = verified or positive, red = negative or rejected,
+ * indigo = proposed. Layout tokens are read from CSS variables (see
+ * nocturne.css and tokens.css) via var(--color-*), var(--space-*), etc.
  */
 import type { CSSProperties } from "react";
 import { ACQUIRED_BY_COMPETITOR } from "../../shared/vocab";
 
 // Tier palette — matches dataProvider.tierFromScore output.
 export const TIER_COLOR: Record<string, string> = {
-  A: "#57b98a",
-  B: "#cba24f",
-  C: "#cf7070",
-  Rejected: "#8a8d99",
+  A: "#4fd19a",
+  B: "#f0b955",
+  C: "#f07167",
+  Rejected: "#7d838e",
 };
 
 // Tier labels — note "Rejected" here means "weighted score below C" (a
@@ -31,44 +31,44 @@ export const TIER_LABEL: Record<string, string> = {
 
 // Per-axis 0/1/2 band chip — matches support.js:bandChip().
 export const BAND_COLOR: Record<number, { fg: string; bg: string }> = {
-  0: { fg: "#e79191", bg: "rgba(207,112,112,.16)" },
-  1: { fg: "#e6c878", bg: "rgba(203,162,79,.16)" },
-  2: { fg: "#8fe3c0", bg: "rgba(87,185,138,.16)" },
+  0: { fg: "#f4948b", bg: "rgba(240,113,103,.14)" },
+  1: { fg: "#f3c978", bg: "rgba(240,185,85,.14)" },
+  2: { fg: "#7fe0b5", bg: "rgba(79,209,154,.14)" },
 };
 
 // confidenceTier chip — matches dataProvider.CONFIDENCE.
 export const CONFIDENCE_CHIP: Record<string, { label: string; fg: string; bg: string }> = {
-  high: { label: "High", fg: "#9be9ca", bg: "rgba(87,185,138,.20)" },
-  low: { label: "Low", fg: "#f2d488", bg: "rgba(203,162,79,.22)" },
-  abstain: { label: "Abstain", fg: "#f4abab", bg: "rgba(207,112,112,.24)" },
+  high: { label: "High", fg: "#7fe0b5", bg: "rgba(79,209,154,.16)" },
+  low: { label: "Low", fg: "#f5d58f", bg: "rgba(240,185,85,.16)" },
+  abstain: { label: "Abstain", fg: "#9ba1ab", bg: "rgba(255,255,255,.05)" },
 };
 
 // findingStatus chip — matches dataProvider.FINDING.
 export const FINDING_CHIP: Record<string, { label: string; fg: string; bg: string }> = {
-  proposed: { label: "Proposed", fg: "#9ecbf2", bg: "rgba(74,144,217,.20)" },
-  verified: { label: "Verified", fg: "#9be9ca", bg: "rgba(87,185,138,.20)" },
-  abstained: { label: "Abstained", fg: "#f4abab", bg: "rgba(207,112,112,.24)" },
-  rejected: { label: "Rejected", fg: "#aab0bd", bg: "rgba(120,125,140,.18)" },
+  proposed: { label: "Proposed", fg: "#b4bbff", bg: "rgba(138,149,255,.14)" },
+  verified: { label: "Verified", fg: "#7fe0b5", bg: "rgba(79,209,154,.14)" },
+  abstained: { label: "Abstained", fg: "#9ba1ab", bg: "rgba(255,255,255,.05)" },
+  rejected: { label: "Rejected", fg: "#f4948b", bg: "rgba(240,113,103,.14)" },
 };
 
 // Provider labels live in shared/vocab (the server's accuracySummary sorts by them).
 export { PROVIDER_LABEL, providerLabel } from "../../shared/vocab";
 
-// Body-void background — the design paints the outer void one step darker
-// than the surface token (--color-bg #161826). Everything inside the desk
+// Body-void background — the page background token (--bg), one step darker
+// than the first surface (--color-bg is --s1). Everything inside the desk
 // still reads from --color-* variables.
-export const VOID_BG = "#0f1118";
+export const VOID_BG = "#07080a";
 
 // Accent-tinted danger for reject buttons — the design uses this color-mix
 // for the reject secondary button border.
-export const REJECT_BORDER = "color-mix(in srgb, #cf7070 42%, transparent)";
-export const REJECT_TEXT = "#e79191";
-export const REJECT_ICON = "#f4abab";
+export const REJECT_BORDER = "color-mix(in srgb, #f07167 42%, transparent)";
+export const REJECT_TEXT = "#f4948b";
+export const REJECT_ICON = "#f7aaa3";
 
 // Commit-success (green) for the "your call · advance" primary action.
-export const SUCCESS_TEXT = "#9be9ca";
-export const SUCCESS_TINT_BG = "rgba(87,185,138,.20)";
-export const SUCCESS_TINT_BORDER = "color-mix(in srgb, #57b98a 30%, transparent)";
+export const SUCCESS_TEXT = "#8ee5c0";
+export const SUCCESS_TINT_BG = "rgba(79,209,154,.16)";
+export const SUCCESS_TINT_BORDER = "color-mix(in srgb, #4fd19a 30%, transparent)";
 
 // ─── Observed outcome (post-decision) ───────────────────────────────────
 // Firm.outcome is backfilled by the FDE against decided firms; null on
@@ -131,15 +131,15 @@ export const DIVERGENCE_PHRASE = "we passed, market didn't";
 export const DRIFT_REASON_STYLE: Record<string, DriftReasonStyle> = {
   tier_moved: {
     label: "Tier moved",
-    fg: "#e79191",
-    bg: "rgba(207,112,112,.16)",
-    border: "color-mix(in srgb, #cf7070 32%, transparent)",
+    fg: "#f4948b",
+    bg: "rgba(240,113,103,.14)",
+    border: "color-mix(in srgb, #f07167 32%, transparent)",
   },
   pass_reason_invalidated: {
     label: "Pass reason invalidated",
-    fg: "#e6c878",
-    bg: "rgba(203,162,79,.16)",
-    border: "color-mix(in srgb, #cba24f 32%, transparent)",
+    fg: "#f3c978",
+    bg: "rgba(240,185,85,.14)",
+    border: "color-mix(in srgb, #f0b955 32%, transparent)",
   },
   outcome_diverged: {
     label: `Outcome diverged — ${DIVERGENCE_PHRASE}`,

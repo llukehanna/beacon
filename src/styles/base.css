@@ -1,0 +1,113 @@
+/* Element defaults, focus ring, scrollbars, selection, reduced motion and Blueprint overrides. */
+html {
+  color-scheme: dark;
+  background: var(--bg);
+}
+
+body {
+  color: var(--tx);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  font-feature-settings: "tnum", "ss01";
+  background:
+    radial-gradient(900px 420px at 30% -10%, rgba(110, 123, 255, 0.1), transparent 60%),
+    radial-gradient(600px 300px at 100% 0%, rgba(79, 209, 154, 0.04), transparent 60%), var(--bg);
+  background-attachment: fixed;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--acc) 30%, transparent);
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.26);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Blueprint: let its dark surfaces (drawers, dialogs, popovers, tags) use the tokens. */
+.bp6-dark,
+[data-bp-color-scheme="dark"] {
+  --bp-surface-background-color-default-rest: var(--s2);
+  --bp-surface-background-color-default-hover: var(--s3);
+  --bp-surface-background-color-default-active: var(--s3);
+  --bp-surface-border-color-default: var(--line2);
+  --bp-surface-border-color-strong: var(--line2);
+  --bp-surface-shadow-2: 0 0 0 1px var(--line2), 0 10px 30px -5px rgba(0, 0, 0, 0.6);
+  --bp-surface-shadow-3: 0 0 0 1px var(--line2), 0 20px 40px -10px rgba(0, 0, 0, 0.7);
+  --bp-surface-shadow-4: 0 0 0 1px var(--line2), 0 25px 60px -12px rgba(0, 0, 0, 0.85);
+  --bp-typography-color-default-rest: var(--tx);
+  --bp-typography-color-muted: var(--tx2);
+  --bp-typography-family-default: var(--font-ui);
+}
+
+.bp6-dark.bp6-drawer,
+.bp6-dark .bp6-drawer-header,
+.bp6-dark.bp6-dialog,
+.bp6-dark .bp6-popover-content {
+  background: var(--s1);
+  color: var(--tx);
+  font-family: var(--font-ui);
+}
+
+.bp6-dark .bp6-drawer-header {
+  box-shadow: 0 1px 0 var(--line);
+}
+
+.bp6-overlay-backdrop {
+  background-color: rgba(3, 4, 5, 0.6);
+}
+
+.bp6-dark .bp6-tag {
+  background: var(--s3);
+  color: var(--tx2);
+  box-shadow: 0 0 0 1px var(--line);
+}

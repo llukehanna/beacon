@@ -1,0 +1,45 @@
+.metric {
+  position: relative;
+  overflow: hidden;
+  padding: 14px 16px 12px;
+}
+
+.label {
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.value {
+  margin: 12px 0 4px;
+  font: 500 30px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+}
+
+.value small {
+  margin-left: 4px;
+  color: var(--tx3);
+  font-size: 15px;
+}
+
+.meaning {
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.meaning b {
+  font: 500 12px var(--font-mono);
+}
+
+.up {
+  color: var(--green);
+}
+
+.down {
+  color: var(--red);
+}
+
+.spark {
+  position: absolute;
+  top: 40px;
+  right: 16px;
+}

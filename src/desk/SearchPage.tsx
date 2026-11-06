@@ -650,8 +650,8 @@ function SearchPage(): React.ReactElement {
               style={{
                 padding: "10px 14px",
                 borderRadius: "var(--radius-md)",
-                background: "rgba(207,112,112,.12)",
-                color: "#e79191",
+                background: "rgba(240,113,103,.12)",
+                color: "#f4948b",
                 fontSize: 12,
               }}
             >
