@@ -89,11 +89,13 @@ describe("applyDueSignals", () => {
       axis: "fee_generating_count",
       value: "3",
       provider: "market_signal",
-      findingStatus: "verified",
+      findingStatus: "signal",
       verifiedByHuman: false,
       normalizedScore: 1,
       retrievedAt: NOW.toISOString(),
     });
+    expect(findings[0].confidence).toBeUndefined();
+    expect(findings[0].confidenceTier).toBeUndefined();
     expect(findings[0].sourceQuote).toBeUndefined();
     expect(findings[0].sourceDocumentId).toBeUndefined();
     const scores = await listAll(db, "QualificationScore", {
@@ -183,6 +185,96 @@ describe("applyDueSignals", () => {
       driftReason: "pass_reason_invalidated",
       newTier: expect.stringMatching(/^[ABC]$/),
     });
+  });
+
+  it("an acquisition's drift and outcome are labelled synthetic, and an analyst's outcome replaces the label", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Not a fit" });
+    await addSignal(db, {
+      signalId: "s1",
+      firmId: firm.$primaryKey,
+      kind: "acquisition",
+      axis: undefined,
+      newValue: undefined,
+      effectiveDate: hoursAgo(1),
+    });
+    const { drifts } = await applyDueSignals(db, NOW);
+    const drift = (await getObject(db, "DriftEvent", drifts[0]))!;
+    expect(JSON.parse(drift.changedAxes!)).toEqual([
+      expect.objectContaining({ source: "Synthetic market signal", dated: drift.detectedAt }),
+    ]);
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.outcomeSource).toBe("market_signal");
+    await run(db, "setFirmOutcome", {
+      firm: firm.$primaryKey,
+      outcome: "went_cold",
+      outcomeObservedAt: NOW.toISOString(),
+    });
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.outcomeSource).toBeUndefined();
+  });
+
+  it("stamps a signal it could not use as applied, with no change, no finding and no score", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { ...AT_THE_FLOOR, feeGeneratingCount: undefined });
+    const noFee = firm.$primaryKey;
+    const withFee = (await seedFirm(db, AT_THE_FLOOR)).$primaryKey;
+    await addSignal(db, { signalId: "empty", firmId: noFee, effectiveDate: hoursAgo(4) });
+    await addSignal(db, {
+      signalId: "clamped",
+      firmId: withFee,
+      newValue: "9", // a departure never raises the count
+      effectiveDate: hoursAgo(3),
+    });
+    await addSignal(db, {
+      signalId: "moved",
+      firmId: withFee,
+      newValue: "3",
+      effectiveDate: hoursAgo(2),
+    });
+    const before = await listAll(db, "QualificationScore");
+    expect((await applyDueSignals(db, NOW)).applied).toEqual(["empty", "clamped", "moved"]);
+
+    const byId = new Map((await listAll(db, "MarketSignal")).map((s) => [s.signalId, s]));
+    expect(byId.get("empty")).toMatchObject({ appliedAt: NOW.toISOString(), effect: "unchanged" });
+    expect(byId.get("clamped")).toMatchObject({
+      appliedAt: NOW.toISOString(),
+      effect: "unchanged",
+    });
+    expect(byId.get("moved")?.effect).toBe("moved");
+    expect((await getObject(db, "Firm", noFee))?.feeGeneratingCount).toBeUndefined();
+    const findings = await listAll(db, "ResearchFinding");
+    expect(findings).toHaveLength(1);
+    expect(findings[0].firmId).toBe(withFee);
+    expect((await listAll(db, "QualificationScore")).length - before.length).toBe(1);
+    // Applied once: a second run does not try them again.
+    expect((await applyDueSignals(db, NOW)).applied).toEqual([]);
+  });
+
+  it("an analyst's check made after the news outranks it: the signal is listed, the tier does not move", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, AT_THE_FLOOR);
+    await run(db, "qualifyFirm", { firm: firm.$primaryKey });
+    await insertObject(db, "ResearchFinding", {
+      findingId: "mine",
+      firmId: firm.$primaryKey,
+      axis: "fee_generating_count",
+      value: "4",
+      provider: "analyst",
+      findingStatus: "verified",
+      verifiedByHuman: true,
+      verifiedAt: hoursAgo(1), // after the signal's date
+      retrievedAt: hoursAgo(1),
+    });
+    await addSignal(db, { signalId: "s1", firmId: firm.$primaryKey, effectiveDate: hoursAgo(3) });
+    const { applied, drifts } = await applyDueSignals(db, NOW);
+    expect(applied).toEqual(["s1"]);
+    expect(drifts).toEqual([]);
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.feeGeneratingCount).toBe(4);
+    expect(await listAll(db, "DriftEvent")).toHaveLength(0);
+    expect((await getObject(db, "MarketSignal", "s1"))?.effect).toBe("unchanged");
+    expect(
+      (await listAll(db, "ResearchFinding")).filter((f) => f.provider === "market_signal"),
+    ).toHaveLength(0);
   });
 
   it("leaves signals that are not yet due alone", async () => {

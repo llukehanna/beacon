@@ -8,7 +8,7 @@ The ontology has 15 object types, 2 traversed links and 18 actions. Each object 
 
 ### Firm
 
-Table `firm`, primary key `firmId`, 39 properties.
+Table `firm`, primary key `firmId`, 40 properties.
 
 | Property | Type | Note |
 | --- | --- | --- |
@@ -50,6 +50,7 @@ Table `firm`, primary key `firmId`, 39 properties.
 | `enrichedAt` | timestamp |  |
 | `outcome` | string |  |
 | `outcomeObservedAt` | timestamp |  |
+| `outcomeSource` | string |  |
 | `discoveredViaSearchId` | string |  |
 
 ### Mandate
@@ -257,7 +258,7 @@ Table `hard_screen_config`, primary key `configRuleId`, 10 properties.
 
 ### MarketSignal
 
-Table `market_signal`, primary key `signalId`, 8 properties.
+Table `market_signal`, primary key `signalId`, 9 properties.
 
 | Property | Type | Note |
 | --- | --- | --- |
@@ -269,6 +270,7 @@ Table `market_signal`, primary key `signalId`, 8 properties.
 | `axis` | string |  |
 | `newValue` | string |  |
 | `appliedAt` | timestamp |  |
+| `effect` | string |  |
 
 ### ActionRun
 

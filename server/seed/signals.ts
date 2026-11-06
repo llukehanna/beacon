@@ -70,14 +70,20 @@ const round1 = (v: number): number => Math.round(v * 10) / 10;
 
 // ─── Moves ───────────────────────────────────────────────────────────────
 
-const hire = (f: Props<"Firm">): Step => {
+/**
+ * The moves a signal can make. Each adjusts a value the firm already has: with nothing on file
+ * for the axis there is nothing to adjust, so the move is null and no signal is made.
+ */
+const hire = (f: Props<"Firm">): Step | null => {
   const cur = num(f.feeGeneratingCount);
-  return {
-    kind: "senior_hire",
-    axis: "fee_generating_count",
-    field: "feeGeneratingCount",
-    value: cur === null ? 2 : cur + 1,
-  };
+  return cur === null
+    ? null
+    : {
+        kind: "senior_hire",
+        axis: "fee_generating_count",
+        field: "feeGeneratingCount",
+        value: cur + 1,
+      };
 };
 
 const departure = (f: Props<"Firm">): Step | null => {
@@ -92,24 +98,28 @@ const departure = (f: Props<"Firm">): Step | null => {
       };
 };
 
-const largerDeal = (f: Props<"Firm">): Step => {
+const largerDeal = (f: Props<"Firm">): Step | null => {
   const cur = num(f.dealSizeMUsd);
-  return {
-    kind: "deal_announcement",
-    axis: "deal_size_usd_m",
-    field: "dealSizeMUsd",
-    value: cur === null ? 60 : Math.max(Math.round(cur * 1.5), Math.round(cur) + 15),
-  };
+  return cur === null
+    ? null
+    : {
+        kind: "deal_announcement",
+        axis: "deal_size_usd_m",
+        field: "dealSizeMUsd",
+        value: Math.max(Math.round(cur * 1.5), Math.round(cur) + 15),
+      };
 };
 
-const fasterPace = (f: Props<"Firm">): Step => {
+const fasterPace = (f: Props<"Firm">): Step | null => {
   const cur = num(f.dealsPerMdL3y);
-  return {
-    kind: "deal_announcement",
-    axis: "deals_per_md_l3y",
-    field: "dealsPerMdL3y",
-    value: cur === null ? 2 : round1(cur + 1),
-  };
+  return cur === null
+    ? null
+    : {
+        kind: "deal_announcement",
+        axis: "deals_per_md_l3y",
+        field: "dealsPerMdL3y",
+        value: round1(cur + 1),
+      };
 };
 
 const applyStep = (f: FirmObj, s: Step): FirmObj =>
@@ -128,7 +138,12 @@ function raisingChain(firm: FirmObj, maxSteps = 4): Step[] | null {
   const steps: Step[] = [];
   let cur = firm;
   while (steps.length < maxSteps) {
-    const options = [hire(cur), largerDeal(cur), fasterPace(cur)];
+    const options = [hire(cur), largerDeal(cur), fasterPace(cur)].filter(
+      (o): o is Step => o !== null,
+    );
+    if (options.length === 0) {
+      return null;
+    }
     const gain = (s: Step): number =>
       scoreFirm(applyStep(cur, s)).weightedTotal - scoreFirm(cur).weightedTotal;
     const best = options.reduce((a, b) => (gain(b) > gain(a) ? b : a));
@@ -237,7 +252,7 @@ function datesFor(r: Rng, count: number, lo: number, anchor: number, future: boo
 
 export interface SignalInputs {
   firms: readonly FirmObj[];
-  /** When each firm was last decided on, in epoch milliseconds. */
+  /** When each firm was last decided on or had a value verified, in epoch milliseconds. */
   decidedAt: ReadonlyMap<string, number>;
   /** Firms with an open drift event: a signal on one could not be told apart from it, so none is made. */
   openDriftFirms: ReadonlySet<string>;
@@ -338,11 +353,9 @@ export function generateSignals(input: SignalInputs): Props<"MarketSignal">[] {
     if (planned + background >= SIGNAL_TARGET) {
       break;
     }
-    const options: Step[] = [
-      ...(num(f.feeGeneratingCount) !== null ? [hire(f), departure(f)] : []),
-      ...(num(f.dealSizeMUsd) !== null ? [largerDeal(f)] : []),
-      ...(num(f.dealsPerMdL3y) !== null ? [fasterPace(f)] : []),
-    ].filter((s): s is Step => s !== null);
+    const options: Step[] = [hire(f), departure(f), largerDeal(f), fasterPace(f)].filter(
+      (s): s is Step => s !== null,
+    );
     if (options.length > 0) {
       take(f, [pick(r, options)], background < FUTURE_BACKGROUND);
       background++;
@@ -384,7 +397,11 @@ export async function seedSignals(
 ): Promise<{ total: number; applied: number }> {
   const firms = await listAll(db, "Firm");
   const decided = await db.query<{ firmId: string; at: Date | string }>(
-    `SELECT "firmId", max("decidedAt") AS at FROM review_decision GROUP BY "firmId"`,
+    `SELECT "firmId", max(at) AS at FROM (
+       SELECT "firmId", "decidedAt" AS at FROM review_decision
+       UNION ALL
+       SELECT "firmId", "verifiedAt" AS at FROM research_finding WHERE "verifiedAt" IS NOT NULL
+     ) t WHERE "firmId" IS NOT NULL GROUP BY "firmId"`,
   );
   const open = await db.query<{ firmId: string }>(
     `SELECT DISTINCT "firmId" FROM drift_event WHERE lower(coalesce("driftStatus", '')) <> 'resolved'`,

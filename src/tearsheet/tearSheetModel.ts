@@ -85,7 +85,7 @@ export interface EvidenceItem extends Citation {
   axis: string;
   value: string;
   /** Verified by an analyst, or still only proposed. */
-  status: "verified" | "proposed";
+  status: "verified" | "proposed" | "signal";
   /** Written by a synthetic market signal: news, not an analyst's check. */
   synthetic: boolean;
 }
@@ -253,7 +253,7 @@ export function buildTearSheet({
       });
     } else if (row.state === "abstained") {
       abstentions.push({ axis: row.label, onFile: onFile[row.axis]?.text ?? null });
-    } else if (row.state === "verified" || row.state === "proposed") {
+    } else if (row.state === "verified" || row.state === "proposed" || row.state === "signal") {
       const f = authoritativeFinding(row);
       if (f !== undefined) {
         evidence.push({

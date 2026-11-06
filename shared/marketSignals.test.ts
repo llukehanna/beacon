@@ -33,6 +33,14 @@ describe("market signal wording", () => {
     ).toBe("Avg deal size → $180m");
     expect(axisMovedText({ kind: "acquisition" })).toBe("Market outcome: acquired by a competitor");
     expect(axisMovedText({ kind: "departure" })).toBe("No score axis moved");
+    expect(
+      axisMovedText({
+        kind: "departure",
+        axis: "fee_generating_count",
+        newValue: "3",
+        effect: "unchanged",
+      }),
+    ).toBe("No change");
   });
 
   it("knows an applied signal by its appliedAt", () => {

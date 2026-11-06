@@ -366,7 +366,7 @@ export function EvidenceBody({
                 {modelName !== null && (
                   <Chip title={modelChipTitle(finding.extractionModel)}>{modelName}</Chip>
                 )}
-                {formatRetrievedShort(finding) !== "" && (
+                {row.state !== "signal" && formatRetrievedShort(finding) !== "" && (
                   <Chip title="When the source was read">{formatRetrievedShort(finding)}</Chip>
                 )}
               </div>

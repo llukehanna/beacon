@@ -140,6 +140,51 @@ describe("generateSignals", () => {
     }
   });
 
+  it("never fills an axis the firm has no value for", () => {
+    const { firms, decidedAt } = population();
+    // Half the screening firms have no fee-earner count, a third no deal size, a quarter no pace.
+    const sparse = firms.map((f, i) => ({
+      ...f,
+      ...(i % 2 === 0 ? { feeGeneratingCount: undefined } : {}),
+      ...(i % 3 === 0 ? { dealSizeMUsd: undefined } : {}),
+      ...(i % 4 === 0 ? { dealsPerMdL3y: undefined } : {}),
+    })) as typeof firms;
+    const byId = new Map(sparse.map((f) => [f.$primaryKey, f as Record<string, unknown>]));
+    const field: Record<string, string> = {
+      fee_generating_count: "feeGeneratingCount",
+      deal_size_usd_m: "dealSizeMUsd",
+      deals_per_md_l3y: "dealsPerMdL3y",
+    };
+    const signals = generateSignals({
+      firms: sparse,
+      decidedAt,
+      openDriftFirms: new Set(),
+      anchor: ANCHOR,
+    });
+    expect(signals.filter((s) => s.axis).length).toBeGreaterThan(20);
+    for (const s of signals.filter((x) => x.axis)) {
+      const firm = byId.get(s.firmId!)!;
+      expect(typeof firm[field[s.axis!]], `${s.signalId} on ${s.axis}`).toBe("number");
+    }
+  });
+
+  it("dates a signal after the firm's last verification, not only its last decision", () => {
+    const { firms } = population();
+    const touched = new Map(firms.map((f) => [f.$primaryKey, ANCHOR.getTime() - 2 * HOUR]));
+    const signals = generateSignals({
+      firms,
+      decidedAt: touched,
+      openDriftFirms: new Set(),
+      anchor: ANCHOR,
+    });
+    expect(signals.length).toBeGreaterThan(0);
+    for (const s of signals) {
+      expect(Date.parse(s.effectiveDate!), s.signalId ?? "").toBeGreaterThan(
+        ANCHOR.getTime() - 2 * HOUR,
+      );
+    }
+  });
+
   it("leaves out firms that already have an open drift event", () => {
     const leave = new Set(["screen-00", "screen-01", "passed-00", "qualified-0"]);
     const touched = new Set(
@@ -192,6 +237,26 @@ describe("the seeded demo's signals", () => {
       const ahead = Date.parse(s.effectiveDate!) - ANCHOR.getTime();
       expect(ahead, s.signalId).toBeGreaterThan(0);
       expect(ahead, s.signalId).toBeLessThanOrEqual(LOOKAHEAD_MS);
+    }
+  });
+
+  it("makes no signal that changes nothing, and none an analyst's later check would outrank", async () => {
+    const signals = await listAll(db, "MarketSignal");
+    for (const s of signals.filter((x) => x.appliedAt !== undefined)) {
+      expect(s.effect, s.signalId).toBe("moved");
+    }
+    expect(
+      signals.filter((s) => s.appliedAt === undefined).every((s) => s.effect === undefined),
+    ).toBe(true);
+    // Every signal that names an axis adjusted a value the firm already had.
+    const withAxis = signals.filter((s) => s.axis !== undefined && s.appliedAt !== undefined);
+    const findings = await listAll(db, "ResearchFinding", {
+      where: { provider: { $eq: "market_signal" } },
+    });
+    expect(findings).toHaveLength(withAxis.length);
+    for (const f of findings) {
+      expect(f.findingStatus, f.findingId).toBe("signal");
+      expect(f.confidenceTier, f.findingId).toBeUndefined();
     }
   });
 

@@ -12,6 +12,7 @@
  * show — an abstained finding that a later verified one supersedes is not
  * work.
  */
+import { MARKET_SIGNAL } from "./vocab.js";
 
 export interface FindingLike {
   findingId: string;
@@ -36,7 +37,15 @@ export interface FindingLike {
   retrievedAt?: string | number | Date | null;
 }
 
+/** A finding written by a synthetic market signal: news that moves a score, never a checked value. */
+export function isSignalFinding(f: FindingLike): boolean {
+  return (f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL;
+}
+
 export function isVerifiedFinding(f: FindingLike): boolean {
+  if (isSignalFinding(f)) {
+    return false;
+  }
   return f.verifiedByHuman === true || (f.findingStatus ?? "").toLowerCase() === "verified";
 }
 
@@ -57,12 +66,16 @@ export function retrievedMs(f: FindingLike): number {
 }
 
 export function pickAuthoritative(findings: FindingLike[]): FindingLike {
-  const verified = findings.filter(isVerifiedFinding);
-  const pool = verified.length > 0 ? verified : findings;
+  // A market signal speaks for an axis only when nothing else has been found for it: a human-
+  // verified finding outranks it, and an open proposal or abstention is still work for the analyst.
+  const real = findings.filter((f) => !isSignalFinding(f));
+  const candidates = real.length > 0 ? real : findings;
+  const verified = candidates.filter(isVerifiedFinding);
+  const pool = verified.length > 0 ? verified : candidates;
   return [...pool].sort((a, b) => retrievedMs(b) - retrievedMs(a))[0];
 }
 
-export type AxisState = "verified" | "abstained" | "proposed";
+export type AxisState = "verified" | "abstained" | "proposed" | "signal";
 
 export interface AxisGroup {
   axis: string;
@@ -72,6 +85,9 @@ export interface AxisGroup {
 }
 
 export function classifyAxis(auth: FindingLike): AxisState {
+  if (isSignalFinding(auth)) {
+    return "signal";
+  }
   if (isVerifiedFinding(auth)) {
     return "verified";
   }
@@ -104,6 +120,8 @@ export function axisBadge(state: AxisState, hasValue: boolean): AxisBadge {
       };
     case "verified":
       return { label: null, showProvider: true, showConfidence: false };
+    case "signal":
+      return { label: "Synthetic market signal", showProvider: false, showConfidence: false };
     case "proposed":
       return { label: null, showProvider: true, showConfidence: true };
   }
@@ -137,6 +155,10 @@ export function needsYouAxisCountByFirm(
       continue;
     }
     if ((f.findingStatus ?? "").toLowerCase() === "superseded") {
+      continue;
+    }
+    // A market signal never settles an axis, so it never takes "needs you" off one.
+    if (isSignalFinding(f)) {
       continue;
     }
     // A finding inside a conflict group is rendered as a conflict card, not

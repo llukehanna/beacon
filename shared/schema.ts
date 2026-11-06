@@ -58,6 +58,7 @@ export const OBJECT_TYPES = {
       enrichedAt: "timestamp",
       outcome: "string",
       outcomeObservedAt: "timestamp",
+      outcomeSource: "string",
       discoveredViaSearchId: "string",
     },
   },
@@ -273,6 +274,7 @@ export const OBJECT_TYPES = {
       axis: "string",
       newValue: "string",
       appliedAt: "timestamp",
+      effect: "string",
     },
   },
   ActionRun: {

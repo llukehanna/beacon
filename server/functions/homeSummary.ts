@@ -104,6 +104,7 @@ export async function needsYouAxes(q: Queryable): Promise<Map<string, number>> {
         WHERE coalesce("firmId", '') <> ''
           AND lower(coalesce("findingStatus", '')) <> 'superseded'
           AND coalesce("conflictGroupId", '') = ''
+          AND lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
      ), authoritative AS (
        SELECT DISTINCT ON ("firmId", axis) "firmId", verified, abstained
          FROM visible
