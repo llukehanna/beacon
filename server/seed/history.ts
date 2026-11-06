@@ -91,6 +91,8 @@ export async function seedHistory(
       now: new Date(clock),
       clusterer,
       newId,
+      // The seeded history is demo data, not a measurement of the running app.
+      recordRun: null,
     });
   };
   const at = () => new Date(clock).toISOString();

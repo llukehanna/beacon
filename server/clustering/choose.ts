@@ -1,5 +1,6 @@
 import type { Queryable } from "../db/client.js";
 import { claimDailyQuota, claimWindow } from "../db/meta.js";
+import { recordModelCall } from "../operations/record.js";
 import { createClaudeClusterer } from "./claude.js";
 import { heuristicClusterer } from "./heuristic.js";
 import type { Clusterer } from "./types.js";
@@ -14,7 +15,8 @@ const DAILY_CALLS = "claudeClusterCallsToday";
 export async function chooseClusterer(
   q: Queryable,
   now: Date,
-  create: () => Clusterer = () => createClaudeClusterer(),
+  create: () => Clusterer = () =>
+    createClaudeClusterer(undefined, (call) => recordModelCall(q, call)),
 ): Promise<Clusterer> {
   if (process.env.CLAUDE_CLUSTERING !== "on") {
     return heuristicClusterer;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deskHref, evalCount, evalPct, tabFromParam } from "./evalsModel";
+import { deskHref, evalCount, evalPct, tabFromParam, tabTarget } from "./evalsModel";
 
 describe("evalsModel", () => {
   it("prints a rate to one decimal and a missing rate as a dash", () => {
@@ -20,8 +20,18 @@ describe("evalsModel", () => {
 
   it("opens the evals tab only for ?tab=evals", () => {
     expect(tabFromParam("evals")).toBe("evals");
+    expect(tabFromParam("operations")).toBe("operations");
     expect(tabFromParam("overview")).toBe("overview");
     expect(tabFromParam("nonsense")).toBe("overview");
     expect(tabFromParam(null)).toBe("overview");
+  });
+
+  it("moves between tabs with the arrows (wrapping), Home and End", () => {
+    expect(tabTarget("ArrowRight", 0, 3)).toBe(1);
+    expect(tabTarget("ArrowRight", 2, 3)).toBe(0);
+    expect(tabTarget("ArrowLeft", 0, 3)).toBe(2);
+    expect(tabTarget("Home", 2, 3)).toBe(0);
+    expect(tabTarget("End", 0, 3)).toBe(2);
+    expect(tabTarget("Tab", 0, 3)).toBeNull();
   });
 });

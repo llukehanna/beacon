@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { OBJECT_TYPES } from "../shared/schema";
 import {
   ACTIONS_PER_MINUTE,
   ACTIVITY_ROW_CEILING,
@@ -16,6 +17,7 @@ import {
   MAX_BODY_BYTES,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
+  OBJECT_TYPE_COUNT,
   OTHER_HEADERS,
   RECORDED_RUN,
   RESETS_PER_MINUTE,
@@ -28,6 +30,7 @@ import { MIN_CLUSTER } from "./actions/rules";
 import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
+import { MAX_ACTION_RUNS } from "./operations/record";
 import { UNIVERSE_SIZE } from "./seed/universe";
 
 const ROOT = resolve(__dirname, "..");
@@ -93,6 +96,25 @@ describe("figures on the About and Trust pages", () => {
     expect(doc).toContain(`The run cost ${RECORDED_RUN.extractionCost}`);
     expect(doc).toContain(`${RECORDED_RUN.clusteringCost}.`);
     expect(doc).toContain("Claude Haiku 4.5");
+  });
+});
+
+describe("the object type count", () => {
+  it("is the one the docs and the schema state", () => {
+    expect(OBJECT_TYPE_COUNT).toBe(Object.keys(OBJECT_TYPES).length);
+    expect(read("docs/architecture.md")).toContain(`the ${OBJECT_TYPE_COUNT} object types`);
+    expect(read("docs/architecture.md")).toContain(`${OBJECT_TYPE_COUNT} object tables`);
+    expect(read("README.md")).toContain(`${OBJECT_TYPE_COUNT} object tables`);
+    expect(read("docs/foundry-origins.md")).toContain(`${OBJECT_TYPE_COUNT} object types`);
+  });
+
+  it("keeps operations metrics out of the snapshot and the stored-run ceiling in the docs", () => {
+    expect(read("docs/security.md")).toContain(
+      `up to ${MAX_ACTION_RUNS.toLocaleString("en-US")} action runs`,
+    );
+    expect(read("docs/architecture.md")).toContain(
+      `capped at ${MAX_ACTION_RUNS.toLocaleString("en-US")} stored action runs`,
+    );
   });
 });
 

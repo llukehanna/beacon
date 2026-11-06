@@ -2,6 +2,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { PREDICATE_AXES } from "../../shared/predicate.js";
 import { OPERATORS } from "../../shared/vocab.js";
+import { costFromUsage, hasPrice } from "../extraction/pricing.js";
+import type { ModelCallInput } from "../operations/record.js";
 import type { Clusterer, RejectionRow, RuleProposal } from "./types.js";
 
 export const CLUSTER_MODEL = "claude-opus-5";
@@ -88,6 +90,50 @@ export function renderRejections(rows: readonly RejectionRow[]): string {
   return `Predicate facts map to axes: employees→employees, dealSizeMUsd→deal_size_usd_m, dealsPerMdL3y→deals_per_md_l3y, firmAge→firm_age, feeGeneratingCount→fee_generating_count, geoScore→geo_score, coverageModel→coverage_model.\n\nRejections:\n${lines.join("\n")}`;
 }
 
+interface UsageLike {
+  input_tokens: number;
+  output_tokens: number;
+  cache_read_input_tokens?: number | null;
+  cache_creation_input_tokens?: number | null;
+}
+
+/**
+ * What one live call cost, from the token counts the API reported and the rates in the pricing module.
+ * Null when the response carries no usage. A model with no listed price (a fallback the API chose) is
+ * priced as the clustering model, so the figure is an estimate in that one case rather than missing.
+ */
+export function modelCallOf(
+  message: { model?: string; usage?: UsageLike | null },
+  calledAt: Date,
+): ModelCallInput | null {
+  const u = message.usage;
+  if (!u) {
+    return null;
+  }
+  const model =
+    message.model !== undefined && hasPrice(message.model) ? message.model : CLUSTER_MODEL;
+  const cacheRead = u.cache_read_input_tokens ?? 0;
+  const cacheWrite = u.cache_creation_input_tokens ?? 0;
+  return {
+    purpose: "clustering",
+    model: message.model ?? CLUSTER_MODEL,
+    // Cached tokens are input too; the figure shown is every token that went in.
+    inputTokens: u.input_tokens + cacheRead + cacheWrite,
+    outputTokens: u.output_tokens,
+    costUsd: costFromUsage(
+      model,
+      {
+        inputTokens: u.input_tokens,
+        outputTokens: u.output_tokens,
+        cacheReadTokens: cacheRead,
+        cacheWriteTokens: cacheWrite,
+      },
+      false,
+    ),
+    calledAt,
+  };
+}
+
 interface MessageLike {
   stop_reason: string | null;
   content: ReadonlyArray<{ type: string; text?: string }>;
@@ -103,8 +149,13 @@ export function parseClusterResponse(message: MessageLike): RuleProposal[] {
   return ProposalsSchema.parse(JSON.parse(text)).rules;
 }
 
+/**
+ * `onCall` hears about every live call that returned, before its reply is parsed: the tokens were
+ * spent even when the reply is unusable. It must not throw into the clustering; a failure is logged.
+ */
 export function createClaudeClusterer(
   client: Anthropic = new Anthropic({ timeout: 30_000, maxRetries: 1 }),
+  onCall?: (call: ModelCallInput) => Promise<void>,
 ): Clusterer {
   return async (rows) => {
     const message = await client.beta.messages.create({
@@ -117,6 +168,15 @@ export function createClaudeClusterer(
       system: SYSTEM,
       messages: [{ role: "user", content: renderRejections(rows) }],
     });
+    const call = modelCallOf(message, new Date());
+    if (call !== null && onCall !== undefined) {
+      try {
+        await onCall(call);
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.warn("Could not record the clustering call.", e);
+      }
+    }
     return { proposals: parseClusterResponse(message), source: "claude" };
   };
 }
