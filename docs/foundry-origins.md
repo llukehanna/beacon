@@ -6,7 +6,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 | Foundry (original)                                    | This repo                                                                                                                                                                   |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 14 object types (three of them, `Extraction`, `ActionRun` and `ModelCall`, were added in this repository), 2 traversed links; Postgres tables generated from it |
+| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 14 object types (11 carried over, 1 not ported, 3 added; see below), 2 traversed links; Postgres tables generated from it |
 | Pipeline Builder cleaning a licensed data export      | `server/seed/universe.ts`: deterministic synthetic universe                                                                                                                 |
 | 30 Actions (function-backed + declarative)            | 18 actions in `server/actions/` (every one the UI or seed calls)                                                                                                            |
 | 39 TypeScript v1 Functions                            | Query functions in `server/functions/` plus pure modules in `shared/` and `server/`                                                                                         |
@@ -21,9 +21,10 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Ontology becomes one schema file and generated tables
 
+- **Object types: 12 became 14.** The Foundry ontology had 12 object types: `DriftEvent`, `HardScreenConfig`, `LghFirm`, `Mandate`, `ProposedRule`, `QualificationScore`, `ResearchFinding`, `ReviewDecision`, `Search`, `SearchList`, `SearchMembership` and `TargetBrief`. The port carried 11 of them (`LghFirm` became `Firm`) and did not port `TargetBrief`. `Extraction`, `ActionRun` and `ModelCall` were added in this repository, which makes 14.
 - **Here.** `shared/schema.ts` declares every object type, its properties and types, the links the screens traverse and the action names. `server/db/ddl.ts` generates one Postgres table per object type from it, `server/db/repo.ts` reads and writes by type and checks every column name against it, and the typed hooks in `src/data/` are keyed by the same names. `npm run ontology:doc` writes [ontology.md](ontology.md) from it, and CI fails if that file is out of date.
 - **Kept.** Object types with typed properties and string primary keys, and the idea that the model is declared once and everything else derives from it.
-- **Lost.** Object-type editing in a managed service, permissions on object types and properties, and Foundry's browsing tools over the objects. Of the original link types, only the two the screens traverse are declared.
+- **Not carried over.** Of the original 12 link types, only the two the screens traverse are declared. Foundry also provides managed object-type editing, permissions on object types and properties, and tools for browsing objects; none of that has an equivalent here.
 - **Gained.** The model is a TypeScript file: reviewed in a diff, checked by the compiler, tested, and generated into the database, the API validation, the hooks and the reference document.
 - **Why.** A public repository cannot depend on a hosted ontology, and one file is the smallest thing that does the same job for an app this size. See [0001](decisions/0001-osdk-shaped-data-seam.md).
 
@@ -38,7 +39,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 - **Here.** Each action is a definition in `server/actions/` with declared parameters and a `run` function, registered by name. `applyAction` checks the demo's ceilings, validates the parameters against the declaration (object parameters are loaded `FOR UPDATE`, so two actions on one firm run one after the other), runs the handler in a single transaction, reports which object types it wrote so the client refreshes only those, and records an `ActionRun` for the operations metrics.
 - **Kept.** Named actions as the only way to write, with typed parameters, and conditions checked before anything is written (a rule must be pending before it can be approved; a pass needs a rationale).
-- **Lost.** Actions that can be edited without code, per-action permissions, and Foundry's built-in action logging and history views. The preconditions live in handler code, so [ontology.md](ontology.md) lists parameters but not those rules.
+- **Not carried over.** Foundry provides declarative actions, per-action permissions and built-in action logging; here there is no equivalent of the first two, and `ActionRun` records only an action's name, duration and outcome. The preconditions live in handler code, so [ontology.md](ontology.md) lists parameters but not those rules.
 - **Gained.** Handlers are plain functions that the seed also calls: the demo's month of history is built through the same actions the UI uses, so the seed doubles as an end-to-end test.
 - **Why.** See [0006](decisions/0006-append-only-history-in-application-code.md) for how history is protected and what that does and does not guarantee.
 
@@ -52,21 +53,20 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 ### The Functions-backed rubric becomes one shared module
 
 - **Here.** `shared/scoreMirror.ts` is the rubric (version 2, redesigned for the public demo). The desk imports it for live score previews and the server imports it when it writes a score, so there is nothing to keep in step.
-- **Lost.** Editing the rubric without a deploy.
 - **Gained.** No parity test, because there is one implementation. Each stored score names the rubric version that produced it.
 - **Why.** See [0003](decisions/0003-shared-rubric-module.md).
 
 ### AIP Logic becomes offline Claude extraction and a grounding contract
 
 - **Here.** Rejection clustering calls Claude (`claude-opus-5`, structured output) and falls back to a keyword heuristic when Claude is off, throttled or failing; both go through the same grounding check, and a person approves a rule before it screens anything ([0007](decisions/0007-human-approval-before-rules-apply.md)). Added in this repository: Claude reads each firm's source records once, offline, and every value must be backed by a word-for-word quote ([0002](decisions/0002-claude-extraction-grounding-fixtures.md)). Where sources are silent or disagree, the agent abstains or raises a conflict ([0004](decisions/0004-abstention-over-guessing.md)).
-- **Lost.** A hosted, no-code way to author and run the prompt.
+- **Not carried over.** Foundry provides hosted authoring and running of AIP Logic functions; here the prompt and its checks are code in this repository.
 - **Gained.** The prompt, the output schema and the grounding check are code with tests. Model answers are committed as fixtures with their tokens and cost, so the demo, CI and the evaluation need no API key and give the same answer every time.
 - **Why.** A public demo should not pay for, or vary with, each visitor's click.
 
 ### OSDK becomes the `src/data` seam
 
 - **Here.** `src/data/hooks.ts` keeps the OSDK hook names (`useOsdkObjects`, `useOsdkQuery`, `useOsdkAction`, `useLinks`) with the same return fields, backed by TanStack Query and `/api/*`. `src/data/ontology.ts` exports a token per object type and action. Screens import only these.
-- **Kept.** Every screen's data code, changed only in its import lines.
+- **Kept.** The screens' data code, changed mostly in its import lines.
 - **Lost.** A client generated from the ontology: new types and actions need a token added by hand.
 - **Why.** The seam is what made the backend swap cheap, and it keeps a return path to Foundry short. See [0001](decisions/0001-osdk-shaped-data-seam.md).
 
@@ -101,6 +101,6 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ## Deliberately left out
 
-- Target Brief generation and the admin data-repair actions (no screen used them).
+- Target Brief generation, which was an object type in the original (`TargetBrief`), and the admin data-repair actions (no screen used them).
 - Per-user identity and permissions (a public demo has one shared analyst).
 - Live third-party data connectors (replaced by deterministic mocks).

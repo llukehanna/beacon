@@ -4,7 +4,7 @@ Status: Accepted
 
 ## Context
 
-The screens were first written against Foundry's OSDK: typed object hooks, an action hook, link traversal and query functions. When the backend moved to Postgres and Cloudflare Workers, the choice was between rewriting every screen against a new data layer and keeping the screens as they were and putting the new backend behind the same hooks. The Foundry version is also expected to be updated again later, so the less the screens know about where data comes from, the cheaper that is.
+The screens were first written against Foundry's OSDK: typed object hooks, an action hook, link traversal and query functions. When the backend moved to Postgres and Cloudflare Workers, the choice was between rewriting every screen against a new data layer and keeping the screens as they were and putting the new backend behind the same hooks.
 
 ## Decision
 
@@ -16,7 +16,7 @@ All data access goes through `src/data/`, which keeps the OSDK hook names and re
 
 ## Consequences
 
-- The port changed import lines in the screens, not their logic.
+- The port changed the screens' data code mostly in its import lines.
 - Only `src/data/api.ts` knows the transport. Pointing the same screens at a different backend means replacing that file and `hooks.ts`.
 - The seam is a convention plus types, not a generated client: a new object type or action needs a token added by hand to `src/data/ontology.ts`.
 - Hook names follow the OSDK, so a reader who knows the OSDK can read the screens, and the query keys and refresh rule are this repository's own.
