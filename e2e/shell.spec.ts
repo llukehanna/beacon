@@ -121,3 +121,34 @@ test("slash opens the palette outside text fields and escape closes it", async (
   await page.keyboard.press("Escape");
   await expect(palette).toBeHidden();
 });
+
+test("a mandate result opens that mandate's page", async ({ page }) => {
+  await openRoute(page, route("/"));
+
+  await page.keyboard.press("ControlOrMeta+k");
+  const palette = page.getByRole("dialog", { name: "Command palette" });
+  const mandates = palette.getByRole("group", { name: "Mandates" }).getByRole("option");
+  const label = (await mandates.nth(1).innerText()).trim();
+  await mandates.nth(1).click();
+
+  await expect(page).toHaveURL(/\/search\/[^/]+$/);
+  await expect(palette).toBeHidden();
+  await expect(page.getByText(label.slice(0, 20), { exact: false }).first()).toBeVisible();
+});
+
+test("the palette says firms are loading instead of reporting no match", async ({ page }) => {
+  await openRoute(page, route("/"));
+  // Slow the firm list so the palette opens before it arrives.
+  await page.route("**/api/objects?**", async (r) => {
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await r.continue();
+  });
+
+  await page.keyboard.press("ControlOrMeta+k");
+  await page.keyboard.type("zzqx");
+  await expect(page.getByText("Loading firms…")).toBeVisible();
+  await expect(page.getByText(/No match for/)).toHaveCount(0);
+
+  await expect(page.getByText(/No match for/)).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Loading firms…")).toHaveCount(0);
+});

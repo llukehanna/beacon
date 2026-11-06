@@ -6,6 +6,9 @@ import type { HomeSummary } from "../../shared/summaries";
 import { type Command, usePageCommands } from "./commands";
 import { NAV_ITEMS } from "./keys";
 
+/** Where the firm list stands: not asked for yet, on its way, failed, or available. */
+export type FirmStatus = "idle" | "loading" | "error" | "ready";
+
 interface FirmRow {
   firmId: string;
   firmName?: string | null;
@@ -24,10 +27,10 @@ export function useShellCommands({
 }: {
   loadFirms: boolean;
   onHelp: () => void;
-}): { commands: Command[]; firmCount: number | undefined } {
+}): { commands: Command[]; firmCount: number | undefined; firmStatus: FirmStatus } {
   const navigate = useNavigate();
   const { data: summary } = useOsdkQuery<HomeSummary>("homeSummary");
-  const { data: firmData } = useOsdkObjects(Firm, {
+  const { data: firmData, error: firmError } = useOsdkObjects(Firm, {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
     enabled: loadFirms,
@@ -55,10 +58,11 @@ export function useShellCommands({
     () =>
       (summary?.mandates ?? []).map((m) => ({
         id: `mandate:${m.mandateId}`,
-        label: (m.title ?? "").trim() || (m.intentStatement ?? "").trim() || m.mandateId,
+        // Named the way the mandate page names it: intent statement, then title.
+        label: (m.intentStatement ?? "").trim() || (m.title ?? "").trim() || m.mandateId,
         group: "Mandates" as const,
-        // The mandate page lists every mandate; opening one changes no stored state.
-        run: () => navigate("/mandate"),
+        // The mandate's own page; opening it changes no stored state (only its Run action does).
+        run: () => navigate(`/search/${encodeURIComponent(m.mandateId)}`),
       })),
     [summary, navigate],
   );
@@ -92,5 +96,13 @@ export function useShellCommands({
     () => [...pageCommands, ...actions, ...routes, ...mandates, ...firms],
     [pageCommands, actions, routes, mandates, firms],
   );
-  return { commands, firmCount: loadFirms && firmData !== undefined ? firms.length : undefined };
+  let firmStatus: FirmStatus = "idle";
+  if (loadFirms) {
+    firmStatus = firmData !== undefined ? "ready" : firmError !== undefined ? "error" : "loading";
+  }
+  return {
+    commands,
+    firmCount: firmStatus === "ready" ? firms.length : undefined,
+    firmStatus,
+  };
 }

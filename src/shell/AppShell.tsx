@@ -46,7 +46,10 @@ export default function AppShell(): React.ReactElement {
 
   const openHelp = React.useCallback(() => setHelpOpen(true), []);
   useGoKeys(openHelp);
-  const { commands, firmCount } = useShellCommands({ loadFirms: paletteUsed, onHelp: openHelp });
+  const { commands, firmCount, firmStatus } = useShellCommands({
+    loadFirms: paletteUsed,
+    onHelp: openHelp,
+  });
   const setPalette = React.useCallback((open: boolean) => {
     setPaletteOpen(open);
     if (open) {
@@ -96,6 +99,7 @@ export default function AppShell(): React.ReactElement {
             menuOpen={drawerOpen}
             onMenu={() => setDrawerOpen(true)}
             onSearch={() => setPalette(true)}
+            onSearchIntent={() => setPaletteUsed(true)}
           />
           <div id="main" tabIndex={-1} className={styles.main}>
             <Outlet />
@@ -105,6 +109,7 @@ export default function AppShell(): React.ReactElement {
         <CommandPalette
           commands={commands}
           firmCount={firmCount}
+          firmStatus={firmStatus}
           isOpen={paletteOpen}
           onClose={() => setPalette(false)}
         />
