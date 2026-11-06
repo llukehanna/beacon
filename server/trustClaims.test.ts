@@ -96,6 +96,35 @@ describe("figures on the About and Trust pages", () => {
   });
 });
 
+describe("docs/error-analysis.md", () => {
+  const evals = JSON.parse(read("docs/evals.json")) as {
+    slots: { total: number; correct: number };
+    failures: { kind: string; count: number; examples: { firmId: string; axis: string }[] }[];
+    reconciled: { higherTrustRight: number };
+  };
+  const doc = read("docs/error-analysis.md");
+  const n = (v: number): string => v.toLocaleString("en-US");
+
+  it("states the taxonomy counts from docs/evals.json", () => {
+    expect(doc).toContain(`${n(evals.slots.total)} firm axes`);
+    expect(doc).toContain(`${n(evals.slots.correct)} of them`);
+    for (const f of evals.failures) {
+      expect(doc).toContain(`(\`${f.kind}\`) | ${n(f.count)} |`);
+    }
+    expect(doc).toContain(`${(evals.reconciled.higherTrustRight * 100).toFixed(1)}%`);
+  });
+
+  it("links every example to its firm on the Desk", () => {
+    for (const f of evals.failures) {
+      for (const e of f.examples) {
+        expect(doc).toContain(
+          `[\`${e.firmId}\`, ${e.axis}](https://beacon.lukeghanna.com/desk?firmId=${e.firmId})`,
+        );
+      }
+    }
+  });
+});
+
 describe("About page wording", () => {
   const about = ["AboutPage.tsx", "ArchitectureDiagram.tsx"]
     .map((f) => read(`src/about/${f}`))

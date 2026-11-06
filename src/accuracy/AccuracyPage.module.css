@@ -12,6 +12,40 @@
   padding-inline: 24px;
 }
 
+.tabs {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 20px;
+  height: 44px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab {
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--tx3);
+  cursor: pointer;
+  font: 13px var(--font-ui);
+}
+
+.tab:hover {
+  color: var(--tx2);
+}
+
+.tab[aria-selected="true"] {
+  color: var(--tx);
+  box-shadow: inset 0 -2px 0 var(--acc);
+}
+
+.tab:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+}
+
 .scroll {
   display: flex;
   flex: 1;
@@ -70,6 +104,10 @@
 @media (max-width: 899px) {
   .error.error {
     padding-inline: 16px;
+  }
+
+  .tabs {
+    padding: 0 16px;
   }
 
   .scroll {

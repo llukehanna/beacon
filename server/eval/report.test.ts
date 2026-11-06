@@ -17,10 +17,17 @@ const base: EvalReport = {
   version: 1,
   generatedFrom: { documents: "doc-v1", prompt: "extract-v1", fixtures: "rule-based" },
   firms: 10,
+  slots: { total: 100, correct: 70 },
   recordedRun: { values: 100, grounded: 99 },
   providers: [{ provider: "dealdb", coverage: 0.7, precision: 0.97 }],
   reconciled: { coverage: 0.7, precision: 0.95, conflictRate: 0.03, higherTrustRight: 0.9 },
   abstention: { rate: 0.3, calibration: 1 },
+  failures: [
+    { kind: "wrong-source-wins", count: 10, examples: [{ firmId: "firm_1", axis: "solvent" }] },
+    { kind: "conflict-surfaced", count: 5, examples: [] },
+    { kind: "abstained-correctly", count: 15, examples: [] },
+    { kind: "abstained-wrongly", count: 0, examples: [] },
+  ],
   tierAgreement: 0.6,
   ruleRecovery: { planted: 4, recovered: 4, method: "heuristic" },
   thresholds: {},
@@ -39,6 +46,8 @@ describe("buildReport", () => {
       fixtures: "rule-based",
     });
     expect(a.thresholds).toEqual(THRESHOLDS);
+    const sum = a.failures.reduce((n, f) => n + f.count, 0);
+    expect(sum).toBe(a.slots.total - a.slots.correct);
   });
 });
 
@@ -61,6 +70,18 @@ describe("renderMarkdown", () => {
     expect(md).toContain("against synthetic ground truth");
     expect(md).toContain("60.0%");
     expect(md).toContain("npm run eval");
+  });
+
+  it("lists every failure kind with its count and examples, and the limits it states", () => {
+    const md = renderMarkdown(base);
+    expect(md).toContain("## Failure taxonomy");
+    expect(md).toContain("| A wrong value was settled | 10 | 10.0% |");
+    expect(md).toContain("`firm_1` solvent");
+    expect(md).toContain("| A value was lost | 0 | 0.0% |");
+    expect(md).toContain("70 (70.0%)");
+    expect(md).toContain("not which axis the quoted sentence is about");
+    expect(md).toContain("contains the value");
+    expect(md).toContain("differ from the seeded database");
   });
 
   it("shows a figure with nothing to measure as n/a", () => {
