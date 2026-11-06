@@ -4,14 +4,17 @@ import { Search } from "@blueprintjs/icons";
 import { Kbd } from "@/ui";
 import styles from "./CommandPalette.module.css";
 import { type Command, paletteSections } from "./commands";
+import type { FirmStatus } from "./useShellCommands";
 
 function Body({
   commands,
   firmCount,
+  firmStatus,
   onClose,
 }: {
   commands: readonly Command[];
   firmCount: number | undefined;
+  firmStatus: FirmStatus;
   onClose: () => void;
 }): React.ReactElement {
   const [query, setQuery] = React.useState("");
@@ -114,11 +117,22 @@ function Body({
             })}
           </div>
         ))}
-        {flat.length === 0 && (
-          <p className={styles.empty} role="status">
-            No match for “{query.trim()}”.
+        {query.trim() !== "" && firmStatus === "loading" && (
+          <p className={flat.length === 0 ? styles.empty : styles.note} role="status">
+            Loading firms…
           </p>
         )}
+        {query.trim() !== "" && firmStatus === "error" && (
+          <p className={flat.length === 0 ? styles.empty : styles.note} role="status">
+            Couldn’t load firms. Routes and mandates still work.
+          </p>
+        )}
+        {flat.length === 0 &&
+          (query.trim() === "" || firmStatus === "ready" || firmStatus === "idle") && (
+            <p className={styles.empty} role="status">
+              No match for “{query.trim()}”.
+            </p>
+          )}
       </div>
       <div className={styles.foot} aria-hidden="true">
         <span>
@@ -139,11 +153,13 @@ function Body({
 export default function CommandPalette({
   commands,
   firmCount,
+  firmStatus,
   isOpen,
   onClose,
 }: {
   commands: readonly Command[];
   firmCount: number | undefined;
+  firmStatus: FirmStatus;
   isOpen: boolean;
   onClose: () => void;
 }): React.ReactElement {
@@ -156,7 +172,7 @@ export default function CommandPalette({
       aria-labelledby="palette-title"
       canOutsideClickClose
     >
-      <Body commands={commands} firmCount={firmCount} onClose={onClose} />
+      <Body commands={commands} firmCount={firmCount} firmStatus={firmStatus} onClose={onClose} />
     </Dialog>
   );
 }

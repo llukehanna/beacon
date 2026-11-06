@@ -40,11 +40,14 @@ export default function TopBar({
   menuOpen,
   onMenu,
   onSearch,
+  onSearchIntent,
   showMenu,
 }: {
   menuOpen: boolean;
   onMenu: () => void;
   onSearch: () => void;
+  /** Pointer or focus arrived on the pill: a chance to start loading what the palette will search. */
+  onSearchIntent: () => void;
   showMenu: boolean;
 }): React.ReactElement {
   const crumbs = useCrumbs();
@@ -83,6 +86,8 @@ export default function TopBar({
         aria-label="Search and commands"
         aria-haspopup="dialog"
         onClick={onSearch}
+        onPointerEnter={onSearchIntent}
+        onFocus={onSearchIntent}
       >
         <Search size={14} aria-hidden="true" />
         <span className={styles.searchText}>Search firms, run actions…</span>
