@@ -12,7 +12,8 @@
 
   --tx: #ecedef;
   --tx2: #9ba1ab;
-  --tx3: #5f6570;
+  --tx3: #7d838e; /* tertiary text: 5.3:1 on --bg, 4.7:1 on --s3 */
+  --tx4: #5f6570; /* decorative marks only (separators, empty-cell dots); below AA as text */
 
   --acc: #8a95ff;
   --acc2: #5b66f0;
