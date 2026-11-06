@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes } from "react";
+import { type ButtonHTMLAttributes, forwardRef } from "react";
 import styles from "./Button.module.css";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -6,7 +6,10 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 /** Default, primary (indigo) and ghost buttons. Never submits a form unless asked to. */
-export function Button({ variant = "default", type = "button", className, ...rest }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "default", type = "button", className, ...rest },
+  ref,
+) {
   const classes = [
     styles.button,
     styles[variant],
@@ -15,5 +18,5 @@ export function Button({ variant = "default", type = "button", className, ...res
   ]
     .filter(Boolean)
     .join(" ");
-  return <button type={type} className={classes} {...rest} />;
-}
+  return <button ref={ref} type={type} className={classes} {...rest} />;
+});

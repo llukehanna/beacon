@@ -1,5 +1,4 @@
 import React from "react";
-import DemoFooter from "@/components/DemoFooter";
 import { Term } from "@/components/Term";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import {
@@ -22,14 +21,12 @@ import {
   isEvaluable,
   toScreeningRules,
 } from "./activeScreening";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 // Shared with Home's pending-rules card so both surfaces print the same
 // predicate string.
 import { type RejectionNote, buildRejectionNotes } from "./ruleEvidence";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
-import { SIDEBAR_STYLE, VOID_BG } from "./tokens";
 
 // ─── Status chip ────────────────────────────────────────────────────────
 
@@ -1025,18 +1022,11 @@ function Rules(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <aside style={SIDEBAR_STYLE}>
-        <BrandMark section="Rules" />
-        <ProposeRulesButton />
-        <WorkspaceNavLinks />
-        <DemoFooter />
-      </aside>
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <header
           style={{
@@ -1062,6 +1052,7 @@ function Rules(): React.ReactElement {
                 : `${pendingCount} pending · clustered from your rejections. Approve to auto-screen future firms`}
             </span>
           </div>
+          <ProposeRulesButton />
         </header>
 
         {error && (

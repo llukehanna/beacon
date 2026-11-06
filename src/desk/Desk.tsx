@@ -1,6 +1,5 @@
 import React from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import DemoFooter from "@/components/DemoFooter";
 import { SourceDrawerProvider, ViewSourceButton } from "@/components/SourceDrawer";
 import { Term } from "@/components/Term";
 import { useLinks, useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
@@ -20,6 +19,8 @@ import {
   runAgentEnrichmentAction,
   verifyFindingAction,
 } from "@/data/ontology";
+import { isTypingTarget } from "@/shell/keys";
+import { useSidebarSlot } from "@/shell/sidebarSlot";
 import {
   AGENT,
   PASSED,
@@ -61,7 +62,6 @@ import {
   formatAxisValue,
   verifiedBaselineEdits,
 } from "./findingActions";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 // "Open" is the funnel's call, not the desk's — see pipelineBuckets.
 import { isOpenFirm } from "./pipelineBuckets";
@@ -81,10 +81,8 @@ import {
   FINDING_CHIP,
   REJECT_BORDER,
   REJECT_TEXT,
-  SIDEBAR_STYLE,
   TIER_COLOR,
   TIER_LABEL,
-  VOID_BG,
   outcomeChipStyle,
   outcomeLabel,
   providerLabel,
@@ -908,10 +906,7 @@ function QueueSidebar({
   }, [queue, q, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
 
   return (
-    <aside style={SIDEBAR_STYLE}>
-      <BrandMark section="Enrichment Desk" />
-      <WorkspaceNavLinks />
-
+    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
       <div
         style={{
           padding: "0 4px",
@@ -1178,8 +1173,7 @@ function QueueSidebar({
           );
         })}
       </div>
-      <DemoFooter />
-    </aside>
+    </div>
   );
 }
 
@@ -3921,7 +3915,6 @@ function EnrichmentPanel({
       if (document.querySelector('[role="dialog"]') !== null) {
         return;
       }
-      const tag = (e.target as HTMLElement | null)?.tagName;
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         commitRef.current();
         e.preventDefault();
@@ -3932,7 +3925,7 @@ function EnrichmentPanel({
         e.preventDefault();
         return;
       }
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+      if (isTypingTarget(e.target as Element | null)) {
         return;
       }
       const entries = entriesRef.current;
@@ -4508,27 +4501,31 @@ function Desk(): React.ReactElement {
     viewCount: filteredData?.length ?? 0,
   });
 
+  // The firm queue lives in the app shell's sidebar, under the nav.
+  const queueSidebar = useSidebarSlot(
+    <QueueSidebar
+      queue={queue}
+      isLoading={isLoading}
+      selectedId={effectiveId}
+      onSelect={setSelectedId}
+      screeningRules={screeningRules}
+      scopeLabel={searchActive ? "in search" : "in database"}
+      membershipPinned={searchActive}
+      rediscoveryByFirmId={rediscoveryByFirmId}
+    />,
+  );
+
   return (
     <SourceDrawerProvider>
       <div
         className="dsn"
         style={{
-          position: "fixed",
-          inset: 0,
-          background: VOID_BG,
+          height: "100%",
+          background: "transparent",
           display: "flex",
         }}
       >
-        <QueueSidebar
-          queue={queue}
-          isLoading={isLoading}
-          selectedId={effectiveId}
-          onSelect={setSelectedId}
-          screeningRules={screeningRules}
-          scopeLabel={searchActive ? "in search" : "in database"}
-          membershipPinned={searchActive}
-          rediscoveryByFirmId={rediscoveryByFirmId}
-        />
+        {queueSidebar}
         <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
           {searchActive && (
             <SearchFilterBar

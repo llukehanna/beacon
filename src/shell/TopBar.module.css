@@ -1,0 +1,116 @@
+.top {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.menu {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: -8px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--tx2);
+  cursor: pointer;
+}
+
+.menu:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--tx);
+}
+
+.crumbs {
+  min-width: 0;
+  color: var(--tx3);
+}
+
+.crumbs ol {
+  display: flex;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crumbs li + li::before {
+  content: "/";
+  margin: 0 7px;
+  opacity: 0.5;
+}
+
+.crumbs li:last-child {
+  color: var(--tx2);
+  font-weight: 500;
+}
+
+.crumbs li a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.crumbs li a:hover {
+  color: var(--tx);
+}
+
+.search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 10px;
+  width: 250px;
+  margin-left: auto;
+  padding: 5px 8px 5px 10px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+  color: var(--tx3);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.search:hover {
+  box-shadow: 0 0 0 1px var(--line2);
+  color: var(--tx2);
+}
+
+.search kbd {
+  margin-left: auto;
+}
+
+.searchText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 899px) {
+  .top {
+    padding: 0 16px;
+  }
+
+  .search {
+    width: auto;
+  }
+
+  .searchText {
+    display: none;
+  }
+}

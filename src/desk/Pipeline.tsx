@@ -1,6 +1,5 @@
 import React from "react";
 import { Link } from "react-router-dom";
-import DemoFooter from "@/components/DemoFooter";
 import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
@@ -11,7 +10,6 @@ import {
   REVENUE_BANDS,
   SUCCESSION_RISKS,
 } from "../../shared/vocab";
-import { BrandMark, WorkspaceNavLinks } from "./nav";
 import "./nocturne.css";
 // Funnel vocabulary lives in one module so the Home strip and
 // this page can't disagree about which stage a firm sits in.
@@ -33,14 +31,7 @@ import {
 } from "./pipelineRows";
 import { formatScore, scoreFraction, shownScore } from "./scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror";
-import {
-  SIDEBAR_STYLE,
-  TIER_COLOR,
-  TIER_LABEL,
-  VOID_BG,
-  outcomeChipStyle,
-  outcomeLabel,
-} from "./tokens";
+import { TIER_COLOR, TIER_LABEL, outcomeChipStyle, outcomeLabel } from "./tokens";
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
@@ -229,18 +220,6 @@ function relativeTime(ts: unknown): string {
     return `${h}h ago`;
   }
   return `${Math.round(h / 24)}d ago`;
-}
-
-// ─── Nav sidebar (shared with every workspace screen) ───────────────────
-
-function NavSidebar(): React.ReactElement {
-  return (
-    <aside style={SIDEBAR_STYLE}>
-      <BrandMark section="Pipeline" />
-      <WorkspaceNavLinks />
-      <DemoFooter />
-    </aside>
-  );
 }
 
 // ─── Header ─────────────────────────────────────────────────────────────
@@ -1501,13 +1480,11 @@ function Pipeline(): React.ReactElement {
     <div
       className="dsn"
       style={{
-        position: "fixed",
-        inset: 0,
-        background: VOID_BG,
+        height: "100%",
+        background: "transparent",
         display: "flex",
       }}
     >
-      <NavSidebar />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <PipelineHeader
           shown={visibleRows.length}
