@@ -1,5 +1,4 @@
-import { useNavigate } from "react-router-dom";
-import { Button, Kbd } from "@/ui";
+import { ButtonLink, Kbd } from "@/ui";
 import styles from "./Headline.module.css";
 import type { HeadlineText } from "./headlineText";
 
@@ -14,7 +13,6 @@ export function Headline({
   text: HeadlineText | null;
   status?: string;
 }) {
-  const navigate = useNavigate();
   return (
     <header className={styles.head}>
       <div className={styles.copy}>
@@ -31,10 +29,10 @@ export function Headline({
         </h1>
       </div>
       <div className={styles.actions}>
-        <Button onClick={() => navigate("/mandate")}>New mandate</Button>
-        <Button variant="primary" onClick={() => navigate("/desk")}>
+        <ButtonLink to="/mandate">New mandate</ButtonLink>
+        <ButtonLink to="/desk" variant="primary">
           Open desk <Kbd>G D</Kbd>
-        </Button>
+        </ButtonLink>
       </div>
     </header>
   );

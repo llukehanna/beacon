@@ -39,6 +39,13 @@ for (const width of [1440, 960, 900, 768, 720, 680, 640, 390]) {
   });
 }
 
+test("the header actions are real links", async ({ page }) => {
+  await openRoute(page, home);
+
+  await expect(page.getByRole("link", { name: /^Open desk/ })).toHaveAttribute("href", "/desk");
+  await expect(page.getByRole("link", { name: "New mandate" })).toHaveAttribute("href", "/mandate");
+});
+
 test("a funnel bar opens the pipeline filtered to its stage", async ({ page }) => {
   await openRoute(page, home);
 

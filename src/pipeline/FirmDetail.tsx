@@ -1,10 +1,9 @@
 import React from "react";
-import { useNavigate } from "react-router-dom";
 import { Term } from "@/components/Term";
 import { formatObservedDate } from "@/desk/firmDesk/deskModel";
 import { scoreFraction } from "@/desk/scoreFormat";
 import { TIER_COLOR, TIER_LABEL, outcomeChipStyle, outcomeLabel } from "@/desk/tokens";
-import { Button, Chip } from "@/ui";
+import { Button, ButtonLink, Chip } from "@/ui";
 import { MAX_POSSIBLE } from "../../shared/scoreMirror";
 import { LIFECYCLE_STAGES } from "../../shared/vocab";
 import styles from "./FirmDetail.module.css";
@@ -46,7 +45,6 @@ export function FirmDetail({
   /** Closes the panel; the drawer has its own close button, so only the column passes this. */
   onClose?: () => void;
 }): React.ReactElement {
-  const navigate = useNavigate();
   const { firm, mirror, score, bucket, rejectionRationale, lastActivity } = row;
   const out = isOut(row);
   const tierColor = TIER_COLOR[score.tier] ?? TIER_COLOR.Rejected;
@@ -135,12 +133,12 @@ export function FirmDetail({
 
       {!out && (
         <div className={styles.actions}>
-          <Button
+          <ButtonLink
+            to={`/desk?firmId=${encodeURIComponent(firm.firmId ?? "")}`}
             variant="primary"
-            onClick={() => navigate(`/desk?firmId=${encodeURIComponent(firm.firmId ?? "")}`)}
           >
             Open in enrichment desk
-          </Button>
+          </ButtonLink>
         </div>
       )}
     </div>

@@ -103,7 +103,7 @@ test("selecting a firm opens its detail beside the list", async ({ page }) => {
   await expect(detail(page).getByRole("heading", { name, level: 2 })).toBeVisible();
   await expect(detail(page).getByRole("region", { name: "Fit score" })).toBeVisible();
   await expect(detail(page).getByText("Last activity")).toBeVisible();
-  await detail(page).getByRole("button", { name: "Open in enrichment desk" }).click();
+  await detail(page).getByRole("link", { name: "Open in enrichment desk" }).click();
   await expect(page).toHaveURL(/\/desk\?firmId=/);
 });
 
@@ -124,9 +124,7 @@ test("a firm that is out has no way into the desk, and says why", async ({ page 
   await rows(page).first().click();
 
   await expect(detail(page)).toContainText(/Hard-rejected|Pass reason|Reason not on file/);
-  await expect(detail(page).getByRole("button", { name: "Open in enrichment desk" })).toHaveCount(
-    0,
-  );
+  await expect(detail(page).getByRole("link", { name: "Open in enrichment desk" })).toHaveCount(0);
 });
 
 test("under 1280 px the detail opens in a drawer", async ({ page }) => {
@@ -135,7 +133,7 @@ test("under 1280 px the detail opens in a drawer", async ({ page }) => {
   await rows(page).first().click();
 
   const drawer = page.locator(".bp6-drawer");
-  await expect(drawer.getByRole("button", { name: "Open in enrichment desk" })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Open in enrichment desk" })).toBeVisible();
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
   await page.keyboard.press("Escape");
   await expect(drawer).toBeHidden();
@@ -155,7 +153,7 @@ test("under 900 px the table becomes cards, and the sort moves into a select", a
 
   await cards.first().click();
   await expect(
-    page.locator(".bp6-drawer").getByRole("button", { name: "Open in enrichment desk" }),
+    page.locator(".bp6-drawer").getByRole("link", { name: "Open in enrichment desk" }),
   ).toBeVisible();
   expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0);
 });
