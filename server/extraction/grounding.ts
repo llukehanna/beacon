@@ -109,11 +109,17 @@ function quoteHasNumber(quote: string, value: number): boolean {
 
 /**
  * Whether an accepted value appears in its quote: the label for a categorical axis, the number
- * for a numeric one, the word true or false for a gate.
+ * for a numeric one, the word true or false (as a whole word) for a gate.
  */
 export function valueInQuote(axis: AxisDef, value: string, quote: string): boolean {
   if (axis.kind === "number") {
     return quoteHasNumber(quote, Number(value));
+  }
+  if (axis.kind === "gate") {
+    return quote
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .includes(value.trim().toLowerCase());
   }
   return quote.toLowerCase().includes(value.toLowerCase());
 }
@@ -177,8 +183,7 @@ export function groundExtraction(
       continue;
     }
 
-    // Gates are not checked against the quote: only categorical and numeric values must appear.
-    if (axis.kind !== "gate" && !valueInQuote(axis, value, quote)) {
+    if (!valueInQuote(axis, value, quote)) {
       reject("value_not_in_quote");
       continue;
     }

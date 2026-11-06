@@ -31,13 +31,14 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - The demo is restored from a saved snapshot every night at 04:00 UTC by a Cloudflare Cron Trigger. The restore truncates every demo table and reloads the snapshot in one transaction, so anything entered since the last reset is deleted. <!-- source: wrangler.jsonc, worker/index.ts, server/seed/snapshot.ts -->
 - Anyone can also press the demo bar's Reset button. One reset is allowed per 5 minutes across all visitors. <!-- source: api/reset.ts -->
 - Within a demo day, history tables only grow (see Audit trail). A row ceiling of 10,000 activity rows stops a script from filling the database before the next reset. <!-- source: server/actions/apply.ts -->
+- Operations metrics (an action's name, start time, duration and outcome; a live model call's token counts and cost) are stored without parameters or visitor identity, up to 10,000 action runs, and are cleared by every reset. <!-- source: server/operations/record.ts, server/seed/snapshot.ts -->
 - Retention and backups on the database host (Neon) are set in that provider's console, not in this repository, and are not described here. <!-- source: README.md -->
 
 ## Model-provider data use
 
 - Claude reads the synthetic source records offline, once per firm, through the Message Batches API (Claude Haiku 4.5) with `npm run extract`. The answers are committed as fixtures. <!-- source: scripts/extract.ts, README.md, docs/architecture.md -->
 - The seed, the demo and CI read the committed fixtures and need no API key. A visitor pressing Run agent grounds stored answers again and calls no model. <!-- source: README.md, docs/architecture.md -->
-- The recorded run extracted 6,472 values across all 700 firms; 6,471 passed the grounding check. It cost $1.39. Clustering the seed's rejections into rule proposals cost a further $0.05. <!-- source: docs/architecture.md -->
+- The recorded run extracted 6,472 values across all 700 firms; 6,455 passed the grounding check. It cost $1.39. Clustering the seed's rejections into rule proposals cost a further $0.05. <!-- source: docs/architecture.md -->
 - The live app can make one kind of Claude call: rule clustering. It runs only when `CLAUDE_CLUSTERING=on`; otherwise a keyword heuristic proposes the rules. <!-- source: server/clustering/choose.ts -->
 - The guard allows at most one Claude clustering call per 10 minutes and 24 per UTC day, across all visitors. Past either limit the heuristic runs instead. <!-- source: server/clustering/choose.ts, server/db/meta.ts -->
 - Both limits are claimed atomically before the action's transaction opens, so a rolled-back action does not refund them. <!-- source: server/clustering/choose.ts, server/actions/apply.ts -->

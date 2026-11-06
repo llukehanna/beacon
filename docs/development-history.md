@@ -33,8 +33,8 @@ Seven pull requests (#1 to #7) land on the day the repository goes public.
 
 - **Facelift (#14).** A design-token system with Geist fonts and core components, then every screen rebuilt on it: a layout with sidebar, status bar and command palette, Home, the desk (queue, firm header, axis-by-source grid, evidence panel, decision bar), pipeline, review, rules, accuracy, mandates and search. A Playwright end-to-end suite is added alongside. Contrast is raised to AA, and navigation buttons render as real links.
 - **Rule proposal timestamps (#15).** A proposed rule is stamped with the time it was created.
-- **Recorded Claude Haiku 4.5 extraction for all 700 firms (#16).** The committed fixtures now come from a real run rather than the rule-based extractor. Of 6,472 extracted values, 6,471 passed the grounding check, at a cost of $1.39 (#17 records the run in the architecture document; #18 retakes the screenshots from the Claude-extracted demo).
+- **Recorded Claude Haiku 4.5 extraction for all 700 firms (#16).** The committed fixtures now come from a real run rather than the rule-based extractor. Of 6,472 extracted values, 6,471 passed the grounding check at the time (6,455 once true/false answers were also checked against their quote), at a cost of $1.39 (#17 records the run in the architecture document; #18 retakes the screenshots from the Claude-extracted demo).
 
 ## 2026-11-06: explaining the product
 
-- A home-page introduction and a six-stop guided tour that never writes data, About and Trust pages, search filters pre-filled from the mandate text, and this history and the [production roadmap](production-roadmap.md).
+- A home-page introduction and a six-stop guided tour that never writes data, About and Trust pages, search filters pre-filled from the mandate text, and this history and the [production roadmap](production-roadmap.md) (#19).

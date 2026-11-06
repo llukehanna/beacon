@@ -22,6 +22,14 @@ export interface ModelPrice {
 }
 
 export const PRICES: Record<string, ModelPrice> = {
+  // The clustering model (server/clustering/claude.ts): $5 in / $25 out per the claude-api skill's table, read 2026-11-06.
+  "claude-opus-5": {
+    inputPerMTok: 5,
+    outputPerMTok: 25,
+    cacheReadPerMTok: 0.5,
+    cacheWritePerMTok: 6.25,
+    minCacheableTokens: 4096,
+  },
   "claude-haiku-4-5": {
     inputPerMTok: 1,
     outputPerMTok: 5,
@@ -44,7 +52,8 @@ const CHARS_PER_TOKEN = 4;
 const OUTPUT_TOKENS_PER_FIRM = 600;
 
 /** Own keys only: "constructor" and "__proto__" are not models. */
-export const hasPrice = (model: string): boolean => Object.hasOwn(PRICES, model);
+export const hasPrice = (model: string): boolean =>
+  Object.prototype.hasOwnProperty.call(PRICES, model);
 
 function priceOf(model: string): ModelPrice {
   if (!hasPrice(model)) {
