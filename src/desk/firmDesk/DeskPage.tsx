@@ -1,23 +1,15 @@
 import React from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
-import {
-  Firm,
-  HardScreenConfig,
-  Mandate,
-  ProposedRule,
-  ResearchFinding,
-  ReviewDecision,
-  Search,
-} from "@/data/ontology";
+import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
 import { ExportMenu } from "@/export/ExportMenu";
+import { type Command, useCommands } from "@/shell/commands";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
 import type { FindingLike, FirmLike } from "../../../shared/exportRows";
 import { AGENT } from "../../../shared/vocab";
-import { type ScreeningRule, toScreeningRules } from "../activeScreening";
 import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
-import { type ActiveConfigRule, orderEnrichmentQueue, toQueueFirm } from "../queue";
+import { orderEnrichmentQueue, toQueueFirm } from "../queue";
 import styles from "./DeskPage.module.css";
 import {
   EmptyQueue,
@@ -34,69 +26,14 @@ import { SearchFilterBar } from "./SearchFilterBar";
 import { type FirmView, type RediscoveryInfo, formatActionError } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
+import { useScreeningRules } from "./useScreeningRules";
 
 function Desk(): React.ReactElement {
   const { data, isLoading, error } = useOsdkObjects(Firm, {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
-  // Active approved HardScreenConfig rows drive the shared hard-screen
-  // verdict for both the queue and the header/badge — see queue.ts
-  // computeHardScreen. Filter to configActive === true so pending or
-  // dismissed proposals cannot silently screen firms.
-  const { data: configData, isLoading: configLoading } = useOsdkObjects(HardScreenConfig, {
-    autoFetchMore: true,
-  });
-  const activeConfigs = React.useMemo<ActiveConfigRule[]>(() => {
-    return (
-      (
-        (configData ?? []) as unknown as Array<{
-          configRuleId: string;
-          configActive?: boolean;
-          configAxis?: string;
-          configOperator?: string;
-          configThreshold?: string;
-          configModel?: string;
-        }>
-      )
-        .filter((r) => r.configActive === true)
-        .map((r) => ({
-          ruleId: r.configRuleId,
-          axis: r.configAxis ?? "",
-          operator: r.configOperator ?? "",
-          threshold: r.configThreshold ?? "",
-          model: r.configModel ?? "both",
-        }))
-        // Skip malformed rows — a rule with no axis / no operator / no
-        // threshold can't be evaluated. Better to omit than to false-positive.
-        .filter((r) => r.axis !== "" && r.operator !== "" && r.threshold !== "")
-    );
-  }, [configData]);
-
-  // The approved rules /rules renders. The desk screens on these directly
-  // rather than waiting for HardScreenConfig rows to exist — that dependency
-  // is what let the header read "711 of 711" while /rules showed an approved
-  // rule claiming 160 firms. Config rows still win where present, because an
-  // amended threshold is what the analyst sees as the effective predicate.
-  const { data: proposedRuleData, isLoading: proposedRulesLoading } = useOsdkObjects(ProposedRule, {
-    autoFetchMore: true,
-  });
-  const screeningRules = React.useMemo<ScreeningRule[]>(
-    () =>
-      toScreeningRules(
-        (proposedRuleData ?? []) as unknown as Parameters<typeof toScreeningRules>[0],
-        (configData ?? []) as unknown as Parameters<typeof toScreeningRules>[1],
-      ),
-    [proposedRuleData, configData],
-  );
-
-  // One rule list drives ranking and the view filter. ScreeningRule is a
-  // superset of ActiveConfigRule, so the queue's shared hard-screen verdict
-  // reads the same approved rules the sidebar partitions on.
-  const rankingRules = React.useMemo<ActiveConfigRule[]>(() => {
-    const seen = new Set(screeningRules.map((r) => r.ruleId));
-    return [...screeningRules, ...activeConfigs.filter((c) => !seen.has(c.ruleId))];
-  }, [screeningRules, activeConfigs]);
+  const { screeningRules, rankingRules, configLoading, proposedRulesLoading } = useScreeningRules();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFirmId = searchParams.get("firmId") ?? undefined;
   const [selectedId, setSelectedIdState] = React.useState<string | undefined>(initialFirmId);
@@ -333,6 +270,26 @@ function Desk(): React.ReactElement {
   const selected =
     effectiveId === undefined ? undefined : filteredData?.find((f) => f.firmId === effectiveId);
   const loadError = error ?? membership.error;
+
+  // The open firm's tear sheet, from the command palette.
+  const navigate = useNavigate();
+  const selectedFirmId = selected?.firmId;
+  const selectedName = selected?.firmName ?? selectedFirmId;
+  const commands = React.useMemo<Command[]>(
+    () =>
+      selectedFirmId === undefined
+        ? []
+        : [
+            {
+              id: "desk:tear-sheet",
+              label: `Tear sheet: ${selectedName}`,
+              group: "Actions",
+              run: () => navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`),
+            },
+          ],
+    [selectedFirmId, selectedName, navigate],
+  );
+  useCommands(commands);
   const panelState = deskPanelState({
     selectedId: effectiveId,
     firmsLoading: isLoading,

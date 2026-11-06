@@ -77,3 +77,30 @@
     grid-column: 1;
   }
 }
+
+/* Printing the tear sheet: the page alone, with no sidebar, top bar or status bar around it. The
+   page marks <html data-print="tear-sheet"> while it is open. */
+@media print {
+  :global(html[data-print="tear-sheet"]) .shell {
+    display: block;
+    height: auto;
+    overflow: visible;
+    font-size: 11pt;
+  }
+
+  :global(html[data-print="tear-sheet"]) .side,
+  :global(html[data-print="tear-sheet"]) .skip,
+  :global(html[data-print="tear-sheet"]) .column > header,
+  :global(html[data-print="tear-sheet"]) .shell > footer {
+    display: none;
+  }
+
+  :global(html[data-print="tear-sheet"]) .column {
+    display: block;
+  }
+
+  :global(html[data-print="tear-sheet"]) .main {
+    position: static;
+    overflow: visible;
+  }
+}

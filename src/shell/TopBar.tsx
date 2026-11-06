@@ -16,6 +16,9 @@ function useCrumbs(): Crumb[] {
   const onDesk = pathname === "/desk";
   const { mandate, firm } = useDeskScope(onDesk);
   const section = navItemFor(pathname);
+  if (/^\/firm\/[^/]+\/tear-sheet$/.test(pathname)) {
+    return [{ label: "Pipeline", to: "/pipeline" }, { label: "Tear sheet" }];
+  }
   if (section === undefined) {
     const page = footerLinkFor(pathname);
     return page === undefined ? [] : [{ label: page.label }];

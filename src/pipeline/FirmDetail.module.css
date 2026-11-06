@@ -171,6 +171,9 @@
 }
 
 .actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-top: auto;
 }
 

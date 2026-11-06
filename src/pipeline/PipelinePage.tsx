@@ -145,6 +145,16 @@ export default function PipelinePage(): React.ReactElement {
               run: () => navigate(`/desk?firmId=${encodeURIComponent(selectedFirmId)}`),
             },
           ]),
+      ...(selectedFirmId === undefined
+        ? []
+        : [
+            {
+              id: "pipeline:tear-sheet",
+              label: `Tear sheet: ${selectedName}`,
+              group: "Actions" as const,
+              run: () => navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`),
+            },
+          ]),
       ...(stage === PASSED
         ? []
         : [
