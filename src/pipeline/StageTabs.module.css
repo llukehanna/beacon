@@ -1,0 +1,69 @@
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 10px;
+  background: rgba(12, 13, 16, 0.7);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--tx2);
+  cursor: pointer;
+  font: 500 12.5px/1.4 var(--font-ui);
+  transition:
+    background-color var(--dur) var(--ease),
+    color var(--dur) var(--ease);
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--tx);
+}
+
+.tab[aria-checked="true"] {
+  background: rgba(138, 149, 255, 0.14);
+  box-shadow: inset 0 0 0 1px rgba(138, 149, 255, 0.32);
+  color: var(--tx);
+}
+
+.count {
+  color: var(--tx3);
+  font: 500 11.5px var(--font-mono);
+}
+
+.tab[aria-checked="true"] .count {
+  color: #b4bbff;
+}
+
+/* A hatched Passed tab, the one outcome that is not a step. */
+.tab[data-stage="Passed"] .name {
+  color: var(--tx3);
+}
+
+.tab[data-stage="Passed"][aria-checked="true"] .name {
+  color: var(--tx);
+}
+
+.wait {
+  display: block;
+  width: 18px;
+}
+
+@media (max-width: 899px) {
+  .tabs {
+    gap: 4px;
+  }
+
+  .tab {
+    padding: 6px 10px;
+  }
+}

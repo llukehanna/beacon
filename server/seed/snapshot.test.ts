@@ -73,8 +73,14 @@ describe("resetFromSnapshot", () => {
       expect(a[table].length, table).toBe(b[table].length);
       expect(a[table], table).toEqual(b[table]);
     }
-    const searches = b.search as { name: string }[];
-    expect(searches.some((s) => s.name.endsWith(" · 2026-09-06"))).toBe(true);
+    // A search's name ends with its run date; after the shift the date still follows runAt.
+    const searches = (b.search as { name: string; runAt: Date | string | null }[]).filter(
+      (s) => s.runAt !== null && / · \d{4}-\d{2}-\d{2}$/.test(s.name),
+    );
+    expect(searches.length, "searches with a dated name").toBeGreaterThan(0);
+    for (const s of searches) {
+      expect(s.name.slice(-10), s.name).toBe(new Date(s.runAt!).toISOString().slice(0, 10));
+    }
     expect(await getMeta(restored, "lastResetAt")).toBe(later.toISOString());
   }, 300_000);
 
@@ -107,4 +113,59 @@ describe("resetFromSnapshot", () => {
     const db = await createTestDb();
     await expect(resetFromSnapshot(db)).rejects.toMatchObject({ status: 503 });
   });
+});
+
+/** The latest value over every timestamp column of every demo table, with where it came from. */
+async function latestTimestamp(db: Db): Promise<{ at: Date; where: string }> {
+  let latest = { at: new Date(0), where: "" };
+  for (const t of Object.values(OBJECT_TYPES)) {
+    for (const [column, type] of Object.entries(t.properties)) {
+      if (type !== "timestamp") {
+        continue;
+      }
+      const [{ at }] = await db.query<{ at: Date | string | null }>(
+        `SELECT max("${column}") AS at FROM ${t.table}`,
+      );
+      if (at !== null && new Date(at) > latest.at) {
+        latest = { at: new Date(at), where: `${t.table}.${column}` };
+      }
+    }
+  }
+  return latest;
+}
+
+describe("seeded history ends at seed time", () => {
+  const MINUTE = 60_000;
+  const seedNow = new Date("2026-09-22T12:00:00.000Z");
+  const resetNow = new Date("2026-10-05T23:59:30.123Z");
+
+  it("puts the latest activity within the hour before the seed, and nothing after it", async () => {
+    const db = await createTestDb();
+    await resetDemo(db, seedNow, { newId: sequentialIds(), fixtures: [oneFixture(seedNow)] });
+
+    const [{ at: enrichedAt }] = await db.query<{ at: Date | string }>(
+      `SELECT max("enrichedAt") AS at FROM firm`,
+    );
+    const lag = seedNow.getTime() - new Date(enrichedAt).getTime();
+    expect(lag, "latest enrichment is not after the seed").toBeGreaterThanOrEqual(0);
+    expect(lag, "latest enrichment is within an hour of the seed").toBeLessThanOrEqual(60 * MINUTE);
+    const latest = await latestTimestamp(db);
+    expect(latest.at.getTime(), `latest timestamp (${latest.where})`).toBeLessThanOrEqual(
+      seedNow.getTime(),
+    );
+
+    // The snapshot is the same world; a reset later moves all of it, still ending at the reset.
+    await saveSnapshot(db, seedNow);
+    await resetFromSnapshot(db, resetNow);
+    const [{ at: afterReset }] = await db.query<{ at: Date | string }>(
+      `SELECT max("enrichedAt") AS at FROM firm`,
+    );
+    const resetLag = resetNow.getTime() - new Date(afterReset).getTime();
+    expect(resetLag).toBeGreaterThanOrEqual(0);
+    expect(resetLag).toBeLessThanOrEqual(60 * MINUTE);
+    const latestAfter = await latestTimestamp(db);
+    expect(latestAfter.at.getTime(), `latest timestamp (${latestAfter.where})`).toBeLessThanOrEqual(
+      resetNow.getTime(),
+    );
+  }, 300_000);
 });

@@ -1,5 +1,5 @@
 // Pure helpers for wiring Findings-panel Accept / Verify buttons into the
-// analyst's edit map. Kept out of Desk.tsx so the conflict-detection logic
+// analyst's edit map. Kept out of the firmDesk components so the conflict-detection logic
 // is unit-testable without a React harness.
 import { type FindingLike, isVerifiedFinding, pickAuthoritative } from "./axisState";
 
@@ -42,7 +42,7 @@ export const HARD_GATE_PASS_WHEN: Record<string, boolean> = {
 export const HARD_GATE_EDIT_KEYS = new Set(Object.keys(HARD_GATE_PASS_WHEN));
 
 // Edit keys that must be numeric when passed into enrichFirmAction. Kept in
-// sync with NUMERIC_KEYS in Desk.tsx (single source of truth would be
+// sync with NUMERIC_KEYS in firmDesk/deskModel.ts (single source of truth would be
 // nicer but would drag more of the desk into this module).
 export const NUMERIC_EDIT_KEYS = new Set([
   "dealSizeMUsd",
@@ -53,7 +53,7 @@ export const NUMERIC_EDIT_KEYS = new Set([
 ]);
 
 // Edit keys the rubric treats as enums — the "needs you" input should
-// render a select, not a text box. Options themselves live in Desk.tsx
+// render a select, not a text box. Options themselves live in firmDesk/deskModel.ts
 // (they depend on CF/CS model context); this set only says "which axes
 // are enum-shaped."
 export const ENUM_EDIT_KEYS = new Set([

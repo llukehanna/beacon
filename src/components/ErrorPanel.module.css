@@ -1,0 +1,33 @@
+.wrap {
+  display: grid;
+  place-items: center;
+  min-height: 60vh;
+  padding: 48px 16px;
+}
+
+.panel {
+  width: min(480px, 100%);
+  padding: 28px 24px;
+  text-align: center;
+}
+
+.title.title {
+  margin: 0;
+  font: 600 20px/1.2 var(--font-ui);
+  letter-spacing: -0.025em;
+}
+
+.message {
+  margin: 8px 0 0;
+  color: var(--tx2);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 20px;
+}

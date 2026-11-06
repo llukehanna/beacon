@@ -1,0 +1,148 @@
+.hero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.identity {
+  min-width: 0;
+  flex: 1;
+}
+
+.name.name {
+  margin: 0;
+  font: 600 24px/1.15 var(--font-ui);
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+
+.struck {
+  text-decoration: line-through;
+  text-decoration-color: var(--tx4);
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.dim {
+  margin-left: 4px;
+  opacity: 0.75;
+}
+
+.hardChip.hardChip {
+  background: rgba(240, 113, 103, 0.1);
+  box-shadow: 0 0 0 1px rgba(240, 113, 103, 0.28);
+  color: #f4948b;
+}
+
+.scorebox {
+  flex: none;
+  width: 300px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: linear-gradient(180deg, var(--s2), var(--s1));
+  box-shadow:
+    inset 0 1px 0 var(--highlight),
+    0 0 0 1px var(--line);
+}
+
+.scoreRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.big {
+  font: 500 30px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+}
+
+.muted {
+  color: var(--tx3);
+}
+
+.of {
+  color: var(--tx3);
+  font: 500 14px var(--font-mono);
+}
+
+.delta {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--green);
+  font: 500 12px var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.down {
+  color: var(--red);
+}
+
+.tier {
+  margin-left: auto;
+  color: var(--acc);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tierRejected {
+  color: var(--tx2);
+}
+
+.staged {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--acc);
+  font: 11px var(--font-mono);
+}
+
+.stagedDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.projection {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px dashed var(--line2);
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.projected {
+  color: var(--tx2);
+  font-family: var(--font-mono);
+}
+
+.projected b {
+  color: var(--tx);
+  font-weight: 500;
+}
+
+@container deskmain (max-width: 700px) {
+  .hero {
+    flex-wrap: wrap;
+  }
+
+  .identity {
+    flex-basis: calc(100% - 70px);
+  }
+
+  .scorebox {
+    width: 100%;
+  }
+}

@@ -15,6 +15,8 @@ export type DeskPanelState =
   | "not-in-search"
   /** An active search has no firms to show (or its membership is still loading). */
   | "search-empty"
+  /** There are no firms at all (and no search is pinned): say how to fill the queue. */
+  | "queue-empty"
   /** Nothing selected: prompt to pick from the queue. */
   | "empty";
 
@@ -52,6 +54,9 @@ export function deskPanelState(i: DeskPanelInputs): DeskPanelState {
   }
   if (i.searchActive && !i.firmsLoading && i.viewCount === 0) {
     return "search-empty";
+  }
+  if (!i.searchActive && !i.firmsLoading && i.viewCount === 0) {
+    return "queue-empty";
   }
   return "empty";
 }

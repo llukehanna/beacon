@@ -57,6 +57,48 @@ async function snapshotColumns(tx: Queryable): Promise<Map<string, Set<string>>>
   return out;
 }
 
+/** The latest value over every timestamp column of the live demo tables, in epoch milliseconds; null when there is none. */
+export async function latestTimestampMs(q: Queryable): Promise<number | null> {
+  let latest: number | null = null;
+  for (const [table, columns] of Object.entries(TABLES)) {
+    const stamps = Object.entries(columns)
+      .filter(([, type]) => type === "timestamp")
+      .map(([name]) => `"${name}"`);
+    if (stamps.length === 0) {
+      continue;
+    }
+    // greatest() skips NULLs, so a row with only some of its timestamps set still counts.
+    const [{ ms }] = await q.query<{ ms: number | null }>(
+      `SELECT floor(extract(epoch FROM max(greatest(${stamps.join(", ")}))) * 1000)::float8 AS ms FROM ${table}`,
+    );
+    if (ms !== null && (latest === null || ms > latest)) {
+      latest = ms;
+    }
+  }
+  return latest;
+}
+
+/**
+ * Move every timestamp in the live demo tables by `shiftMs` milliseconds, including the
+ * timestamps embedded in text (the same TEXT_SHIFTS the snapshot restore rewrites). Runs in
+ * the caller's transaction, which must be in UTC.
+ */
+export async function shiftLiveTimestamps(q: Queryable, shiftMs: number): Promise<void> {
+  const shift = `interval '${Math.round(shiftMs)} milliseconds'`;
+  for (const [table, columns] of Object.entries(TABLES)) {
+    const sets = Object.entries(columns).flatMap(([name, type]) => {
+      const text = TEXT_SHIFTS[table]?.[name];
+      if (text) {
+        return [`"${name}" = ${text(shift)}`];
+      }
+      return type === "timestamp" ? [`"${name}" = "${name}" + ${shift}`] : [];
+    });
+    if (sets.length > 0) {
+      await q.query(`UPDATE ${table} SET ${sets.join(", ")}`);
+    }
+  }
+}
+
 function restoreSql(table: string, shift: string, have: ReadonlySet<string>): string {
   const cols = Object.entries(TABLES[table]);
   const values = cols.map(([name, type]) => {

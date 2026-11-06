@@ -13,6 +13,12 @@ import {
   isEvaluable,
   toScreeningRules,
 } from "../../shared/activeScreening.js";
+import {
+  type ActivityFinding,
+  abstainedSinceByFirm,
+  buildActivity,
+  latestRunHeadline,
+} from "../../shared/activityFeed.js";
 import { bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
 import {
   type ActiveConfigRule,
@@ -33,11 +39,18 @@ import type {
   NeedsYouItem,
   RuleNeedsYou,
 } from "../../shared/summaries.js";
+import { type TrendFinding, findingTrends, groundedCounts } from "../../shared/trends.js";
 import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.js";
 import type { Queryable } from "../db/client.js";
 import { toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
+
+/** Drift events that still wait on a decision (what /review lists and the Home inbox counts). */
+export const OPEN_DRIFT_WHERE = `lower(coalesce("driftStatus", '')) <> 'resolved'`;
+
+/** Active mandates: `active === false` retires one; null predates the flag and still counts. */
+export const ACTIVE_MANDATE_WHERE = `"active" IS DISTINCT FROM false`;
 
 /** Rows in the Home inbox before "+N more". */
 export const VISIBLE_ROWS = 7;
@@ -110,10 +123,12 @@ async function openDrifts(q: Queryable) {
     priorScore: number | null;
     newTier: string | null;
     newScore: number | null;
+    detectedAt: Date | string | null;
   }>(
-    `SELECT "driftEventId", "firmId", "driftReason", "priorTier", "priorScore", "newTier", "newScore"
+    `SELECT "driftEventId", "firmId", "driftReason", "priorTier", "priorScore", "newTier", "newScore",
+            "detectedAt"
        FROM drift_event
-      WHERE lower(coalesce("driftStatus", '')) <> 'resolved'
+      WHERE ${OPEN_DRIFT_WHERE}
       ORDER BY "detectedAt" DESC NULLS LAST, "driftEventId" ASC`,
   );
 }
@@ -128,6 +143,55 @@ export async function pendingRules(q: Queryable) {
 }
 
 const orUndefined = <T>(v: T | null): T | undefined => v ?? undefined;
+
+/** A timestamp column as the ISO string the wire carries; null stays null. */
+function iso(v: Date | string | null): string | null {
+  if (v === null) {
+    return null;
+  }
+  const t = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(t.getTime()) ? null : t.toISOString();
+}
+
+type FindingRow = Omit<ActivityFinding & TrendFinding, "retrievedAt" | "verifiedAt"> & {
+  findingId: string;
+  retrievedAt: Date | string | null;
+  verifiedAt: Date | string | null;
+};
+
+/**
+ * The finding columns the trends and the activity feed read: one row each, so
+ * the pure modules in shared/ do the bucketing and grouping. Only whether a
+ * source quote exists is needed, so its first character stands in for it.
+ */
+async function loadTimedFindings(q: Queryable): Promise<(ActivityFinding & TrendFinding)[]> {
+  const rows = await q.query<FindingRow>(
+    `SELECT "findingId", "firmId", "axis", "value", "provider", "findingStatus", "confidenceTier",
+            "verifiedByHuman", "conflictGroupId", "retrievedAt", "verifiedAt",
+            left(btrim(coalesce("sourceQuote", '')), 1) AS "sourceQuote"
+       FROM research_finding`,
+  );
+  return rows.map((r) => ({
+    ...r,
+    retrievedAt: iso(r.retrievedAt),
+    verifiedAt: iso(r.verifiedAt),
+  }));
+}
+
+/** When each enriched firm was last enriched. */
+async function enrichmentTimes(q: Queryable): Promise<Map<string, string>> {
+  const rows = await q.query<{ firmId: string; enrichedAt: Date | string }>(
+    `SELECT "firmId", "enrichedAt" FROM firm WHERE "enrichedAt" IS NOT NULL`,
+  );
+  const out = new Map<string, string>();
+  for (const r of rows) {
+    const at = iso(r.enrichedAt);
+    if (at !== null) {
+      out.set(r.firmId, at);
+    }
+  }
+  return out;
+}
 
 interface PendingRule {
   proposedRuleId: string;
@@ -207,9 +271,8 @@ async function activeMandates(q: Queryable): Promise<MandateSummary[]> {
       archetype: string | null;
       priority: string | null;
     }>(
-      // active === false retires a mandate; null predates the flag and still counts.
       `SELECT "mandateId", "title", "intentStatement", "archetype", "priority" FROM mandate
-        WHERE "active" IS DISTINCT FROM false
+        WHERE ${ACTIVE_MANDATE_WHERE}
         ORDER BY "createdAt" DESC NULLS LAST, "mandateId" ASC`,
     ),
     mandateCounts(q),
@@ -226,7 +289,18 @@ async function activeMandates(q: Queryable): Promise<MandateSummary[]> {
 }
 
 export async function homeSummary(q: Queryable): Promise<HomeSummary> {
-  const [firms, configs, axesByFirm, drifts, rules, mandates, totals, groups] = await Promise.all([
+  const [
+    firms,
+    configs,
+    axesByFirm,
+    drifts,
+    rules,
+    mandates,
+    totals,
+    groups,
+    timedFindings,
+    enrichedAt,
+  ] = await Promise.all([
     loadLeanFirms(q),
     loadActiveConfigs(q),
     needsYouAxes(q),
@@ -235,6 +309,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     activeMandates(q),
     findingTotals(q),
     outcomeGroups(q),
+    loadTimedFindings(q),
+    enrichmentTimes(q),
   ]);
 
   // Funnel: one bucket per firm, hard-reject verdict included.
@@ -242,6 +318,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
   for (const f of firms) {
     funnel[bucketOf(f, mirrorScore(f))] += 1;
   }
+
+  const abstainedSince = abstainedSinceByFirm(timedFindings);
 
   // Judgment rows: firms in the desk's workable band with an abstained axis,
   // in the desk's queue order. Ranking only these keeps the order the full
@@ -260,6 +338,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       firmId: r.firm.firmId,
       name: r.firm.firmName ?? r.firm.firmId,
       axes: axesByFirm.get(r.firm.firmId) ?? 0,
+      at: abstainedSince.get(r.firm.firmId) ?? null,
     }));
 
   const driftItems: DriftNeedsYou[] = drifts.map((d) => {
@@ -277,6 +356,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       priorScore: orUndefined(d.priorScore),
       newTier: orUndefined(d.newTier),
       newScore: orUndefined(d.newScore),
+      at: iso(d.detectedAt),
     };
   });
 
@@ -294,6 +374,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
           orUndefined(r.ruleThreshold),
         ) ?? "malformed proposal",
       screens: null,
+      // A proposal carries no time of its own (see the activity feed below).
+      at: null,
     }));
 
   // Stable sort: within a rank the per-type order is already the destination page's own.
@@ -312,6 +394,25 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     needsYouCounts[item.destination] += 1;
   }
 
+  // Agent activity. A pending rule has no recorded proposal time (ProposedRule carries only
+  // ruleDecidedAt), so no rule_proposed items are fed in rather than inventing one.
+  const activityInput = {
+    firms: firms.map((f) => ({
+      firmId: f.firmId,
+      firmName: f.firmName,
+      enrichedAt: enrichedAt.get(f.firmId) ?? null,
+    })),
+    findings: timedFindings,
+    driftEvents: drifts.map((d) => ({
+      driftEventId: d.driftEventId,
+      firmId: d.firmId,
+      detectedAt: iso(d.detectedAt),
+      reason: d.driftReason,
+      priorTier: d.priorTier,
+      newTier: d.newTier,
+    })),
+  };
+
   const overall = ratesFromCounts(totals);
   const outcomes = tallyOutcomeGroups(groups);
   return {
@@ -328,5 +429,9 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       passed: outcomes.passed,
       passedAndAcquired: outcomes.passedAndAcquired,
     },
+    trends: findingTrends(timedFindings),
+    grounded: groundedCounts(timedFindings),
+    activity: buildActivity(activityInput),
+    headline: latestRunHeadline(activityInput),
   };
 }

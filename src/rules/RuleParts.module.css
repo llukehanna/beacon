@@ -1,0 +1,28 @@
+.predicate {
+  display: inline-block;
+  max-width: 100%;
+  min-width: 0;
+  padding: 3px 8px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--s1);
+  box-shadow: 0 0 0 1px var(--line);
+  color: #d6daff;
+  font: 500 12.5px/1.45 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.malformed {
+  color: var(--tx3);
+  font-size: 12px;
+  font-style: italic;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  color: var(--tx3);
+  font-size: 11.5px;
+}

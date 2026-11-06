@@ -1,0 +1,29 @@
+.page {
+  padding: 18px 24px;
+}
+
+.title {
+  width: min(280px, 60%);
+}
+
+.sub {
+  width: min(420px, 80%);
+  margin-top: 10px;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 12px;
+  margin-top: 24px;
+}
+
+.panel {
+  padding: 16px;
+}
+
+@media (max-width: 899px) {
+  .page {
+    padding: 14px 16px;
+  }
+}

@@ -1,0 +1,113 @@
+.center {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow-wrap: anywhere;
+}
+
+.center > * {
+  max-width: 440px;
+}
+
+.skeletonLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  flex: 1;
+  min-height: 0;
+}
+
+.skeleton {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.skeletonHero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.skeletonHero > :first-child {
+  flex: none;
+  width: 52px;
+}
+
+.skeletonName {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+}
+
+.skeletonScore {
+  width: 300px;
+  margin-left: auto;
+}
+
+.skeletonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skeletonBar {
+  margin-top: auto;
+}
+
+.link {
+  display: inline-block;
+  padding: 7px 12px;
+  border-radius: var(--radius-md);
+  background: var(--s3);
+  box-shadow:
+    0 0 0 1px var(--line2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  color: var(--tx);
+  font: 500 13px/1.45 var(--font-ui);
+  text-decoration: none;
+}
+
+.link:hover {
+  background: #1b1e24;
+}
+
+.skeletonAside {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(17, 19, 23, 0.9), rgba(12, 13, 16, 0.9));
+}
+
+.skeletonTabs {
+  height: 48px;
+  border-bottom: 1px solid var(--line);
+}
+
+.skeletonEvidence {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+}
+
+@media (max-width: 1279px) {
+  .skeletonLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skeletonAside {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .skeletonScore {
+    display: none;
+  }
+}

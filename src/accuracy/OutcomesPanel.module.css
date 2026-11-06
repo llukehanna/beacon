@@ -1,0 +1,77 @@
+.panel {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(132px, 1fr));
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--s2);
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+/* A firm we passed that the market bought: the divergence violet the drift queue uses. */
+.tile[data-divergence] {
+  background: var(--violet-bg);
+  box-shadow: 0 0 0 1px rgba(155, 127, 224, 0.4);
+}
+
+.count {
+  font: 500 22px/1.1 var(--font-mono);
+  letter-spacing: -0.03em;
+}
+
+.tile[data-divergence] .count {
+  color: var(--violet);
+}
+
+.label {
+  color: var(--tx2);
+  font-size: 12px;
+}
+
+.quiet {
+  margin: 0;
+  color: var(--tx3);
+  font-size: 12px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.passed {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  background: var(--violet-bg);
+  box-shadow: 0 0 0 1px rgba(155, 127, 224, 0.4);
+  color: var(--tx);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.passed b {
+  color: var(--violet);
+  font-weight: 600;
+}

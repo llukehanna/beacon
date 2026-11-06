@@ -1,0 +1,93 @@
+.stage {
+  --c: var(--tx2);
+  --bg: rgba(255, 255, 255, 0.05);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--c);
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  white-space: nowrap;
+}
+
+.stage::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--dot, var(--c));
+}
+
+.stage[data-stage="Screening"] {
+  --c: #b4bbff;
+  --bg: rgba(138, 149, 255, 0.1);
+  --dot: var(--acc);
+}
+
+.stage[data-stage="Qualified"] {
+  --c: var(--green);
+  --bg: rgba(79, 209, 154, 0.1);
+}
+
+/* Outreach to LOI: the same indigo, a step deeper at each stage. */
+.stage[data-stage="Outreach"] {
+  --c: #b4bbff;
+  --bg: rgba(138, 149, 255, 0.14);
+  --dot: var(--acc);
+}
+
+.stage[data-stage="NDA"] {
+  --c: #b4bbff;
+  --bg: rgba(138, 149, 255, 0.18);
+  --dot: var(--acc);
+}
+
+.stage[data-stage="IOI"] {
+  --c: #c4caff;
+  --bg: rgba(138, 149, 255, 0.23);
+  --dot: var(--acc);
+}
+
+.stage[data-stage="LOI"] {
+  --c: #d0d4ff;
+  --bg: rgba(138, 149, 255, 0.3);
+  --dot: #b4bbff;
+}
+
+.stage[data-stage="Closed"] {
+  --c: #8ee5c0;
+  --bg: rgba(79, 209, 154, 0.2);
+}
+
+/* Passed is an outcome, not a step: hatched, with a hollow dot, never red. */
+.stage[data-stage="Passed"] {
+  --c: var(--tx3);
+  --bg: transparent;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.04) 0 6px,
+    transparent 6px 12px
+  );
+  box-shadow: 0 0 0 1px var(--line);
+}
+
+.stage[data-stage="Passed"]::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.tier {
+  display: inline-block;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--tier) 14%, transparent);
+  color: var(--tier);
+  font: 600 11px/1.5 var(--font-mono);
+  text-align: center;
+}

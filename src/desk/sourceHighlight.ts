@@ -101,3 +101,41 @@ export function excerptText(f: {
   }
   return f.sourceDocumentId ? `\u201c${excerpt}\u201d` : excerpt;
 }
+
+/** One numbered line of a source document, with the cited part (if any) split out. */
+export interface DocLine {
+  /** 1-based, the numbering the grounding checks report. */
+  n: number;
+  text: string;
+  /** True when part of the quote sits on this line. */
+  cited: boolean;
+  parts: { text: string; mark: boolean }[];
+}
+
+/**
+ * A document as numbered lines with the quote marked, for the evidence panel. `found` is false
+ * when the quote is not in the body (the lines are still returned, unmarked).
+ */
+export function docLines(body: string, quote: string | null): { lines: DocLine[]; found: boolean } {
+  const hit = quote === null ? null : highlightQuote(body, quote);
+  const from = hit === null ? 0 : hit.before.length;
+  const to = hit === null ? 0 : from + hit.match.length;
+  let offset = 0;
+  const lines = body.split("\n").map((text, i): DocLine => {
+    const start = offset;
+    const end = start + text.length;
+    offset = end + 1;
+    const markFrom = Math.max(start, from);
+    const markTo = Math.min(end, to);
+    if (hit === null || markFrom >= markTo) {
+      return { n: i + 1, text, cited: false, parts: [{ text, mark: false }] };
+    }
+    const parts = [
+      { text: text.slice(0, markFrom - start), mark: false },
+      { text: text.slice(markFrom - start, markTo - start), mark: true },
+      { text: text.slice(markTo - start), mark: false },
+    ].filter((p) => p.text !== "");
+    return { n: i + 1, text, cited: true, parts };
+  });
+  return { lines, found: hit !== null };
+}
