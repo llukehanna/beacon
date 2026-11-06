@@ -315,6 +315,7 @@ export function DecisionBar({
               )}
               <Button
                 className={styles.pass}
+                data-tour="pass-button"
                 disabled={!canPass}
                 onClick={onPass}
                 title="Pass on this firm. A decision note is required."

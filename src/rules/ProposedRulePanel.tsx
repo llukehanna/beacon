@@ -94,7 +94,11 @@ export function ProposedRulePanel({
   useCommands(commands);
 
   return (
-    <Panel className={styles.panel} aria-label={predicate ?? "Proposed rule"}>
+    <Panel
+      className={styles.panel}
+      aria-label={predicate ?? "Proposed rule"}
+      data-tour="proposed-rule"
+    >
       <div className={styles.top}>
         <PredicateCode predicate={predicate} />
         <StatusPill status="proposed" />

@@ -1,6 +1,7 @@
 import React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Drawer } from "@blueprintjs/core";
+import { TourProvider } from "@/tour/TourProvider";
 import styles from "./AppShell.module.css";
 import CommandPalette from "./CommandPalette";
 import ShortcutsOverlay from "./ShortcutsOverlay";
@@ -30,9 +31,18 @@ function useNarrow(): boolean {
 
 /**
  * The frame every screen renders inside: sidebar, top bar, status bar and the global keyboard
- * navigation. Screens render in the main area through the router's outlet.
+ * navigation. Screens render in the main area through the router's outlet. The guided tour wraps
+ * it, so the palette and the `?` list can start the tour and its card floats over any screen.
  */
 export default function AppShell(): React.ReactElement {
+  return (
+    <TourProvider>
+      <Shell />
+    </TourProvider>
+  );
+}
+
+function Shell(): React.ReactElement {
   const narrow = useNarrow();
   const { pathname, search } = useLocation();
   const counts = useShellCounts();

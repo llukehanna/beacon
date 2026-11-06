@@ -7,15 +7,26 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 380px;
   grid-template-areas:
+    "intro   intro"
     "head    head"
     "error   error"
     "metrics metrics"
     "funnel  feed"
     "needs   feed";
-  grid-template-rows: auto auto auto auto 1fr;
+  grid-template-rows: auto auto auto auto auto 1fr;
   align-content: start;
   gap: 18px 22px;
   padding: 26px 30px 36px;
+}
+
+.intro {
+  grid-area: intro;
+  min-width: 0;
+}
+
+/* Once the card is dismissed its cell is empty, and the grid gap above it goes with it. */
+.intro:empty {
+  margin-bottom: -18px;
 }
 
 .head {
@@ -62,12 +73,13 @@
 @media (max-width: 1359px) {
   .grid {
     grid-template-areas:
+      "intro   intro"
       "head    head"
       "error   error"
       "metrics metrics"
       "funnel  funnel"
       "needs   feed";
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto auto;
     grid-template-columns: minmax(0, 1fr) 340px;
   }
 }
@@ -76,6 +88,7 @@
   .grid {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
+      "intro"
       "head"
       "error"
       "metrics"

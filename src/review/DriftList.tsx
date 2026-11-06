@@ -129,7 +129,7 @@ export function DriftList({
 
   return (
     <div className={styles.queue} ref={listRef}>
-      <Panel className={styles.panel} aria-label="Needs review">
+      <Panel className={styles.panel} aria-label="Needs review" data-tour="drift-list">
         <SectionHead title="Needs review" count={loading ? undefined : open.length} />
         {loading && (
           <div className={styles.pad}>
