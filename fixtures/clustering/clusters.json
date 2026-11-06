@@ -1,0 +1,64 @@
+{
+  "inputHash": "53c3bb41",
+  "model": "claude-opus-5",
+  "proposals": [
+    {
+      "predicateAxis": "employees",
+      "ruleOperator": "<",
+      "ruleThreshold": "10",
+      "ruleModel": "CF",
+      "summary": "Screen out CF firms with fewer than 10 employees — they are too small to absorb an integration.",
+      "supportingDecisionIds": [
+        "rd-seed-00915",
+        "rd-seed-00917",
+        "rd-seed-00919",
+        "rd-seed-00921",
+        "rd-seed-00923",
+        "rd-seed-00925",
+        "rd-seed-00927"
+      ]
+    },
+    {
+      "predicateAxis": "coverage_model",
+      "ruleOperator": "==",
+      "ruleThreshold": "Generalist",
+      "ruleModel": "CF",
+      "summary": "Screen out CF firms with a Generalist coverage model — no sector depth means an unfocused franchise.",
+      "supportingDecisionIds": [
+        "rd-seed-00929",
+        "rd-seed-00931",
+        "rd-seed-00933",
+        "rd-seed-00935",
+        "rd-seed-00937"
+      ]
+    },
+    {
+      "predicateAxis": "deal_size_usd_m",
+      "ruleOperator": "<",
+      "ruleThreshold": "20",
+      "ruleModel": "CF",
+      "summary": "Screen out CF firms with average deal size under $20m — below our deal-size floor.",
+      "supportingDecisionIds": [
+        "rd-seed-00942",
+        "rd-seed-00947",
+        "rd-seed-00952",
+        "rd-seed-00957",
+        "rd-seed-00962"
+      ]
+    },
+    {
+      "predicateAxis": "deals_per_md_l3y",
+      "ruleOperator": "<",
+      "ruleThreshold": "1.5",
+      "ruleModel": "CF",
+      "summary": "Screen out CF firms averaging fewer than 1.5 deals per MD over the last three years — weak deal volume.",
+      "supportingDecisionIds": [
+        "rd-seed-00967",
+        "rd-seed-00972",
+        "rd-seed-00977",
+        "rd-seed-00982"
+      ]
+    }
+  ],
+  "createdAt": "2026-11-06T07:28:40.147Z"
+}
