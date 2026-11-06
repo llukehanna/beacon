@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { OBJECT_TYPES } from "../shared/schema";
 import {
   ACTIONS_PER_MINUTE,
   ACTIVITY_ROW_CEILING,
@@ -16,6 +17,7 @@ import {
   MAX_BODY_BYTES,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
+  OBJECT_TYPE_COUNT,
   OTHER_HEADERS,
   RECORDED_RUN,
   RESETS_PER_MINUTE,
@@ -28,6 +30,7 @@ import { MIN_CLUSTER } from "./actions/rules";
 import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
+import { MAX_ACTION_RUNS } from "./operations/record";
 import { UNIVERSE_SIZE } from "./seed/universe";
 
 const ROOT = resolve(__dirname, "..");
@@ -73,6 +76,16 @@ describe("figures on the About and Trust pages", () => {
     }
   });
 
+  it("match the recorded run's grounding figures recomputed by the evaluation", () => {
+    const evals = JSON.parse(read("docs/evals.json")) as {
+      recordedRun: { values: number; grounded: number };
+    };
+    expect(evals.recordedRun).toEqual({
+      values: RECORDED_RUN.valuesExtracted,
+      grounded: RECORDED_RUN.valuesGrounded,
+    });
+  });
+
   it("match the recorded run in docs/architecture.md", () => {
     const doc = read("docs/architecture.md");
     const n = (v: number): string => v.toLocaleString("en-US");
@@ -83,6 +96,99 @@ describe("figures on the About and Trust pages", () => {
     expect(doc).toContain(`The run cost ${RECORDED_RUN.extractionCost}`);
     expect(doc).toContain(`${RECORDED_RUN.clusteringCost}.`);
     expect(doc).toContain("Claude Haiku 4.5");
+  });
+});
+
+describe("the object type count", () => {
+  it("is the one the docs and the schema state", () => {
+    expect(OBJECT_TYPE_COUNT).toBe(Object.keys(OBJECT_TYPES).length);
+    expect(read("docs/architecture.md")).toContain(`the ${OBJECT_TYPE_COUNT} object types`);
+    expect(read("docs/architecture.md")).toContain(`${OBJECT_TYPE_COUNT} object tables`);
+    expect(read("README.md")).toContain(`${OBJECT_TYPE_COUNT} object tables`);
+    expect(read("docs/foundry-origins.md")).toContain(`${OBJECT_TYPE_COUNT} object types`);
+  });
+
+  it("keeps operations metrics out of the snapshot and the stored-run ceiling in the docs", () => {
+    expect(read("docs/security.md")).toContain(
+      `up to ${MAX_ACTION_RUNS.toLocaleString("en-US")} action runs`,
+    );
+    expect(read("docs/architecture.md")).toContain(
+      `capped at ${MAX_ACTION_RUNS.toLocaleString("en-US")} stored action runs`,
+    );
+  });
+});
+
+describe("docs/error-analysis.md", () => {
+  const evals = JSON.parse(read("docs/evals.json")) as {
+    slots: { total: number; correct: number };
+    failures: { kind: string; count: number; examples: { firmId: string; axis: string }[] }[];
+    reconciled: { higherTrustRight: number; precision: number; conflictRate: number };
+    abstention: { rate: number; calibration: number };
+    providers: { provider: string; precision: number }[];
+    recordedRun: { values: number; grounded: number };
+    ruleRecovery: { planted: number; recovered: number };
+  };
+  const doc = read("docs/error-analysis.md");
+  const n = (v: number): string => v.toLocaleString("en-US");
+
+  it("states the taxonomy counts from docs/evals.json", () => {
+    expect(doc).toContain(`${n(evals.slots.total)} firm axes`);
+    expect(doc).toContain(`${n(evals.slots.correct)} of them`);
+    for (const f of evals.failures) {
+      expect(doc).toContain(`(\`${f.kind}\`) | ${n(f.count)} |`);
+    }
+    expect(doc).toContain(`${(evals.reconciled.higherTrustRight * 100).toFixed(1)}%`);
+  });
+
+  it("states every other figure from docs/evals.json too", () => {
+    const pct = (v: number): string => (v * 100).toFixed(1);
+    const precisionOf = (provider: string): number =>
+      evals.providers.find((p) => p.provider === provider)!.precision;
+    const wrong = evals.failures.find((f) => f.kind === "wrong-source-wins")!.count;
+    const conflicts = evals.failures.find((f) => f.kind === "conflict-surfaced")!.count;
+    const abstained = evals.failures.find((f) => f.kind === "abstained-correctly")!.count;
+    // Shares of the evaluated axes, and the correct share.
+    expect(doc).toContain(`(${pct(evals.slots.correct / evals.slots.total)}%)`);
+    for (const f of evals.failures) {
+      expect(doc).toContain(`| ${n(f.count)} | ${pct(f.count / evals.slots.total)}% |`);
+    }
+    // The wrong values settled, as a share of settled values, and the precision it complements.
+    expect(doc).toContain(
+      `${n(wrong)} wrong values settled are ${pct(1 - evals.reconciled.precision)}%`,
+    );
+    expect(doc).toContain(`reconciled precision is ${pct(evals.reconciled.precision)}%`);
+    // The trust-order tiebreak and the provider precisions it quotes.
+    expect(doc).toContain(`wrong in the other ${pct(1 - evals.reconciled.higherTrustRight)}%`);
+    expect(doc).toContain(
+      `${pct(precisionOf("websearch"))}% precision against ${pct(precisionOf("beacondb"))}% for BeaconDB`,
+    );
+    // Conflicts, abstentions and rule recovery.
+    expect(doc).toContain(
+      `The ${n(conflicts)} conflicts (${pct(evals.reconciled.conflictRate)}% of axes`,
+    );
+    expect(doc).toContain(`Of the ${n(conflicts)} conflicts`);
+    expect(doc).toContain(`${n(abstained)} axes (${pct(evals.abstention.rate)}%) ended this way`);
+    expect(doc).toContain(
+      `${pct(evals.abstention.calibration).replace(/\.0$/, "")}% of abstentions were justified`,
+    );
+    expect(doc).toContain(
+      `${evals.ruleRecovery.recovered} of ${evals.ruleRecovery.planted} (\`ruleRecovery\`)`,
+    );
+  });
+
+  it("counts the answers the grounding check dropped from the recorded run", () => {
+    const dropped = evals.recordedRun.values - evals.recordedRun.grounded;
+    expect(doc).toContain(`The ${dropped} answers the grounding check dropped`);
+  });
+
+  it("links every example to its firm on the Desk", () => {
+    for (const f of evals.failures) {
+      for (const e of f.examples) {
+        expect(doc).toContain(
+          `[\`${e.firmId}\`, ${e.axis}](https://beacon.lukeghanna.com/desk?firmId=${e.firmId})`,
+        );
+      }
+    }
   });
 });
 

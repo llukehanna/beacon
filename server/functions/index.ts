@@ -8,6 +8,7 @@ import { HttpError } from "../errors.js";
 import { accuracySummary } from "./accuracySummary.js";
 import { firmObservations } from "./firmObservations.js";
 import { homeSummary } from "./homeSummary.js";
+import { operationsSummary } from "./operationsSummary.js";
 import { shellCounts } from "./shellCounts.js";
 import { sourceDocument } from "./sourceDocument.js";
 
@@ -19,6 +20,7 @@ export const FUNCTIONS: Record<string, QueryFunction> = {
   sourceDocument: (q, params) => sourceDocument(q, params),
   firmObservations: (q, params) => firmObservations(q, params),
   shellCounts: (q) => shellCounts(q),
+  operationsSummary: (q) => operationsSummary(q),
 };
 
 export async function runFunction(

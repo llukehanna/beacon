@@ -10,7 +10,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>12 object tables)]
+  Actions --> PG[(Postgres<br/>14 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -18,7 +18,7 @@ flowchart LR
 
 ## Ontology first
 
-`shared/schema.ts` declares the 12 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, and the search join objects), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
+`shared/schema.ts` declares the 14 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, the search join objects, and the two operations metrics, action runs and model calls), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
 
 - **Storage.** `server/db/ddl.ts` generates one Postgres table per object type, with quoted camelCase columns that match the property names. `ensureSchema` runs it on every cold start and then adds any property column an existing table lacks, so a new property reaches a database created before it. It reads `information_schema` first and runs `ALTER TABLE` (under a 5 s lock timeout) only for columns actually missing, so a current database is never locked; a saved demo snapshot taken earlier restores the new column empty until the next `npm run seed`.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
@@ -27,6 +27,7 @@ flowchart LR
   - `accuracySummary`: the Accuracy page's tables (agreement and abstention by source and by axis) and the outcomes of the firms behind them.
   - `sourceDocument`: the source document one provider holds for one firm, rendered on demand for the source drawer.
   - `firmObservations`: what each provider said about each axis of a firm, and whether its quote held up against its document.
+  - `operationsSummary`: the Accuracy page's Operations tab: p50 and p95 duration, run and error counts per action, and live Claude spend per UTC day against the daily call cap, since the last reset.
   - `shellCounts`: the open-firm, review and active-mandate counts the sidebar and status bar show on every route, counted in SQL so no screen pays for the full Home summary.
 - **Frontend.** `src/data/hooks.ts` exposes typed hooks keyed by the same type names. They keep the OSDK hook names the pages were written against, so the screens didn't change when the backend did. `useOsdkQuery` calls a query function, and a successful action refreshes only the object types it wrote, the links that touch them, and the function results.
 
@@ -39,6 +40,9 @@ Every write is an action in `server/actions/`, registered by name. Applying one:
 1. Checks the demo's ceilings (activity tables, mandates, searches) so a single visitor can't fill the shared database.
 2. Validates the parameters against the action's spec: types, lengths, list sizes, and object references. Referenced objects are loaded `FOR UPDATE`, so two concurrent actions on one firm run one after the other.
 3. Runs the handler inside one transaction and returns the ids it created or modified, plus an optional note for the UI.
+4. Records one `ActionRun` (action name, start time, duration, outcome and, on failure, the error kind) after the transaction ends, so the measurement is never part of it and a failure to record it never changes the action's result. Parameters and visitor identity are not recorded.
+
+Live Claude calls (clustering, when switched on) record a `ModelCall` the same way, with the token counts the API reported and a cost computed from the price table in `server/extraction/pricing.ts`. Both are operations metrics, not demo data: they are left out of the reset snapshot, cleared by every reset, and capped at 10,000 stored action runs. The seeded history is built through the same actions but records nothing.
 
 History is append-only. Qualification scores and review decisions are never updated. A research finding only ever changes its verification status, and an analyst override creates a new finding instead of editing the agent's. A drift event only changes its status and resolution.
 
@@ -74,7 +78,7 @@ Each finding stores the record id, the exact quote, and the extraction model. On
 
 **Why offline.** Model answers are recorded once and committed as fixtures (`fixtures/extraction/`), with tokens, cost, and latency per firm. The seed loads them as `Extraction` objects, and the live **Run agent** button grounds those stored answers again. Visitors therefore spend nothing, the demo is reproducible, and the same fixtures feed evaluation. A stored answer is used only when its record hash and prompt version match the current code. Otherwise the firm falls back to the rule-based extractor, and the seed prints how many fixtures were current or stale.
 
-**Recorded run (Claude Haiku 4.5, Message Batches API, prompt `extract-v1`, records `doc-v1`).** All 700 firms were extracted and parsed. Of 6,472 extracted values, 6,471 passed the grounding check. That rate measures whether each answer quotes its record faithfully, not whether the value is correct: the records include each provider's deliberate errors, and reconciliation and analyst review handle those. The run cost $1.39. The recorded clustering of the seed's rejections (4 rule proposals) cost a further $0.05.
+**Recorded run (Claude Haiku 4.5, Message Batches API, prompt `extract-v1`, records `doc-v1`).** All 700 firms were extracted and parsed. Of 6,472 extracted values, 6,455 passed the grounding check. The 17 that did not are 16 true/false answers for web activity whose quote did not contain the value and one label that was not in its quote (`npm run eval` recomputes the figure, which is in [evals.json](evals.json)). That rate measures whether each answer quotes its record faithfully, not whether the value is correct: the records include each provider's deliberate errors, and reconciliation and analyst review handle those. The run cost $1.39. The recorded clustering of the seed's rejections (4 rule proposals) cost a further $0.05.
 
 **Showcase.** The seed leaves the agent's runs open on twelve firms (both business models). It picks them for source conflicts and abstentions and keeps them out of every screen, so the desk opens on a live run.
 

@@ -27,6 +27,8 @@ Full-quality video: [golden-path.mp4](docs/media/golden-path.mp4).
 
 ## More
 
+- [Decision records](docs/decisions/README.md): ten short records of why it is built this way, with a status for each.
+- [Ontology reference](docs/ontology.md): every object type, link and action, generated from the schema.
 - [Development history](docs/development-history.md): how the project got here, with dates.
 - [Production roadmap](docs/production-roadmap.md): what a production deployment would need that the demo does not have.
 
@@ -42,7 +44,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>source records → grounding → reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>12 object tables)]
+  Actions --> PG[(Postgres<br/>14 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -50,7 +52,7 @@ flowchart LR
 
 ## Built on Palantir Foundry, then ported
 
-Beacon was first built on Palantir Foundry (Ontology, Functions, Actions, AIP, OSDK). When that environment went away, the backend was rebuilt on an open stack behind the same frontend. [docs/foundry-origins.md](docs/foundry-origins.md) maps each Foundry concept to its replacement.
+Beacon was first built on Palantir Foundry (Ontology, Functions, Actions, AIP, OSDK). When that environment went away, the backend was rebuilt on an open stack behind the same frontend. [docs/foundry-origins.md](docs/foundry-origins.md) maps each Foundry concept to its replacement and says what was lost or gained.
 
 ## Run it locally
 
@@ -61,6 +63,8 @@ npm install
 npm run seed      # builds the demo world and its reset snapshot in .data/pglite (in-process Postgres)
 npm run dev       # http://localhost:8080
 ```
+
+`npm run ontology:doc` regenerates the [ontology reference](docs/ontology.md) from the schema; CI fails if it is out of date.
 
 `npm run check` runs the sanitization guard, lint, the formatting check, both typechecks, and the test suite.
 

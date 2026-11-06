@@ -19,7 +19,7 @@ Beacon is a demo on synthetic data. This page lists what a production deployment
 
 ## 4. Evaluation on real data
 
-- **Now.** The Accuracy page reports agreement, abstention and outcomes from the demo's own history (`src/accuracy/`, `src/desk/trustMetrics.ts`). The grounding rate (6,471 of 6,472 recorded values) shows that answers quote their record faithfully, and says nothing about whether a value is true, because the mock records contain deliberate errors (`docs/architecture.md`).
+- **Now.** The Accuracy page reports agreement, abstention and outcomes from the demo's own history (`src/accuracy/`, `src/desk/trustMetrics.ts`). The grounding rate (6,455 of 6,472 recorded values) shows that answers quote their record faithfully, and says nothing about whether a value is true, because the mock records contain deliberate errors (`docs/architecture.md`).
 - **Production needs.** A labelled sample of real firms with analyst-confirmed values per axis, scored for each source and for the model's extraction, so that accuracy is measured rather than inferred. A re-run of that evaluation whenever the prompt version, the model or a source changes, plus a regular check for drift in extraction quality (for example the rate of dropped quotes and of abstentions by axis over time).
 
 ## 5. Audit export

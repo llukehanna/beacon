@@ -14,6 +14,8 @@ const DOCS_URL = `${REPO_URL}/blob/main/docs`;
 export const ARCHITECTURE_DOC_URL = `${DOCS_URL}/architecture.md`;
 export const FOUNDRY_DOC_URL = `${DOCS_URL}/foundry-origins.md`;
 export const SECURITY_DOC_URL = `${DOCS_URL}/security.md`;
+export const EVALS_DOC_URL = `${DOCS_URL}/evals.md`;
+export const ERROR_ANALYSIS_DOC_URL = `${DOCS_URL}/error-analysis.md`;
 
 /** Derived from shared code. */
 export const OBJECT_TYPE_COUNT = Object.keys(OBJECT_TYPES).length;
@@ -53,7 +55,7 @@ export const MIN_FIRMS_PER_RULE = 4;
 export const RECORDED_RUN = {
   firms: 700,
   valuesExtracted: 6_472,
-  valuesGrounded: 6_471,
+  valuesGrounded: 6_455,
   extractionCost: "$1.39",
   clusteringCost: "$0.05",
   model: "Claude Haiku 4.5",

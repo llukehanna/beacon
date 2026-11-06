@@ -24,3 +24,5 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm run build
+      - run: npm run eval -- --check
+      - run: npm run ontology:doc -- --check
