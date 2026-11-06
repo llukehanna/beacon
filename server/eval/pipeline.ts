@@ -1,16 +1,16 @@
 /**
  * The agent's pipeline for a firm, run in memory and set against the hidden truth: the same
- * `groundFirm` (documents, extraction, grounding) and `reconcileAxis` the agent runs, then the
+ * `planFirm` (documents, extraction, grounding, reconciliation) the agent runs, then the
  * deterministic rubric. Pure: no DB, no network, no clock.
  */
 import type { ObjectOf, Props } from "../../shared/schema.js";
 import type { Model, Tier } from "../../shared/scoreMirror.js";
 import { firmModel, parseAxisValue, scoreFirm } from "../../shared/scoring.js";
-import { type AxisDef, ENRICH_AXES, type Provider } from "../../shared/vocab.js";
+import type { AxisDef, Provider } from "../../shared/vocab.js";
 import { truthFor } from "../enrichment/providers.js";
-import { type FindingPlan, reconcileAxis } from "../enrichment/reconcile.js";
+import type { FindingPlan } from "../enrichment/reconcile.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
-import { groundFirm } from "../extraction/plan.js";
+import { planFirm } from "../extraction/plan.js";
 
 /** What the agent made of one axis for one firm, beside the truth. */
 export interface SlotResult {
@@ -63,15 +63,15 @@ export function evaluateFirm(
   rows: readonly ObjectOf<"Extraction">[],
 ): FirmEvaluation {
   const model = firmModel(firm);
-  const { docs, extraction, grounded } = groundFirm(firm, rows);
+  const { docs, extraction, grounded, axes } = planFirm(
+    firm,
+    rows,
+    () => `conflict-${firm.$primaryKey}`,
+  );
   const slots: SlotResult[] = [];
   const truths = new Map<AxisDef, string>();
   const settled = new Map<AxisDef, string>();
-  for (const axis of ENRICH_AXES.filter((a) => a.models.includes(model))) {
-    const kept = grounded.observations.filter((o) => o.axis === axis.axis);
-    const plans = reconcileAxis(axis, kept, () => `conflict-${firm.$primaryKey}-${axis.axis}`, {
-      groundingRejected: grounded.rejected.some((r) => r.axis === axis.axis),
-    });
+  for (const { axis, plans } of axes) {
     const truth = truthFor(firm, axis);
     truths.set(axis, truth);
     if (plans.length === 1 && plans[0].value !== null) {
@@ -83,7 +83,9 @@ export function evaluateFirm(
       axis,
       truth,
       stated: docs.filter((d) => d.fields.some((f) => f.axis === axis.axis)).map((d) => d.provider),
-      kept: kept.map((o) => ({ provider: o.provider, value: o.value })),
+      kept: grounded.observations
+        .filter((o) => o.axis === axis.axis)
+        .map((o) => ({ provider: o.provider, value: o.value })),
       plans,
     });
   }

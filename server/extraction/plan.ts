@@ -67,24 +67,39 @@ export function groundFirm(
 }
 
 /**
- * One entry per axis the firm's model enriches (and `include` accepts), each with the findings
- * the agent would record for it: read, grounded, then reconciled.
+ * What the agent reads for a firm (see `groundFirm`) and, for each axis the firm's model enriches
+ * (and `include` accepts), the findings it would record: read, grounded, then reconciled. The one
+ * place the agent's plans are made, so anything that measures them sees what the agent does.
  */
+export function planFirm(
+  firm: ObjectOf<"Firm">,
+  rows: readonly ObjectOf<"Extraction">[],
+  newConflictId: () => string,
+  include: (axis: AxisDef) => boolean = () => true,
+): ReturnType<typeof groundFirm> & { axes: { axis: AxisDef; plans: FindingPlan[] }[] } {
+  const model = firmModel(firm);
+  const read = groundFirm(firm, rows);
+  const { grounded } = read;
+  const axes = ENRICH_AXES.filter((axis) => axis.models.includes(model) && include(axis)).map(
+    (axis) => ({
+      axis,
+      plans: reconcileAxis(
+        axis,
+        grounded.observations.filter((o) => o.axis === axis.axis),
+        newConflictId,
+        { groundingRejected: grounded.rejected.some((r) => r.axis === axis.axis) },
+      ),
+    }),
+  );
+  return { ...read, axes };
+}
+
+/** One entry per axis the firm's model enriches (and `include` accepts), with its findings. */
 export function planFirmAxes(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
   newConflictId: () => string,
   include: (axis: AxisDef) => boolean = () => true,
 ): { axis: AxisDef; plans: FindingPlan[] }[] {
-  const model = firmModel(firm);
-  const { grounded } = groundFirm(firm, rows);
-  return ENRICH_AXES.filter((axis) => axis.models.includes(model) && include(axis)).map((axis) => ({
-    axis,
-    plans: reconcileAxis(
-      axis,
-      grounded.observations.filter((o) => o.axis === axis.axis),
-      newConflictId,
-      { groundingRejected: grounded.rejected.some((r) => r.axis === axis.axis) },
-    ),
-  }));
+  return planFirm(firm, rows, newConflictId, include).axes;
 }
