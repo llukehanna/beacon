@@ -17,6 +17,7 @@ const Pipeline = lazy(() => import("@/pipeline/PipelinePage"));
 const Review = lazy(() => import("@/review/ReviewPage"));
 const Rules = lazy(() => import("@/rules/RulesPage"));
 const SearchPage = lazy(() => import("@/mandates/SearchPage"));
+const TearSheet = lazy(() => import("@/tearsheet/TearSheetPage"));
 const Trust = lazy(() => import("@/about/TrustPage"));
 
 export const router = createBrowserRouter(
@@ -113,6 +114,19 @@ export const router = createBrowserRouter(
             <Titled title="Beacon — Run search">
               <Suspense fallback={<Loading />}>
                 <SearchPage />
+              </Suspense>
+            </Titled>
+          ),
+        },
+        {
+          // One printable page per firm. The print stylesheet drops the shell, so "Print / Save
+          // as PDF" produces the sheet alone.
+          errorElement: <RouteError />,
+          path: "/firm/:firmId/tear-sheet",
+          element: (
+            <Titled title="Beacon — Tear sheet">
+              <Suspense fallback={<Loading />}>
+                <TearSheet />
               </Suspense>
             </Titled>
           ),

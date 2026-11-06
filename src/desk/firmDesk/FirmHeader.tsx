@@ -1,4 +1,5 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore } from "@/data/ontology";
 import { Chip, MonogramTile } from "@/ui";
@@ -165,6 +166,14 @@ export function FirmHeader({
             outcome={(firm as unknown as { outcome?: string | null }).outcome}
             observedAt={(firm as unknown as { outcomeObservedAt?: unknown }).outcomeObservedAt}
           />
+          {firm.firmId && (
+            <Link
+              to={`/firm/${encodeURIComponent(firm.firmId)}/tear-sheet`}
+              className={styles.sheetLink}
+            >
+              Tear sheet
+            </Link>
+          )}
         </div>
       </div>
 

@@ -131,16 +131,19 @@ export function FirmDetail({
         </dl>
       </section>
 
-      {!out && (
-        <div className={styles.actions}>
+      <div className={styles.actions}>
+        {!out && (
           <ButtonLink
             to={`/desk?firmId=${encodeURIComponent(firm.firmId ?? "")}`}
             variant="primary"
           >
             Open in enrichment desk
           </ButtonLink>
-        </div>
-      )}
+        )}
+        <ButtonLink to={`/firm/${encodeURIComponent(firm.firmId ?? "")}/tear-sheet`}>
+          Tear sheet
+        </ButtonLink>
+      </div>
     </div>
   );
 }

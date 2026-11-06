@@ -1,0 +1,351 @@
+/* On screen the sheet uses the app theme. Every colour goes through the --ink / --rule variables on
+   .sheet, so the print block can replace them with fixed black on white and nothing else changes. */
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.back {
+  color: var(--tx2);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--tx);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+}
+
+.scroll {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin-inline: auto;
+}
+
+.sheet {
+  --ink: var(--tx);
+  --ink2: var(--tx2);
+  --rule: var(--line2);
+  --good: var(--green-tx);
+  --warn: var(--amber-tx);
+
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 860px;
+  margin-inline: auto;
+  color: var(--ink);
+}
+
+.head {
+  padding-bottom: 4px;
+}
+
+.eyebrow {
+  color: var(--ink2);
+  font-size: 11.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.title.title {
+  margin: 4px 0 0;
+  font: 600 26px/1.15 var(--font-ui);
+  letter-spacing: -0.025em;
+  overflow-wrap: anywhere;
+}
+
+.sub {
+  margin-top: 6px;
+  color: var(--ink2);
+  font-size: 12.5px;
+}
+
+.section.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.heading.heading {
+  color: var(--ink);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.plain {
+  color: var(--ink2);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px 18px;
+  margin: 0;
+}
+
+.fact {
+  min-width: 0;
+}
+
+.fact dt {
+  color: var(--ink2);
+  font-size: 11.5px;
+}
+
+.fact dd {
+  margin: 2px 0 0;
+  overflow-wrap: anywhere;
+}
+
+.scoreLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+}
+
+.big {
+  font: 500 34px/1 var(--font-mono);
+  letter-spacing: -0.04em;
+}
+
+.of {
+  color: var(--ink2);
+  font: 500 15px var(--font-mono);
+}
+
+.tier {
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th,
+.table td {
+  padding: 6px 8px 6px 0;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.table thead th {
+  color: var(--ink2);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
+.table tbody th {
+  font-weight: 500;
+}
+
+.table .num {
+  padding-right: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  min-width: 0;
+}
+
+.itemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+}
+
+.axis {
+  font-weight: 600;
+}
+
+.value {
+  overflow-wrap: anywhere;
+}
+
+.tag {
+  color: var(--good);
+  font-size: 11.5px;
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.quote {
+  margin: 6px 0 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--rule);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.source {
+  margin-top: 4px;
+  color: var(--ink2);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.sides {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 0;
+  padding: 0 0 0 12px;
+  border-left: 2px solid var(--warn);
+  list-style: none;
+}
+
+.foot {
+  color: var(--ink2);
+  font-size: 11.5px;
+}
+
+@media (max-width: 899px) {
+  .toolbar {
+    padding: 12px 16px;
+  }
+
+  .actions {
+    margin-left: 0;
+  }
+
+  .scroll {
+    padding: 16px;
+  }
+}
+
+/* Paper size stays the browser's (A4 or Letter); 16 mm clears every printer's unprintable edge. */
+@page {
+  margin: 16mm;
+}
+
+/* The page prints on white in black, whatever theme is on screen. */
+@media print {
+  :global(html[data-print="tear-sheet"]) {
+    color-scheme: light;
+    background: #fff;
+  }
+
+  :global(html[data-print="tear-sheet"]) body {
+    min-height: 0;
+    background: #fff;
+    color: #000;
+  }
+
+  .page {
+    display: block;
+    height: auto;
+  }
+
+  .toolbar {
+    display: none;
+  }
+
+  .scroll {
+    padding: 0;
+    overflow: visible;
+  }
+
+  .sheet {
+    --ink: #000;
+    --ink2: #333;
+    --rule: #999;
+    --good: #0b5c3a;
+    --warn: #7a4a00;
+
+    display: block;
+    max-width: none;
+    background: #fff;
+    font-size: 11pt;
+  }
+
+  .sheet > * + * {
+    margin-top: 12pt;
+  }
+
+  /* Panel paints a dark gradient and a hairline shadow; print gets a plain rule instead. */
+  .section.section {
+    display: block;
+    padding: 10pt 0 0;
+    border-top: 1px solid #000;
+    border-radius: 0;
+    background: none;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+
+  .section > * + * {
+    margin-top: 8pt;
+  }
+
+  .heading.heading {
+    break-after: avoid;
+    font-size: 12pt;
+  }
+
+  .title.title {
+    font-size: 22pt;
+  }
+
+  .item,
+  .table tr {
+    break-inside: avoid;
+  }
+
+  .table thead {
+    display: table-header-group;
+  }
+}
