@@ -17,6 +17,7 @@ const base: EvalReport = {
   version: 1,
   generatedFrom: { documents: "doc-v1", prompt: "extract-v1", fixtures: "rule-based" },
   firms: 10,
+  recordedRun: { values: 100, grounded: 99 },
   providers: [{ provider: "dealdb", coverage: 0.7, precision: 0.97 }],
   reconciled: { coverage: 0.7, precision: 0.95, conflictRate: 0.03, higherTrustRight: 0.9 },
   abstention: { rate: 0.3, calibration: 1 },

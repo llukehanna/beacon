@@ -43,6 +43,7 @@ export async function buildReport(
       fixtures: models.length === 0 ? "rule-based" : models.join(" + "),
     },
     ...computeMetrics(evals),
+    recordedRun: { values: rows.length, grounded: rows.filter((r) => r.grounded).length },
     ruleRecovery: await evaluateRuleRecovery(firms),
     thresholds: { ...THRESHOLDS },
     passed: true,
@@ -81,6 +82,11 @@ export const renderJson = (report: EvalReport): string => `${JSON.stringify(repo
 
 const pct = (v: number | null): string => (v === null ? "n/a" : `${(v * 100).toFixed(1)}%`);
 
+const groundedText = ({ recordedRun: run }: EvalReport): string =>
+  run.values === 0
+    ? "n/a"
+    : `${run.grounded.toLocaleString("en-US")} of ${run.values.toLocaleString("en-US")} (${pct(run.grounded / run.values)})`;
+
 const table = (head: readonly string[], rows: readonly (readonly string[])[]): string =>
   [
     `| ${head.join(" | ")} |`,
@@ -115,11 +121,12 @@ ${table(
     ["Source records", report.generatedFrom.documents],
     ["Extraction prompt", report.generatedFrom.prompt],
     ["Extraction read", report.generatedFrom.fixtures],
+    ["Recorded values that passed grounding", groundedText(report)],
     ["Result", report.passed ? "all thresholds met" : "a threshold failed"],
   ],
 )}
 
-The extraction is read from the committed recordings, so the run needs no network and gives the same figures every time.
+The extraction is read from the committed recordings, so the run needs no network and gives the same figures every time. The grounding row counts recorded answers whose quote is in the source record and states the value. It says whether an answer quotes its record faithfully, not whether the value is right: the records include each provider's deliberate errors, which the sections below score against the truth.
 
 ## Providers
 
@@ -183,7 +190,6 @@ ${table(["Measure", "Floor", "Measured", "Result"], thresholdRows)}
 ## Limits
 
 - The universe, the sources and their errors are generated. The figures say the pipeline does what it should on this data, not how it would do on real firms.
-- Grounding checks that a quote is in the record and that a categorical or numeric value is in the quote. It does not check a true/false value against its quote.
 - Precision counts a numeric reading in the right rubric band as correct, even when the figure itself differs.
 
 ## Reproduce

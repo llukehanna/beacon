@@ -24,21 +24,25 @@
     },
     {
       "provider": "websearch",
-      "coverage": 0.5168,
-      "precision": 0.8238
+      "coverage": 0.5111,
+      "precision": 0.8232
     }
   ],
   "reconciled": {
-    "coverage": 0.6851,
-    "precision": 0.9318,
+    "coverage": 0.6829,
+    "precision": 0.9319,
     "conflictRate": 0.0283,
     "higherTrustRight": 0.9078
   },
   "abstention": {
-    "rate": 0.295,
+    "rate": 0.2972,
     "calibration": 1
   },
   "tierAgreement": 0.5243,
+  "recordedRun": {
+    "values": 6472,
+    "grounded": 6455
+  },
   "ruleRecovery": {
     "planted": 4,
     "recovered": 4,
