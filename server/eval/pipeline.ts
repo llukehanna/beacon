@@ -109,23 +109,25 @@ export function evaluateFirms(
   return firms.map((firm) => evaluateFirm(firm, byFirm.get(firm.$primaryKey) ?? []));
 }
 
-/** The extraction rows the seed stores for these recordings: current records only. */
+/**
+ * The extraction rows the seed stores for these recordings: current records only, keyed by id so a
+ * repeated record for one firm and model replaces the earlier one (as `resetDemo` does).
+ */
 export function extractionRowsFromFixtures(
   records: readonly FixtureRecord[],
   firms: readonly ObjectOf<"Firm">[],
 ): ObjectOf<"Extraction">[] {
   const byId = new Map(firms.map((f) => [f.$primaryKey, f]));
-  return records.flatMap((record) => {
+  const rows = new Map<string, ObjectOf<"Extraction">>();
+  for (const record of records) {
     const firm = byId.get(record.firmId);
-    return firm === undefined
-      ? []
-      : fixtureToExtractionRows(record, firm, FIXTURE_ROW_TIME).map(
-          (row) =>
-            ({
-              ...row,
-              $apiName: "Extraction",
-              $primaryKey: row.extractionId,
-            }) as ObjectOf<"Extraction">,
-        );
-  });
+    for (const row of firm ? fixtureToExtractionRows(record, firm, FIXTURE_ROW_TIME) : []) {
+      rows.set(row.extractionId!, {
+        ...row,
+        $apiName: "Extraction",
+        $primaryKey: row.extractionId!,
+      } as ObjectOf<"Extraction">);
+    }
+  }
+  return [...rows.values()];
 }
