@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dailyRateTrend, findingTrends } from "./trends.js";
+import { dailyRateTrend, findingTrends, groundedCounts } from "./trends.js";
 
 /** `n` events on a UTC day, the first `hits` of them hits. */
 function day(date: string, n: number, hits: number) {
@@ -8,6 +8,14 @@ function day(date: string, n: number, hits: number) {
     hit: i < hits,
   }));
 }
+
+const f = (i: number, patch: Record<string, unknown>) => ({
+  findingId: `f${i}`,
+  confidenceTier: "high",
+  findingStatus: "proposed",
+  provider: "dealdb",
+  ...patch,
+});
 
 describe("dailyRateTrend", () => {
   it("returns null below minBuckets", () => {
@@ -70,13 +78,6 @@ describe("dailyRateTrend", () => {
 });
 
 describe("findingTrends", () => {
-  const f = (i: number, patch: Record<string, unknown>) => ({
-    findingId: `f${i}`,
-    confidenceTier: "high",
-    findingStatus: "proposed",
-    provider: "dealdb",
-    ...patch,
-  });
   const one = { minBuckets: 1, minPerBucket: 1 };
 
   it("measures grounding over source-backed values only", () => {
@@ -105,5 +106,22 @@ describe("findingTrends", () => {
     expect(findingTrends(findings, one).agreement?.points).toEqual([
       { day: "2026-11-02", value: 50, n: 2 },
     ]);
+  });
+});
+
+describe("groundedCounts", () => {
+  it("counts source-backed agent values and how many carry a quote", () => {
+    const findings = [
+      f(1, { sourceQuote: "a quote" }),
+      f(2, { sourceQuote: "  " }),
+      f(3, { sourceQuote: "another" }),
+      f(4, { confidenceTier: "abstain" }),
+      f(5, { provider: "analyst", sourceQuote: "typed in" }),
+    ];
+    expect(groundedCounts(findings)).toEqual({ cited: 2, agentValues: 3 });
+  });
+
+  it("is zero over no findings", () => {
+    expect(groundedCounts([])).toEqual({ cited: 0, agentValues: 0 });
   });
 });
