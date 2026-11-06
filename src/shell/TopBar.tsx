@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Menu, Search } from "@blueprintjs/icons";
 import { Kbd } from "@/ui";
 import styles from "./TopBar.module.css";
-import { navItemFor } from "./keys";
+import { footerLinkFor, navItemFor } from "./keys";
 import { useDeskScope } from "./useShellData";
 
 interface Crumb {
@@ -17,7 +17,8 @@ function useCrumbs(): Crumb[] {
   const { mandate, firm } = useDeskScope(onDesk);
   const section = navItemFor(pathname);
   if (section === undefined) {
-    return [];
+    const page = footerLinkFor(pathname);
+    return page === undefined ? [] : [{ label: page.label }];
   }
   if (onDesk) {
     return [

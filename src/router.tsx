@@ -9,6 +9,7 @@ import AppShell from "@/shell/AppShell";
 
 // Home is the start-of-day page and stays in the initial bundle. Every other
 // surface is split into its own chunk and fetched on first navigation.
+const About = lazy(() => import("@/about/AboutPage"));
 const Accuracy = lazy(() => import("@/accuracy/AccuracyPage"));
 const Desk = lazy(() => import("@/desk/firmDesk/DeskPage"));
 const MandatePage = lazy(() => import("@/mandates/MandatePage"));
@@ -16,6 +17,7 @@ const Pipeline = lazy(() => import("@/pipeline/PipelinePage"));
 const Review = lazy(() => import("@/review/ReviewPage"));
 const Rules = lazy(() => import("@/rules/RulesPage"));
 const SearchPage = lazy(() => import("@/mandates/SearchPage"));
+const Trust = lazy(() => import("@/about/TrustPage"));
 
 export const router = createBrowserRouter(
   [
@@ -111,6 +113,30 @@ export const router = createBrowserRouter(
             <Titled title="Beacon — Run search">
               <Suspense fallback={<Loading />}>
                 <SearchPage />
+              </Suspense>
+            </Titled>
+          ),
+        },
+        {
+          // What Beacon is, and what it does with data and models. Linked from the sidebar footer
+          // and the home intro, not part of the go-to keys.
+          errorElement: <RouteError />,
+          path: "/about",
+          element: (
+            <Titled title="Beacon — About">
+              <Suspense fallback={<Loading />}>
+                <About />
+              </Suspense>
+            </Titled>
+          ),
+        },
+        {
+          errorElement: <RouteError />,
+          path: "/trust",
+          element: (
+            <Titled title="Beacon — Trust and security">
+              <Suspense fallback={<Loading />}>
+                <Trust />
               </Suspense>
             </Titled>
           ),

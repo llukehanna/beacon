@@ -1,0 +1,78 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.scroll {
+  flex: 1;
+  min-width: 0;
+  padding: 24px;
+  overflow-y: auto;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  max-width: 780px;
+  margin-inline: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.heading {
+  color: var(--tx);
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  color: var(--tx2);
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+
+.body b,
+.body strong {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+.body ul,
+.body ol {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.body li::marker {
+  color: var(--tx3);
+}
+
+.body code {
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+  background: var(--s3);
+  color: var(--tx);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 899px) {
+  .scroll {
+    padding: 16px;
+  }
+}
