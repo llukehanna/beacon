@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type ActivityFinding,
   type ActivityInput,
+  abstainedSinceByFirm,
   buildActivity,
   latestRunHeadline,
 } from "./activityFeed.js";
@@ -47,8 +48,8 @@ describe("buildActivity", () => {
     };
     const enriched = buildActivity(input).filter((i) => i.kind === "enriched" && i.firmId === "a");
     expect(enriched.map((i) => [i.at, i.detail])).toEqual([
-      [run, "3 sources · 2 grounded · 0 conflicts"],
-      [at(20), "1 source · 1 grounded · 0 conflicts"],
+      [run, "3 sources · 2 values grounded · 0 conflicts"],
+      [at(20), "1 source · 1 value grounded · 0 conflicts"],
     ]);
     expect(enriched[0].title).toBe("Firm a enriched");
   });
@@ -185,5 +186,30 @@ describe("latestRunHeadline", () => {
   it("returns null when nothing was enriched", () => {
     expect(latestRunHeadline({ ...empty, firms: [firm("a"), firm("b")] })).toBeNull();
     expect(latestRunHeadline(empty)).toBeNull();
+  });
+});
+
+describe("abstainedSinceByFirm", () => {
+  const abstain = (patch: Partial<ActivityFinding>) =>
+    finding({ confidenceTier: "abstain", value: null, sourceQuote: "", ...patch });
+
+  it("takes each firm's latest standing abstention", () => {
+    const since = abstainedSinceByFirm([
+      abstain({ axis: "employees", retrievedAt: at(10) }),
+      abstain({ axis: "firm_age", retrievedAt: at(3) }),
+      abstain({ firmId: "b", retrievedAt: at(7) }),
+    ]);
+    expect([...since]).toEqual([
+      ["a", at(3)],
+      ["b", at(7)],
+    ]);
+  });
+
+  it("ignores an abstention a verified value settled", () => {
+    const since = abstainedSinceByFirm([
+      abstain({ retrievedAt: at(5) }),
+      finding({ verifiedByHuman: true, findingStatus: "verified", retrievedAt: at(2) }),
+    ]);
+    expect(since.size).toBe(0);
   });
 });

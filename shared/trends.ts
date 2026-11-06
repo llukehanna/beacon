@@ -78,6 +78,28 @@ export interface TrendFinding extends RatedFinding {
   verifiedAt?: string | null;
 }
 
+/** Values an agent source produced, and how many of them carry a source quote. */
+export interface GroundedCounts {
+  cited: number;
+  agentValues: number;
+}
+
+/**
+ * An agent-produced value: not an abstention (nothing to ground) and not an analyst's own entry
+ * (no source by design). The denominator of both the grounded trend and the grounded count.
+ */
+function isAgentValue(f: TrendFinding): boolean {
+  return classify(f) !== "abstain" && (f.provider ?? "").trim().toLowerCase() !== ANALYST;
+}
+
+const isCited = (f: TrendFinding) => (f.sourceQuote ?? "").trim() !== "";
+
+/** The grounded card's "X of Y": the counts behind the grounded trend's definition, over all findings. */
+export function groundedCounts(findings: readonly TrendFinding[]): GroundedCounts {
+  const values = findings.filter(isAgentValue);
+  return { cited: values.filter(isCited).length, agentValues: values.length };
+}
+
 export interface FindingTrends {
   grounded: Trend | null;
   abstention: Trend | null;
@@ -104,8 +126,8 @@ export function findingTrends(
     const cls = classify(f);
     if (f.retrievedAt) {
       abstention.push({ at: f.retrievedAt, hit: cls === "abstain" });
-      if (cls !== "abstain" && (f.provider ?? "").trim().toLowerCase() !== ANALYST) {
-        grounded.push({ at: f.retrievedAt, hit: (f.sourceQuote ?? "").trim() !== "" });
+      if (isAgentValue(f)) {
+        grounded.push({ at: f.retrievedAt, hit: isCited(f) });
       }
     }
     if (f.verifiedAt && (cls === "agree" || cls === "override")) {

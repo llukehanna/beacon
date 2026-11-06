@@ -15,6 +15,7 @@ import {
 } from "../../shared/activeScreening.js";
 import {
   type ActivityFinding,
+  abstainedSinceByFirm,
   buildActivity,
   latestRunHeadline,
 } from "../../shared/activityFeed.js";
@@ -38,7 +39,7 @@ import type {
   NeedsYouItem,
   RuleNeedsYou,
 } from "../../shared/summaries.js";
-import { type TrendFinding, findingTrends } from "../../shared/trends.js";
+import { type TrendFinding, findingTrends, groundedCounts } from "../../shared/trends.js";
 import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.js";
 import type { Queryable } from "../db/client.js";
 import { toWire } from "../db/repo.js";
@@ -313,6 +314,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     funnel[bucketOf(f, mirrorScore(f))] += 1;
   }
 
+  const abstainedSince = abstainedSinceByFirm(timedFindings);
+
   // Judgment rows: firms in the desk's workable band with an abstained axis,
   // in the desk's queue order. Ranking only these keeps the order the full
   // sort would give them (the comparator is a total order).
@@ -330,6 +333,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       firmId: r.firm.firmId,
       name: r.firm.firmName ?? r.firm.firmId,
       axes: axesByFirm.get(r.firm.firmId) ?? 0,
+      at: abstainedSince.get(r.firm.firmId) ?? null,
     }));
 
   const driftItems: DriftNeedsYou[] = drifts.map((d) => {
@@ -347,6 +351,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       priorScore: orUndefined(d.priorScore),
       newTier: orUndefined(d.newTier),
       newScore: orUndefined(d.newScore),
+      at: iso(d.detectedAt),
     };
   });
 
@@ -364,6 +369,8 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
           orUndefined(r.ruleThreshold),
         ) ?? "malformed proposal",
       screens: null,
+      // A proposal carries no time of its own (see the activity feed below).
+      at: null,
     }));
 
   // Stable sort: within a rank the per-type order is already the destination page's own.
@@ -418,6 +425,7 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
       passedAndAcquired: outcomes.passedAndAcquired,
     },
     trends: findingTrends(timedFindings),
+    grounded: groundedCounts(timedFindings),
     activity: buildActivity(activityInput),
     headline: latestRunHeadline(activityInput),
   };

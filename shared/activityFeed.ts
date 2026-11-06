@@ -188,6 +188,18 @@ function standingAbstentions(
   return [...out.values()];
 }
 
+/**
+ * Per firm, when its latest standing abstention was recorded: how long it has had an axis waiting
+ * for a judgment. A firm with none is absent.
+ */
+export function abstainedSinceByFirm(findings: readonly ActivityFinding[]): Map<string, string> {
+  const latest = new Map<string, number>();
+  for (const a of standingAbstentions(findings)) {
+    latest.set(a.firmId, Math.max(latest.get(a.firmId) ?? 0, a.at));
+  }
+  return new Map([...latest].map(([firmId, t]) => [firmId, new Date(t).toISOString()]));
+}
+
 const DRIFT_REASON: Record<string, string> = {
   tier_moved: "Tier moved",
   pass_reason_invalidated: "Pass reason invalidated",
@@ -234,7 +246,7 @@ export function buildActivity(input: ActivityInput, limit = FEED_LIMIT): Activit
       ms(run[0].retrievedAt) as number,
       firmId,
       `${name(firmId)} enriched`,
-      `${plural(sourcesOf(values), "source")} · ${values.filter(hasQuote).length} grounded · ${plural(conflicts.size, "conflict")}`,
+      `${plural(sourcesOf(values), "source")} · ${plural(values.filter(hasQuote).length, "value")} grounded · ${plural(conflicts.size, "conflict")}`,
     );
   }
 

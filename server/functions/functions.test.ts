@@ -25,7 +25,7 @@ import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES, type ObjectOf } from "../../shared/schema.js";
 import { mirrorScore } from "../../shared/scoreMirror.js";
 import type { AccuracySummary, HomeSummary } from "../../shared/summaries.js";
-import { findingTrends } from "../../shared/trends.js";
+import { findingTrends, groundedCounts } from "../../shared/trends.js";
 import {
   type FirmOutcomeLike,
   accuracyTables,
@@ -107,6 +107,9 @@ beforeAll(async () => {
 }, 600_000);
 
 const wire = (v: unknown): unknown => JSON.parse(JSON.stringify(v));
+/** Inbox rows without their `at` (the client reference does not carry times). */
+const withoutAt = <T extends { at: string | null }>(items: readonly T[]) =>
+  items.map(({ at: _at, ...rest }) => rest);
 const runPendingRules = () => pendingRules(db);
 
 const withIds = (rows: ObjectOf<"ResearchFinding">[]) =>
@@ -259,6 +262,9 @@ describe("homeSummary", () => {
     // the way. A series the seeded history cannot support is null, never an invented line.
     const findings = await listAll(db, "ResearchFinding");
     expect(summary.trends).toEqual(findingTrends(withIds(findings)));
+    expect(summary.grounded).toEqual(groundedCounts(withIds(findings)));
+    expect(summary.grounded.agentValues).toBeGreaterThan(0);
+    expect(summary.grounded.cited).toBeLessThanOrEqual(summary.grounded.agentValues);
     for (const trend of Object.values(summary.trends)) {
       if (trend !== null) {
         expect(trend.points.length).toBeGreaterThanOrEqual(4);
@@ -271,11 +277,23 @@ describe("homeSummary", () => {
     }
   });
 
+  it("dates the rows that have a time and leaves the others undated", () => {
+    for (const item of summary.needsYou) {
+      if (item.kind === "rule") {
+        expect(item.at, item.key).toBeNull();
+      } else if (item.at !== null) {
+        expect(new Date(item.at).toISOString(), item.key).toBe(item.at);
+      }
+    }
+    const dated = summary.needsYou.filter((i) => i.kind !== "rule" && i.at !== null);
+    expect(dated.length).toBeGreaterThan(0);
+  });
+
   it("lists the same inbox rows, with the same content, in the same order", () => {
     expect(summary.needsYouTotal).toBe(client.items.length);
     expect(summary.needsYou.length).toBe(Math.min(VISIBLE_ROWS, client.items.length));
     // Whole rows, as they cross the wire: name, axes, drift tiers and scores, screens.
-    expect(wire(summary.needsYou)).toEqual(wire(client.items.slice(0, VISIBLE_ROWS)));
+    expect(wire(withoutAt(summary.needsYou))).toEqual(wire(client.items.slice(0, VISIBLE_ROWS)));
     for (const dest of ["review", "desk", "rules"] as const) {
       expect(summary.needsYouCounts[dest], dest).toBe(
         client.items.filter((i) => i.destination === dest).length,
@@ -464,7 +482,7 @@ describe("homeSummary on a small world where rule rows are on screen", () => {
 
     expect(summary.needsYou.filter((i) => i.kind === "rule")).toHaveLength(3);
     expect(summary.needsYouTotal).toBe(5);
-    expect(wire(summary.needsYou)).toEqual(wire(client.items));
+    expect(wire(withoutAt(summary.needsYou))).toEqual(wire(client.items));
     // Pinned by hand, not just against the client: r1 screens Alpha and Gamma, the text and
     // malformed predicates are "not computed", and the approved rule is not an inbox row.
     expect(

@@ -5,7 +5,7 @@
  */
 import type { ActivityItem, HeadlineCounts } from "./activityFeed.js";
 import type { Lifecycle } from "./pipelineBuckets.js";
-import type { FindingTrends } from "./trends.js";
+import type { FindingTrends, GroundedCounts } from "./trends.js";
 import type { AccuracyTables, OutcomeTally, Rates } from "./trustMetrics.js";
 
 /** Where a needs-you row sends the analyst. */
@@ -18,6 +18,8 @@ interface NeedsYouBase {
   destination: NeedsYouDestination;
   /** Firm name, or the rule's predicate text ("malformed proposal" when it has none). */
   name: string;
+  /** ISO time the item arose (drift detected, abstention recorded); null when none was recorded. */
+  at: string | null;
 }
 
 export interface DriftNeedsYou extends NeedsYouBase {
@@ -86,6 +88,8 @@ export interface HomeSummary {
    * a trend (too few days with enough findings) and the card shows its value alone.
    */
   trends: FindingTrends;
+  /** Agent-produced values and how many cite a verbatim source quote (the grounded card's X of Y). */
+  grounded: GroundedCounts;
   /** Newest-first agent activity, built from existing timestamps. */
   activity: ActivityItem[];
   /** What the agent's latest runs did; null when no firm has been enriched. */
