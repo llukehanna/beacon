@@ -119,3 +119,18 @@ test("an unknown path shows the not-found page inside the shell", async ({ page 
   await expect(page.getByRole("navigation").first()).toBeVisible();
   expect(problems).toEqual([]);
 });
+
+test("an active rule's toggle closes an open amend form without opening the details", async ({
+  page,
+}) => {
+  await openRoute(page, route("/rules"));
+  const rules = page.getByRole("region", { name: "Active rules" });
+  await rules.getByRole("button", { name: "Amend threshold…" }).click();
+  await expect(page.getByLabel("New threshold value")).toBeVisible();
+
+  await rules.getByRole("button", { name: "Hide details" }).click();
+
+  await expect(page.getByLabel("New threshold value")).toHaveCount(0);
+  await expect(rules.getByText(/Based on \d+ rejections?/)).toHaveCount(0);
+  await expect(rules.getByRole("button", { name: "Details" })).toBeVisible();
+});
