@@ -3,6 +3,7 @@ import type { FacetGroup } from "../../shared/taxonomy";
 import {
   customValues,
   dropOption,
+  dropOptionKeeping,
   findIdx,
   mergeValues,
   pickOption,
@@ -70,5 +71,25 @@ describe("pickOption and dropOption", () => {
     expect(dropOption(["Energy", "Oil and Gas", "Renewables"], "Energy", groups)).toEqual([]);
     expect(dropOption(["Utilities", "Hydrogen"], "Utilities", groups)).toEqual(["Hydrogen"]);
     expect(dropOption(["Hydrogen"], "Utilities", groups)).toEqual(["Hydrogen"]);
+  });
+});
+
+describe("dropOptionKeeping", () => {
+  it("drops a category but keeps a listed sub-option that is picked", () => {
+    expect(
+      dropOptionKeeping(["Energy", "Oil and Gas", "Renewables"], "Energy", groups, ["Renewables"]),
+    ).toEqual(["Renewables"]);
+  });
+
+  it("does not bring back a kept option the visitor had already unpicked", () => {
+    expect(dropOptionKeeping(["Energy", "Oil and Gas"], "Energy", groups, ["Renewables"])).toEqual(
+      [],
+    );
+  });
+
+  it("drops a sub-option and leaves its category and the rest", () => {
+    expect(
+      dropOptionKeeping(["Energy", "Oil and Gas", "Renewables"], "Oil and Gas", groups, ["Energy"]),
+    ).toEqual(["Energy", "Renewables"]);
   });
 });
