@@ -1,0 +1,29 @@
+.panel.panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px 18px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.heading.heading {
+  margin: 0;
+  color: var(--tx);
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.plain {
+  margin: 0;
+  color: var(--tx2);
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}

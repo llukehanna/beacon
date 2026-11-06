@@ -2,6 +2,7 @@ import React from "react";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { ResearchFinding, enrichFirmAction, verifyFindingAction } from "@/data/ontology";
+import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { isTypingTarget } from "@/shell/keys";
 import { useTourStepId } from "@/tour/tourContext";
 import { ENRICH_AXES } from "../../../shared/vocab";
@@ -59,6 +60,7 @@ export function EnrichmentPanel({
   const [selectedAxis, setSelectedAxis] = React.useState<string | undefined>(undefined);
   const [provider, setProvider] = React.useState<string | undefined>(undefined);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const scrollRef = React.useRef<HTMLDivElement>(null);
   const wide = useMediaQuery("(min-width: 1280px)");
   const enrich = useOsdkAction(enrichFirmAction);
   const verify = useOsdkAction(verifyFindingAction);
@@ -71,6 +73,8 @@ export function EnrichmentPanel({
     setSelectedAxis(undefined);
     setProvider(undefined);
     setDrawerOpen(false);
+    // A new firm opens at its header, not wherever the last one was scrolled to.
+    scrollRef.current?.scrollTo({ top: 0 });
   }, [firm.firmId]);
 
   const base = React.useMemo(() => toScoreInput(firm), [firm]);
@@ -371,7 +375,7 @@ export function EnrichmentPanel({
   return (
     <div className={styles.layout}>
       <div className={styles.column}>
-        <div className={styles.scroll}>
+        <div ref={scrollRef} className={styles.scroll}>
           <FirmHeader
             firm={firm}
             before={before}
@@ -395,6 +399,8 @@ export function EnrichmentPanel({
           />
 
           <SpineAxes firm={firm} mirror={after} />
+
+          {firmId !== "" && <MoreLikeThis firmId={firmId} />}
 
           <DecisionBar
             firm={firm}

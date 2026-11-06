@@ -121,6 +121,10 @@
   flex: none;
 }
 
+.lookalikes {
+  display: flex;
+}
+
 @media (max-width: 899px) {
   .head {
     flex-direction: column;

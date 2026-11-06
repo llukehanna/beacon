@@ -7,6 +7,7 @@ import { type FindingLike } from "@/desk/axisState";
 import { type FirmView } from "@/desk/firmDesk/deskModel";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
 import { formatScore } from "@/desk/scoreFormat";
+import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
 import styles from "./TearSheetPage.module.css";
@@ -131,7 +132,15 @@ function Abstentions({ items }: { items: AbstentionItem[] }): React.ReactElement
   );
 }
 
-function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.ReactElement {
+function Sheet({
+  sheet,
+  firmId,
+  today,
+}: {
+  sheet: TearSheet;
+  firmId: string;
+  today: string;
+}): React.ReactElement {
   const { score } = sheet;
   return (
     <article className={styles.sheet} aria-label={`Tear sheet: ${sheet.name}`}>
@@ -258,6 +267,9 @@ function Sheet({ sheet, today }: { sheet: TearSheet; today: string }): React.Rea
         )}
       </Panel>
 
+      {/* Links to other firms are no use on paper, so the panel is for the screen only. */}
+      <MoreLikeThis firmId={firmId} className={styles.screenOnly} />
+
       <footer className={styles.foot}>
         Prepared by Beacon on {today}. Scores use the 18-point qualification rubric.
         {sheet.hasQuotes &&
@@ -380,7 +392,7 @@ export default function TearSheetPage(): React.ReactElement {
             />
           </>
         ) : (
-          <Sheet sheet={sheet} today={today} />
+          <Sheet sheet={sheet} firmId={firmId} today={today} />
         )}
       </div>
     </div>
