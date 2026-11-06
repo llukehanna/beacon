@@ -119,6 +119,72 @@ describe("groundExtraction", () => {
     throw new Error("no suitable firm");
   });
 
+  describe("gate values", () => {
+    /** A firm whose filings record states two gates, one recorded true and one recorded false. */
+    function firmWithTrueAndFalseGates() {
+      for (const firm of generateUniverse(300)) {
+        const docs = firmDocuments(firm);
+        const gates = docs
+          .find((d) => d.provider === "filings")!
+          .fields.filter((f) =>
+            ["advisory_conflict", "solvent", "has_st_or_balance_sheet"].includes(f.axis),
+          );
+        const yes = gates.find((f) => f.value === "true");
+        const no = gates.find((f) => f.value === "false");
+        if (yes && no) {
+          return { firm, docs, yes, no };
+        }
+      }
+      throw new Error("no firm with a true and a false gate");
+    }
+    const ask = (
+      { firm, docs }: { firm: (typeof firms)[number]; docs: SourceDocument[] },
+      axis: string,
+      value: string,
+      quote: string,
+    ) =>
+      groundExtraction(firm, docs, { items: [{ provider: "filings", axis, value, quote }] }, "m");
+
+    it("keeps a gate answer quoted from the axis's own record sentence", () => {
+      const w = firmWithTrueAndFalseGates();
+      for (const f of [w.yes, w.no]) {
+        const r = ask(w, f.axis, f.value, f.sentence);
+        expect(r.rejected).toEqual([]);
+        expect(r.observations.map((o) => o.value)).toEqual([f.value]);
+      }
+    });
+
+    it("rejects a true answer whose real quote does not say true", () => {
+      const w = firmWithTrueAndFalseGates();
+      const r = ask(w, w.yes.axis, "true", w.no.sentence);
+      expect(r.observations).toEqual([]);
+      expect(r.rejected).toEqual([
+        { provider: "filings", axis: w.yes.axis, reason: "value_not_in_quote" },
+      ]);
+    });
+
+    it("rejects a false answer whose quote says only true", () => {
+      const w = firmWithTrueAndFalseGates();
+      const r = ask(w, w.no.axis, "false", w.yes.sentence);
+      expect(r.observations).toEqual([]);
+      expect(r.rejected).toEqual([
+        { provider: "filings", axis: w.no.axis, reason: "value_not_in_quote" },
+      ]);
+    });
+
+    it("matches the value as a whole word", () => {
+      const w = firmWithTrueAndFalseGates();
+      const sentence = "The filing was untrue about the firm's solvency in earlier years.";
+      const patched = w.docs.map((d) =>
+        d.provider === "filings" ? { ...d, body: `${d.body}\n${sentence}` } : d,
+      );
+      const r = ask({ firm: w.firm, docs: patched }, "solvent", "true", sentence);
+      expect(r.rejected).toEqual([
+        { provider: "filings", axis: "solvent", reason: "value_not_in_quote" },
+      ]);
+    });
+  });
+
   it("compares numbers by token, not substring", () => {
     const { firm, docs } = firmWith("deal_size_usd_m");
     const sentence = "A typical transaction is sized at about $85 million.";

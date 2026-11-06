@@ -14,6 +14,11 @@ export interface EvalReport {
     fixtures: string;
   };
   firms: number;
+  /**
+   * The recorded extraction run: values the model returned for the firms, and how many passed the
+   * grounding check (their quote is in the record and states the value).
+   */
+  recordedRun: { values: number; grounded: number };
   /** Field-level, per provider: its grounded readings against the hidden truth. */
   providers: { provider: string; coverage: number | null; precision: number | null }[];
   reconciled: {
