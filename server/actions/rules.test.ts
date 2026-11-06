@@ -3,7 +3,7 @@ import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
 import { getObject, insertObject, listAll } from "../db/repo.js";
-import { createTestDb, run, seedFirm } from "../testing.js";
+import { T0, createTestDb, run, seedFirm } from "../testing.js";
 
 async function pendingRule(db: Db, id = "r1") {
   await insertObject(db, "ProposedRule", {
@@ -96,6 +96,8 @@ describe("clusterRejections", () => {
     expect(rule.supportingFirmCount).toBe(5); // the 50-person firm does not satisfy the predicate
     expect(JSON.parse(rule.supportingDecisionIds!)).toHaveLength(5);
     expect(rule.projectedScreenCount).toBe(2); // queue firms with 5 and 8 staff
+    expect(rule.proposedAt, "stamped with the action clock").toBe(T0.toISOString());
+    expect(rule.ruleDecidedAt).toBeUndefined();
     await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
     expect(await listAll(db, "ProposedRule")).toHaveLength(1);
   });

@@ -3,7 +3,7 @@
  *
  * Pure: every item is derived from a timestamp already on a row, so nothing
  * here claims a time, a count or a duration the data does not hold. A thing
- * with no recorded time (a proposed rule, a drift event) is left out of the
+ * with no recorded time (a drift event, a rule proposed before its time was kept) is left out of the
  * feed rather than given an invented one.
  *
  * What counts as a "run": the agent writes every finding of one enrichment at
