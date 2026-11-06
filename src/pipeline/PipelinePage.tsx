@@ -11,10 +11,11 @@ import {
   rejectDecisionByFirm,
 } from "@/desk/pipelineRows";
 import { ExportMenu } from "@/export/ExportMenu";
+import { ApprovedLookalikes } from "@/lookalikes/ApprovedLookalikes";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, SidePanel } from "@/ui";
 import type { FirmLike } from "../../shared/exportRows";
-import { PASSED } from "../../shared/vocab";
+import { PASSED, isQualifiedOrLater } from "../../shared/vocab";
 import { Filters } from "./Filters";
 import { FirmDetail } from "./FirmDetail";
 import { FirmList } from "./FirmList";
@@ -110,6 +111,12 @@ export default function PipelinePage(): React.ReactElement {
         tier: r.score.tier,
       })),
     [visibleRows],
+  );
+  // Lookalikes are asked for on demand: nothing is compared until the panel is open.
+  const [lookalikesOpen, setLookalikesOpen] = React.useState(false);
+  const approvedFirms = React.useMemo(
+    () => (lookalikesOpen ? visibleRows.filter((r) => isQualifiedOrLater(r.bucket)) : []),
+    [lookalikesOpen, visibleRows],
   );
   const selectedRow = React.useMemo(
     () => visibleRows.find((r) => r.firm.firmId === selectedId),
@@ -254,6 +261,25 @@ export default function PipelinePage(): React.ReactElement {
           <div ref={scrollRef} className={styles.scroll}>
             <StageTabs value={stage} counts={counts} loading={loading} onChange={setStage} />
             <Filters profile={profile} onProfile={setProfile} sort={sort} onSort={setSort} />
+            <div className={styles.lookalikes}>
+              <Button
+                aria-expanded={lookalikesOpen}
+                aria-controls="approved-lookalikes"
+                onClick={() => setLookalikesOpen((open) => !open)}
+                disabled={loading}
+              >
+                Find lookalikes of approved targets
+              </Button>
+            </div>
+            {lookalikesOpen && (
+              <div id="approved-lookalikes">
+                <ApprovedLookalikes
+                  approved={approvedFirms.map((r) => r.firm as FirmLike)}
+                  universe={firms as FirmLike[]}
+                  onClose={() => setLookalikesOpen(false)}
+                />
+              </div>
+            )}
             <FirmList
               rows={visibleRows}
               loading={isLoading}

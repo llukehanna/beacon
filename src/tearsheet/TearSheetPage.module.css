@@ -70,6 +70,11 @@
   padding-bottom: 4px;
 }
 
+/* Shown on screen only: its links to other firms mean nothing on paper (hidden in print below). */
+.screenOnly {
+  min-width: 0;
+}
+
 .eyebrow {
   color: var(--ink2);
   font-size: 11.5px;
@@ -292,7 +297,8 @@
     height: auto;
   }
 
-  .toolbar {
+  .toolbar,
+  .screenOnly.screenOnly {
     display: none;
   }
 

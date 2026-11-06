@@ -57,6 +57,21 @@ function Desk(): React.ReactElement {
     [setSearchParams],
   );
 
+  // A link to another firm's Desk while the Desk is open (a lookalike, say) changes only the URL,
+  // so the selection follows it. Only a change in the URL counts: a pick made here sets the state
+  // first and the URL a moment later, and must not be undone in between.
+  const urlFirmId = searchParams.get("firmId") ?? undefined;
+  const lastUrlFirmId = React.useRef(urlFirmId);
+  React.useEffect(() => {
+    if (lastUrlFirmId.current === urlFirmId) {
+      return;
+    }
+    lastUrlFirmId.current = urlFirmId;
+    if (urlFirmId !== undefined) {
+      setSelectedIdState(urlFirmId);
+    }
+  }, [urlFirmId]);
+
   // ── Search-scoped view ──────────────────────────────────────────────
   // ?search=<id> pins the queue to a specific Search's firm set. We
   // filter client-side against Search↔firms membership since the desk
