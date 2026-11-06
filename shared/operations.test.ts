@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { P95_MIN_RUNS, percentiles, summarizeRuns, usd, windowLabel } from "./operations.js";
+import { P95_MIN_RUNS, percentiles, usd, windowLabel } from "./operations.js";
 
 describe("percentiles", () => {
   it("is null when nothing was measured", () => {
@@ -23,22 +23,6 @@ describe("percentiles", () => {
     const input = [30, 10, 40, 20];
     expect(percentiles(input)).toEqual({ p50: 20, p95: 40 });
     expect(input).toEqual([30, 10, 40, 20]);
-  });
-});
-
-describe("summarizeRuns", () => {
-  it("groups by action with count, errors and latency, busiest first", () => {
-    const runs = [
-      { actionName: "rejectFirm", durationMs: 30, ok: true },
-      { actionName: "qualifyFirm", durationMs: 10, ok: true },
-      { actionName: "rejectFirm", durationMs: 50, ok: false },
-      { actionName: "rejectFirm", durationMs: 40, ok: true },
-    ];
-    expect(summarizeRuns(runs)).toEqual([
-      { actionName: "rejectFirm", count: 3, errors: 1, p50Ms: 40, p95Ms: 50 },
-      { actionName: "qualifyFirm", count: 1, errors: 0, p50Ms: 10, p95Ms: 10 },
-    ]);
-    expect(summarizeRuns([])).toEqual([]);
   });
 });
 

@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { percentiles } from "../../shared/operations.js";
 import { applyAction } from "../actions/apply.js";
 import { createClaudeClusterer, modelCallOf } from "../clustering/claude.js";
 import { operationsSummary } from "../functions/operationsSummary.js";
@@ -213,6 +214,50 @@ describe("operationsSummary", () => {
       { day: "2026-11-05", calls: 1, inputTokens: 1000, outputTokens: 100, costUsd: 0.1 },
     ]);
     expect(summary.dailyCallCap).toBe(24);
+  }, 60_000);
+
+  it("computes the same p50 and p95 in SQL as the nearest-rank definition, at every run count", async () => {
+    const db = await createTestDb();
+    // Run counts either side of the points where nearest rank changes (19/20 for p95, odd and even for p50).
+    const sizes: Record<string, number> = {
+      qualifyFirm: 1,
+      rejectFirm: 2,
+      advanceStage: 19,
+      verifyFinding: 20,
+      enrichFirm: 21,
+      runSearch: 100,
+      approveRule: 101,
+      dismissRule: 997,
+    };
+    const durations = new Map<string, number[]>();
+    let seed = 12345;
+    const rand = (): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed;
+    };
+    const values: string[] = [];
+    for (const [name, n] of Object.entries(sizes)) {
+      const ds = Array.from({ length: n }, () => rand() % 400);
+      durations.set(name, ds);
+      ds.forEach((d, i) => values.push(`('${name}-${i}', '${name}', now(), ${d}, ${i % 7 !== 0})`));
+    }
+    await db.query(
+      `INSERT INTO action_run ("actionRunId", "actionName", "startedAt", "durationMs", "ok") VALUES ${values.join(", ")}`,
+    );
+
+    const { actions } = await operationsSummary(db);
+    expect(actions).toHaveLength(Object.keys(sizes).length);
+    for (const a of actions) {
+      const ds = durations.get(a.actionName)!;
+      const want = percentiles(ds)!;
+      expect({ p50: a.p50Ms, p95: a.p95Ms }, a.actionName).toEqual(want);
+      expect(a.count, a.actionName).toBe(ds.length);
+      expect(a.errors, a.actionName).toBe(Math.ceil(ds.length / 7));
+    }
+    // Busiest first, ties by name.
+    expect(actions.map((a) => a.count)).toEqual(
+      [...actions.map((a) => a.count)].sort((x, y) => y - x),
+    );
   }, 60_000);
 
   it("starts a new window at each reset: the metrics are cleared, not snapshotted", async () => {

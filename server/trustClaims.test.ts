@@ -122,7 +122,11 @@ describe("docs/error-analysis.md", () => {
   const evals = JSON.parse(read("docs/evals.json")) as {
     slots: { total: number; correct: number };
     failures: { kind: string; count: number; examples: { firmId: string; axis: string }[] }[];
-    reconciled: { higherTrustRight: number };
+    reconciled: { higherTrustRight: number; precision: number; conflictRate: number };
+    abstention: { rate: number; calibration: number };
+    providers: { provider: string; precision: number }[];
+    recordedRun: { values: number; grounded: number };
+    ruleRecovery: { planted: number; recovered: number };
   };
   const doc = read("docs/error-analysis.md");
   const n = (v: number): string => v.toLocaleString("en-US");
@@ -134,6 +138,47 @@ describe("docs/error-analysis.md", () => {
       expect(doc).toContain(`(\`${f.kind}\`) | ${n(f.count)} |`);
     }
     expect(doc).toContain(`${(evals.reconciled.higherTrustRight * 100).toFixed(1)}%`);
+  });
+
+  it("states every other figure from docs/evals.json too", () => {
+    const pct = (v: number): string => (v * 100).toFixed(1);
+    const precisionOf = (provider: string): number =>
+      evals.providers.find((p) => p.provider === provider)!.precision;
+    const wrong = evals.failures.find((f) => f.kind === "wrong-source-wins")!.count;
+    const conflicts = evals.failures.find((f) => f.kind === "conflict-surfaced")!.count;
+    const abstained = evals.failures.find((f) => f.kind === "abstained-correctly")!.count;
+    // Shares of the evaluated axes, and the correct share.
+    expect(doc).toContain(`(${pct(evals.slots.correct / evals.slots.total)}%)`);
+    for (const f of evals.failures) {
+      expect(doc).toContain(`| ${n(f.count)} | ${pct(f.count / evals.slots.total)}% |`);
+    }
+    // The wrong values settled, as a share of settled values, and the precision it complements.
+    expect(doc).toContain(
+      `${n(wrong)} wrong values settled are ${pct(1 - evals.reconciled.precision)}%`,
+    );
+    expect(doc).toContain(`reconciled precision is ${pct(evals.reconciled.precision)}%`);
+    // The trust-order tiebreak and the provider precisions it quotes.
+    expect(doc).toContain(`wrong in the other ${pct(1 - evals.reconciled.higherTrustRight)}%`);
+    expect(doc).toContain(
+      `${pct(precisionOf("websearch"))}% precision against ${pct(precisionOf("beacondb"))}% for BeaconDB`,
+    );
+    // Conflicts, abstentions and rule recovery.
+    expect(doc).toContain(
+      `The ${n(conflicts)} conflicts (${pct(evals.reconciled.conflictRate)}% of axes`,
+    );
+    expect(doc).toContain(`Of the ${n(conflicts)} conflicts`);
+    expect(doc).toContain(`${n(abstained)} axes (${pct(evals.abstention.rate)}%) ended this way`);
+    expect(doc).toContain(
+      `${pct(evals.abstention.calibration).replace(/\.0$/, "")}% of abstentions were justified`,
+    );
+    expect(doc).toContain(
+      `${evals.ruleRecovery.recovered} of ${evals.ruleRecovery.planted} (\`ruleRecovery\`)`,
+    );
+  });
+
+  it("counts the answers the grounding check dropped from the recorded run", () => {
+    const dropped = evals.recordedRun.values - evals.recordedRun.grounded;
+    expect(doc).toContain(`The ${dropped} answers the grounding check dropped`);
   });
 
   it("links every example to its firm on the Desk", () => {
