@@ -92,7 +92,7 @@
 }
 
 .readRemove:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--line2);
   color: var(--tx);
 }
 
