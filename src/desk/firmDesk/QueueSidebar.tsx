@@ -1,13 +1,20 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { Search } from "@blueprintjs/icons";
+import { AGENT } from "../../../shared/vocab";
 import { type ScreeningRule, isLiveQueueFirm, screenFirm } from "../activeScreening";
 import { isOpenFirm } from "../pipelineBuckets";
 import { type RankedFirm } from "../queue";
-import { formatScore, queueRowTier, scoreFraction } from "../scoreFormat";
-import { TIER_COLOR } from "../tokens";
-import { TierTag } from "./FirmHeader";
-import { Kicker } from "./chips";
+import { formatScore, scoreFraction } from "../scoreFormat";
+import styles from "./QueueSidebar.module.css";
 import { type RediscoveryInfo } from "./deskModel";
+import { type FindingCounts, queueStateLine } from "./queueState";
+
+/** What the queue knows about a firm's last enrichment, for the row's state line. */
+export interface QueueRun {
+  enrichedAt: string | null;
+  enrichedBy: string | null;
+}
 
 // Compact per-firm rediscovery badge for the queue row. "new" = firm was
 // created by the current search; "rediscovered" = firm already existed
@@ -27,114 +34,9 @@ function RediscoveryBadge({ info }: { info: RediscoveryInfo }): React.ReactEleme
           info.priorDecisions === 1 ? "" : "s"
         }`;
   return (
-    <span
-      title={title}
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        fontSize: 10,
-        padding: "1px 5px",
-        borderRadius: "var(--radius-sm)",
-        fontWeight: 600,
-        letterSpacing: "0.02em",
-        color: isNew ? "#8ee5c0" : "#c9a9f7",
-        background: isNew ? "rgba(79,209,154,.18)" : "rgba(155,127,224,.16)",
-        whiteSpace: "nowrap",
-        cursor: "help",
-      }}
-    >
+    <span title={title} className={`${styles.badge} ${isNew ? styles.badgeNew : styles.badgeSeen}`}>
       {label}
     </span>
-  );
-}
-
-// Top strip on the enrichment desk when the queue is pinned to a Search.
-// Reads intent statement, search name / #N, and total member count. The
-// "clear" pill drops ?search from the URL, restoring the master queue.
-export function SearchFilterBar({
-  intentText,
-  searchName,
-  searchIndex,
-  memberCount,
-  loading,
-  onClear,
-}: {
-  intentText: string;
-  searchName?: string | null;
-  // 1-based rank of this search under the mandate (freshest = 1). Used
-  // when the search has no human-readable name — reads as "Search #2".
-  searchIndex?: number;
-  memberCount: number;
-  loading: boolean;
-  onClear: () => void;
-}): React.ReactElement {
-  const label = (searchName ?? "").trim() || (searchIndex ? `Search #${searchIndex}` : "Search");
-  return (
-    <div
-      role="status"
-      aria-live="polite"
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "8px 16px",
-        borderBottom: "1px solid var(--color-divider)",
-        background: "color-mix(in srgb, var(--color-accent) 6%, transparent)",
-        fontSize: 12,
-        color: "color-mix(in srgb, var(--color-text) 82%, transparent)",
-        flex: "0 0 auto",
-      }}
-    >
-      <span
-        style={{
-          fontSize: 10,
-          letterSpacing: "0.12em",
-          textTransform: "uppercase",
-          color: "var(--color-accent)",
-          fontWeight: 600,
-        }}
-      >
-        Filtered
-      </span>
-      <span
-        style={{
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          minWidth: 0,
-          flex: 1,
-        }}
-        title={intentText}
-      >
-        <strong style={{ fontWeight: 600 }}>Mandate:</strong> {intentText || "—"}
-        <span
-          style={{
-            color: "color-mix(in srgb, var(--color-text) 40%, transparent)",
-            margin: "0 6px",
-          }}
-        >
-          ·
-        </span>
-        {label}
-        <span
-          style={{
-            color: "color-mix(in srgb, var(--color-text) 40%, transparent)",
-            margin: "0 6px",
-          }}
-        >
-          ·
-        </span>
-        {loading ? "loading firms…" : `${memberCount} firm${memberCount === 1 ? "" : "s"}`}
-      </span>
-      <button
-        type="button"
-        className="btn btn-ghost"
-        style={{ fontSize: 12, padding: "3px 10px" }}
-        onClick={onClear}
-      >
-        Clear
-      </button>
-    </div>
   );
 }
 
@@ -147,6 +49,12 @@ export function QueueSidebar({
   scopeLabel,
   membershipPinned,
   rediscoveryByFirmId,
+  query,
+  onQueryChange,
+  showAll,
+  onShowAllChange,
+  runByFirmId,
+  countsByFirmId,
 }: {
   queue: RankedFirm[];
   isLoading: boolean;
@@ -167,12 +75,16 @@ export function QueueSidebar({
   // Populated only when the desk is filtered by a Search. Missing entries
   // render no badge — the queue row degrades to its normal appearance.
   rediscoveryByFirmId?: Map<string, RediscoveryInfo>;
-}): React.ReactElement {
-  const [q, setQ] = React.useState("");
-  // Default view is the live queue. The toggle reveals decided and screened
+  query: string;
+  onQueryChange: (q: string) => void;
+  // Default view is the live queue. The switch reveals decided and screened
   // firms; it does not change what the search box can reach.
-  const [showAll, setShowAll] = React.useState(false);
-  const searching = q.trim() !== "";
+  showAll: boolean;
+  onShowAllChange: (on: boolean) => void;
+  runByFirmId: ReadonlyMap<string, QueueRun>;
+  countsByFirmId: ReadonlyMap<string, FindingCounts>;
+}): React.ReactElement {
+  const searching = query.trim() !== "";
 
   // Per-firm screening verdict, computed once for the whole queue and reused
   // by the partition, the counts, and the chip — one evaluation, so a row's
@@ -214,7 +126,7 @@ export function QueueSidebar({
   }, [openByFirmId, screenByFirmId]);
 
   const filtered = React.useMemo(() => {
-    // The search box reaches every firm in scope regardless of the toggle —
+    // The search box reaches every firm in scope regardless of the switch —
     // an analyst looking up a firm by name should never have to know it was
     // screened or already decided to find it.
     const base =
@@ -228,112 +140,131 @@ export function QueueSidebar({
     if (!searching) {
       return base;
     }
-    const needle = q.trim().toLowerCase();
+    const needle = query.trim().toLowerCase();
     return base.filter(
       (r) =>
         (r.firm.firmName ?? "").toLowerCase().includes(needle) ||
         (r.firm.firmId ?? "").toLowerCase().includes(needle),
     );
-  }, [queue, q, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
+  }, [queue, query, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
+
+  // Roving tabindex: one row is in the tab order (the open firm, else the one last focused, else
+  // the first), so Tab enters the list once and arrow keys move within it.
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const [activeId, setActiveId] = React.useState<string | undefined>(selectedId);
+  React.useEffect(() => setActiveId(selectedId), [selectedId]);
+  const tabId = filtered.some((r) => r.firm.firmId === activeId)
+    ? activeId
+    : (filtered.find((r) => r.firm.firmId === selectedId) ?? filtered[0])?.firm.firmId;
+
+  const rows = (): HTMLButtonElement[] =>
+    Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("button[data-row]") ?? []);
+
+  const focusRow = (index: number): void => {
+    const row = rows()[Math.max(0, Math.min(filtered.length - 1, index))];
+    if (row !== undefined) {
+      row.focus();
+    }
+  };
+
+  const onRowKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>): void => {
+    const current = rows().indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    switch (e.key) {
+      case "ArrowDown":
+        next = current + 1;
+        break;
+      case "ArrowUp":
+        next = current - 1;
+        break;
+      case "Home":
+        next = 0;
+        break;
+      case "End":
+        next = filtered.length - 1;
+        break;
+      default:
+        return;
+    }
+    // Keep the desk's own arrow-key handling (axis focus) from also seeing this keystroke.
+    e.preventDefault();
+    e.stopPropagation();
+    focusRow(next);
+  };
+
+  // Bring the open firm into view, including when the sidebar remounts with it far down the list.
+  React.useEffect(() => {
+    const open = rows().find((b) => b.dataset.row === selectedId);
+    open?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedId]);
+
+  const now = Date.now();
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: 1, minHeight: 0 }}>
-      <div
-        style={{
-          padding: "0 4px",
-          marginTop: 4,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
-        }}
-      >
-        <Kicker>Queue</Kicker>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 8,
-            fontSize: 11,
-            cursor: "pointer",
-            color: "color-mix(in srgb, var(--color-text) 62%, transparent)",
-          }}
-        >
-          <input
-            type="checkbox"
-            checked={showAll}
-            onChange={(e) => setShowAll(e.target.checked)}
-            style={{ accentColor: "var(--color-accent)", cursor: "pointer" }}
-          />
-          Show all firms
-        </label>
+    <div className={styles.queue}>
+      <div className={styles.head}>
+        <span className={styles.title}>Queue</span>
+        <span className={styles.order}>by expected gain</span>
       </div>
 
-      {/* Search */}
-      <div style={{ position: "relative" }}>
+      <div className={styles.search}>
+        <Search size={13} className={styles.searchIcon} aria-hidden="true" />
         <input
-          className="input"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
+          className={styles.input}
+          value={query}
+          onChange={(e) => onQueryChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown" && filtered.length > 0) {
+              e.preventDefault();
+              focusRow(
+                Math.max(
+                  0,
+                  filtered.findIndex((r) => r.firm.firmId === tabId),
+                ),
+              );
+            }
+          }}
           placeholder="Search firms…"
-          style={{ paddingLeft: 30 }}
+          aria-label="Search firms"
         />
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={2}
-          style={{ position: "absolute", left: 9, top: 11, opacity: 0.5, pointerEvents: "none" }}
-        >
-          <circle cx="11" cy="11" r="7" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
       </div>
+
+      <label className={styles.showAll}>
+        <input
+          type="checkbox"
+          checked={showAll}
+          onChange={(e) => onShowAllChange(e.target.checked)}
+        />
+        Show all firms
+      </label>
 
       {/* Queue arithmetic. Every number here is computed from the same firm
           set and the same approved rules /rules screens on, so the desk and
           the rule cards can no longer disagree about how many firms a rule
           takes off the desk. */}
-      <div
-        style={{
-          fontSize: 10,
-          lineHeight: 1.5,
-          color: "color-mix(in srgb, var(--color-text) 45%, transparent)",
-          padding: "0 4px",
-        }}
-      >
+      <div className={styles.summary}>
         {isLoading && queue.length === 0 ? (
           "Loading…"
         ) : (
           <>
-            <strong style={{ color: "var(--color-text)", fontWeight: 600 }}>{liveCount}</strong> in
-            live queue{" · "}
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{openCount}</span> open{" · "}
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{queue.length}</span> {scopeLabel}
-            {": "}
-            <span style={{ fontVariantNumeric: "tabular-nums" }}>{openScreenedCount}</span> open
-            firm{openScreenedCount === 1 ? "" : "s"} screened by{" "}
-            <Link to="/rules" style={{ color: "var(--color-accent)" }}>
-              approved rules
-            </Link>
-            {" · "}sorted by expected gain
+            <strong>{liveCount}</strong> in live queue{" · "}
+            <span className={styles.num}>{openCount}</span> open{" · "}
+            <span className={styles.num}>{queue.length}</span> {scopeLabel}
+            <div>
+              <span className={styles.num}>{openScreenedCount}</span> open firm
+              {openScreenedCount === 1 ? "" : "s"} screened by{" "}
+              <Link to="/rules" className={styles.link}>
+                approved rules
+              </Link>
+            </div>
           </>
         )}
       </div>
 
-      {/* Only shown when the view is narrower or wider than the header's
-          headline number, so the list count is never ambiguous. */}
+      {/* Only shown when the view is narrower or wider than the headline number, so the list
+          count is never ambiguous. */}
       {!isLoading && (searching || showAll || membershipPinned) && (
-        <div
-          style={{
-            fontSize: 10,
-            padding: "0 4px",
-            marginTop: -6,
-            color: "color-mix(in srgb, var(--color-text) 40%, transparent)",
-          }}
-        >
+        <div className={styles.note}>
           {searching
             ? `${filtered.length} matching · searching all firms`
             : membershipPinned
@@ -342,167 +273,82 @@ export function QueueSidebar({
         </div>
       )}
 
-      <div
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          gap: 2,
-          minHeight: 0,
-        }}
-      >
-        {isLoading && queue.length === 0 && (
-          <div
-            style={{
-              padding: "10px 8px",
-              fontSize: 12,
-              color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
-            }}
-          >
-            Loading firms…
-          </div>
-        )}
+      <div className={styles.scroll}>
+        {isLoading && queue.length === 0 && <div className={styles.empty}>Loading firms…</div>}
         {!isLoading && filtered.length === 0 && (
-          <div
-            style={{
-              padding: "10px 8px",
-              fontSize: 12,
-              color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
-            }}
-          >
-            {q === "" ? "No firms in the queue." : "No firms match that search."}
+          <div className={styles.empty}>
+            {query === "" ? "No firms in the queue." : "No firms match that search."}
           </div>
         )}
-        {filtered.map((r) => {
-          const selected = r.firm.firmId === selectedId;
-          // A firm an approved rule screened out wears an R; every other
-          // firm shows its own score tier, the same as the header and Pipeline.
-          const displayTier = queueRowTier(r.hardScreened, r.tier);
-          const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
-          // An approved rule took this firm off the live queue. Named, not
-          // just dimmed — "why is this firm greyed out" should be readable
-          // from the row without opening it.
-          const screenedBy = screenByFirmId.get(r.firm.firmId) ?? null;
-          const dimmed = r.hardScreened || screenedBy !== null;
-          return (
-            <button
-              key={r.firm.firmId}
-              onClick={() => onSelect(r.firm.firmId)}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr auto",
-                gap: 4,
-                width: "100%",
-                textAlign: "left",
-                padding: "8px 8px",
-                border: "1px solid transparent",
-                borderColor: selected ? "var(--color-accent)" : "transparent",
-                borderRadius: "var(--radius-chip)",
-                cursor: "pointer",
-                background: selected
-                  ? "color-mix(in srgb, var(--color-accent) 10%, transparent)"
-                  : "transparent",
-                color: "inherit",
-                font: "inherit",
-                opacity: dimmed ? 0.55 : 1,
-              }}
-            >
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                  minWidth: 0,
-                  fontWeight: 500,
-                  fontSize: 13,
-                }}
-              >
-                <span
-                  style={{
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    minWidth: 0,
-                    textDecorationLine: dimmed ? "line-through" : "none",
-                    textDecorationColor: "color-mix(in srgb, var(--color-text) 40%, transparent)",
-                  }}
+        <ul ref={listRef} className={styles.list} aria-label="Firms in the queue">
+          {filtered.map((r) => {
+            const id = r.firm.firmId;
+            const selected = id === selectedId;
+            // A firm an approved rule screened out reads R; every other firm shows its score.
+            const rejected = r.hardScreened;
+            const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
+            const barCeiling = r.hardScreened ? 0 : scoreFraction(r.ceiling);
+            // An approved rule took this firm off the live queue. Named, not
+            // just dimmed — "why is this firm greyed out" should be readable
+            // from the row without opening it.
+            const screenedBy = screenByFirmId.get(id) ?? null;
+            const dimmed = r.hardScreened || screenedBy !== null;
+            const run = runByFirmId.get(id);
+            const info = rediscoveryByFirmId?.get(id);
+            return (
+              <li key={id}>
+                <button
+                  type="button"
+                  data-row={id}
+                  className={`${styles.row} ${selected ? styles.on : ""} ${dimmed ? styles.dim : ""}`}
+                  tabIndex={id === tabId ? 0 : -1}
+                  aria-current={selected ? "true" : undefined}
+                  onClick={() => onSelect(id)}
+                  onFocus={() => setActiveId(id)}
+                  onKeyDown={onRowKeyDown}
                 >
-                  {r.firm.firmName ?? r.firm.firmId}
-                </span>
-                {(() => {
-                  const info = rediscoveryByFirmId?.get(r.firm.firmId ?? "");
-                  return info ? <RediscoveryBadge info={info} /> : null;
-                })()}
-              </span>
-              <TierTag tier={displayTier} />
-              <div
-                style={{
-                  gridColumn: "1 / 3",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  fontSize: 10,
-                  color: "color-mix(in srgb, var(--color-text) 48%, transparent)",
-                }}
-              >
-                {screenedBy !== null ? (
+                  <span className={styles.name}>
+                    <span className={styles.nameText}>{r.firm.firmName ?? id}</span>
+                    {info && <RediscoveryBadge info={info} />}
+                  </span>
                   <span
-                    title={`Screened by an approved rule: ${screenedBy.label}`}
-                    style={{
-                      padding: "1px 6px",
-                      borderRadius: "var(--radius-sm)",
-                      background: "color-mix(in srgb, var(--color-text) 8%, transparent)",
-                      border: "1px solid color-mix(in srgb, var(--color-text) 12%, transparent)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
+                    className={styles.score}
+                    title={
+                      rejected
+                        ? "Screened out"
+                        : `${formatScore(r.currentScore)} known → ${formatScore(r.ceiling)} reachable if the remaining fields were filled · ${r.missingCount} rubric axes with no value yet`
+                    }
                   >
-                    screened · {screenedBy.label}
+                    {rejected ? "R" : r.currentScore}
                   </span>
-                ) : r.hardScreened ? (
-                  <span title={r.hardScreenReason ?? undefined}>
-                    hard-screened{r.hardScreenReason ? ` · ${r.hardScreenReason}` : ""}
+                  <span className={styles.bar} aria-hidden="true">
+                    <i className={styles.ceiling} style={{ width: `${barCeiling * 100}%` }} />
+                    <i className={styles.fill} style={{ width: `${barFill * 100}%` }} />
                   </span>
-                ) : (
-                  <>
-                    <span
-                      style={{ fontVariantNumeric: "tabular-nums" }}
-                      title={`${formatScore(r.currentScore)} known → ${formatScore(r.ceiling)} reachable if the remaining fields were filled`}
-                    >
-                      {formatScore(r.currentScore)} → {formatScore(r.ceiling)}
-                    </span>
-                    <span
-                      style={{
-                        flex: 1,
-                        height: 4,
-                        borderRadius: "var(--radius-xs)",
-                        background: "var(--color-neutral-800)",
-                        overflow: "hidden",
-                      }}
-                    >
-                      <span
-                        style={{
-                          display: "block",
-                          height: "100%",
-                          width: `calc(100% * ${barFill})`,
-                          background: TIER_COLOR[r.tier] ?? "var(--color-neutral-500)",
-                        }}
-                      />
-                    </span>
-                    <span
-                      title="Rubric axes with no value yet"
-                      style={{ fontVariantNumeric: "tabular-nums" }}
-                    >
-                      {r.missingCount} missing
-                    </span>
-                  </>
-                )}
-              </div>
-            </button>
-          );
-        })}
+                  <small className={styles.state}>
+                    {screenedBy !== null ? (
+                      <span title={`Screened by an approved rule: ${screenedBy.label}`}>
+                        Screened · {screenedBy.label}
+                      </span>
+                    ) : r.hardScreened ? (
+                      <span title={r.hardScreenReason ?? undefined}>
+                        Hard-screened{r.hardScreenReason ? ` · ${r.hardScreenReason}` : ""}
+                      </span>
+                    ) : (
+                      queueStateLine({
+                        enrichedAt: run?.enrichedAt,
+                        enrichedBy: run?.enrichedBy,
+                        agent: AGENT,
+                        counts: countsByFirmId.get(id),
+                        now,
+                      })
+                    )}
+                  </small>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </div>
     </div>
   );

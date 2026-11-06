@@ -1,0 +1,215 @@
+.strip {
+  display: grid;
+  grid-template-columns: 190px repeat(4, minmax(0, 1fr)) auto;
+  align-items: stretch;
+  overflow: hidden;
+  border-radius: 10px;
+  background: var(--s1);
+  box-shadow:
+    0 0 0 1px var(--line),
+    inset 0 1px 0 var(--highlight);
+}
+
+.strip > * {
+  padding: 9px 12px;
+  border-left: 1px solid var(--line);
+}
+
+.strip > :first-child {
+  border-left: 0;
+}
+
+.idle {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.idle > .cta {
+  margin: 0 12px;
+  padding: 7px 14px;
+  border-left: 0;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.headline {
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sub {
+  color: var(--tx3);
+  font-size: 11.5px;
+}
+
+.mono {
+  font-family: var(--font-mono);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.dotLive {
+  background: var(--green);
+  box-shadow:
+    0 0 0 4px rgba(79, 209, 154, 0.12),
+    0 0 12px rgba(79, 209, 154, 0.6);
+}
+
+.dotIdle {
+  background: var(--tx4);
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.04);
+}
+
+.provider {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.providerRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.hits {
+  color: var(--tx3);
+  font: 400 11px var(--font-mono);
+}
+
+.hitsNone {
+  opacity: 0.8;
+}
+
+.coverage {
+  position: relative;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.coverage > i {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 2px;
+  background: var(--acc);
+  opacity: 0.8;
+  transition: width var(--dur) var(--ease);
+}
+
+.unavailable {
+  color: var(--tx3);
+  font-size: 11px;
+}
+
+.rerun {
+  display: flex;
+  align-items: center;
+  padding-block: 0;
+}
+
+.failure {
+  margin-top: 8px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: rgba(240, 113, 103, 0.12);
+  color: #f4948b;
+  font-size: 12px;
+}
+
+/* The main column is the container, so the strip folds when the column is narrow, not the window.
+   Up to 800 px the status and Re-run share a row above the four sources. */
+@container deskmain (max-width: 800px) {
+  .strip {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .strip > :nth-child(1) {
+    grid-column: 1 / 4;
+  }
+
+  .strip > :nth-child(6) {
+    grid-column: 4;
+    grid-row: 1;
+    justify-content: flex-end;
+    border-left: 0;
+  }
+
+  .strip > :nth-child(n + 2):nth-child(-n + 5) {
+    grid-row: 2;
+    border-top: 1px solid var(--line);
+  }
+
+  .strip > :nth-child(2) {
+    border-left: 0;
+  }
+
+  .idle {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .idle > :nth-child(1),
+  .idle > :nth-child(2) {
+    grid-column: auto;
+    grid-row: auto;
+    border-top: 0;
+  }
+}
+
+/* On a phone the four sources make two rows of two. */
+@container deskmain (max-width: 480px) {
+  .strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .strip > :nth-child(1),
+  .strip > :nth-child(6) {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    justify-content: flex-start;
+  }
+
+  .strip > :nth-child(6) {
+    border-top: 1px solid var(--line);
+  }
+
+  .strip > :nth-child(n + 2):nth-child(-n + 5) {
+    grid-row: auto;
+  }
+
+  .strip > :nth-child(2),
+  .strip > :nth-child(4) {
+    border-left: 0;
+  }
+
+  .strip > :nth-child(3),
+  .strip > :nth-child(5) {
+    border-left: 1px solid var(--line);
+  }
+
+  .strip > :nth-child(4),
+  .strip > :nth-child(5) {
+    border-top: 1px solid var(--line);
+  }
+
+  .idle {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .idle > .cta {
+    margin: 0 12px 12px;
+  }
+}

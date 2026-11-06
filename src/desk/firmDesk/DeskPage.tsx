@@ -7,6 +7,7 @@ import {
   HardScreenConfig,
   Mandate,
   ProposedRule,
+  ResearchFinding,
   ReviewDecision,
   Search,
 } from "@/data/ontology";
@@ -17,136 +18,14 @@ import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
 import "../nocturne.css";
 import { type ActiveConfigRule, orderEnrichmentQueue, toQueueFirm } from "../queue";
+import styles from "./DeskPage.module.css";
+import { FirmNotFound, FirmNotInSearch, FirmSkeleton, PickAFirm, SearchEmpty } from "./DeskStates";
 import { EnrichmentPanel } from "./EnrichmentPanel";
-import { QueueSidebar, SearchFilterBar } from "./QueueSidebar";
+import { type QueueRun, QueueSidebar } from "./QueueSidebar";
+import { SearchFilterBar } from "./SearchFilterBar";
 import { type FirmView, type RediscoveryInfo } from "./deskModel";
-
-function EmptyState(): React.ReactElement {
-  return (
-    <div
-      style={{
-        flex: 1,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
-        <span
-          style={{
-            display: "inline-grid",
-            placeItems: "center",
-            width: 44,
-            height: 44,
-            borderRadius: "var(--radius-lg)",
-            border: "1px solid var(--color-accent)",
-            color: "var(--color-accent)",
-            fontSize: 19,
-            fontWeight: 600,
-            marginBottom: 16,
-          }}
-        >
-          B
-        </span>
-        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>Pick a firm</div>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
-            lineHeight: 1.55,
-          }}
-        >
-          Choose a firm from the queue on the left. Firms are ordered by how much a decision would
-          change their score. Firms screened out by approved rules are hidden unless you turn on
-          Show all firms.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-/** Placeholder while a deep-linked firm is still loading; shaped like the firm header and axis list. */
-function FirmSkeleton(): React.ReactElement {
-  const bar = (width: number | string, height: number): React.CSSProperties => ({
-    width,
-    height,
-    borderRadius: "var(--radius-sm)",
-    background:
-      "linear-gradient(90deg, color-mix(in srgb, var(--color-text) 6%, transparent) 0%, color-mix(in srgb, var(--color-text) 18%, transparent) 50%, color-mix(in srgb, var(--color-text) 6%, transparent) 100%)",
-    backgroundSize: "200% 100%",
-    animation: "beacon-shimmer 1.6s linear infinite",
-  });
-  return (
-    <div
-      role="status"
-      aria-label="Loading firm"
-      style={{ flex: 1, padding: "20px 24px", display: "flex", flexDirection: "column", gap: 16 }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <div style={bar(280, 26)} />
-          <div style={bar(200, 13)} />
-        </div>
-        <div style={bar(96, 44)} />
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {Array.from({ length: 9 }, (_, i) => (
-          <div key={i} style={bar("100%", 36)} />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** A deep-linked firm that exists but is outside the pinned search's membership. */
-function FirmNotInSearch({ onClear }: { onClear: () => void }): React.ReactElement {
-  return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
-        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>
-          {"This firm isn't in the current search"}
-        </div>
-        <p
-          style={{
-            margin: "0 0 16px",
-            fontSize: 13,
-            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
-            lineHeight: 1.55,
-          }}
-        >
-          The queue is limited to the firms this search found. Clear the search filter to see every
-          firm.
-        </p>
-        <button type="button" className="btn btn-secondary" onClick={onClear}>
-          Clear search filter
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/** A deep-linked firm id that is not in the database. */
-function FirmNotFound({ firmId }: { firmId: string }): React.ReactElement {
-  return (
-    <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ maxWidth: 380, textAlign: "center", padding: 32 }}>
-        <div style={{ fontSize: 19, fontWeight: 500, marginBottom: 8 }}>Firm not found</div>
-        <p
-          style={{
-            margin: 0,
-            fontSize: 13,
-            color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
-            lineHeight: 1.55,
-            overflowWrap: "anywhere",
-          }}
-        >
-          No firm with id {firmId} is in the database. Choose one from the queue on the left.
-        </p>
-      </div>
-    </div>
-  );
-}
+import { type FindingCounts, findingCountsByFirm } from "./queueState";
+import { useQueueFilters } from "./useQueueFilters";
 
 function Desk(): React.ReactElement {
   const { data, isLoading, error } = useOsdkObjects(Firm, {
@@ -457,6 +336,33 @@ function Desk(): React.ReactElement {
     viewCount: filteredData?.length ?? 0,
   });
 
+  // The queue's search text and "Show all firms" live here, above the sidebar portal, so they
+  // survive the sidebar remounting its contents (drawer open/close, crossing the breakpoint).
+  const filters = useQueueFilters();
+
+  // Each row's state line: when the firm was last enriched and what is still waiting on it.
+  const runByFirmId = React.useMemo(() => {
+    const m = new Map<string, QueueRun>();
+    for (const f of (filteredData ?? []) as unknown as Array<{
+      firmId?: string;
+      enrichedAt?: string | null;
+      enrichedBy?: string | null;
+    }>) {
+      if (f.firmId) {
+        m.set(f.firmId, { enrichedAt: f.enrichedAt ?? null, enrichedBy: f.enrichedBy ?? null });
+      }
+    }
+    return m;
+  }, [filteredData]);
+  const { data: allFindings } = useOsdkObjects(ResearchFinding, { autoFetchMore: true });
+  const countsByFirmId = React.useMemo<Map<string, FindingCounts>>(
+    () =>
+      findingCountsByFirm(
+        (allFindings ?? []) as unknown as Parameters<typeof findingCountsByFirm>[0],
+      ),
+    [allFindings],
+  );
+
   // The firm queue lives in the app shell's sidebar, under the nav.
   const queueSidebar = useSidebarSlot(
     <QueueSidebar
@@ -468,44 +374,35 @@ function Desk(): React.ReactElement {
       scopeLabel={searchActive ? "in search" : "in database"}
       membershipPinned={searchActive}
       rediscoveryByFirmId={rediscoveryByFirmId}
+      query={filters.query}
+      onQueryChange={filters.setQuery}
+      showAll={filters.showAll}
+      onShowAllChange={filters.setShowAll}
+      runByFirmId={runByFirmId}
+      countsByFirmId={countsByFirmId}
     />,
   );
 
   return (
     <SourceDrawerProvider>
-      <div
-        className="dsn"
-        style={{
-          height: "100%",
-          background: "transparent",
-          display: "flex",
-        }}
-      >
+      <div className={styles.desk}>
         {queueSidebar}
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-          {searchActive && (
-            <SearchFilterBar
-              intentText={pinnedIntent}
-              searchName={pinnedSearch?.name ?? null}
-              searchIndex={searchIndex}
-              memberCount={filteredData?.length ?? 0}
-              loading={memberFirmIds === null}
-              onClear={onClearSearchFilter}
-            />
-          )}
-          {loadError && (
-            <div
-              role="alert"
-              style={{
-                padding: "8px 24px",
-                background: "rgba(240,113,103,.12)",
-                color: "#f4948b",
-                fontSize: 12,
-              }}
-            >
-              {String(loadError)}
-            </div>
-          )}
+        {searchActive && (
+          <SearchFilterBar
+            intentText={pinnedIntent}
+            searchName={pinnedSearch?.name ?? null}
+            searchIndex={searchIndex}
+            memberCount={filteredData?.length ?? 0}
+            loading={memberFirmIds === null}
+            onClear={onClearSearchFilter}
+          />
+        )}
+        {loadError && (
+          <div role="alert" className={styles.error}>
+            {String(loadError)}
+          </div>
+        )}
+        <div className={styles.body}>
           {panelState === "firm" && selected !== undefined && (
             <EnrichmentPanel
               firm={selected}
@@ -524,27 +421,8 @@ function Desk(): React.ReactElement {
             <FirmNotFound firmId={effectiveId} />
           )}
           {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
-          {panelState === "search-empty" && (
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 32,
-                textAlign: "center",
-                color: "color-mix(in srgb, var(--color-text) 60%, transparent)",
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              {memberFirmIds === null
-                ? "Loading search membership…"
-                : "This search returned no firms yet. If it just launched, give the backend a moment to attach dedupes and create discoveries. The queue populates as membership lands."}
-            </div>
-          )}
-          {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <EmptyState />)}
-          {panelState === "error" && <div style={{ flex: 1 }} />}
+          {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
+          {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
         </div>
       </div>
     </SourceDrawerProvider>

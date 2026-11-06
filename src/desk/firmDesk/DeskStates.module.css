@@ -1,0 +1,73 @@
+.center {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  padding: 32px;
+  overflow-wrap: anywhere;
+}
+
+.center > * {
+  max-width: 440px;
+}
+
+.skeletonLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  flex: 1;
+  min-height: 0;
+}
+
+.skeleton {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 24px;
+}
+
+.skeletonHero {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.skeletonHero > :first-child {
+  flex: none;
+  width: 52px;
+}
+
+.skeletonName {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 360px;
+}
+
+.skeletonScore {
+  width: 300px;
+  margin-left: auto;
+}
+
+.skeletonRows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+@media (max-width: 1279px) {
+  .skeletonLayout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .skeletonLayout > aside {
+    display: none;
+  }
+}
+
+@media (max-width: 899px) {
+  .skeletonScore {
+    display: none;
+  }
+}

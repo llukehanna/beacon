@@ -11,8 +11,11 @@ import {
 } from "../findingActions";
 import { type ActiveConfigRule } from "../queue";
 import { mirrorScore } from "../scoreMirror";
+import { AgentRunStrip } from "./AgentRunStrip";
 import { AxisBreakdown } from "./AxisBreakdown";
 import { DecisionMemory } from "./DecisionMemory";
+import styles from "./EnrichmentPanel.module.css";
+import { EvidenceColumn } from "./EvidenceColumn";
 import { FirmHeader } from "./FirmHeader";
 import { HardGates } from "./HardGates";
 import { ConfirmChecklist, YourCallRail } from "./YourCallRail";
@@ -52,7 +55,6 @@ export function EnrichmentPanel({
   const [pendingVerify, setPendingVerify] = React.useState<Record<string, string | true>>({});
   const [flushError, setFlushError] = React.useState<string | null>(null);
   const [focused, setFocused] = React.useState<string | undefined>(undefined);
-  const [elapsed, setElapsed] = React.useState(0);
   const enrich = useOsdkAction(enrichFirmAction);
   const verify = useOsdkAction(verifyFindingAction);
   const observable = useObservableClient();
@@ -62,9 +64,6 @@ export function EnrichmentPanel({
     setPendingVerify({});
     setFlushError(null);
     setFocused(undefined);
-    setElapsed(0);
-    const timer = setInterval(() => setElapsed((e) => e + 1), 1000);
-    return () => clearInterval(timer);
   }, [firm.firmId]);
 
   const base = toScoreInput(firm);
@@ -300,86 +299,80 @@ export function EnrichmentPanel({
   }, [after.model, setAxis]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
-      <main
-        style={{
-          flex: 1,
-          overflowY: "auto",
-          padding: "20px 24px 28px",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-          minWidth: 0,
-        }}
-      >
-        <FirmHeader
-          firm={firm}
-          before={before}
-          after={after}
-          elapsed={elapsed}
-          saving={enrich.isPending}
-          activeConfigs={activeConfigs}
-          configsLoading={configsLoading}
-        />
+    <div className={styles.layout}>
+      <div className={styles.column}>
+        <div className={styles.scroll}>
+          <FirmHeader
+            firm={firm}
+            before={before}
+            after={after}
+            saving={enrich.isPending}
+            activeConfigs={activeConfigs}
+            configsLoading={configsLoading}
+          />
 
-        <AxisBreakdown
-          firm={firm}
-          mirror={after}
-          edits={edits}
-          setAxis={setAxis}
-          focused={focused}
-          setFocused={setFocused}
-          findingsByAxisKey={findingsByAxisKey}
-        />
+          <AgentRunStrip firm={firm} actionFirm={actionFirm} />
 
-        <DecisionMemory firm={firm} allFirms={allFirms} firmsLoading={firmsLoading} />
+          <AxisBreakdown
+            firm={firm}
+            mirror={after}
+            edits={edits}
+            setAxis={setAxis}
+            focused={focused}
+            setFocused={setFocused}
+            findingsByAxisKey={findingsByAxisKey}
+          />
 
-        <HardGates
-          firm={firm}
-          edits={edits}
-          setAxis={setAxis}
-          focused={focused}
-          setFocused={setFocused}
-        />
+          <DecisionMemory firm={firm} allFirms={allFirms} firmsLoading={firmsLoading} />
 
-        <FindingsSection
+          <HardGates
+            firm={firm}
+            edits={edits}
+            setAxis={setAxis}
+            focused={focused}
+            setFocused={setFocused}
+          />
+
+          <FindingsSection
+            firm={firm}
+            edits={edits}
+            onApply={(axis, value) => {
+              // Legacy path — analyst-typed / conflict-resolved value.
+              // Coerce booleans + numbers so a hard-gate axis picks up as
+              // typed data rather than being ignored by HardGates' segmented
+              // control (which only honors real booleans).
+              const key = FINDING_AXIS_TO_KEY[(axis ?? "").trim().toLowerCase()];
+              if (key === undefined) {
+                return;
+              }
+              const coerced = coerceFindingValue(key, value);
+              if (coerced === undefined) {
+                return;
+              }
+              setAxis(key, coerced);
+            }}
+            applyEdit={setAxis}
+            pendingVerify={pendingVerify}
+            queueVerify={queueVerify}
+          />
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+            <ConfirmChecklist firm={firm} mirror={after} edits={edits} />
+            <SourceExcerpts findings={findings} />
+          </div>
+        </div>
+
+        <YourCallRail
           firm={firm}
           actionFirm={actionFirm}
-          edits={edits}
-          onApply={(axis, value) => {
-            // Legacy path — analyst-typed / conflict-resolved value.
-            // Coerce booleans + numbers so a hard-gate axis picks up as
-            // typed data rather than being ignored by HardGates' segmented
-            // control (which only honors real booleans).
-            const key = FINDING_AXIS_TO_KEY[(axis ?? "").trim().toLowerCase()];
-            if (key === undefined) {
-              return;
-            }
-            const coerced = coerceFindingValue(key, value);
-            if (coerced === undefined) {
-              return;
-            }
-            setAxis(key, coerced);
-          }}
-          applyEdit={setAxis}
-          pendingVerify={pendingVerify}
-          queueVerify={queueVerify}
+          onCommit={onCommit}
+          dirty={dirty}
+          enrichPending={enrich.isPending}
+          enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
         />
+      </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
-          <ConfirmChecklist firm={firm} mirror={after} edits={edits} />
-          <SourceExcerpts findings={findings} />
-        </div>
-      </main>
-
-      <YourCallRail
-        firm={firm}
-        actionFirm={actionFirm}
-        onCommit={onCommit}
-        dirty={dirty}
-        enrichPending={enrich.isPending}
-        enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
-      />
+      <EvidenceColumn />
     </div>
   );
 }

@@ -174,7 +174,8 @@ function geo(axis: string, v: number | null | undefined): AxisScore {
   return { axis, score: s, band: "geo_score=" + s, known: true };
 }
 
-function tierFor(total: number, model: Model): Tier {
+/** The tier a total earns under a model's thresholds. */
+export function tierFor(total: number, model: Model): Tier {
   const t = TIER_THRESHOLDS[model];
   if (total >= t.A) {
     return "A";
