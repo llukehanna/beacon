@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
 import { Metric, Panel, Skeleton } from "@/ui";
+import { visibleTrend } from "@/ui/metricTrend";
 import type { HomeSummary } from "../../shared/summaries";
 import type { Trend } from "../../shared/trends";
 import { INSUFFICIENT_THRESHOLD } from "../../shared/trustMetrics";
 import styles from "./MetricRow.module.css";
+import { coverageParts } from "./coverage";
 import { sharePercent } from "./share";
 
 const count = (n: number) => n.toLocaleString("en-US");
@@ -12,7 +14,9 @@ const count = (n: number) => n.toLocaleString("en-US");
 const asTrend = (t: Trend | null) =>
   t === null ? null : { points: t.points.map((p) => p.value), delta: t.delta };
 
-const daysOf = (t: Trend | null) => (t === null ? undefined : `${t.points.length} days`);
+/** The window label, only while the card actually draws the trend it describes. */
+const daysOf = (t: Trend | null) =>
+  visibleTrend(asTrend(t)).points === null ? undefined : `${t!.points.length} days`;
 
 function Card({ to, label, children }: { to: string; label: string; children: React.ReactNode }) {
   return (
@@ -37,8 +41,7 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
   }
 
   const { grounded, trust, trends, funnel, mandates } = data;
-  const firms = Object.values(funnel).reduce((a, b) => a + b, 0);
-  const open = funnel.Discovered + funnel.Screening;
+  const coverage = coverageParts(funnel);
   const agreementReady = trust.decidedFindings >= INSUFFICIENT_THRESHOLD;
 
   return (
@@ -92,8 +95,12 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
         <Metric
           label="Firms in coverage"
           aside={`${count(mandates.length)} mandate${mandates.length === 1 ? "" : "s"}`}
-          value={count(firms)}
-          meaning={`${count(open)} open · ${count(funnel.Passed)} passed`}
+          value={count(coverage.total)}
+          meaning={[
+            `${count(coverage.open)} open`,
+            ...(coverage.inProgress > 0 ? [`${count(coverage.inProgress)} in progress`] : []),
+            `${count(coverage.passed)} passed`,
+          ].join(" · ")}
         />
       </Card>
     </div>
