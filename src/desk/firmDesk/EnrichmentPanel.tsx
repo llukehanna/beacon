@@ -15,6 +15,7 @@ import styles from "./EnrichmentPanel.module.css";
 import { EvidenceDrawer, EvidencePanel } from "./EvidencePanel";
 import { FirmHeader } from "./FirmHeader";
 import { SpineAxes } from "./SpineAxes";
+import { agentHasRun } from "./agentRun";
 import { buildAxisRows, summarizeRows } from "./axisRows";
 import {
   type EditMap,
@@ -111,10 +112,12 @@ export function EnrichmentPanel({
     [findings, pendingVerify],
   );
 
-  const observations = useFirmObservations(firm.firmId);
   // The observations are what the providers would say; they are only what the agent saw once
-  // it has run, so a firm with no findings shows none of them.
-  const seen = findings.length > 0 ? observations.data : undefined;
+  // it has run. Analyst entries are findings too, so "has run" is read from who wrote them,
+  // never from the firm's enrichment stamp or the mere presence of findings.
+  const agentRan = findingsLoading ? undefined : agentHasRun(findings);
+  const observations = useFirmObservations(agentRan === true ? firm.firmId : undefined);
+  const seen = agentRan === true ? observations.data : undefined;
   const rows = React.useMemo(
     () =>
       buildAxisRows(
@@ -134,7 +137,7 @@ export function EnrichmentPanel({
   // The grid shows once the provider readings are in as well as the findings: until then a row
   // can be picked whose evidence has nothing to show yet, and the summary above the grid
   // reads as final while the cells under it are still empty.
-  const gridLoading = findingsLoading || (findings.length > 0 && observations.isLoading);
+  const gridLoading = findingsLoading || (agentRan === true && observations.isLoading);
 
   // Where the wide layout opens: the first axis that needs a decision, once per firm.
   const autoSelected = React.useRef<string | undefined>(undefined);
@@ -354,7 +357,7 @@ export function EnrichmentPanel({
             configsLoading={configsLoading}
           />
 
-          <AgentRunStrip firm={firm} actionFirm={actionFirm} />
+          <AgentRunStrip firm={firm} actionFirm={actionFirm} agentRan={agentRan} />
 
           <AxisGrid
             rows={rows}

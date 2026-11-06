@@ -162,6 +162,47 @@ test("desk renders a never-enriched firm", async ({ page }) => {
   expect(problems).toEqual([]);
 });
 
+test("an analyst-only commit shows no provider readings the agent never fetched", async ({
+  page,
+}) => {
+  await openDesk(page);
+  await page
+    .getByRole("list", { name: "Firms in the queue" })
+    .getByRole("button")
+    .filter({ hasText: "Not yet enriched" })
+    .first()
+    .click();
+  await expect(page.getByText("No agent run yet")).toBeVisible();
+  await expect(page).toHaveURL(/firmId=/);
+  const firmUrl = page.url();
+
+  // The analyst answers one axis by hand and commits.
+  await page.locator('tr[data-axis="services_fit"]').click();
+  await evidence(page).getByRole("radio").first().click();
+  const committed = page.waitForResponse(
+    (res) =>
+      res.url().endsWith("/api/actions") &&
+      res.request().postData()?.includes("enrichFirm") === true,
+  );
+  await commitEnrichment(page).click();
+  expect((await committed).status()).toBe(200);
+
+  // The firm now carries an enrichment stamp, but the agent still has not run.
+  await page.goto(firmUrl);
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  const strip = page.getByRole("region", { name: "Agent run" });
+  await expect(strip).toContainText("No agent run yet");
+  await expect(strip).not.toContainText(/\d+ hits?/);
+  await expect(page.getByRole("button", { name: "Run agent" })).toBeVisible();
+  // The analyst's own value is on the grid; no provider column shows a reading.
+  await expect(page.locator('tr[data-axis="services_fit"]')).not.toHaveAttribute(
+    "data-state",
+    "empty",
+  );
+  await expect(page.locator('tr [role="img"][aria-label*="onfidence"]')).toHaveCount(0);
+  await expect(page.getByText("not grounded")).toHaveCount(0);
+});
+
 test("the queue's search and show-all survive the sidebar drawer at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await openDesk(page);
