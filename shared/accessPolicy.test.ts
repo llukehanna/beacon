@@ -6,6 +6,7 @@ import {
   PERSONAS,
   type Persona,
   type PolicyObject,
+  REDACTED_RULE_PROPS,
   canSee,
   codenameFor,
   firmColumnOf,
@@ -15,6 +16,7 @@ import {
   redactDerivedName,
   redactMandate,
   redactObject,
+  redactRule,
   uniqueCodename,
   visibilityOf,
   walledMandateIds,
@@ -272,5 +274,27 @@ describe("redaction", () => {
     expect(redactObject("analyst", other, GRANTS, names)).toBe(other);
     const firm = { $apiName: "Firm", $primaryKey: "firm-a", firmName: "Acme" };
     expect(redactObject("analyst", firm, GRANTS, names)).toBe(firm);
+  });
+});
+
+describe("REDACTED_RULE_PROPS", () => {
+  it("lists exactly the rule properties redactRule changes", () => {
+    const rule = {
+      supportingDecisionIds: JSON.stringify(["d-ok", "d-hidden"]),
+      rationaleClusterSummary: "Too small for Acme",
+      supportingFirmCount: 2,
+      mandateScope: "Acme",
+    };
+    const hidden = new Map([["d-hidden", "firm-r"]]);
+    const { rule: shown } = redactRule(rule, hidden, (s) => s.replace("Acme", "Kestrel"));
+    // A rule with a hidden decision loses its rationale and count; the scope is masked either way.
+    const changed = (Object.keys(rule) as Array<keyof typeof rule>).filter(
+      (k) => shown[k] !== rule[k],
+    );
+    expect([...changed].sort()).toEqual([...REDACTED_RULE_PROPS].sort());
+    // With nothing hidden the rationale is masked instead of removed.
+    const open = redactRule(rule, new Map(), (s) => s.replace("Acme", "Kestrel")).rule;
+    expect(open.rationaleClusterSummary).toBe("Too small for Kestrel");
+    expect(Object.keys(open).sort()).toEqual(Object.keys(rule).sort());
   });
 });

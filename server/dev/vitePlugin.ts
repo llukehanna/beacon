@@ -27,12 +27,14 @@ async function toRequest(req: IncomingMessage, url: URL): Promise<Request> {
 
 /**
  * True when the browser closed the connection before the answer was sent: a navigation or a
- * cancelled fetch abandons its requests, and Node then fails the read with "aborted"
- * (ECONNRESET). There is nobody left to answer, so it is not an error.
+ * cancelled fetch abandons its requests, and Node then fails the read with "aborted". There is
+ * nobody left to answer, so it is not an error. Only the connection says so: an ECONNRESET from
+ * anything else (a database socket) on a live connection is a real failure and goes to next().
+ * `req.destroyed` is not used: Node sets it once a request body has been read in full, which is
+ * true for every POST here.
  */
-function abandoned(req: IncomingMessage, res: ServerResponse, e: unknown): boolean {
-  const reset = (e as { code?: unknown } | null)?.code === "ECONNRESET";
-  return reset || req.socket.destroyed || res.destroyed;
+function abandoned(req: IncomingMessage, res: ServerResponse): boolean {
+  return req.socket.destroyed || res.destroyed;
 }
 
 /** Routes /api/<name> to api/<name>.ts during `vite dev`, mirroring the Worker in worker/. */
@@ -66,7 +68,7 @@ export function devApi(): Plugin {
         } catch (e) {
           // Passed to next(), Vite would log it and send it to every open page as an error overlay,
           // which then covers whatever test or visitor is on the page when it arrives.
-          if (!abandoned(req, res, e)) {
+          if (!abandoned(req, res)) {
             next(e);
           }
         }

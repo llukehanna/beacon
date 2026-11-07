@@ -57,8 +57,9 @@ Every failure rejects with an `Error`:
 - `NetworkError` means no answer arrived.
 
 `errorMessage(error)` turns anything thrown into text for the screen: the server's text when there
-is one, a sentence for a network failure, an `Error`'s message, a string as it is, and a generic
-sentence for the rest. Screens show that, not `String(error)`.
+is one, a sentence for a network failure, an `Error`'s message, a string as it is, the `message` of
+a plain object (a response body's `error` first), and a generic sentence for the rest. Text longer
+than 400 characters is cut and ends with an ellipsis. Screens show that, not `String(error)`.
 
 Hooks return `error` as `Error | undefined`. `applyAction` from `useOsdkAction` also rejects, so a
 caller that does not show `error` itself must catch it.

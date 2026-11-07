@@ -12,15 +12,20 @@ export const JSONRPC_INVALID_PARAMS = -32602;
 export const JSONRPC_INTERNAL_ERROR = -32603;
 /** In the implementation-defined server-error range (-32000 to -32099): the caller is not allowed. */
 export const JSONRPC_FORBIDDEN = -32001;
+/** Also server-defined: the Worker's rate limiter refused the call (HTTP 429). */
+export const JSONRPC_RATE_LIMITED = -32002;
 
 /**
  * The JSON-RPC code for a failure that carries an HTTP status, for the errors raised before a
- * message is read (origin, content type, size): a refused request is -32600, a forbidden one
- * -32001, anything else an internal error.
+ * message is read (origin, content type, size, rate limit): a refused request is -32600, a
+ * forbidden one -32001, a rate-limited one -32002, anything else an internal error.
  */
 export function rpcCodeForStatus(status: number): number {
   if (status === 403) {
     return JSONRPC_FORBIDDEN;
+  }
+  if (status === 429) {
+    return JSONRPC_RATE_LIMITED;
   }
   return status === 400 || status === 413 || status === 415
     ? JSONRPC_INVALID_REQUEST
