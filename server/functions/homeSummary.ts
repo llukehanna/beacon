@@ -68,7 +68,7 @@ export async function loadLeanFirms(q: Queryable, hidden: readonly string[]): Pr
       WHERE "firmId" <> ALL($1::text[])`,
     [hidden],
   );
-  return rows.map((r) => toWire("Firm", r)) as unknown as FirmRow[];
+  return rows.map((r) => toWire("Firm", r));
 }
 
 async function loadActiveConfigs(q: Queryable): Promise<ActiveConfigRule[]> {

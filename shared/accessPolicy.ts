@@ -285,12 +285,7 @@ export function redactObject<T extends WireLike>(
     return object;
   }
   if (object.$apiName === "Mandate") {
-    return redactMandate(
-      persona,
-      object as MandateLike & T,
-      object.$primaryKey,
-      grants,
-    ) as unknown as T;
+    return redactMandate(persona, object as MandateLike & T, object.$primaryKey, grants);
   }
   if (object.$apiName === "Search" || object.$apiName === "SearchList") {
     const mandateId = typeof object.mandateId === "string" ? object.mandateId : "";

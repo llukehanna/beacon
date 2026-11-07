@@ -140,14 +140,15 @@ export function coerceFindingValue(
 // fall back to whatever's persisted on the firm. Returns null/undefined
 // verbatim so the caller can tell "unset" from "explicitly false".
 export function effectiveAxisValue(
-  firm: Record<string, unknown>,
+  firm: object,
   edits: Record<string, string | number | boolean>,
   editKey: string,
 ): string | number | boolean | null | undefined {
   if (Object.prototype.hasOwnProperty.call(edits, editKey)) {
     return edits[editKey];
   }
-  const v = firm[readKeyFor(editKey)];
+  // The firm is a wide row; the axis's read key names one of its columns.
+  const v: unknown = Reflect.get(firm, readKeyFor(editKey));
   return v as string | number | boolean | null | undefined;
 }
 

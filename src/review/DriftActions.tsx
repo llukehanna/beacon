@@ -18,6 +18,8 @@ import { type DriftItem } from "./driftModel";
  */
 export function DriftActions({ item }: { item: DriftItem }): React.ReactElement | null {
   const { drift, firm, kind, canPass, firmName } = item;
+  // Nothing is offered until the firm has loaded, so the handlers below never run without one.
+  const firmId = firm?.firmId ?? "";
   const reEngage = useOsdkAction(reEngageFirmAction);
   const keepPassed = useOsdkAction(keepPassedAction);
   const acknowledge = useOsdkAction(acknowledgeDriftAction);
@@ -46,20 +48,24 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
     if (anyPending) {
       return;
     }
-    void reEngage.applyAction({ firm, driftEvent: drift } as never).catch(() => undefined);
+    void reEngage
+      .applyAction({ firm: firmId, driftEvent: drift.driftEventId })
+      .catch(() => undefined);
   };
   const onAcknowledge = (): void => {
     if (anyPending) {
       return;
     }
-    void acknowledge.applyAction({ driftEvent: drift, note: null } as never).catch(() => undefined);
+    void acknowledge
+      .applyAction({ driftEvent: drift.driftEventId, note: null })
+      .catch(() => undefined);
   };
   const onKeepPassed = (): void => {
     if (anyPending) {
       return;
     }
     void keepPassed
-      .applyAction({ driftEvent: drift, rationale: note.trim() } as never)
+      .applyAction({ driftEvent: drift.driftEventId, rationale: note.trim() })
       .then(closeNotePanel)
       .catch(() => undefined);
   };
@@ -68,7 +74,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
       return;
     }
     void pass
-      .applyAction({ firm, rejectionRationale: note.trim() } as never)
+      .applyAction({ firm: firmId, rejectionRationale: note.trim() })
       .then(closeNotePanel)
       .catch(() => undefined);
   };

@@ -22,7 +22,6 @@ import { FirmList } from "./FirmList";
 import styles from "./PipelinePage.module.css";
 import { StageTabs } from "./StageTabs";
 import {
-  type FirmView,
   NO_PROFILE_FILTER,
   type ProfileFilter,
   type StageFilter,
@@ -83,7 +82,7 @@ export default function PipelinePage(): React.ReactElement {
     [setParams],
   );
 
-  const firms = React.useMemo(() => (data ?? []) as unknown as FirmView[], [data]);
+  const firms = React.useMemo(() => data ?? [], [data]);
   // Newest reject decision per firm: the pass reason, and the score and tier the firm was passed
   // at. Decisions are ordered newest first.
   const rejectByFirm = React.useMemo(
@@ -285,7 +284,7 @@ export default function PipelinePage(): React.ReactElement {
               <div id="approved-lookalikes">
                 <ApprovedLookalikes
                   approved={approvedFirms}
-                  universe={firms as FirmLike[]}
+                  universe={firms}
                   onClose={closeLookalikes}
                 />
               </div>

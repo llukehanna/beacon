@@ -9,7 +9,7 @@ export async function fetchAllFindings(): Promise<FindingLike[]> {
   let pageToken: string | undefined;
   do {
     const page = await fetchObjectsPage("ResearchFinding", { pageSize: PAGE, pageToken });
-    out.push(...(page.data as unknown as FindingLike[]));
+    out.push(...page.data);
     pageToken = page.nextPageToken ?? undefined;
   } while (pageToken !== undefined);
   return out;

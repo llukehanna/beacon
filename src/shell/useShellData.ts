@@ -42,10 +42,7 @@ export function useDeskScope(enabled: boolean): DeskScope {
     pageSize: 1,
     enabled: searchId !== "",
   });
-  const mandateId =
-    searchId === ""
-      ? ""
-      : (((searches ?? []) as unknown as Array<{ mandateId?: string | null }>)[0]?.mandateId ?? "");
+  const mandateId = searchId === "" ? "" : ((searches ?? [])[0]?.mandateId ?? "");
   const { data: mandates } = useOsdkObjects(Mandate, {
     where: { mandateId: { $eq: mandateId } },
     pageSize: 1,
@@ -58,10 +55,10 @@ export function useDeskScope(enabled: boolean): DeskScope {
   });
 
   const mandate = mandateId === "" ? undefined : (mandates ?? [])[0];
-  const mandateTitle = (mandate as unknown as { title?: string | null } | undefined)?.title ?? null;
+  const mandateTitle = mandate?.title ?? null;
   const firm = firmId === "" ? undefined : (firms ?? [])[0];
   return {
     mandate: mandateId === "" ? null : (mandateTitle ?? mandateId),
-    firm: (firm as unknown as { firmName?: string | null } | undefined)?.firmName ?? null,
+    firm: firm?.firmName ?? null,
   };
 }

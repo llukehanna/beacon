@@ -171,7 +171,7 @@ export function buildTearSheet({
   signals = [],
 }: TearSheetInput): TearSheet {
   const mirror = mirrorScore(toScoreInput(firm));
-  const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" } as never, rules);
+  const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" }, rules);
   const hard = mirror.hardRejected || verdict.hardScreened;
   // The stage is the firm's lifecycle stage, as the Desk header chip words it. A screen is shown
   // beside it (score.screenedBecause), never as a stage: a rule-screened firm nobody has passed

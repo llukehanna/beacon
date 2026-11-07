@@ -14,6 +14,8 @@ const sharedRules = /** @type import("eslint").Linter.RulesRecord */ ({
   "eqeqeq": ["error", "always", { "null": "ignore" }],
   "no-console": "warn",
   "curly": ["error", "all"],
+  // Off: stubs and adapters implement async interfaces (Queryable, Clusterer, handlers) without awaiting.
+  "@typescript-eslint/require-await": "off",
   "@typescript-eslint/no-unused-vars": ["error", {
     "argsIgnorePattern": "^_",
   }],
@@ -26,7 +28,7 @@ const sharedRules = /** @type import("eslint").Linter.RulesRecord */ ({
 
 export default tseslint.config(
   {
-    files: ["eslint.config.mjs", "src/**/*.{js,mjs,cjs,ts,jsx,tsx}"],
+    files: ["src/**/*.{js,mjs,cjs,ts,jsx,tsx}"],
     settings: {
       react: {
         version: "detect",
@@ -44,10 +46,14 @@ export default tseslint.config(
       },
 
       parser: tsParser,
+      parserOptions: {
+        project: ["./tsconfig.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     extends: [
       eslint.configs.recommended,
-      ...tseslint.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
     ],
     plugins: {
       "react": /** @type import("eslint").ESLint.Plugin */ (reactPlugin),
@@ -96,10 +102,14 @@ export default tseslint.config(
       },
 
       parser: tsParser,
+      parserOptions: {
+        project: ["./tsconfig.server.json"],
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
     extends: [
       eslint.configs.recommended,
-      ...tseslint.configs.recommended,
+      ...tseslint.configs.recommendedTypeChecked,
     ],
     plugins: {
       "import": importPlugin,
@@ -114,5 +124,11 @@ export default tseslint.config(
     rules: {
       "no-console": "off",
     },
+  },
+  {
+    // Plain JavaScript outside both TypeScript projects: the config and the Node scripts.
+    files: ["eslint.config.mjs", "scripts/**/*.mjs"],
+    extends: [eslint.configs.recommended, tseslint.configs.disableTypeChecked],
+    languageOptions: { globals: { ...globals.node } },
   },
 );

@@ -5,6 +5,7 @@ import { ResearchFinding, enrichFirmAction, verifyFindingAction } from "@/data/o
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { isTypingTarget } from "@/shell/keys";
 import { useTourStepId } from "@/tour/tourContext";
+import { looseText } from "../../../shared/looseText";
 import { ENRICH_AXES } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
 import { HARD_GATE_PASS_WHEN, effectiveAxisValue, verifiedBaselineEdits } from "../findingActions";
@@ -22,9 +23,9 @@ import { buildAxisRows, summarizeRows } from "./axisRows";
 import {
   type EditMap,
   type FirmView,
-  NUMERIC_KEYS,
   buildMerged,
   editorForEditKey,
+  enrichParams,
   toScoreInput,
 } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
@@ -34,14 +35,12 @@ import { useMediaQuery } from "./useMediaQuery";
 
 export function EnrichmentPanel({
   firm,
-  actionFirm,
   allFirms,
   firmsLoading,
   activeConfigs,
   configsLoading,
 }: {
   firm: FirmView;
-  actionFirm: unknown;
   allFirms: FirmView[];
   firmsLoading: boolean;
   activeConfigs: readonly ActiveConfigRule[];
@@ -101,10 +100,7 @@ export function EnrichmentPanel({
     where: { firmId: { $eq: firmId } },
     autoFetchMore: true,
   });
-  const findings = React.useMemo(
-    () => (findingsData ?? []) as unknown as FindingLike[],
-    [findingsData],
-  );
+  const findings = React.useMemo(() => findingsData ?? [], [findingsData]);
   // Staged verifications render as verified before they're committed — the
   // overlay is display state only; the server still says proposed.
   const overlaidFindings = React.useMemo(
@@ -193,8 +189,7 @@ export function EnrichmentPanel({
   }, []);
 
   const getCurrent = React.useCallback(
-    (editKey: string) =>
-      effectiveAxisValue(firm as unknown as Record<string, unknown>, edits, editKey),
+    (editKey: string) => effectiveAxisValue(firm, edits, editKey),
     [firm, edits],
   );
 
@@ -207,7 +202,7 @@ export function EnrichmentPanel({
   // verifiedBaselineEdits returns [].
   React.useEffect(() => {
     const staged = verifiedBaselineEdits(findings, (editKey) =>
-      effectiveAxisValue(firm as unknown as Record<string, unknown>, edits, editKey),
+      effectiveAxisValue(firm, edits, editKey),
     );
     if (staged.length === 0) {
       return;
@@ -236,19 +231,10 @@ export function EnrichmentPanel({
   }, [findings]);
 
   const onCommit = React.useCallback(() => {
-    const args: Record<string, unknown> = {
-      firm: actionFirm,
-      fieldsEnteredManually: JSON.stringify(Object.keys(edits)),
-    };
-    for (const [k, v] of Object.entries(edits)) {
-      if (v === "" || v === undefined) {
-        continue;
-      }
-      args[k] = NUMERIC_KEYS.includes(k) ? Number(v) : v;
-    }
+    const args = enrichParams(firmId, edits);
     void (async () => {
       try {
-        await enrich.applyAction(args as never);
+        await enrich.applyAction(args);
       } catch {
         // Surfaced via enrich.error; everything stays staged for retry.
         return;
@@ -262,12 +248,12 @@ export function EnrichmentPanel({
         if (obj === undefined) {
           continue;
         }
-        const vArgs: Record<string, unknown> = { finding: obj };
-        if (ov !== true) {
-          vArgs.overrideValue = ov;
-        }
         try {
-          await verify.applyAction(vArgs as never);
+          await verify.applyAction(
+            ov === true
+              ? { finding: obj.findingId }
+              : { finding: obj.findingId, overrideValue: ov },
+          );
         } catch (e) {
           failed[findingId] = ov;
           if (firstError === null) {
@@ -277,14 +263,14 @@ export function EnrichmentPanel({
       }
       setEdits({});
       setPendingVerify(failed);
-      setFlushError(firstError === null ? null : String(firstError));
+      setFlushError(firstError === null ? null : looseText(firstError));
       // The enrich function modifies the firm, but the action's edit
       // response doesn't reliably list it — refresh explicitly so the
       // committed fields land in the axis rows (and the staged-edit
       // hydration sees fresh firm state instead of racing a stale one).
-      void observable.invalidateObjects(actionFirm as never);
+      void observable.invalidateObjects();
     })();
-  }, [actionFirm, edits, enrich, pendingVerify, findingObjById, verify, observable]);
+  }, [firmId, edits, enrich, pendingVerify, findingObjById, verify, observable]);
 
   // Keyboard shortcuts. The arrow keys move the grid's selection; 0, 1, 2 and P, F answer the
   // selected axis; V and R act on a proposed value (see EvidenceBody).
@@ -386,7 +372,7 @@ export function EnrichmentPanel({
             configsLoading={configsLoading}
           />
 
-          <AgentRunStrip firm={firm} actionFirm={actionFirm} agentRan={agentRan} />
+          <AgentRunStrip firm={firm} firmId={firmId} agentRan={agentRan} />
 
           <AxisGrid
             rows={rows}
@@ -404,7 +390,7 @@ export function EnrichmentPanel({
 
           <DecisionBar
             firm={firm}
-            actionFirm={actionFirm}
+            firmId={firmId}
             mirror={after}
             edits={edits}
             onCommit={onCommit}

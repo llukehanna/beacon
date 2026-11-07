@@ -27,6 +27,7 @@ export function devApi(): Plugin {
   return {
     name: "beacon-dev-api",
     configureServer(server) {
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises -- connect ignores the returned promise; failures go to next() below
       server.middlewares.use(async (req, res, next) => {
         const url = new URL(req.url ?? "/", "http://localhost");
         const m = /^\/api\/([a-z]+)$/.exec(url.pathname);
@@ -41,7 +42,9 @@ export function devApi(): Plugin {
             res.end();
             return;
           }
-          const response = (await handler(await toRequest(req, url))) as Response;
+          const response = await (handler as (request: Request) => Promise<Response>)(
+            await toRequest(req, url),
+          );
           res.statusCode = response.status;
           response.headers.forEach((v, k) => res.setHeader(k, v));
           res.end(Buffer.from(await response.arrayBuffer()));

@@ -207,13 +207,11 @@ export function EvidenceBody({
   const accept = async (chosen: FindingLike, other: FindingLike): Promise<void> => {
     setResolveError(null);
     try {
-      // The action takes the finding objects themselves (FindingLike is a shape-only cast of
-      // the rows the query returned), never ids.
       await resolve.applyAction({
-        chosenFinding: chosen,
-        rejectedFinding: other,
+        chosenFinding: chosen.findingId,
+        rejectedFinding: other.findingId,
         chosenValue: chosen.value ?? "",
-      } as never);
+      });
       // Only once the ontology confirms the resolve is the choice staged on the axis.
       const key = FINDING_AXIS_TO_KEY[(chosen.axis ?? "").trim().toLowerCase()];
       const coerced = key === undefined ? undefined : coerceFindingValue(key, chosen.value);

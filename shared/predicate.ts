@@ -4,6 +4,7 @@
  * ruleMatches: numeric compare when both sides parse, case-insensitive
  * string equality otherwise, and a missing value never screens a firm.
  */
+import { looseText } from "./looseText.js";
 import { OPERATORS } from "./vocab.js";
 
 export interface Predicate {
@@ -43,7 +44,7 @@ export function ruleKey(
 export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Predicate): boolean {
   const scope = (p.model ?? "").trim().toLowerCase();
   const firmScope =
-    String(firm.firmType ?? "")
+    looseText(firm.firmType ?? "")
       .trim()
       .toLowerCase() === "cs"
       ? "cs"
@@ -81,7 +82,7 @@ export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Pre
         return a !== b;
     }
   }
-  const eq = String(value).trim().toLowerCase() === t.toLowerCase();
+  const eq = looseText(value).trim().toLowerCase() === t.toLowerCase();
   if (op === "==") {
     return eq;
   }

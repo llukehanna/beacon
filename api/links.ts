@@ -22,7 +22,7 @@ export async function POST(request: Request): Promise<Response> {
     }
     const db = await getDb();
     const access = await resolveAccess(request, db);
-    const linked = await listLinked(db, type, link, pks as string[], access.hiddenFirmIds);
+    const linked = await listLinked(db, type, link, pks, access.hiddenFirmIds);
     return json({ data: linked });
   } catch (e) {
     return jsonError(e);

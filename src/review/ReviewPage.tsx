@@ -9,13 +9,7 @@ import { DriftDetail } from "./DriftDetail";
 import { DriftList } from "./DriftList";
 import styles from "./ReviewPage.module.css";
 import { SignalsSection } from "./SignalsSection";
-import {
-  type DriftItem,
-  type DriftLike,
-  type FirmLike,
-  buildDriftItems,
-  driftRow,
-} from "./driftModel";
+import { type DriftItem, buildDriftItems, driftRow } from "./driftModel";
 import { buildSignalsView } from "./signalsModel";
 
 /**
@@ -49,19 +43,15 @@ export default function ReviewPage(): React.ReactElement {
   const wide = useMediaQuery("(min-width: 1280px)");
   const [selectedId, setSelectedId] = React.useState<string | undefined>(undefined);
 
-  const drifts = React.useMemo(() => (driftData ?? []) as unknown as DriftLike[], [driftData]);
+  const drifts = React.useMemo(() => driftData ?? [], [driftData]);
   const { open, resolved } = React.useMemo(
-    () => buildDriftItems(drifts, (firmsData ?? []) as unknown as FirmLike[], decisionsData ?? []),
+    () => buildDriftItems(drifts, firmsData ?? [], decisionsData ?? []),
     [drifts, firmsData, decisionsData],
   );
 
   const now = Date.now();
   // A few dozen rows at most, so it is rebuilt on each render rather than memoised against `now`.
-  const signals = buildSignalsView(
-    signalsData ?? [],
-    (firmsData ?? []) as unknown as FirmLike[],
-    now,
-  );
+  const signals = buildSignalsView(signalsData ?? [], firmsData ?? [], now);
   const openRows = open.map((i) => driftRow(i, now));
   const resolvedRows = resolved.map((i) => driftRow(i, now));
 

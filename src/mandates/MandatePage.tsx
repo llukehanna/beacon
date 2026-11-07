@@ -6,9 +6,6 @@ import { EmptyState, Notice, PageHeader, Panel, Skeleton } from "@/ui";
 import type { FirmLike as ExportFirm } from "../../shared/exportRows";
 import {
   EMPTY_COUNTS,
-  type FirmLike,
-  type MembershipLike,
-  type SearchLike,
   countMandateFirms,
   mandateFirmIds,
   searchListFirmIds,
@@ -16,7 +13,7 @@ import {
 import { MandateCard, SearchListRow } from "./MandateCard";
 import styles from "./MandatePage.module.css";
 import { NewMandateForm } from "./NewMandateForm";
-import { FIRM_COUNT_PAGE_SIZE, type MandateLike, type SearchListLike } from "./mandateModel";
+import { FIRM_COUNT_PAGE_SIZE, type SearchListLike } from "./mandateModel";
 
 const NO_FIRMS: readonly ExportFirm[] = [];
 
@@ -48,29 +45,23 @@ export default function MandatePage(): React.ReactElement {
   });
   const { data: firmData } = useOsdkObjects(Firm, { autoFetchMore: true });
 
-  const mandates = React.useMemo(
-    () => (mandateData ?? []) as unknown as MandateLike[],
-    [mandateData],
-  );
-  const searchLists = React.useMemo(
-    () => (searchData ?? []) as unknown as SearchListLike[],
-    [searchData],
-  );
+  const mandates = React.useMemo(() => mandateData ?? [], [mandateData]);
+  const searchLists = React.useMemo(() => searchData ?? [], [searchData]);
 
   // One batched traversal of SearchList↔firms for the mandate-level union, alongside the per-row
   // useLinks that renders each list's own count.
-  const searchListInstances = React.useMemo(() => (searchData ?? []) as never[], [searchData]);
+  const searchListInstances = React.useMemo(() => searchData ?? [], [searchData]);
   const searchListLinks = useLinks(searchListInstances, "firms", {
     pageSize: FIRM_COUNT_PAGE_SIZE,
-    $select: ["firmId"] as never,
+    $select: ["firmId"],
   });
 
   const idsByMandate = React.useMemo(
     () =>
       mandateFirmIds({
-        searches: (searchObjData ?? []) as unknown as SearchLike[],
-        memberships: (membershipData ?? []) as unknown as MembershipLike[],
-        firms: (firmData ?? []) as unknown as FirmLike[],
+        searches: searchObjData ?? [],
+        memberships: membershipData ?? [],
+        firms: firmData ?? [],
         searchLists,
         searchListFirmIds: searchListFirmIds(searchListLinks.linkedObjectsBySourcePrimaryKey),
       }),
@@ -88,7 +79,7 @@ export default function MandatePage(): React.ReactElement {
   // The scoped firms behind each card's count, as the export writes them.
   const firmsByMandate = React.useMemo(() => {
     const byId = new Map<string, ExportFirm>();
-    for (const f of (firmData ?? []) as unknown as ExportFirm[]) {
+    for (const f of firmData ?? []) {
       byId.set(f.firmId ?? "", f);
     }
     const out = new Map<string, ExportFirm[]>();
@@ -181,7 +172,6 @@ export default function MandatePage(): React.ReactElement {
                   {orphans.map((s) => (
                     <SearchListRow
                       key={s.searchId}
-                      searchInstance={s}
                       searchId={s.searchId}
                       displayName={s.name ?? s.searchId}
                     />

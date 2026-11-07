@@ -3,20 +3,17 @@ import { Link, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
-import { type FindingLike } from "@/desk/axisState";
-import { type FirmView } from "@/desk/firmDesk/deskModel";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
 import { formatScore } from "@/desk/scoreFormat";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
-import { SYNTHETIC_LABEL, type SignalLike } from "../../shared/marketSignals";
+import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import styles from "./TearSheetPage.module.css";
 import {
   type AbstentionItem,
   type Citation,
   type ConflictItem,
-  type DecisionInput,
   type EvidenceItem,
   type SignalLine,
   type TearSheet,
@@ -351,7 +348,7 @@ export default function TearSheetPage(): React.ReactElement {
   });
   const rules = useScreeningRules();
 
-  const firm = ((firmQuery.data ?? [])[0] ?? undefined) as unknown as FirmView | undefined;
+  const firm = (firmQuery.data ?? [])[0] ?? undefined;
   const loading =
     firmQuery.isLoading ||
     findingsQuery.isLoading ||
@@ -370,10 +367,10 @@ export default function TearSheetPage(): React.ReactElement {
         ? undefined
         : buildTearSheet({
             firm,
-            findings: (findingsQuery.data ?? []) as unknown as FindingLike[],
-            decisions: (decisionsQuery.data ?? []) as unknown as DecisionInput[],
+            findings: findingsQuery.data ?? [],
+            decisions: decisionsQuery.data ?? [],
             rules: rules.rankingRules,
-            signals: (signalsQuery.data ?? []) as unknown as SignalLike[],
+            signals: signalsQuery.data ?? [],
           }),
     [firm, loading, findingsQuery.data, decisionsQuery.data, signalsQuery.data, rules.rankingRules],
   );

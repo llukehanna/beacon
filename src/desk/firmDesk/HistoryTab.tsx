@@ -28,10 +28,7 @@ export function HistoryTab({
     autoFetchMore: true,
     enabled: firmId !== "",
   });
-  const history = React.useMemo(
-    () => scoreHistory((data ?? []) as unknown as Parameters<typeof scoreHistory>[0]),
-    [data],
-  );
+  const history = React.useMemo(() => scoreHistory(data ?? []), [data]);
 
   const decisionQuery = useOsdkObjects(ReviewDecision, {
     where: { firmId: { $eq: firmId } },
@@ -39,8 +36,7 @@ export function HistoryTab({
     enabled: firmId !== "",
   });
   const decisions = React.useMemo(
-    () =>
-      firmDecisions((decisionQuery.data ?? []) as unknown as Parameters<typeof firmDecisions>[0]),
+    () => firmDecisions(decisionQuery.data ?? []),
     [decisionQuery.data],
   );
 

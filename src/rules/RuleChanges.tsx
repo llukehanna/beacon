@@ -31,7 +31,7 @@ export function AmendForm({
     // The threshold goes through as typed; the action accepts any comparable and the ontology
     // round-trips the raw value onto the new HardScreenConfig row.
     void amend
-      .applyAction({ proposedRule: rule, newThreshold: value.trim() } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId, newThreshold: value.trim() })
       .then(onDone)
       .catch(() => undefined);
   };
@@ -91,7 +91,7 @@ export function UnapproveConfirm({
   const unapprove = useOsdkAction(unapproveRuleAction);
   const confirm = (): void => {
     void unapprove
-      .applyAction({ proposedRule: rule } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId })
       .then(onDone)
       .catch(() => undefined);
   };

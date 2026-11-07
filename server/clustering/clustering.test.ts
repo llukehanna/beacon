@@ -125,7 +125,7 @@ describe("fixtureClusterer", () => {
   const fixture: ClusteringFixture = {
     inputHash: hashRejections(rows),
     model: "claude-opus-5",
-    proposals: JSON.parse(goodJson).rules,
+    proposals: (JSON.parse(goodJson) as { rules: ClusteringFixture["proposals"] }).rules,
     createdAt: "2026-11-04T00:00:00.000Z",
   };
 

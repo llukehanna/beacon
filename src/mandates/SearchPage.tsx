@@ -23,21 +23,6 @@ import { dropOptionKeeping, mergeValues, pickOption } from "./facetModel";
 // knob farm. The taxonomy is shared with the server's search matcher, so a tile the analyst can
 // pick is always a value the backend understands.
 
-interface MandateShape {
-  mandateId: string;
-  title?: string | null;
-  intentStatement?: string | null;
-  archetype?: string | null;
-  priority?: string | null;
-}
-
-interface SearchShape {
-  searchId: string;
-  mandateId?: string | null;
-  runAt?: string | number | Date | null;
-  resultCount?: number | null;
-}
-
 const FIXED_BREADTH = "exhaustive";
 
 const FACET_GROUPS: Readonly<Record<string, readonly FacetGroup[]>> = {
@@ -69,7 +54,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
     where: { mandateId: { $eq: mandateId ?? "" } },
     pageSize: 1,
   });
-  const mandate = ((mandateQuery.data ?? []) as unknown as MandateShape[])[0];
+  const mandate = (mandateQuery.data ?? [])[0];
   const mandateInstance = (mandateQuery.data ?? [])[0];
   const headline =
     (mandate?.intentStatement ?? "").trim() ||
@@ -84,10 +69,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
     orderBy: { runAt: "desc" },
     autoFetchMore: true,
   });
-  const searches = React.useMemo(
-    () => (searchesData ?? []) as unknown as SearchShape[],
-    [searchesData],
-  );
+  const searches = React.useMemo(() => searchesData ?? [], [searchesData]);
   const [runStartedAt, setRunStartedAt] = React.useState<number | null>(null);
 
   React.useEffect(() => {
@@ -99,7 +81,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
       if (raw === null || raw === undefined) {
         return false;
       }
-      const ts = raw instanceof Date ? raw.getTime() : new Date(raw as string | number).getTime();
+      const ts = new Date(raw).getTime();
       return !Number.isNaN(ts) && ts >= runStartedAt;
     });
     if (fresh) {
@@ -191,7 +173,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
     setRunStartedAt(Date.now());
     void run
       .applyAction({
-        mandate: mandateInstance,
+        mandate: mandateInstance.$primaryKey,
         geographies: geographies.length > 0 ? geographies : undefined,
         industries: mergedIndustries.length > 0 ? mergedIndustries : undefined,
         // Seed firms and exclusions are not part of the analyst surface; the facet picks capture
@@ -199,7 +181,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
         seedFirms: undefined,
         exclusions: undefined,
         breadth: FIXED_BREADTH,
-      } as never)
+      })
       .catch(() => {
         setRunStartedAt(null);
       });

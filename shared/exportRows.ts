@@ -218,10 +218,7 @@ export function exportRows(
 
     const cites: Citation[] = [];
     for (const def of ENRICH_AXES) {
-      const own = axisValue(
-        def,
-        firm[def.firmField as keyof FirmLike] as string | number | boolean,
-      );
+      const own = axisValue(def, firm[def.firmField as keyof FirmLike]);
       const found = byFirmAxis.get(`${firmId}\u0000${def.axis}`);
       const auth = found === undefined ? undefined : pickAuthoritative(found);
       if (auth === undefined || classifyAxis(auth) === "abstained") {

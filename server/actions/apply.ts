@@ -87,8 +87,7 @@ export async function applyAction(
 
 async function execute(
   db: Db,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  def: ActionDef<any, any>,
+  def: ActionDef<Record<string, unknown>, unknown>,
   raw: unknown,
   opts: ApplyOptions,
 ): Promise<ActionResult> {

@@ -1,3 +1,5 @@
+import type { ActionParams } from "../../../shared/actionParams";
+import { looseText } from "../../../shared/looseText";
 import { type FindingLike, retrievedMs } from "../axisState";
 import { HARD_GATE_EDIT_KEYS } from "../findingActions";
 import { type Model, type ScoreInput } from "../scoreMirror";
@@ -37,11 +39,31 @@ export interface FirmView {
   // an approved HardScreenConfig row (post backend fix). Any string
   // containing "reject" / "screen" / "hard" is treated as hard-screened.
   disposition?: string | null;
+  // The market outcome backfilled on the firm, and when and from where it was seen.
+  outcome?: string | null;
+  outcomeObservedAt?: string | null;
+  outcomeSource?: string | null;
 }
 
 export type EditMap = Record<string, string | number | boolean>;
 
 export const NUMERIC_KEYS = ["dealSizeMUsd", "dealsPerMdL3y", "firmAge", "feeGeneratingCount"];
+
+/** The enrichFirm call that commits a firm's staged edits; blank edits are left out. */
+export function enrichParams(firmId: string, edits: EditMap): ActionParams<"enrichFirm"> {
+  const params: Record<string, string | number | boolean> = {
+    firm: firmId,
+    fieldsEnteredManually: JSON.stringify(Object.keys(edits)),
+  };
+  for (const [k, v] of Object.entries(edits)) {
+    if (v === "" || v === undefined) {
+      continue;
+    }
+    params[k] = NUMERIC_KEYS.includes(k) ? Number(v) : v;
+  }
+  // The edit keys are the enrichFirm parameter names (editorForEditKey); the server rejects any other.
+  return params as ActionParams<"enrichFirm">;
+}
 
 // Canonical axis→edit-key mapping lives in ./findingActions so the accept
 // / verify / conflict-detection logic can be unit-tested without React.
@@ -291,7 +313,7 @@ export function formatActionError(err: unknown): string {
   try {
     out = JSON.stringify(err);
   } catch {
-    out = String(err);
+    out = looseText(err);
   }
   return out.length > 400 ? `${out.slice(0, 400)}…` : out;
 }

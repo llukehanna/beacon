@@ -183,7 +183,7 @@ export async function seedHistory(
   });
 
   // 2. Enrich the searched firms plus a few CS firms.
-  const members = (await all(db, "SearchMembership")).map((m) => m.firmId!);
+  const members = (await all(db, "SearchMembership")).map((m) => m.firmId);
   const csFirms = (
     await all(db, "Firm", {
       where: { firmType: { $eq: "CS" } },

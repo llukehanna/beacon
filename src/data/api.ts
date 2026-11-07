@@ -1,3 +1,4 @@
+import type { ObjectOf, ObjectTypeName } from "../../shared/schema";
 import { apiFetch } from "./persona";
 import { type WireObject, serializeParams } from "./wire";
 
@@ -14,6 +15,7 @@ export class ActionFailedError extends Error {
 }
 
 async function readJson<T>(res: Response): Promise<T> {
+  // The wire boundary: the body is JSON of whatever shape the endpoint returned, taken as T.
   const body = (await res.json().catch(() => ({}))) as { error?: unknown };
   if (!res.ok) {
     throw new ActionFailedError(
@@ -34,13 +36,16 @@ export interface ObjectPageQuery extends ObjectQuery {
   pageToken?: string;
 }
 
-export interface ObjectPage {
-  data: WireObject[];
+export interface ObjectPage<N extends ObjectTypeName = ObjectTypeName> {
+  data: ObjectOf<N>[];
   /** Null on the last page. */
   nextPageToken: string | null;
 }
 
-export async function fetchObjectsPage(type: string, q: ObjectPageQuery = {}): Promise<ObjectPage> {
+export async function fetchObjectsPage<N extends ObjectTypeName>(
+  type: N,
+  q: ObjectPageQuery = {},
+): Promise<ObjectPage<N>> {
   const params = new URLSearchParams({ type });
   if (q.where) {
     params.set("where", JSON.stringify(q.where));
@@ -54,7 +59,7 @@ export async function fetchObjectsPage(type: string, q: ObjectPageQuery = {}): P
   if (q.pageToken !== undefined) {
     params.set("pageToken", q.pageToken);
   }
-  return readJson<ObjectPage>(await apiFetch(`/api/objects?${params.toString()}`));
+  return readJson<ObjectPage<N>>(await apiFetch(`/api/objects?${params.toString()}`));
 }
 
 /** Runs a server query function (see server/functions/) and returns its value. */
