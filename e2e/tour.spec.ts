@@ -1,4 +1,5 @@
 import { type Locator, type Page, expect, test } from "@playwright/test";
+import { TOUR_FIRM_ID } from "../shared/showcaseFirms";
 import { ROUTES, openRoute } from "./routes";
 
 const home = ROUTES.find((r) => r.path === "/")!;
@@ -91,6 +92,42 @@ test("tour completes", async ({ page }) => {
 test("tour completes at 390px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await walkTour(page, true);
+});
+
+test("the Desk stops open on a strong firm, not on whichever leads the queue", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/mandate?tour=1");
+  const card = page.locator("[data-tour-card]");
+  await card.getByRole("button", { name: /^Next/ }).click();
+  await expect(page).toHaveURL(new RegExp(`/desk\\?firmId=${TOUR_FIRM_ID}&tour=2$`));
+  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText("Mallowick Partners");
+
+  // Mostly filled in: one conflict, at most two abstentions, and already in tier B or better.
+  const summary = page.getByText(/\d+ conflicts? · \d+ proposed · \d+ abstained · \d+ verified/);
+  const [, conflicts, proposed, abstained, verified] =
+    /(\d+) conflicts? · (\d+) proposed · (\d+) abstained · (\d+) verified/
+      .exec(await summary.innerText())!
+      .map(Number);
+  expect(conflicts).toBe(1);
+  expect(abstained).toBeLessThanOrEqual(2);
+  expect(proposed + verified).toBeGreaterThanOrEqual(6);
+  await expect(
+    page
+      .locator("#main")
+      .getByText(/^Tier [AB]$/)
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByTestId("projected-score")).toContainText(/Tier [AB]/);
+
+  // The firm stays put through the Desk's three stops.
+  await card.getByRole("button", { name: /^Next/ }).click();
+  await card.getByRole("button", { name: /^Next/ }).click();
+  await expect(page).toHaveURL(new RegExp(`firmId=${TOUR_FIRM_ID}&tour=4$`));
+
+  // A stop reached without a firm in the URL is given the tour's.
+  await page.goto("/desk?tour=3");
+  await expect(page).toHaveURL(new RegExp(`firmId=${TOUR_FIRM_ID}`));
+  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText("Mallowick Partners");
 });
 
 test("tour writes nothing", async ({ page }) => {

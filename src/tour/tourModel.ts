@@ -28,6 +28,27 @@ export function stepSearch(search: string, step: number | null): string {
   return text === "" ? "" : `?${text}`;
 }
 
+/** The search a step opens with when the tour arrives from another page: its params and its place. */
+export function arrivalSearch(step: TourStep, index: number): string {
+  return stepSearch(new URLSearchParams(step.params ?? {}).toString(), index);
+}
+
+/**
+ * `search` with the step's params filled in where it lacks them, or null when none is missing. A
+ * value already there is kept, so a link that names another firm still opens that firm.
+ */
+export function withStepParams(search: string, step: TourStep): string | null {
+  const params = new URLSearchParams(search);
+  let changed = false;
+  for (const [key, value] of Object.entries(step.params ?? {})) {
+    if (!params.has(key)) {
+      params.set(key, value);
+      changed = true;
+    }
+  }
+  return changed ? `?${params.toString()}` : null;
+}
+
 /** The step after `i`, or null after the last. */
 export function nextStep(i: number): number | null {
   return i + 1 < TOUR_STEPS.length ? i + 1 : null;

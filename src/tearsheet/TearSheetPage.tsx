@@ -12,6 +12,7 @@ import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import styles from "./TearSheetPage.module.css";
 import {
   type AbstentionItem,
+  type AxisLine,
   type Citation,
   type ConflictItem,
   type EvidenceItem,
@@ -56,6 +57,20 @@ function CitationLine({ c }: { c: Citation }): React.ReactElement {
       </p>
     </>
   );
+}
+
+/** The points cell: the score on file, or why there is none. */
+function pointsText(a: AxisLine): string {
+  switch (a.status) {
+    case "on_file":
+      return `${a.points ?? 0} / 2`;
+    case "proposed":
+      return "proposed · unverified";
+    case "conflict":
+      return "unresolved";
+    case "unknown":
+      return "unknown";
+  }
 }
 
 const NOT_RESEARCHED = "No research has run on this firm yet, so there is nothing to report.";
@@ -235,7 +250,7 @@ function Sheet({
             <thead>
               <tr>
                 <th scope="col">Axis</th>
-                <th scope="col">On file</th>
+                <th scope="col">Value</th>
                 <th scope="col" className={styles.num}>
                   Points
                 </th>
@@ -246,9 +261,7 @@ function Sheet({
                 <tr key={a.axis}>
                   <th scope="row">{a.axis}</th>
                   <td>{a.value}</td>
-                  <td className={styles.num}>
-                    {a.points === null ? "unknown" : `${a.points} / 2`}
-                  </td>
+                  <td className={styles.num}>{pointsText(a)}</td>
                 </tr>
               ))}
             </tbody>

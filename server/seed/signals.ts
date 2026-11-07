@@ -20,6 +20,7 @@
 import type { SignalKind } from "../../shared/marketSignals.js";
 import type { ObjectOf, Props } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
+import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
 import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab.js";
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
@@ -38,6 +39,7 @@ export const LOOKAHEAD_MS = 23 * HOUR;
 export const SIGNAL_TARGET = 48;
 const MAX_CHAINS = { passed: 4, pipeline: 2 } as const;
 const ACQUISITIONS = 4;
+const SHOWCASE: ReadonlySet<string> = new Set(STRONG_SHOWCASE_FIRM_IDS);
 /** Signals the generator leaves unapplied for the cron: movers, an acquisition and background news. */
 const FUTURE_MOVER_CHAINS = 2;
 const FUTURE_ACQUISITIONS = 1;
@@ -336,12 +338,14 @@ export function generateSignals(input: SignalInputs): Props<"MarketSignal">[] {
     ),
   );
 
-  // Background news on firms that have been enriched and are still being screened.
+  // Background news on firms that have been enriched and are still being screened. Not the strong
+  // showcase firms: the tour describes them as the seed leaves them.
   const pool = shuffled(
     firms.filter(
       (x) =>
         stateOf(x) === "Screening" &&
         free(x) &&
+        !SHOWCASE.has(x.$primaryKey) &&
         (num(x.feeGeneratingCount) !== null ||
           num(x.dealSizeMUsd) !== null ||
           num(x.dealsPerMdL3y) !== null),

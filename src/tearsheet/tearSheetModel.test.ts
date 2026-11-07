@@ -44,6 +44,7 @@ describe("buildTearSheet", () => {
       axis: "Deal Size",
       value: "$80m",
       points: 1,
+      status: "on_file",
     });
     expect(sheet.facts).toEqual(
       expect.arrayContaining([
@@ -52,6 +53,77 @@ describe("buildTearSheet", () => {
         { label: "Revenue", value: "$10-25m" },
       ]),
     );
+  });
+
+  it("shows an open proposal where nothing is on file, marked unverified and not scored", () => {
+    const bare: FirmView = {
+      ...firm,
+      dealSizeMUsd: undefined,
+      firmAge: undefined,
+      mdPedigree: undefined,
+      feeGeneratingCount: undefined,
+    };
+    const findings = [
+      finding({ findingId: "p", axis: "deal_size_usd_m", value: "46" }),
+      finding({ findingId: "c1", axis: "firm_age", value: "24", conflictGroupId: "g" }),
+      finding({
+        findingId: "c2",
+        axis: "firm_age",
+        value: "33",
+        provider: "filings",
+        conflictGroupId: "g",
+      }),
+      finding({
+        findingId: "a",
+        axis: "md_pedigree",
+        value: "",
+        provider: "none",
+        findingStatus: "abstained",
+      }),
+    ];
+    const sheet = buildTearSheet({ firm: bare, findings, decisions: [], rules: [] });
+    const line = (axis: string) => sheet.axes.find((a) => a.axis === axis);
+    expect(line("Deal Size")).toEqual({
+      axis: "Deal Size",
+      value: "$46m",
+      points: null,
+      status: "proposed",
+    });
+    expect(line("Firm Age")).toEqual({
+      axis: "Firm Age",
+      value: "Sources disagree",
+      points: null,
+      status: "conflict",
+    });
+    // Abstained, and nothing else known: still unknown.
+    expect(line("MD Experience")).toMatchObject({ value: "—", points: null, status: "unknown" });
+    expect(line("Fee-Generating")).toMatchObject({ points: null, status: "unknown" });
+    // A proposal earns nothing until it is verified: the live score is the record's.
+    expect(sheet.score.total).toBe(sheet.axes.reduce((n, a) => n + (a.points ?? 0), 0));
+
+    // The MCP's evidence calls the same axes proposed and in conflict.
+    const evidence = firmEvidence(
+      asRow<"Firm">({ ...bare, $apiName: "Firm", $primaryKey: "acme_us" }),
+      findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
+    );
+    const status = (axis: string) => evidence.axes.find((a) => a.axis === axis);
+    expect(status("deal_size_usd_m")).toMatchObject({ status: "proposed", value: "46" });
+    expect(status("firm_age")?.status).toBe("conflict");
+    expect(status("md_pedigree")?.status).toBe("abstained");
+  });
+
+  it("keeps a value on file over an open proposal for the same axis", () => {
+    const sheet = buildTearSheet({
+      firm,
+      findings: [finding({ findingId: "p", axis: "deal_size_usd_m", value: "46" })],
+      decisions: [],
+      rules: [],
+    });
+    expect(sheet.axes.find((a) => a.axis === "Deal Size")).toMatchObject({
+      value: "$80m",
+      points: 1,
+      status: "on_file",
+    });
   });
 
   it("cites the quote, provider and model behind each value", () => {
