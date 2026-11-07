@@ -190,6 +190,20 @@ describe("driftRow", () => {
       ).resolution;
     expect(settled(acquired)).toBe("Lesson recorded");
     expect(settled(firm("a", "Passed"))).toBe("Kept passed");
+
+    // An earlier tier-drift event, kept passed before the acquisition, is not the lesson.
+    const earlier = driftRow(
+      item(
+        drift("d0", "a", {
+          driftReason: "pass_reason_invalidated",
+          driftStatus: "resolved",
+          resolution: "kept_passed",
+        }),
+        acquired,
+      ),
+      NOW,
+    );
+    expect(earlier.resolution).toBe("Kept passed");
   });
 
   it("shows how a resolved event was settled", () => {

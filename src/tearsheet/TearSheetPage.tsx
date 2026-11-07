@@ -1,6 +1,7 @@
 import React from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
@@ -230,8 +231,14 @@ function Sheet({
         <p className={styles.scoreLine}>
           <span className={styles.big}>{score.total}</span>
           <span className={styles.of}> / {score.max}</span>
-          <span className={styles.tier} title={score.tierNote ?? undefined}>
-            {score.tierText}
+          <span className={styles.tier}>
+            {score.tierNote === null ? (
+              score.tierText
+            ) : (
+              <Term id="below-c" definition={score.tierNote}>
+                {score.tierText}
+              </Term>
+            )}
           </span>
         </p>
         {score.screenedBecause !== null && (

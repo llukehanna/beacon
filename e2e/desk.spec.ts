@@ -419,10 +419,16 @@ test("passing says so, points at the rule review and moves to the next firm", as
   // The button does what it says; there is no dialog to promise.
   await expect(page.getByRole("button", { name: /^Pass…/ })).toHaveCount(0);
 
+  // The live region is there before the pass, empty, so the note that fills it is announced.
+  const region = page.getByTestId("pass-toast");
+  await expect(region).toHaveAttribute("role", "status");
+  await expect(region).toBeEmpty();
+
   await page.getByPlaceholder(/required to pass/).fill("Outside the mandate");
   await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
 
   const toast = page.getByRole("status").filter({ hasText: `Passed ${name}.` });
+  await expect(region).toContainText(`Passed ${name}. Its reason joins the rule review.`);
   await expect(toast).toContainText(`Passed ${name}. Its reason joins the rule review.`);
   await expect(toast.getByRole("link", { name: "rule review" })).toHaveAttribute("href", "/rules");
   // The desk has moved on to the next firm in the queue.

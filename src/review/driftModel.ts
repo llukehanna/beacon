@@ -72,6 +72,12 @@ export interface DriftItem {
    * re-engage, so a passed firm is offered recording the lesson instead.
    */
   firmGone: boolean;
+  /**
+   * Keeping this event's firm passed records the lesson: the event is the acquisition itself. An
+   * earlier event on a firm that was acquired later was settled before the acquisition and keeps
+   * its own wording.
+   */
+  lessonRecorded: boolean;
   lookalikes: LookalikeSet;
   /** Why the firm was passed: its newest reject decision. Only read for outcome_diverged. */
   rejectionReason: string | null;
@@ -139,6 +145,7 @@ export function buildDriftItems(
       kind: kindFor(firm),
       canPass: normalizeLifecycle(firm?.lifecycleState) !== "Closed",
       firmGone: firmIsGone(firm?.outcome),
+      lessonRecorded: isOutcomeDivergence(d.driftReason) && firmIsGone(firm?.outcome),
       lookalikes,
       rejectionReason: resolved ? null : reasonText(rejections.get(firmId)) || null,
       observedOutcome: resolved || outcome === "" ? null : outcome,
@@ -195,7 +202,7 @@ export function driftRow(item: DriftItem, now: number): DriftRowModel {
     name: item.firmName,
     resolved: item.resolved,
     figure,
-    resolution: item.resolved ? resolutionLabel(d.resolution, item.firmGone) : null,
+    resolution: item.resolved ? resolutionLabel(d.resolution, item.lessonRecorded) : null,
     age: relativeAge(toIsoTime(d.detectedAt), now),
   };
   if (isOutcomeDivergence(d.driftReason)) {

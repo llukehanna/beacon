@@ -312,9 +312,13 @@ export function verifiedBaselineEdits(
 // isn't routable or the value can't be coerced, we fall through to the
 // raw string so malformed backend data still shows *something* to the
 // analyst instead of an empty cell.
+//
+// Units are for people reading a screen. The MCP tools and the exports hand the value on to other
+// programs and spreadsheets, so they pass `{ units: false }` and get the bare number back.
 export function displayFindingValue(
   rawAxis: string | null | undefined,
   rawValue: string | null | undefined,
+  options: { units?: boolean } = {},
 ): string {
   const raw = (rawValue ?? "").trim();
   if (raw === "") {
@@ -329,7 +333,7 @@ export function displayFindingValue(
   if (coerced === undefined) {
     return raw;
   }
-  return formatAxisValue(editKey, coerced);
+  return formatAxisValue(editKey, coerced, options.units ?? true);
 }
 
 // Human-facing rendering of a hard-gate boolean vs a scored string. Kept
@@ -339,6 +343,7 @@ export function displayFindingValue(
 export function formatAxisValue(
   editKey: string,
   v: string | number | boolean | null | undefined,
+  units = true,
 ): string {
   if (v === null || v === undefined || v === "") {
     return "—";
@@ -351,7 +356,7 @@ export function formatAxisValue(
     return v === passWhen ? "Pass" : "Fail";
   }
   // Deal size is in millions of dollars; a bare "40" would not say so.
-  if (editKey === "dealSizeMUsd" && typeof v === "number") {
+  if (units && editKey === "dealSizeMUsd" && typeof v === "number") {
     return `$${v}m`;
   }
   return String(v);

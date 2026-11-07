@@ -37,3 +37,16 @@ export function nextQueueFirmId(
   const after = at === -1 ? undefined : liveQueueIds.slice(at + 1).find((id) => id !== passedId);
   return after ?? liveQueueIds.find((id) => id !== passedId);
 }
+
+/**
+ * The firm to open when a pass lands: the next one in the list the analyst can see, but only if
+ * they are still on the firm they passed. Someone who opened another firm while the pass was
+ * saving has moved on and is left where they are.
+ */
+export function nextAfterPass(
+  visibleIds: readonly string[],
+  passedId: string,
+  currentId: string | undefined,
+): string | undefined {
+  return currentId === passedId ? nextQueueFirmId(visibleIds, passedId) : undefined;
+}

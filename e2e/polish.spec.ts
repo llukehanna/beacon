@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { TOUR_FIRM_ID } from "../shared/showcaseFirms";
 import { ROUTES, openRoute } from "./routes";
 
-// Read-only checks of the wording and counts the recruiter review found confusing. They write
+// Read-only checks of the wording and counts that used to read as contradictory. They write
 // nothing, so they sit between the specs that mutate the shared database without disturbing them.
 
 const route = (path: string) => ROUTES.find((r) => r.path === path)!;
@@ -30,7 +30,8 @@ test("home splits its headline into parts that match the Review badge", async ({
 test("home says its agent activity is a replay and counts dropped values", async ({ page }) => {
   await openRoute(page, route("/"));
   const feed = page.getByRole("region", { name: "Agent activity" });
-  await expect(feed).toContainText("Replayed from the recorded Claude Haiku 4.5 extraction run");
+  await expect(feed).toContainText("replayed from the recorded Claude Haiku 4.5 run");
+  await expect(feed).toContainText("calls Claude only when switched on");
 
   const card = page.getByRole("link", { name: /Passed grounding/ });
   await expect(card).toHaveAttribute("href", "/accuracy?tab=evals");
@@ -103,8 +104,21 @@ test("on a phone the keyboard hints are gone and a rule expression wraps", async
   expect(clipped, "the rule expression is cut off").toBe(false);
 });
 
+test("a narrow desktop window still shows the keys in the shortcuts list", async ({ page }) => {
+  await page.setViewportSize({ width: 600, height: 800 });
+  await openRoute(page, route("/"));
+  // The hints on buttons give way; the list of shortcuts is made of keys.
+  await expect(page.locator("kbd:visible")).toHaveCount(0);
+  await page.keyboard.press("?");
+  const list = page.getByRole("dialog");
+  await expect(list.locator("kbd").first()).toBeVisible();
+  expect(await list.locator("kbd:visible").count()).toBeGreaterThan(5);
+});
+
 test("the queue says how it is sorted and shows the gain", async ({ page }) => {
   await page.goto("/desk");
   await expect(page.getByText("most points to gain first")).toBeVisible();
   await expect(page.getByTitle(/^Up to \+\d+ points if enriched$/).first()).toBeVisible();
+  // A screen reader hears the gain in words, not "3 +4".
+  await expect(page.getByText(/up to \d+ more points? if enriched/).first()).toBeAttached();
 });

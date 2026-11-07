@@ -86,7 +86,7 @@ function Body({
           }}
           onKeyDown={onKeyDown}
         />
-        <Kbd>Esc</Kbd>
+        <Kbd listed>Esc</Kbd>
       </div>
       <div ref={listRef} id="palette-list" role="listbox" className={styles.list}>
         {sections.map((section) => (
@@ -136,10 +136,10 @@ function Body({
       </div>
       <div className={styles.foot} aria-hidden="true">
         <span>
-          <Kbd>↑</Kbd> <Kbd>↓</Kbd> move
+          <Kbd listed>↑</Kbd> <Kbd listed>↓</Kbd> move
         </span>
         <span>
-          <Kbd>↵</Kbd> open
+          <Kbd listed>↵</Kbd> open
         </span>
         {query.trim() === "" && firmCount !== undefined && (
           <span className={styles.count}>Type to search {firmCount} firms</span>

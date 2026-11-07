@@ -15,9 +15,16 @@
   color: #e8eaff;
 }
 
-/* A phone or tablet has no keyboard to press them on, and a narrow window has no room to spare. */
-@media (hover: none) and (pointer: coarse), (max-width: 719px) {
+/* A touch device has no keyboard to press them on. */
+@media (hover: none) and (pointer: coarse) {
   .kbd {
+    display: none;
+  }
+}
+
+/* A hint on a button gives way when the window is narrow. A key in a shortcut list does not. */
+@media (max-width: 719px) {
+  .kbd:not(.listed) {
     display: none;
   }
 }

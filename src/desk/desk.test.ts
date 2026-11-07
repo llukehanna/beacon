@@ -707,6 +707,8 @@ describe("displayFindingValue — gate cards read Pass/Fail, never raw booleans"
 
   it("scoring axes pass their words through untouched and give deal size its unit", () => {
     expect(displayFindingValue("deal_size_usd_m", "150")).toBe("$150m");
+    // The MCP tools and the exports ask for the bare number.
+    expect(displayFindingValue("deal_size_usd_m", "150", { units: false })).toBe("150");
     expect(displayFindingValue("services_fit", "Full advisory suite")).toBe("Full advisory suite");
   });
 

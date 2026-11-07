@@ -153,11 +153,11 @@ const RESOLUTION_BY_VALUE: ReadonlyMap<string, string> = new Map(Object.entries(
 
 export function resolutionLabel(
   resolution: string | null | undefined,
-  /** True when the firm has since been acquired: keeping it passed then records the lesson. */
-  firmGone = false,
+  /** True for the acquisition event itself: keeping the firm passed then records the lesson. */
+  lesson = false,
 ): string {
   const raw = (resolution ?? "").trim();
-  if (firmGone && raw === "kept_passed") {
+  if (lesson && raw === "kept_passed") {
     return "Lesson recorded";
   }
   if (raw === "") {

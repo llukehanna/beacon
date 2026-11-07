@@ -43,12 +43,32 @@ export function ruleKey(
 }
 
 /**
- * The pattern a rule expresses, whatever its threshold or model: its axis and operator. Two rules
- * with the same pattern (`deal_size_usd_m < 20` and `deal_size_usd_m < 30`) screen for the same
- * reason, so the learning loop proposes at most one rule per pattern.
+ * The pattern a rule expresses, whatever its threshold: its axis, operator and model (an empty
+ * model means "both", as in `ruleKey`). Two rules with the same pattern (`deal_size_usd_m < 20` and
+ * `deal_size_usd_m < 30`) screen for the same reason, so the learning loop proposes at most one rule
+ * per pattern. A CS-only rule and a CF-only rule screen different firms, so they are two patterns.
  */
-export function rulePatternKey(axis?: string | null, operator?: string | null): string {
-  return [axis, operator].map((s) => (s ?? "").trim().toLowerCase()).join("|");
+export function rulePatternKey(
+  axis?: string | null,
+  operator?: string | null,
+  model?: string | null,
+): string {
+  return [axis, operator, model || "both"].map((s) => (s ?? "").trim().toLowerCase()).join("|");
+}
+
+/**
+ * Every pattern key a rule of this axis, operator and model overlaps: its own, plus the other
+ * scopes it shares firms with. A rule for both models overlaps a CF-only and a CS-only rule; CF and
+ * CS overlap only through "both".
+ */
+export function overlappingPatternKeys(
+  axis?: string | null,
+  operator?: string | null,
+  model?: string | null,
+): string[] {
+  const scope = (model ?? "").trim().toLowerCase();
+  const scopes = scope === "cf" || scope === "cs" ? [scope, "both"] : ["both", "cf", "cs"];
+  return scopes.map((m) => rulePatternKey(axis, operator, m));
 }
 
 /**

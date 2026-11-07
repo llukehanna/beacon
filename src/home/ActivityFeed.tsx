@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { RECORDED_RUN_NOTE } from "@/about/facts";
+import { ACTIVITY_FEED_NOTE } from "@/about/facts";
 import { EmptyState, Panel, Skeleton } from "@/ui";
 import type { ActivityItem, ActivityKind } from "../../shared/activityFeed";
 import styles from "./ActivityFeed.module.css";
@@ -34,7 +34,7 @@ export function ActivityFeed({
   return (
     <Panel className={styles.feed} aria-label="Agent activity">
       <SectionHead title="Agent activity" />
-      <p className={styles.note}>{RECORDED_RUN_NOTE}</p>
+      <p className={styles.note}>{ACTIVITY_FEED_NOTE}</p>
       {items === undefined && (
         <div className={styles.pad}>
           <Skeleton lines={6} />

@@ -20,6 +20,7 @@ import { HttpError } from "../errors.js";
 import { MAX_BODY_BYTES } from "../http.js";
 import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
+import { firmEvidence } from "./evidence.js";
 import {
   JSONRPC_FORBIDDEN,
   JSONRPC_INTERNAL_ERROR,
@@ -464,7 +465,7 @@ describe("get_firm_evidence", () => {
       findings,
     );
     const cited = (f: FindingLike) => ({
-      value: displayFindingValue(f.axis, f.value),
+      value: displayFindingValue(f.axis, f.value, { units: false }),
       ...citationOf(f),
     });
     const sheet = {
@@ -520,6 +521,28 @@ describe("get_firm_evidence", () => {
     for (const a of axes.filter((x) => x.status === "abstained" || x.status === "empty")) {
       expect(cite(a)).toEqual({ value: null, provider: null, quote: null, model: null });
     }
+  });
+
+  it("returns a deal size as the bare number, not the $m the screen shows", () => {
+    const [firm] = [{ $primaryKey: "f1", firmName: "Harbour", firmType: "CF" }];
+    const evidence = firmEvidence(firm as never, [
+      {
+        findingId: "r1",
+        firmId: "f1",
+        axis: "deal_size_usd_m",
+        value: "40",
+        provider: "filings",
+        sourceDocumentId: "filings:f1",
+        sourceQuote: "Typical transactions are around $40 million.",
+        extractionModel: "rule-based",
+        confidenceTier: "high",
+        findingStatus: "proposed",
+        retrievedAt: "2026-09-01T00:00:00Z",
+      } as never,
+    ]);
+    const axis = evidence.axes.find((a) => a.axis === "deal_size_usd_m");
+    expect(axis).toMatchObject({ status: "proposed", value: "40" });
+    expect(displayFindingValue("deal_size_usd_m", "40")).toBe("$40m");
   });
 
   it("is a not-found result, not a protocol error, for an unknown firm", async () => {

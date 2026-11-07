@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore } from "@/data/ontology";
 import { FROM_DESK } from "@/shell/origin";
@@ -143,6 +144,7 @@ export function FirmHeader({
   const beforeScore = before.weightedTotal;
   const changed = score !== beforeScore;
   const state = headerState(firm, after, tier, activeConfigs, configsLoading);
+  const belowC = belowCGloss(tier, state.hard, TIER_THRESHOLDS[after.model].C, MAX_POSSIBLE);
 
   const prior = usePriorScore(firm.firmId ?? "", firm.enrichedAt);
   // The change the last enrichment made is between two stored scores, so it is read from the
@@ -194,12 +196,15 @@ export function FirmHeader({
           )}
           <span
             className={`${styles.tier} ${tier === "Rejected" ? styles.tierRejected : ""}`}
-            title={
-              belowCGloss(tier, state.hard, TIER_THRESHOLDS[after.model].C, MAX_POSSIBLE) ??
-              state.label
-            }
+            title={belowC === null ? state.label : undefined}
           >
-            {tierText(tier, state.hard)}
+            {belowC === null ? (
+              tierText(tier, state.hard)
+            ) : (
+              <Term id="below-c" definition={belowC}>
+                {tierText(tier, state.hard)}
+              </Term>
+            )}
           </span>
         </div>
         {(saving || changed) && (

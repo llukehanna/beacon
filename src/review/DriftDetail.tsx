@@ -69,7 +69,7 @@ export function DriftDetail({
           {detected !== null && <span className={styles.when}>Detected {detected}</span>}
           {resolved && (
             <span className={styles.resolved}>
-              {resolutionLabel(drift.resolution, item.firmGone)}
+              {resolutionLabel(drift.resolution, item.lessonRecorded)}
             </span>
           )}
         </div>

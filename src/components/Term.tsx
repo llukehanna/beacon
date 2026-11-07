@@ -17,12 +17,15 @@ const FLIP_BELOW = 200;
  */
 export function Term({
   id,
+  definition: given,
   children,
 }: {
   id: string;
+  /** A definition worded for this place (it names this firm's cut-off, say), in place of the glossary's. */
+  definition?: string;
   children: React.ReactNode;
 }): React.ReactElement {
-  const definition = GLOSSARY[id];
+  const definition = given ?? GLOSSARY[id];
   const tipId = React.useId();
   const ref = React.useRef<HTMLButtonElement | null>(null);
   const [pos, setPos] = React.useState<{ left: number; top?: number; bottom?: number } | null>(
