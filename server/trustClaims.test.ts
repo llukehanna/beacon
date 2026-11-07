@@ -76,8 +76,11 @@ describe("figures on the About and Trust pages", () => {
     expect(limiter("ACTIONS_LIMITER")).toEqual({ limit: ACTIONS_PER_MINUTE, period: 60 });
     expect(limiter("RESET_LIMITER")).toEqual({ limit: RESETS_PER_MINUTE, period: 60 });
     expect(limiter("MCP_LIMITER")).toEqual({ limit: MCP_PER_MINUTE, period: 60 });
-    // The nightly reset, and the hourly run that applies synthetic market signals as they come due.
-    expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *", "0 * * * *"]');
+    // One hourly trigger: the 04:00 run resets, every run applies the market signals that are due.
+    expect(read("wrangler.jsonc")).toContain('"crons": ["0 * * * *"]');
+    expect(read("worker/crons.ts")).toContain(
+      `NIGHTLY_HOUR_UTC = ${Number(NIGHTLY_RESET_UTC.slice(0, 2))}`,
+    );
     expect(NIGHTLY_RESET_UTC).toBe("04:00");
     expect(read("api/reset.ts")).toContain(`COOLDOWN_MS = ${RESET_COOLDOWN_MINUTES} * 60_000`);
   });
