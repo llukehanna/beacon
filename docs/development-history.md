@@ -38,3 +38,16 @@ Seven pull requests (#1 to #7) land on the day the repository goes public.
 ## 2026-11-06: explaining the product
 
 - A home-page introduction and a six-stop guided tour that never writes data, About and Trust pages, search filters pre-filled from the mandate text, and this history and the [production roadmap](production-roadmap.md) (#19).
+
+## 2026-11-06: measuring itself
+
+- **Evaluation and operations (#20).** `npm run eval` scores the agent against the synthetic universe's hidden truth (provider and reconciled precision and coverage, conflict and abstention calibration, tier agreement, rule recovery), writes [evals.md](evals.md), and fails CI below its floors. It adds an [error analysis](error-analysis.md), an Operations tab built from logged action runs and model calls, ten [decision records](decisions/README.md) and a generated [ontology reference](ontology.md). The grounding check now also requires true/false answers to appear in their quote.
+- **Clustering re-recorded (#21).** The Claude rule-clustering fixture is re-recorded, at a cost of $0.04.
+
+## 2026-11-06: the finance track and agent access
+
+- **Exports, tear sheet and lookalikes (#22).** Excel workbooks with a citations sheet and CSVs in Salesforce, DealCloud and Affinity layouts; a printable one-page tear sheet per firm; and "more like this" lookalikes with the reasons each firm matched.
+- **Synthetic market signals (#22).** Invented news (senior hires, departures, deal announcements, acquisitions) applied on a schedule, moving scores and opening drift reviews, labelled synthetic wherever it is shown.
+- **Information barriers (#22).** A demo persona (analyst, deal-team lead, compliance), a restricted list enforced on every read path, need-to-know codenames for mandates, and an access log.
+- **MCP server (#22).** A read-only [Model Context Protocol endpoint](mcp.md) for searching firms, reading a firm's cited evidence and listing screening rules.
+- **Cron triggers (#23, #24).** One trigger per deployment, to fit the Workers free plan: production runs hourly and resets at 04:00 UTC.
