@@ -8,6 +8,7 @@ import {
 import { type MirrorResult } from "../scoreMirror";
 import { type EditMap, type FirmView } from "./deskModel";
 import { HARD_GATES } from "./hardGateConfig";
+import { type Projection } from "./projection";
 
 export interface FirmDecisionState {
   /** The stage as the bar words it ("Passed" wins over any other stage). */
@@ -49,8 +50,18 @@ export interface ConfirmItem {
   ok: boolean;
 }
 
-/** The three things to confirm before advancing a firm: every axis scored, every gate answered, the screen cleared. */
-export function confirmItems(firm: FirmView, mirror: MirrorResult, edits: EditMap): ConfirmItem[] {
+/**
+ * The three things to confirm before advancing a firm: every scored axis has a value on file,
+ * every gate is answered, the hard screen is cleared. `projection` is the score the open proposals
+ * would give; when the values on file clear the screen but the proposals would not, the screen
+ * line says both, so it never contradicts the score box.
+ */
+export function confirmItems(
+  firm: FirmView,
+  mirror: MirrorResult,
+  edits: EditMap,
+  projection: Pick<Projection, "hardRejected" | "rejectReason"> | null = null,
+): ConfirmItem[] {
   const knownAxes = mirror.axisScores.filter((a) => a.known).length;
   const totalAxes = mirror.axisScores.length;
   const gatesSet = HARD_GATES.filter((g) => {
@@ -58,11 +69,23 @@ export function confirmItems(firm: FirmView, mirror: MirrorResult, edits: EditMa
     const stored = firm[g.readKey];
     return typeof staged === "boolean" || stored === true || stored === false;
   }).length;
+  const wouldReject = !mirror.hardRejected && projection?.hardRejected === true;
+  const screen = mirror.hardRejected
+    ? { label: "Hard screen (rejected)", detail: mirror.rejectReason }
+    : wouldReject
+      ? {
+          label: "Cleared the hard screen on the values on file",
+          detail: `would be hard-rejected if proposals are verified: ${projection.rejectReason}`,
+        }
+      : { label: "Cleared the hard screen", detail: "no rejection triggers" };
   return [
     {
       id: "axes",
-      label: "Every axis has a signal",
-      detail: `${knownAxes}/${totalAxes} axes known`,
+      label: "Every scored axis has a value on file",
+      detail:
+        totalAxes === 0
+          ? "not scored: the firm is hard-rejected"
+          : `${knownAxes} of ${totalAxes} scored axes on file`,
       ok: knownAxes === totalAxes,
     },
     {
@@ -71,11 +94,6 @@ export function confirmItems(firm: FirmView, mirror: MirrorResult, edits: EditMa
       detail: `${gatesSet}/${HARD_GATES.length} gates answered`,
       ok: gatesSet === HARD_GATES.length,
     },
-    {
-      id: "screen",
-      label: mirror.hardRejected ? "Hard screen (rejected)" : "Cleared the hard screen",
-      detail: mirror.hardRejected ? mirror.rejectReason : "no rejection triggers",
-      ok: !mirror.hardRejected,
-    },
+    { id: "screen", ...screen, ok: !mirror.hardRejected },
   ];
 }

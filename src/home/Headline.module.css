@@ -28,6 +28,20 @@
   font-weight: 500;
 }
 
+.parts {
+  margin: 6px 0 0;
+  color: var(--tx3);
+  font-size: 13px;
+}
+
+.parts a {
+  color: var(--tx2);
+}
+
+.parts a:hover {
+  color: var(--tx);
+}
+
 .actions {
   display: flex;
   flex-shrink: 0;

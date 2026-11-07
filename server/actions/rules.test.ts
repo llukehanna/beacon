@@ -103,6 +103,182 @@ describe("clusterRejections", () => {
     expect(await listAll(db, "ProposedRule")).toHaveLength(1);
   });
 
+  it("a second run adds nothing and says so plainly", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    const before = await listAll(db, "ProposedRule");
+    expect(before).toHaveLength(1);
+
+    const again = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(again.created).toEqual([]);
+    expect(again.note).toBe(
+      "No new patterns since the last run (6 passes checked). Already covered by an existing rule: Headcount below 10 (pending).",
+    );
+    expect(await listAll(db, "ProposedRule")).toEqual(before);
+  });
+
+  /** A clusterer that proposes one predicate, backed by every rejection on file. */
+  const proposing =
+    (
+      predicateAxis: string,
+      ruleOperator: string,
+      ruleThreshold: string,
+      ruleModel: "CF" | "CS" | "both" = "both",
+    ): Clusterer =>
+    async (rows) => ({
+      source: "claude",
+      proposals: [
+        {
+          predicateAxis,
+          ruleOperator,
+          ruleThreshold,
+          ruleModel,
+          summary: "x",
+          supportingDecisionIds: rows.map((r) => r.decisionId),
+        },
+      ],
+    });
+
+  it("a threshold variant of a pending or active rule is the same pattern, CF-only or for both", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: proposing("employees", "<", "12", "CF") });
+    const [first] = await listAll(db, "ProposedRule");
+    expect(first).toMatchObject({ ruleThreshold: "12", ruleModel: "CF" });
+
+    const pending = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(pending.created).toEqual([]);
+    expect(pending.note).toContain(
+      "Already covered by an existing rule: Headcount below 12 (pending).",
+    );
+
+    // Approved and then amended, the rule still covers its pattern.
+    await run(db, "approveRule", { proposedRule: first.$primaryKey });
+    await run(db, "amendRuleThreshold", { proposedRule: first.$primaryKey, newThreshold: "9" });
+    const active = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(active.created).toEqual([]);
+    expect(active.note).toContain("Headcount below 12 (active)");
+    expect(await listAll(db, "ProposedRule")).toHaveLength(1);
+  });
+
+  it("a rule for the other model is a different pattern; a rule for both covers either", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    const existing = (proposedRuleId: string, ruleModel: string) =>
+      insertObject(db, "ProposedRule", {
+        proposedRuleId,
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "20",
+        ruleModel,
+        ruleStatus: "pending",
+        supportingDecisionIds: "[]",
+        proposedAt: T0.toISOString(),
+      });
+    // A CS-only rule screens other firms than a CF-only one does.
+    await existing("cs-rule", "CS");
+    const cf = await run(
+      db,
+      "clusterRejections",
+      {},
+      { clusterer: proposing("employees", "<", "10", "CF") },
+    );
+    expect(cf.created).toHaveLength(1);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(2);
+
+    // A rule for both models already covers a CF-only proposal, and the other way round.
+    const other = await createTestDb();
+    await rejectedSmallFirms(other);
+    await insertObject(other, "ProposedRule", {
+      proposedRuleId: "both-rule",
+      predicateAxis: "employees",
+      ruleOperator: "<",
+      ruleThreshold: "20",
+      ruleModel: "both",
+      ruleStatus: "pending",
+      supportingDecisionIds: "[]",
+      proposedAt: T0.toISOString(),
+    });
+    const blocked = await run(
+      other,
+      "clusterRejections",
+      {},
+      { clusterer: proposing("employees", "<", "10", "CF") },
+    );
+    expect(blocked.created).toEqual([]);
+    expect(blocked.note).toContain("Headcount below 20 (pending)");
+  });
+
+  it("proposes a threshold variant once the rule that had the pattern is dismissed", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: proposing("employees", "<", "12") });
+    const [first] = await listAll(db, "ProposedRule");
+    await run(db, "dismissRule", { proposedRule: first.$primaryKey, reason: "Too broad" });
+
+    const result = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(result.created).toHaveLength(1);
+    // The dismissed rule itself is never proposed again.
+    const repeat = await run(
+      db,
+      "clusterRejections",
+      {},
+      { clusterer: proposing("employees", "<", "12") },
+    );
+    expect(repeat.created).toEqual([]);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(2);
+  });
+
+  it("one run proposes one rule per pattern", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    const twice: Clusterer = async (rows) => ({
+      source: "claude",
+      proposals: [
+        ...(await proposing("employees", "<", "10")(rows)).proposals,
+        ...(await proposing("employees", "<", "12")(rows)).proposals,
+      ],
+    });
+    const result = await run(db, "clusterRejections", {}, { clusterer: twice });
+    expect(result.created).toHaveLength(1);
+    expect(result.note).toContain(
+      "Already covered by an existing rule: Headcount below 10 (pending).",
+    );
+  });
+
+  it("does not propose a rule the rubric already enforces", async () => {
+    const db = await createTestDb();
+    for (let i = 0; i < 4; i++) {
+      const f = await seedFirm(db, { coverageModel: "Generalist" });
+      await run(db, "rejectFirm", {
+        firm: f.$primaryKey,
+        rejectionRationale: "Generalist coverage with no sector depth.",
+      });
+    }
+    for (const model of ["CF", "both"] as const) {
+      const result = await run(
+        db,
+        "clusterRejections",
+        {},
+        { clusterer: proposing("coverage_model", "==", "Generalist", model) },
+      );
+      expect(result.created).toEqual([]);
+      expect(result.note).toBe(
+        "No new patterns since the last run (4 passes checked). Already enforced by the rubric: Sector coverage is Generalist.",
+      );
+    }
+    expect(await listAll(db, "ProposedRule")).toHaveLength(0);
+  });
+
+  it("says when no pattern has enough support", async () => {
+    const db = await createTestDb();
+    const f = await seedFirm(db, { employees: 4 });
+    await run(db, "rejectFirm", { firm: f.$primaryKey, rejectionRationale: "Too small." });
+    const result = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(result.note).toBe("No pattern has enough support yet (1 pass checked).");
+  });
+
   it("calls the clusterer outside the transaction", async () => {
     const real = await createTestDb();
     await rejectedSmallFirms(real);
@@ -139,6 +315,31 @@ describe("clusterRejections", () => {
     };
     await run(real, "clusterRejections", {}, { clusterer: racing });
     expect(await listAll(real, "ProposedRule")).toHaveLength(1);
+  });
+
+  it("takes the proposing lock before it reads the rules on file", async () => {
+    const real = await createTestDb();
+    await rejectedSmallFirms(real);
+    const statements: string[] = [];
+    const db: Db = {
+      ...real,
+      async transaction(fn) {
+        return real.transaction((tx) =>
+          fn({
+            ...tx,
+            query: (sql, params) => {
+              statements.push(sql);
+              return tx.query(sql, params);
+            },
+          }),
+        );
+      },
+    };
+    await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    const lock = statements.findIndex((q) => q.includes("pg_advisory_xact_lock"));
+    const read = statements.findIndex((q) => q.includes("proposed_rule"));
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(lock).toBeLessThan(read);
   });
 
   it("drops proposals with bad axes, bad operators, or too little real support", async () => {

@@ -4,6 +4,7 @@ import { type RejectionNote } from "@/desk/ruleEvidence";
 import { repairTruncatedText } from "@/desk/ruleText";
 import { SectionHead } from "@/home/SectionHead";
 import { Button, Panel } from "@/ui";
+import { type FirmView } from "../../shared/deskModel";
 import styles from "./ActiveRules.module.css";
 import { AmendForm, UnapproveConfirm } from "./RuleChanges";
 import { RuleEvidence } from "./RuleEvidence";
@@ -26,7 +27,7 @@ interface RowProps {
   notes: RejectionNote[];
   explainModel: boolean;
   versions: RuleVersions;
-  firms: readonly ScreenableFirm[];
+  firms: readonly (ScreenableFirm & FirmView)[];
 }
 
 /** The longer account of a rule: scope, what it screens, the rejections behind it and its versions. */
@@ -99,6 +100,9 @@ function ActiveRuleRow(props: RowProps): React.ReactElement {
             <>
               {screen.projected}
               <span className={styles.unit}> firm{screen.projected === 1 ? "" : "s"}</span>
+              {screen.projectedOpen !== null && screen.projectedOpen !== screen.projected && (
+                <span className={styles.unit}> ({screen.projectedOpen} still open)</span>
+              )}
             </>
           ) : (
             <span
@@ -163,7 +167,7 @@ export function ActiveRules({
   rules: readonly RuleLike[];
   notesByRule: ReadonlyMap<string, RejectionNote[]>;
   versionsByRule: ReadonlyMap<string, RuleVersions>;
-  firms: readonly ScreenableFirm[];
+  firms: readonly (ScreenableFirm & FirmView)[];
   explainModelId: string | undefined;
 }): React.ReactElement {
   return (

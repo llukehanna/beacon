@@ -5,9 +5,16 @@ import { type Command, useCommands } from "@/shell/commands";
 import { isTypingTarget } from "@/shell/keys";
 import { TourCard } from "./TourCard";
 import { TourContext, type TourControls } from "./tourContext";
-import { nextStep, prevStep, stepFromSearch, stepSearch } from "./tourModel";
+import {
+  arrivalSearch,
+  nextStep,
+  prevStep,
+  stepFromSearch,
+  stepSearch,
+  withStepParams,
+} from "./tourModel";
 import { TOUR_STEPS } from "./tourSteps";
-import { useAnchor } from "./useAnchor";
+import { SHEET_RESERVE, useAnchor } from "./useAnchor";
 
 const NARROW_QUERY = "(max-width: 899px)";
 
@@ -63,12 +70,21 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
     wasRunning.current = index !== null;
   }, [index]);
 
-  // A stop belongs to its route: a hand-edited URL is sent to the right page.
+  // A stop belongs to its route: a hand-edited URL is sent to the right page, with what the stop
+  // needs (the Desk's firm) filled in where the URL leaves it out.
   React.useEffect(() => {
-    if (step !== null && index !== null && pathname !== step.route) {
-      navigate({ pathname: step.route, search: stepSearch("", index) }, { replace: true });
+    if (step === null || index === null) {
+      return;
     }
-  }, [step, index, pathname, navigate]);
+    if (pathname !== step.route) {
+      navigate({ pathname: step.route, search: arrivalSearch(step, index) }, { replace: true });
+      return;
+    }
+    const filled = withStepParams(search, step);
+    if (filled !== null) {
+      navigate({ pathname, search: filled }, { replace: true });
+    }
+  }, [step, index, pathname, search, navigate]);
 
   const goTo = React.useCallback(
     (to: number): void => {
@@ -76,7 +92,7 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
       navigate(
         target.route === pathname
           ? { pathname, search: stepSearch(search, to) }
-          : { pathname: target.route, search: stepSearch("", to) },
+          : { pathname: target.route, search: arrivalSearch(target, to) },
       );
     },
     [navigate, pathname, search],
@@ -141,6 +157,20 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [running]);
+
+  // A bottom sheet covers the foot of the screen, so scrollers that end in an anchor (the Desk's
+  // decision bar) get room to scroll it above the sheet.
+  const sheetUp = running && narrow;
+  React.useEffect(() => {
+    if (!sheetUp) {
+      return undefined;
+    }
+    const root = document.documentElement;
+    root.style.setProperty("--tour-sheet-space", `${SHEET_RESERVE}px`);
+    return () => {
+      root.style.removeProperty("--tour-sheet-space");
+    };
+  }, [sheetUp]);
 
   const controls = React.useMemo<TourControls>(() => ({ start }), [start]);
   const commands = React.useMemo<Command[]>(

@@ -5,12 +5,21 @@ import {
   isEvaluable,
   toScreeningRules,
 } from "@/desk/activeScreening";
+import { mirrorScore } from "@/desk/scoreMirror";
+import { type FirmView, toScoreInput } from "../../shared/deskModel";
+import { isOpenFirm } from "../../shared/pipelineBuckets";
 import { firmFieldFor } from "../../shared/queue";
 import { type RuleLike, type RuleVersions } from "./rulesModel";
 
 export interface RuleScreen {
   /** Firms the rule's effective predicate takes off the desk queue; null when it cannot be counted here. */
   projected: number | null;
+  /**
+   * Of those, the firms still open: undecided in the funnel and not already rejected by the
+   * rubric. This is the desk sidebar's "open firms screened by approved rules" for this rule, so
+   * the two counts can sit side by side. Null whenever `projected` is.
+   */
+  projectedOpen: number | null;
   /** True for a predicate this page cannot count (a text rule), as opposed to a count of zero. */
   unavailable: boolean;
   /** The uncountable rule is on a resolvable axis, so the queue's own matcher still applies it. */
@@ -26,7 +35,7 @@ export interface RuleScreen {
 export function useRuleScreen(
   rule: RuleLike,
   versions: RuleVersions,
-  firms: readonly ScreenableFirm[],
+  firms: readonly (ScreenableFirm & FirmView)[],
 ): RuleScreen {
   const effective = versions.activeLatest;
   const screenRules = React.useMemo(
@@ -50,8 +59,20 @@ export function useRuleScreen(
   );
   const first = screenRules[0];
   const unavailable = first !== undefined && !isEvaluable(first);
+  const countable = first !== undefined && !unavailable;
+  const projectedOpen = React.useMemo(
+    () =>
+      countable
+        ? countScreened(
+            firms.filter((f) => isOpenFirm(f, mirrorScore(toScoreInput(f)).hardRejected)),
+            screenRules,
+          )
+        : null,
+    [countable, firms, screenRules],
+  );
   return {
-    projected: first === undefined || unavailable ? null : countScreened(firms, screenRules),
+    projected: countable ? countScreened(firms, screenRules) : null,
+    projectedOpen,
     unavailable,
     // A rule on a resolvable axis with a string operator (=, in, contains) is matched by the
     // queue's own matcher even though this page cannot count it.

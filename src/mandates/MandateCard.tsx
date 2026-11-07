@@ -82,14 +82,20 @@ export function MandateCard({
       {/* Same union, same wording as Home's mandate row. */}
       <div
         className={styles.counts}
-        title="Scoped = every firm in this mandate's lists and searches. From searches = the subset a Search run attached."
+        title="In scope = every firm in this mandate's lists and searches. Added by searches = the subset a search run attached. A firm can be in the scope of several mandates."
       >
         {countsLoading ? (
           "…"
         ) : (
           <>
-            <span className={styles.figure}>{counts.scoped}</span> scoped ·{" "}
-            <span className={styles.figure}>{counts.fromSearches}</span> from searches
+            <span className={styles.figure}>{counts.scoped}</span> firms in scope ·{" "}
+            {counts.fromSearches === 0 ? (
+              "no search run yet"
+            ) : (
+              <>
+                <span className={styles.figure}>{counts.fromSearches}</span> added by searches
+              </>
+            )}
           </>
         )}
       </div>

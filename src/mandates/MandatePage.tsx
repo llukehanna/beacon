@@ -130,7 +130,7 @@ export default function MandatePage(): React.ReactElement {
     <div className={styles.page}>
       <PageHeader
         title="Mandates"
-        sub="Leadership sets a mandate as a free-text intent; each mandate spawns one or more Searches that assemble the candidate universe."
+        sub="Leadership sets a mandate as a free-text intent; each mandate spawns one or more searches that assemble the candidate universe. A firm can be in the scope of several mandates, so the counts overlap."
       />
       {anyError !== undefined && anyError !== null && (
         <Notice className={styles.error}>{errorMessage(anyError)}</Notice>

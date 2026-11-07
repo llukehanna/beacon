@@ -1,4 +1,5 @@
 import { type Page, expect, test } from "@playwright/test";
+import { TOUR_FIRM_ID } from "../shared/showcaseFirms";
 import { ROUTES, openRoute } from "./routes";
 
 const desk = ROUTES.find((r) => r.path === "/desk")!;
@@ -64,6 +65,24 @@ test("tear sheet renders a showcase firm", async ({ page }) => {
   const open = page.getByRole("region", { name: "Open conflicts and abstentions" });
   await expect(open).toContainText("Sources disagree, not resolved");
   await expect(open).toContainText("No source supported a value, so Beacon did not guess.");
+});
+
+test("the score table shows an agent's proposed values, marked unverified", async ({ page }) => {
+  await page.goto(tearSheetPath(TOUR_FIRM_ID));
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mallowick Partners");
+  const table = page.getByRole("region", { name: "Score and tier" }).getByRole("table");
+  const row = (axis: string) =>
+    table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: axis }) });
+
+  // Proposed by the agent, not yet verified: the value is shown and marked, not called unknown.
+  await expect(row("Fee-earning heads")).toContainText("4 fee-earning heads");
+  await expect(row("Fee-earning heads")).toContainText("proposed · unverified");
+  await expect(row("Fee-earning heads")).not.toContainText("unknown");
+  // Verified values score; sources disagree on the firm's age; nothing is known of deals per MD.
+  await expect(row("Avg deal size")).toContainText("$46m");
+  await expect(row("Avg deal size")).toContainText("1 / 2");
+  await expect(row("Firm age")).toContainText("Sources disagree");
+  await expect(row("Deals per MD (last 3 years)")).toContainText("unknown");
 });
 
 test("the tear sheet prints from its button and is named after the firm", async ({ page }) => {

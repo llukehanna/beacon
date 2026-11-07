@@ -33,6 +33,7 @@ describe("projectProposals", () => {
       score: expected.weightedTotal,
       tier: expected.tier,
       hardRejected: false,
+      rejectReason: "",
       count: 2,
     });
     expect(projection?.score).toBeGreaterThan(mirrorScore(base).weightedTotal);

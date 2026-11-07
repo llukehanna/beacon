@@ -177,6 +177,38 @@ test("the palette opens the note form for a passed firm with no note carried ove
   await expect(note).toHaveValue("");
 });
 
+test("a passed firm a competitor has since bought offers the lesson, not Re-engage", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openRoute(page, review);
+  const acquired = queueRows(page).filter({ hasText: "passed; later acquired by a competitor" });
+  await expect(acquired.first()).toBeVisible();
+  const open = await queueRows(page).count();
+  const id = await acquired.first().getAttribute("data-drift");
+  await acquired.first().click();
+
+  const panel = detail(page);
+  await expect(panel.getByRole("region", { name: "Why it surfaced" })).toContainText(
+    "Acquired by competitor",
+  );
+  await expect(panel.getByRole("button", { name: "Re-engage" })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Keep passed…" })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Record lesson…" }).click();
+
+  const submit = panel.getByRole("button", { name: "Record lesson", exact: true });
+  await expect(submit).toBeDisabled();
+  await panel
+    .getByRole("textbox", { name: "Lesson from this pass" })
+    .fill("Small deal sizes undersold a strong sector franchise.");
+  await submit.click();
+
+  const row = page.locator(`button[data-drift="${id}"]`);
+  await expect(row).toHaveAttribute("data-resolved", "true");
+  await expect(row).toContainText("Lesson recorded");
+  await expect(queueRows(page)).toHaveCount(open - 1);
+});
+
 test("keeping a firm passed needs a note, and resolves the event", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await openRoute(page, review);

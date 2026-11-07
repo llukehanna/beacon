@@ -1,17 +1,20 @@
 import React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
 import { formatScore } from "@/desk/scoreFormat";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { type Command, useCommands } from "@/shell/commands";
+import { cameFromDesk } from "@/shell/origin";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
 import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import styles from "./TearSheetPage.module.css";
 import {
   type AbstentionItem,
+  type AxisLine,
   type Citation,
   type ConflictItem,
   type EvidenceItem,
@@ -56,6 +59,20 @@ function CitationLine({ c }: { c: Citation }): React.ReactElement {
       </p>
     </>
   );
+}
+
+/** The points cell: the score on file, or why there is none. */
+function pointsText(a: AxisLine): string {
+  switch (a.status) {
+    case "on_file":
+      return `${a.points ?? 0} / 2`;
+    case "proposed":
+      return "proposed · unverified";
+    case "conflict":
+      return "unresolved";
+    case "unknown":
+      return "unknown";
+  }
 }
 
 const NOT_RESEARCHED = "No research has run on this firm yet, so there is nothing to report.";
@@ -214,7 +231,15 @@ function Sheet({
         <p className={styles.scoreLine}>
           <span className={styles.big}>{score.total}</span>
           <span className={styles.of}> / {score.max}</span>
-          <span className={styles.tier}>{score.tierText}</span>
+          <span className={styles.tier}>
+            {score.tierNote === null ? (
+              score.tierText
+            ) : (
+              <Term id="below-c" definition={score.tierNote}>
+                {score.tierText}
+              </Term>
+            )}
+          </span>
         </p>
         {score.screenedBecause !== null && (
           <p className={styles.plain}>Screened out: {score.screenedBecause}.</p>
@@ -235,7 +260,7 @@ function Sheet({
             <thead>
               <tr>
                 <th scope="col">Axis</th>
-                <th scope="col">On file</th>
+                <th scope="col">Value</th>
                 <th scope="col" className={styles.num}>
                   Points
                 </th>
@@ -246,9 +271,7 @@ function Sheet({
                 <tr key={a.axis}>
                   <th scope="row">{a.axis}</th>
                   <td>{a.value}</td>
-                  <td className={styles.num}>
-                    {a.points === null ? "unknown" : `${a.points} / 2`}
-                  </td>
+                  <td className={styles.num}>{pointsText(a)}</td>
                 </tr>
               ))}
             </tbody>
@@ -402,11 +425,12 @@ export default function TearSheetPage(): React.ReactElement {
   useCommands(commands);
 
   const deskHref = `/desk?firmId=${encodeURIComponent(firmId)}`;
+  const fromDesk = cameFromDesk(useLocation().state);
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
-        <Link to="/pipeline" className={styles.back}>
-          Pipeline
+        <Link to={fromDesk ? "/desk" : "/pipeline"} className={styles.back}>
+          {fromDesk ? "Desk" : "Pipeline"}
         </Link>
         <div className={styles.actions}>
           <ButtonLink to={deskHref}>Open in the Desk</ButtonLink>

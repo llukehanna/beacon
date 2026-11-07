@@ -57,9 +57,9 @@ test("Tab reaches the desk's grid without walking the queue", async ({ page }) =
 
   // The queue holds hundreds of firms; its list is one tab stop (arrow keys move within it), so
   // the sidebar costs a handful of presses (its footer's About and Trust links among them), the
-  // header's Tear sheet link is one more, the demo persona picker another, and the first grid
-  // row comes right after.
-  const MAX_PRESSES = 19;
+  // header's Tear sheet link is one more (and, on a firm below tier C, the tier's "Below C" gloss,
+  // a focusable term), the demo persona picker another, and the first grid row comes right after.
+  const MAX_PRESSES = 20;
   let presses = 0;
   while (presses < MAX_PRESSES) {
     await page.keyboard.press("Tab");

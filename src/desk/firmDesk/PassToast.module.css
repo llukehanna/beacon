@@ -1,0 +1,46 @@
+/* Fixed to the window, below the top bar: the pass button is at the foot of a long page, and on a
+   phone the page has scrolled there, so a note at the top of the Desk would be out of sight. */
+.region {
+  position: fixed;
+  top: 56px;
+  right: 16px;
+  z-index: 20;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--s2);
+  box-shadow:
+    0 0 0 1px var(--line2),
+    0 12px 32px rgba(0, 0, 0, 0.45);
+  color: var(--tx2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.toast a {
+  color: var(--tx);
+  text-decoration: underline;
+}
+
+.close {
+  flex: none;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--tx2);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus-visible {
+  color: var(--tx);
+}

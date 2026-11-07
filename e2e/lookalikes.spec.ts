@@ -35,7 +35,7 @@ test("more like this lists firms with reasons", async ({ page }) => {
     const href = await item.getByRole("link").first().getAttribute("href");
     expect(href).toMatch(/^\/desk\?firmId=.+/);
     expect(href).not.toContain(encodeURIComponent(id));
-    await expect(item).toContainText(/Tier\s*[ABCR]/);
+    await expect(item).toContainText(/Tier\s*[ABC]|Rejected/);
     await expect(item).toContainText(/\d+ of \d+ fields matched/);
     const reasons = await item.locator("ul > li").allInnerTexts();
     expect(reasons.length).toBeGreaterThan(0);

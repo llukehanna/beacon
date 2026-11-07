@@ -321,7 +321,11 @@ export function EvidenceBody({
               return (
                 <div key={f.findingId} className={styles.side}>
                   <span className={styles.sideSource}>{label}</span>
-                  <span className={styles.sideValue}>{value}</span>
+                  <span
+                    className={`${styles.sideValue} ${row.def.kind === "enum" ? styles.sideWords : ""}`}
+                  >
+                    {value}
+                  </span>
                   <span className={styles.sideMeta}>
                     {[conf, modelLabel(f.extractionModel)].filter(Boolean).join(" · ")}
                   </span>

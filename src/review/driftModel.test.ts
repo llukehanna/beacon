@@ -160,9 +160,50 @@ describe("driftRow", () => {
     const row = driftRow(item(drift("d1", "a", { driftReason: "outcome_diverged" })), NOW);
     expect(row).toMatchObject({
       tone: "divergence",
-      reason: "we passed, the market did not",
+      reason: "passed; later acquired by a competitor",
       figure: null,
     });
+  });
+
+  it("knows a firm acquired by a competitor is gone, open or resolved", () => {
+    const acquired = firm("a", "Passed", { outcome: "acquired_by_competitor" });
+    const open = item(drift("d1", "a", { driftReason: "outcome_diverged" }), acquired);
+    expect(open.firmGone).toBe(true);
+    expect(open.kind).toBe("passed");
+    expect(item(drift("d1", "a"), firm("a", "Passed", { outcome: "went_cold" })).firmGone).toBe(
+      false,
+    );
+    expect(item(drift("d1", "a"), firm("a", "Passed")).firmGone).toBe(false);
+
+    // Keeping an acquired firm passed is recording the lesson; on any other firm it is still that.
+    const settled = (f: FirmLike) =>
+      driftRow(
+        item(
+          drift("d1", "a", {
+            driftReason: "outcome_diverged",
+            driftStatus: "resolved",
+            resolution: "kept_passed",
+          }),
+          f,
+        ),
+        NOW,
+      ).resolution;
+    expect(settled(acquired)).toBe("Lesson recorded");
+    expect(settled(firm("a", "Passed"))).toBe("Kept passed");
+
+    // An earlier tier-drift event, kept passed before the acquisition, is not the lesson.
+    const earlier = driftRow(
+      item(
+        drift("d0", "a", {
+          driftReason: "pass_reason_invalidated",
+          driftStatus: "resolved",
+          resolution: "kept_passed",
+        }),
+        acquired,
+      ),
+      NOW,
+    );
+    expect(earlier.resolution).toBe("Kept passed");
   });
 
   it("shows how a resolved event was settled", () => {

@@ -26,8 +26,8 @@ export function LookalikeList({
               {row.name}
             </Link>
             <span className={styles.tier}>
-              <span className="sr-only">Tier </span>
-              <TierTag tier={row.tier} />
+              {row.tier !== "Rejected" && <span className="sr-only">Tier </span>}
+              <TierTag tier={row.tier} spell />
             </span>
             <StageChip stage={row.stage} />
             <span className={styles.score}>

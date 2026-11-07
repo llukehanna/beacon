@@ -1,4 +1,12 @@
-import { matchesPredicate, predicateField, ruleKey } from "../../shared/predicate.js";
+import {
+  matchesPredicate,
+  overlappingPatternKeys,
+  predicateField,
+  rubricGateFor,
+  ruleKey,
+  rulePatternKey,
+} from "../../shared/predicate.js";
+import { describePredicate } from "../../shared/rulePredicate.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
@@ -12,6 +20,9 @@ import { type ActionContext, defineAction } from "./types.js";
 type RuleObj = ObjectOf<"ProposedRule">;
 
 export const MIN_CLUSTER = 4;
+
+/** The key of the advisory lock that serializes proposing runs on one database. */
+const PROPOSE_LOCK = 7_183_621;
 
 const text = (axis?: string, op?: string, threshold?: string): string =>
   `${axis ?? "?"} ${op ?? "?"} ${threshold ?? "?"}`;
@@ -222,15 +233,46 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       if (clustered === null) {
         return { created: [], note: "No rejections to learn from yet." };
       }
+      // Runs queue here, so each reads the rules the one before it committed. The unique index on
+      // the full rule key cannot see a second threshold for a pattern; this lock does.
+      await ctx.tx.query(`SELECT pg_advisory_xact_lock($1)`, [PROPOSE_LOCK]);
       const { proposals, source } = clustered;
       const firms = await listAll(ctx.tx, "Firm");
       const byId = new Map(rows.map((r) => [r.decisionId, r]));
+      const existing = await listAll(ctx.tx, "ProposedRule");
       // Never re-propose a rule that already exists in any status (incl. dismissed).
       const seen = new Set(
-        (await listAll(ctx.tx, "ProposedRule")).map((r) =>
-          ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
-        ),
+        existing.map((r) => ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel)),
       );
+      // The patterns a pending or approved rule already covers, whatever its threshold or model,
+      // with how each is worded in the note. An approved rule screens with its active config, which
+      // an amendment may have moved to another operator, so that pattern counts too.
+      const covered = new Map<string, string>();
+      const cover = (
+        axis?: string,
+        op?: string,
+        threshold?: string,
+        model?: string,
+        state?: string,
+      ): void => {
+        const key = rulePatternKey(axis, op, model);
+        if (!covered.has(key)) {
+          covered.set(key, `${describePredicate(axis, op, threshold)} (${state})`);
+        }
+      };
+      for (const r of existing) {
+        const status = r.ruleStatus ?? "pending";
+        if (status === "approved") {
+          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel, "active");
+        } else if (status === "pending") {
+          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel, "pending");
+        }
+      }
+      for (const c of await listAll(ctx.tx, "HardScreenConfig")) {
+        if (c.configActive) {
+          cover(c.configAxis, c.configOperator, c.configThreshold, c.configModel, "active");
+        }
+      }
       const hidden = new Set(ctx.hiddenFirmIds);
       const queue = firms.filter((f) => {
         if (hidden.has(f.$primaryKey)) {
@@ -242,6 +284,11 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
 
       const created: string[] = [];
       const alreadyProposed: string[] = [];
+      /** Supported patterns a pending or active rule already covers, as the note names them. */
+      const alreadyCovered = new Set<string>();
+      /** Supported patterns the rubric already hard-rejects on. */
+      const enforced = new Set<string>();
+      let answered = 0;
       for (const p of proposals) {
         const pred = {
           axis: p.predicateAxis.trim(),
@@ -266,8 +313,25 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         if (supportingFirms < MIN_CLUSTER) {
           continue;
         }
+        // A rule that repeats one of the rubric's hard-rejects would screen nobody the rubric does
+        // not already reject.
+        if (rubricGateFor(pred) !== null) {
+          enforced.add(describePredicate(pred.axis, pred.operator, pred.threshold));
+          continue;
+        }
+        // One rule per pattern: a second threshold for the same axis and operator is the same
+        // reason for passing, so it is not proposed beside the rule that has it.
+        const coveredBy = overlappingPatternKeys(pred.axis, pred.operator, pred.model)
+          .map((k) => covered.get(k))
+          .find((c) => c !== undefined);
+        if (coveredBy !== undefined) {
+          alreadyCovered.add(coveredBy);
+          continue;
+        }
         const key = ruleKey(pred.axis, pred.operator, pred.threshold, pred.model);
         if (seen.has(key)) {
+          // Proposed before and dismissed: the analyst has already answered it.
+          answered += 1;
           continue;
         }
         seen.add(key);
@@ -294,15 +358,34 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
           continue;
         }
         created.push(proposedRuleId);
+        covered.set(
+          rulePatternKey(pred.axis, pred.operator, pred.model),
+          `${describePredicate(pred.axis, pred.operator, pred.threshold)} (pending)`,
+        );
       }
       const by = source === "claude" ? "Claude" : "the keyword heuristic";
       const lost =
         alreadyProposed.length === 0
           ? ""
           : ` A run at the same moment had already proposed: ${alreadyProposed.join(", ")}.`;
+      const skipped =
+        (alreadyCovered.size === 0
+          ? ""
+          : ` Already covered by an existing rule: ${[...alreadyCovered].join(", ")}.`) +
+        (enforced.size === 0
+          ? ""
+          : ` Already enforced by the rubric: ${[...enforced].join(", ")}.`);
+      if (created.length === 0) {
+        const checked = `${rows.length} pass${rows.length === 1 ? "" : "es"} checked`;
+        const head =
+          alreadyCovered.size + enforced.size + alreadyProposed.length + answered > 0
+            ? `No new patterns since the last run (${checked}).`
+            : `No pattern has enough support yet (${checked}).`;
+        return { created, note: `${head}${skipped}${lost}` };
+      }
       return {
         created,
-        note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.${lost}`,
+        note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.${skipped}${lost}`,
       };
     },
   },

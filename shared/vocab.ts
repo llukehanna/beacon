@@ -80,7 +80,8 @@ export type Provider = "beacondb" | "dealdb" | "filings" | "websearch";
 export const PROVIDER_TRUST: readonly Provider[] = ["beacondb", "dealdb", "filings", "websearch"];
 /** Human-readable provider labels; keys match server/enrichment/providers.ts. */
 export const PROVIDER_LABEL: Record<string, string> = {
-  beacondb: "BeaconDB",
+  // The mock "BeaconDB" source plays a firm's own CRM record; the provider id stays beacondb.
+  beacondb: "Internal CRM (mock)",
   dealdb: "Deal DB",
   filings: "Filings",
   websearch: "Web search",
@@ -242,6 +243,16 @@ export const OUTCOMES = [
   "went_cold",
   ACQUIRED_BY_COMPETITOR,
 ] as const;
+
+/**
+ * Market outcomes after which the firm is no longer there to approach: bought by someone else. A
+ * passed firm with one of these cannot be re-engaged; what is left is the lesson.
+ */
+export const GONE_OUTCOMES: readonly string[] = [ACQUIRED_BY_COMPETITOR];
+
+export function firmIsGone(outcome: string | null | undefined): boolean {
+  return GONE_OUTCOMES.includes((outcome ?? "").trim().toLowerCase());
+}
 
 export const OPERATORS = ["<", "<=", ">", ">=", "==", "!="] as const;
 

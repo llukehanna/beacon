@@ -56,7 +56,7 @@ For one firm, each rubric axis with the value Beacon shows and the citation behi
 Reply: `{ firmId, firmName, score: { total, max, tier, model }, axes: [...] }`. Each axis is `{ axis, label, status, value, provider, quote, model, sides }`:
 
 - `status` is `verified`, `proposed`, `signal`, `abstained`, `conflict`, `rejected` or `empty`, as the Desk's grid words it.
-- `value`, `provider`, `quote` and `model` are the Desk's: the finding that speaks for the axis (a human-verified one first, else the latest), its value as shown, the source it is credited to (`Analyst` for a hand entry), the sentence it was read from, and the extraction model. They are null when there is nothing to cite.
+- `value`, `provider`, `quote` and `model` are the Desk's: the finding that speaks for the axis (a human-verified one first, else the latest), its value as the Desk words it, except that a deal size is the bare number in millions of dollars (`40`, not `$40m`), the source it is credited to (`Analyst` for a hand entry), the sentence it was read from, and the extraction model. They are null when there is nothing to cite.
 - For an open `conflict` the top-level fields are null and `sides` lists the two most trusted sides, each `{ value, provider, quote, model }`.
 
 This is the Desk's own code (`shared/axisRows.ts` and `shared/citation.ts`), not a copy, and a test compares it with the tear sheet's model on fixed findings. Opening a firm this way adds a row to the demo access log, as opening it in the app does.
