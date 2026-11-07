@@ -80,7 +80,8 @@ export type Provider = "beacondb" | "dealdb" | "filings" | "websearch";
 export const PROVIDER_TRUST: readonly Provider[] = ["beacondb", "dealdb", "filings", "websearch"];
 /** Human-readable provider labels; keys match server/enrichment/providers.ts. */
 export const PROVIDER_LABEL: Record<string, string> = {
-  beacondb: "BeaconDB",
+  // The mock "BeaconDB" source plays a firm's own CRM record; the provider id stays beacondb.
+  beacondb: "Internal CRM (mock)",
   dealdb: "Deal DB",
   filings: "Filings",
   websearch: "Web search",

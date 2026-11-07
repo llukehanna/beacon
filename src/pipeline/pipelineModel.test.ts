@@ -165,7 +165,7 @@ describe("wording", () => {
     expect(
       firmFacts(firm("a", { employees: 0, dealSizeMUsd: 40, firmAge: 12, ownership: "PE-backed" })),
     ).toEqual([
-      { label: "Employees", value: "0" },
+      { label: "Headcount", value: "0" },
       { label: "Ownership", value: "PE-backed" },
       { label: "Avg deal size", value: "$40m" },
       { label: "Firm age", value: "12 yrs" },

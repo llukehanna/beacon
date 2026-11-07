@@ -75,14 +75,14 @@ test("the score table shows an agent's proposed values, marked unverified", asyn
     table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: axis }) });
 
   // Proposed by the agent, not yet verified: the value is shown and marked, not called unknown.
-  await expect(row("Fee-Generating")).toContainText("4 fee-earning heads");
-  await expect(row("Fee-Generating")).toContainText("proposed · unverified");
-  await expect(row("Fee-Generating")).not.toContainText("unknown");
+  await expect(row("Fee-earning heads")).toContainText("4 fee-earning heads");
+  await expect(row("Fee-earning heads")).toContainText("proposed · unverified");
+  await expect(row("Fee-earning heads")).not.toContainText("unknown");
   // Verified values score; sources disagree on the firm's age; nothing is known of deals per MD.
-  await expect(row("Deal Size")).toContainText("$46m");
-  await expect(row("Deal Size")).toContainText("1 / 2");
-  await expect(row("Firm Age")).toContainText("Sources disagree");
-  await expect(row("Deals per MD")).toContainText("unknown");
+  await expect(row("Avg deal size")).toContainText("$46m");
+  await expect(row("Avg deal size")).toContainText("1 / 2");
+  await expect(row("Firm age")).toContainText("Sources disagree");
+  await expect(row("Deals per MD (last 3 years)")).toContainText("unknown");
 });
 
 test("the tear sheet prints from its button and is named after the firm", async ({ page }) => {

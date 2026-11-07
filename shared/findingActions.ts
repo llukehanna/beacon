@@ -64,11 +64,11 @@ export const ENUM_EDIT_KEYS = new Set([
 ]);
 
 // Unit hints for numeric axes — attached to the number input so the
-// analyst isn't guessing whether "150" means dollars, millions, or L3Y
-// counts.
+// analyst isn't guessing whether "150" means dollars, millions, or a count
+// over the last 3 years.
 export const NUMERIC_UNIT: Record<string, string> = {
   dealSizeMUsd: "$m USD",
-  dealsPerMdL3y: "per MD, L3Y",
+  dealsPerMdL3y: "per MD, last 3 years",
   firmAge: "yrs",
   feeGeneratingCount: "MDs",
   employees: "employees",
@@ -349,6 +349,10 @@ export function formatAxisValue(
     }
     const passWhen = HARD_GATE_PASS_WHEN[editKey];
     return v === passWhen ? "Pass" : "Fail";
+  }
+  // Deal size is in millions of dollars; a bare "40" would not say so.
+  if (editKey === "dealSizeMUsd" && typeof v === "number") {
+    return `$${v}m`;
   }
   return String(v);
 }

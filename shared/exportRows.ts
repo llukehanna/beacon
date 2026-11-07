@@ -329,16 +329,8 @@ export interface Table {
 
 const AXIS_KEYS = ENRICH_AXES.map((a) => a.axis);
 
-// The yes/no gates have no label in the trust tables, which print a title-cased key.
-const GATE_LABEL: Readonly<Record<string, string>> = {
-  advisory_conflict: "Advisory conflict",
-  has_st_or_balance_sheet: "Sales & trading or balance sheet",
-  web_activity: "Web activity",
-  solvent: "Solvent",
-};
-
 function columnLabel(axis: string): string {
-  return GATE_LABEL[axis] ?? axisLabel(axis);
+  return axisLabel(axis);
 }
 
 function orNoSource(cell: Cell): Cell {

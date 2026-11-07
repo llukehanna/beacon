@@ -4,6 +4,7 @@ import { parseChangedAxes, resolutionLabel } from "@/desk/driftReview";
 import { formatScore } from "@/desk/scoreFormat";
 import { TIER_COLOR, isOutcomeDivergence, outcomeLabel } from "@/desk/tokens";
 import { Button } from "@/ui";
+import { axisLabel } from "../../shared/axisLabels";
 import { DriftActions } from "./DriftActions";
 import styles from "./DriftDetail.module.css";
 import { type DriftItem, agoText, formatChangeValue, reasonStyle } from "./driftModel";
@@ -118,7 +119,7 @@ export function DriftDetail({
       {!resolved && !divergence && firstChange && (
         <section className={styles.quote} aria-label="What changed">
           <p className={styles.why}>
-            {firstChange.axis ?? "unknown axis"}: {formatChangeValue(firstChange.old)} →{" "}
+            {axisLabel(firstChange.axis)}: {formatChangeValue(firstChange.old)} →{" "}
             {formatChangeValue(firstChange.new)}
           </p>
           {firstChange.source && (

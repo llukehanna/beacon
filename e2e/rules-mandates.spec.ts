@@ -151,9 +151,12 @@ test("accuracy evals tab shows the eval report", async ({ page }) => {
     taxonomy.getByText(wrong.count.toLocaleString("en-US"), { exact: false }).first(),
   ).toBeVisible();
   const example = wrong.examples[0];
-  await expect(
-    taxonomy.getByRole("link", { name: new RegExp(example.firmId) }).first(),
-  ).toHaveAttribute("href", `/desk?firmId=${example.firmId}`);
+  // An example is the firm's name, linked to its Desk; no raw id or snake_case axis reaches the page.
+  const link = taxonomy.locator(`a[href="/desk?firmId=${example.firmId}"]`).first();
+  await expect(link).toBeVisible();
+  await expect(link).not.toContainText("…");
+  await expect(link).not.toContainText(example.firmId);
+  expect(await taxonomy.innerText()).not.toMatch(/[a-z]{4,}_[a-z]{2,}/);
   await expect(page.getByRole("link", { name: /docs\/evals\.md/ })).toBeVisible();
 
   // The tab is in the URL: a fresh load of it opens the same view.

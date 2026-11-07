@@ -9,11 +9,12 @@ import { agentHasRun } from "@/desk/firmDesk/agentRun";
 import { firmDecisionState } from "@/desk/firmDesk/decisionState";
 import { type FirmDecision, firmDecisions } from "@/desk/firmDesk/firmDecisions";
 import { buildOnFile } from "@/desk/firmDesk/onFile";
-import { tierText } from "@/desk/firmDesk/tierMeter";
+import { belowCGloss, tierText } from "@/desk/firmDesk/tierMeter";
 import { rejectDecisionByFirm } from "@/desk/pipelineRows";
 import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
 import { mirrorScore } from "@/desk/scoreMirror";
 import { firmFacts } from "@/pipeline/pipelineModel";
+import { axisLabel } from "../../shared/axisLabels";
 import { type AxisRow, authoritativeFinding, buildAxisRows } from "../../shared/axisRows";
 import { type Citation, citationOf, nonEmpty } from "../../shared/citation";
 import {
@@ -31,7 +32,7 @@ import {
   isApplied,
   kindLabel,
 } from "../../shared/marketSignals";
-import { MAX_POSSIBLE } from "../../shared/scoreMirror";
+import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../../shared/scoreMirror";
 import { ENRICH_AXES, MARKET_SIGNAL } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
@@ -125,6 +126,8 @@ export interface TearSheet {
     tier: string;
     /** "Tier B", "Below C" or "Rejected", as the Desk words it. */
     tierText: string;
+    /** What "Below C" means, for a tooltip; null for any other tier. */
+    tierNote: string | null;
     model: "CF" | "CS";
     /** Why a screened firm is out; null otherwise. */
     screenedBecause: string | null;
@@ -179,14 +182,17 @@ export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
  * say so. "Unknown" is left for an axis nobody has a value for.
  */
 function axisLine(
-  a: { axis: string; score: number; known: boolean },
+  mirrorAxis: { axis: string; score: number; known: boolean },
   firm: FirmView,
   rows: readonly AxisRow[],
   model: "CF" | "CS",
 ): AxisLine {
+  // The rubric mirror's own axis name keys the lookups; the sheet shows the shared label.
+  const a = mirrorAxis;
+  const shown = axisLabel(a.axis);
   if (a.known) {
     return {
-      axis: a.axis,
+      axis: shown,
       value: humanAxisValue(a.axis, firm),
       points: a.score,
       status: "on_file",
@@ -198,7 +204,7 @@ function axisLine(
     if (proposal !== undefined) {
       const withProposal: FirmView = { ...firm, [row.def.firmField]: proposal };
       return {
-        axis: a.axis,
+        axis: shown,
         value: humanAxisValue(a.axis, withProposal),
         points: null,
         status: "proposed",
@@ -206,9 +212,9 @@ function axisLine(
     }
   }
   if (row?.state === "conflict") {
-    return { axis: a.axis, value: "Sources disagree", points: null, status: "conflict" };
+    return { axis: shown, value: "Sources disagree", points: null, status: "conflict" };
   }
-  return { axis: a.axis, value: humanAxisValue(a.axis, firm), points: null, status: "unknown" };
+  return { axis: shown, value: humanAxisValue(a.axis, firm), points: null, status: "unknown" };
 }
 
 export function buildTearSheet({
@@ -302,6 +308,7 @@ export function buildTearSheet({
       max: MAX_POSSIBLE,
       tier: mirror.tier,
       tierText: tierText(mirror.tier, hard),
+      tierNote: belowCGloss(mirror.tier, hard, TIER_THRESHOLDS[mirror.model].C, MAX_POSSIBLE),
       model: mirror.model,
       screenedBecause,
     },

@@ -29,7 +29,7 @@ describe("buildOnFile", () => {
       band: 2,
       pending: false,
     });
-    expect(onFile.deal_size_usd_m).toEqual({ text: "40", band: 1, pending: false });
+    expect(onFile.deal_size_usd_m).toEqual({ text: "$40m", band: 1, pending: false });
   });
 
   it("words gates as Pass or Fail and gives them no points", () => {
@@ -46,7 +46,7 @@ describe("buildOnFile", () => {
 
   it("prefers a staged edit to the stored value and marks it pending", () => {
     const onFile = view(firm, { dealSizeMUsd: 200 });
-    expect(onFile.deal_size_usd_m).toEqual({ text: "200", band: 2, pending: true });
+    expect(onFile.deal_size_usd_m).toEqual({ text: "$200m", band: 2, pending: true });
   });
 
   it("reads the balance-sheet gate through its SDK spelling", () => {

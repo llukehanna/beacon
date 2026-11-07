@@ -1,5 +1,6 @@
 import React from "react";
 import { Term } from "@/components/Term";
+import { axisLabel } from "../../../shared/axisLabels";
 import { HARD_GATE_PASS_WHEN } from "../findingActions";
 import { type FirmView } from "./deskModel";
 
@@ -23,7 +24,7 @@ export const HARD_GATES: HardGate[] = [
   {
     editKey: "advisoryConflict",
     readKey: "advisoryConflict",
-    label: "Advisory conflict",
+    label: axisLabel("advisory_conflict"),
     helper: (
       <>
         <Term id="CS">CS</Term> hard-reject
@@ -34,19 +35,19 @@ export const HARD_GATES: HardGate[] = [
   {
     editKey: "hasStOrBalanceSheet",
     readKey: "hasSTOrBalanceSheet",
-    label: "S&T / balance sheet",
+    label: axisLabel("has_st_or_balance_sheet"),
     passWhen: HARD_GATE_PASS_WHEN.hasStOrBalanceSheet,
   },
   {
     editKey: "webActivity",
     readKey: "webActivity",
-    label: "Web activity",
+    label: axisLabel("web_activity"),
     passWhen: HARD_GATE_PASS_WHEN.webActivity,
   },
   {
     editKey: "solvent",
     readKey: "solvent",
-    label: "Solvent",
+    label: axisLabel("solvent"),
     passWhen: HARD_GATE_PASS_WHEN.solvent,
   },
 ];

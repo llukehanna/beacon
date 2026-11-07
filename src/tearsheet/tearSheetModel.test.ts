@@ -39,9 +39,9 @@ describe("buildTearSheet", () => {
     expect(sheet.score.max).toBe(18);
     expect(sheet.score.total).toBe(sheet.axes.reduce((n, a) => n + (a.points ?? 0), 0));
     expect(sheet.score.tierText).toMatch(/^Tier [ABC]$/);
-    expect(sheet.axes.map((a) => a.axis)).toContain("Deal Size");
-    expect(sheet.axes.find((a) => a.axis === "Deal Size")).toEqual({
-      axis: "Deal Size",
+    expect(sheet.axes.map((a) => a.axis)).toContain("Avg deal size");
+    expect(sheet.axes.find((a) => a.axis === "Avg deal size")).toEqual({
+      axis: "Avg deal size",
       value: "$80m",
       points: 1,
       status: "on_file",
@@ -83,21 +83,21 @@ describe("buildTearSheet", () => {
     ];
     const sheet = buildTearSheet({ firm: bare, findings, decisions: [], rules: [] });
     const line = (axis: string) => sheet.axes.find((a) => a.axis === axis);
-    expect(line("Deal Size")).toEqual({
-      axis: "Deal Size",
+    expect(line("Avg deal size")).toEqual({
+      axis: "Avg deal size",
       value: "$46m",
       points: null,
       status: "proposed",
     });
-    expect(line("Firm Age")).toEqual({
-      axis: "Firm Age",
+    expect(line("Firm age")).toEqual({
+      axis: "Firm age",
       value: "Sources disagree",
       points: null,
       status: "conflict",
     });
     // Abstained, and nothing else known: still unknown.
-    expect(line("MD Experience")).toMatchObject({ value: "—", points: null, status: "unknown" });
-    expect(line("Fee-Generating")).toMatchObject({ points: null, status: "unknown" });
+    expect(line("MD pedigree")).toMatchObject({ value: "—", points: null, status: "unknown" });
+    expect(line("Fee-earning heads")).toMatchObject({ points: null, status: "unknown" });
     // A proposal earns nothing until it is verified: the live score is the record's.
     expect(sheet.score.total).toBe(sheet.axes.reduce((n, a) => n + (a.points ?? 0), 0));
 
@@ -107,7 +107,7 @@ describe("buildTearSheet", () => {
       findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
     );
     const status = (axis: string) => evidence.axes.find((a) => a.axis === axis);
-    expect(status("deal_size_usd_m")).toMatchObject({ status: "proposed", value: "46" });
+    expect(status("deal_size_usd_m")).toMatchObject({ status: "proposed", value: "$46m" });
     expect(status("firm_age")?.status).toBe("conflict");
     expect(status("md_pedigree")?.status).toBe("abstained");
   });
@@ -119,7 +119,7 @@ describe("buildTearSheet", () => {
       decisions: [],
       rules: [],
     });
-    expect(sheet.axes.find((a) => a.axis === "Deal Size")).toMatchObject({
+    expect(sheet.axes.find((a) => a.axis === "Avg deal size")).toMatchObject({
       value: "$80m",
       points: 1,
       status: "on_file",
@@ -204,7 +204,7 @@ describe("buildTearSheet", () => {
       rules: [],
     });
     expect(sheet.conflicts).toHaveLength(1);
-    expect(sheet.conflicts[0].axis).toBe("Deals / MD (L3Y)");
+    expect(sheet.conflicts[0].axis).toBe("Deals per MD (last 3 years)");
     expect(sheet.conflicts[0].sides.map((s) => [s.provider, s.value])).toEqual([
       ["Deal DB", "2"],
       ["Web search", "4"],
@@ -347,7 +347,10 @@ describe("buildTearSheet", () => {
       decisions: [],
       rules: [],
     });
-    expect(sheet.conflicts[0].sides.map((s) => s.provider)).toEqual(["BeaconDB", "Filings"]);
+    expect(sheet.conflicts[0].sides.map((s) => s.provider)).toEqual([
+      "Internal CRM (mock)",
+      "Filings",
+    ]);
   });
 
   it("says whether the agent has run, and not before", () => {
