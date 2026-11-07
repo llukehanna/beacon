@@ -3,7 +3,7 @@
  * data. They mirror Foundry query functions (the client calls them through
  * useOsdkQuery); a function takes a params object and returns plain JSON.
  */
-import { type Access, NO_WALL } from "../access.js";
+import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { HttpError } from "../errors.js";
 import { accuracySummary } from "./accuracySummary.js";
@@ -33,8 +33,8 @@ export const FUNCTIONS: Record<string, QueryFunction> = {
 export async function runFunction(
   q: Queryable,
   name: string,
-  params: Record<string, unknown> = {},
-  access: Access = NO_WALL,
+  params: Record<string, unknown>,
+  access: Access,
 ): Promise<unknown> {
   if (!Object.prototype.hasOwnProperty.call(FUNCTIONS, name)) {
     throw new HttpError(`Unknown function "${name}"`, 404);

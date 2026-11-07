@@ -33,8 +33,8 @@ export interface ApplyOptions {
   maxActivityRows?: number;
   /** Where each run's latency is recorded; `null` records nothing (the seed builds history through actions). */
   recordRun?: ActionRunRecorder | null;
-  /** Who is acting. Without it nothing is hidden (the seed, the cron jobs and the tests act for no persona). */
-  access?: Access;
+  /** Who is acting. Required, so a caller cannot forget the wall: the seed, cron jobs and tests pass NO_WALL. */
+  access: Access;
 }
 
 const defaultId = (prefix: string): string => `${prefix}-${randomUUID()}`;
@@ -48,7 +48,7 @@ export async function applyAction(
   db: Db,
   name: string,
   raw: unknown,
-  opts: ApplyOptions = {},
+  opts: ApplyOptions,
 ): Promise<ActionResult> {
   const def = isActionName(name) ? ACTIONS[name] : undefined;
   if (!def) {
@@ -108,7 +108,7 @@ async function execute(
     user: opts.user ?? USER,
     newId: opts.newId ?? defaultId,
     clusterer,
-    hiddenFirmIds: opts.access?.hiddenFirmIds ?? [],
+    hiddenFirmIds: opts.access.hiddenFirmIds,
   };
   // Outside the transaction too: slow work (the Claude call) must not hold a connection open.
   const prep = def.prepare

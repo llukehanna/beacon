@@ -1,5 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NO_WALL } from "../access.js";
 import { applyAction } from "../actions/apply.js";
 import { getMeta } from "../db/meta.js";
 import { createTestDb } from "../testing.js";
@@ -102,7 +103,7 @@ describe("chooseClusterer", () => {
     const db = await createTestDb();
     const t = new Date("2026-09-22T12:00:00Z");
     // No rejections yet, so the action returns before any clusterer runs.
-    await applyAction(db, "clusterRejections", {}, { now: t });
+    await applyAction(db, "clusterRejections", {}, { now: t, access: NO_WALL });
     expect(await getMeta(db, "lastClaudeClusterAt")).toBe(t.toISOString());
     await expect(
       db.transaction(async (tx) => {

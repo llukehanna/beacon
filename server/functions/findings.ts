@@ -36,15 +36,12 @@ const COUNTS = `
   count(*) FILTER (WHERE abstain)::int AS abstain,
   count(*)::int AS total`;
 
-export async function findingTotals(
-  q: Queryable,
-  hidden: readonly string[] = [],
-): Promise<RateCounts> {
+export async function findingTotals(q: Queryable, hidden: readonly string[]): Promise<RateCounts> {
   const [row] = await q.query<RateCounts>(`SELECT ${COUNTS} FROM (${CLASSIFIED}) c`, [hidden]);
   return row;
 }
 
-export function findingCells(q: Queryable, hidden: readonly string[] = []): Promise<FindingCell[]> {
+export function findingCells(q: Queryable, hidden: readonly string[]): Promise<FindingCell[]> {
   return q.query<FindingCell>(
     `SELECT provider, axis, ${COUNTS} FROM (${CLASSIFIED}) c GROUP BY provider, axis`,
     [hidden],

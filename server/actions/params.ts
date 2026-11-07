@@ -18,7 +18,7 @@ export async function resolveParams(
   tx: Queryable,
   spec: Readonly<Record<string, ParamDef>>,
   raw: unknown,
-  access?: Access,
+  access: Access,
 ): Promise<Record<string, unknown>> {
   const input = raw ?? {};
   if (typeof input !== "object" || Array.isArray(input)) {
@@ -47,7 +47,7 @@ export async function resolveParams(
       }
       // Locked for the action's transaction: concurrent actions on one object serialize.
       const obj = await getObject(tx, t.object, v, { forUpdate: true });
-      if (!obj || (access !== undefined && isHidden(access, t.object, obj))) {
+      if (!obj || isHidden(access, t.object, obj)) {
         throw new ActionError(`${t.object} ${v} not found`, 404);
       }
       out[name] = obj;

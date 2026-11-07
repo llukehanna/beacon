@@ -44,7 +44,7 @@ import type {
 import { type TrendFinding, findingTrends, groundedCounts } from "../../shared/trends.js";
 import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.js";
 import { MARKET_SIGNAL } from "../../shared/vocab.js";
-import { type Access, NO_WALL } from "../access.js";
+import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
@@ -62,10 +62,7 @@ export const VISIBLE_ROWS = 7;
 type FirmRow = QueueFirm & ScreenableFirm;
 
 /** The firms with the columns the queue and the funnel read; `hidden` firms are not among them. */
-export async function loadLeanFirms(
-  q: Queryable,
-  hidden: readonly string[] = [],
-): Promise<FirmRow[]> {
+export async function loadLeanFirms(q: Queryable, hidden: readonly string[]): Promise<FirmRow[]> {
   const rows = await q.query(
     `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
       WHERE "firmId" <> ALL($1::text[])`,
@@ -104,7 +101,7 @@ async function loadActiveConfigs(q: Queryable): Promise<ActiveConfigRule[]> {
  */
 export async function needsYouAxes(
   q: Queryable,
-  hidden: readonly string[] = [],
+  hidden: readonly string[],
 ): Promise<Map<string, number>> {
   const rows = await q.query<{ firmId: string; axes: number }>(
     `WITH visible AS (
@@ -348,7 +345,7 @@ async function activeMandates(q: Queryable, access: Access): Promise<MandateSumm
     }));
 }
 
-export async function homeSummary(q: Queryable, access: Access = NO_WALL): Promise<HomeSummary> {
+export async function homeSummary(q: Queryable, access: Access): Promise<HomeSummary> {
   const hidden = access.hiddenFirmIds;
   const [
     firms,

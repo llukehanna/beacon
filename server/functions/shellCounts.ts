@@ -6,7 +6,7 @@
 import { bucketOf, isOpenBucket } from "../../shared/pipelineBuckets.js";
 import { mirrorScore } from "../../shared/scoreMirror.js";
 import type { ShellCounts } from "../../shared/summaries.js";
-import { type Access, NO_WALL } from "../access.js";
+import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { ACTIVE_MANDATE_WHERE, OPEN_DRIFT_WHERE } from "./homeSummary.js";
 
@@ -57,7 +57,7 @@ async function countWhere(
   return row?.n ?? 0;
 }
 
-export async function shellCounts(q: Queryable, access: Access = NO_WALL): Promise<ShellCounts> {
+export async function shellCounts(q: Queryable, access: Access): Promise<ShellCounts> {
   const [open, review, activeMandates] = await Promise.all([
     openFirmCount(q, access.hiddenFirmIds),
     countWhere(

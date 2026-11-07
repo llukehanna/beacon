@@ -10,6 +10,7 @@
  * market signals gave any work, so nothing the tour or a test walks through depends on one.
  */
 import { codenameFor } from "../../shared/accessPolicy.js";
+import { NO_WALL } from "../access.js";
 import { applyAction } from "../actions/apply.js";
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
@@ -51,13 +52,14 @@ function barrierIds(): (prefix: string) => string {
   return (prefix) => `${prefix}-seed-barrier-${String(++n).padStart(3, "0")}`;
 }
 
-/** Firms nothing else in the seed touched: still Discovered, never enriched, searched, decided or signalled. */
+/** Firms nothing else in the seed touched: still Discovered, never enriched, searched, listed in a mandate's universe, decided or signalled. */
 async function untouchedFirms(db: Db): Promise<string[]> {
   const rows = await db.query<{ firmId: string; employees: number | null }>(
     `SELECT f."firmId", f."employees" FROM firm f
       WHERE f."lifecycleState" = 'Discovered' AND f."enrichedBy" IS NULL
         AND f."discoveredViaSearchId" IS NULL
         AND NOT EXISTS (SELECT 1 FROM search_membership m WHERE m."firmId" = f."firmId")
+        AND NOT EXISTS (SELECT 1 FROM search_list_firm l WHERE l."firmId" = f."firmId")
         AND NOT EXISTS (SELECT 1 FROM research_finding x WHERE x."firmId" = f."firmId")
         AND NOT EXISTS (SELECT 1 FROM review_decision x WHERE x."firmId" = f."firmId")
         AND NOT EXISTS (SELECT 1 FROM drift_event x WHERE x."firmId" = f."firmId")
@@ -94,7 +96,12 @@ export async function seedBarriers(
       geographies: [...WALLED_MANDATE.geographies],
       priority: WALLED_MANDATE.priority,
     },
-    { now: new Date(now.getTime() - 31 * DAY), newId: barrierIds(), recordRun: null },
+    {
+      now: new Date(now.getTime() - 31 * DAY),
+      newId: barrierIds(),
+      recordRun: null,
+      access: NO_WALL,
+    },
   );
   const walledMandateId = made.created![0];
 

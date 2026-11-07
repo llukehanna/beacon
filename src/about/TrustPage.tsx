@@ -98,7 +98,8 @@ export default function TrustPage(): React.ReactElement {
           <li>
             A restricted firm is visible to compliance alone, with its reason. For the analyst and
             the deal-team lead it is missing from lists, lookups, counts, exports, tear sheets and
-            search, and an action on it is a not-found.
+            search, and an action on it is a not-found. Counts the agent computes or stored when a
+            search ran may still include a restricted firm.
           </li>
           <li>
             Without need-to-know, a mandate keeps its place and its firms but shows a codename
