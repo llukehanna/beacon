@@ -19,9 +19,6 @@ export interface SearchListLike {
   mandateId?: string | null;
 }
 
-/** Where a mandate's firm lists are paged from; counting only needs the ids. */
-export const FIRM_COUNT_PAGE_SIZE = 500;
-
 /** A mandate's name: its intent statement, then its title, then its id so a malformed row still has an anchor. */
 export function mandateHeadline(mandate: MandateLike): string {
   return (

@@ -183,6 +183,7 @@ describe("applyDueSignals", () => {
     expect(drifts).toHaveLength(1);
     expect(await getObject(db, "DriftEvent", drifts[0])).toMatchObject({
       driftReason: "pass_reason_invalidated",
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       newTier: expect.stringMatching(/^[ABC]$/),
     });
   });
@@ -201,9 +202,12 @@ describe("applyDueSignals", () => {
     });
     const { drifts } = await applyDueSignals(db, NOW);
     const drift = (await getObject(db, "DriftEvent", drifts[0]))!;
-    expect(JSON.parse(drift.changedAxes!)).toEqual([
-      expect.objectContaining({ source: "Synthetic market signal", dated: drift.detectedAt }),
-    ]);
+    const axes = JSON.parse(drift.changedAxes!) as Record<string, unknown>[];
+    expect(axes).toEqual([expect.objectContaining({ source: "Synthetic market signal" })]);
+    expect(axes[0], "when it happened is detectedAt, not a key in the axes").not.toHaveProperty(
+      "dated",
+    );
+    expect(drift.detectedAt).toBeDefined();
     expect((await getObject(db, "Firm", firm.$primaryKey))?.outcomeSource).toBe("market_signal");
     await run(db, "setFirmOutcome", {
       firm: firm.$primaryKey,
@@ -353,6 +357,9 @@ describe("applyDueSignals", () => {
 
   it("marks a signal for a missing firm applied and writes nothing for it", async () => {
     const db = await createTestDb();
+    // The database no longer lets a signal name a firm that is not there; the run still copes with
+    // one that does (a database from before the constraint, or one restored without it).
+    await db.exec(`ALTER TABLE market_signal DROP CONSTRAINT market_signal_firm_fkey`);
     await addSignal(db, { signalId: "ghost", firmId: "nobody", effectiveDate: hoursAgo(1) });
     expect((await applyDueSignals(db, NOW)).applied).toEqual(["ghost"]);
     expect(await listAll(db, "ResearchFinding")).toHaveLength(0);

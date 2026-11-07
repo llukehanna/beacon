@@ -11,6 +11,14 @@ import { POST as resetButton } from "./reset.js";
 
 let db: Db;
 
+type Rows = {
+  data: Array<Record<string, unknown> & { $primaryKey: string }>;
+  nextPageToken?: string;
+};
+
+/** The reply body, taken as the shape the test then reads (a wire boundary: it is only JSON). */
+const read = async <T>(res: Response): Promise<T> => (await res.json()) as T;
+
 const req = (path: string, init?: RequestInit) => new Request(`http://localhost${path}`, init);
 const post = (path: string, body: unknown) =>
   req(path, {
@@ -23,21 +31,25 @@ beforeEach(async () => {
   db = await createTestDb();
   overrideDb(db);
   await seedFirm(db, { firmId: "f1", firmName: "Alpha", ...STRONG_CF });
-  await db.query(`INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'f1')`);
+  await db.exec(
+    `INSERT INTO mandate ("mandateId", "createdAt") VALUES ('M1', now());
+     INSERT INTO search_list ("searchId", "mandateId", "createdAt") VALUES ('L1', 'M1', now());
+     INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'f1')`,
+  );
 });
 
 describe("/api/objects", () => {
   it("lists objects with identity fields", async () => {
     const res = await objects(req("/api/objects?type=Firm"));
     expect(res.status).toBe(200);
-    const { data } = await res.json();
+    const { data } = await read<Rows>(res);
     expect(data[0]).toMatchObject({ $apiName: "Firm", $primaryKey: "f1", firmName: "Alpha" });
   });
 
   it("filters by $eq and rejects bad input", async () => {
     const miss = encodeURIComponent(JSON.stringify({ firmName: { $eq: "Nope" } }));
     expect(
-      (await (await objects(req(`/api/objects?type=Firm&where=${miss}`))).json()).data,
+      (await read<Rows>(await objects(req(`/api/objects?type=Firm&where=${miss}`)))).data,
     ).toEqual([]);
     expect((await objects(req("/api/objects?type=Secrets"))).status).toBe(404);
     const gt = encodeURIComponent(JSON.stringify({ firmName: { $gt: "A" } }));
@@ -51,12 +63,12 @@ describe("/api/objects", () => {
 describe("/api/objects paging", () => {
   it("returns a page and a token, and 400 for a malformed token", async () => {
     await seedFirm(db, { firmId: "f2", firmName: "Beta" });
-    const first = await (await objects(req("/api/objects?type=Firm&pageSize=1"))).json();
-    expect(first.data.map((o: { $primaryKey: string }) => o.$primaryKey)).toEqual(["f1"]);
-    const second = await (
-      await objects(req(`/api/objects?type=Firm&pageSize=1&pageToken=${first.nextPageToken}`))
-    ).json();
-    expect(second.data.map((o: { $primaryKey: string }) => o.$primaryKey)).toEqual(["f2"]);
+    const first = await read<Rows>(await objects(req("/api/objects?type=Firm&pageSize=1")));
+    expect(first.data.map((o) => o.$primaryKey)).toEqual(["f1"]);
+    const second = await read<Rows>(
+      await objects(req(`/api/objects?type=Firm&pageSize=1&pageToken=${first.nextPageToken}`)),
+    );
+    expect(second.data.map((o) => o.$primaryKey)).toEqual(["f2"]);
     expect((await objects(req("/api/objects?type=Firm&pageToken=not-base64!"))).status).toBe(400);
     expect((await objects(req("/api/objects?type=Firm&pageSize=abc"))).status).toBe(400);
   });
@@ -65,7 +77,7 @@ describe("/api/objects paging", () => {
     await db.query(
       `INSERT INTO firm ("firmId") SELECT 'g' || lpad(i::text, 5, '0') FROM generate_series(1, 1001) i`,
     );
-    const body = await (await objects(req("/api/objects?type=Firm&pageSize=5000"))).json();
+    const body = await read<Rows>(await objects(req("/api/objects?type=Firm&pageSize=5000")));
     expect(body.data).toHaveLength(1000);
     expect(typeof body.nextPageToken).toBe("string");
   });
@@ -77,7 +89,7 @@ describe("/api/actions", () => {
       post("/api/actions", { action: "qualifyFirm", params: { firm: "f1" } }),
     );
     expect(res.status).toBe(200);
-    const { data } = await (await objects(req("/api/objects?type=Firm"))).json();
+    const { data } = await read<Rows>(await objects(req("/api/objects?type=Firm")));
     expect(data[0].lifecycleState).toBe("Qualified");
   });
 
@@ -86,16 +98,16 @@ describe("/api/actions", () => {
       post("/api/actions", { action: "rejectFirm", params: { firm: "f1" } }),
     );
     expect(bad.status).toBe(400);
-    expect((await bad.json()).error).toMatch(/rejectionRationale/);
+    expect((await read<{ error: string }>(bad)).error).toMatch(/rejectionRationale/);
     expect((await actions(post("/api/actions", { action: "nope", params: {} }))).status).toBe(404);
   });
 });
 
 describe("/api/links", () => {
   it("traverses a link for many sources", async () => {
-    const { data } = await (
-      await links(post("/api/links", { type: "SearchList", link: "firms", pks: ["L1", "L2"] }))
-    ).json();
+    const { data } = await read<{ data: Record<string, Rows["data"]> }>(
+      await links(post("/api/links", { type: "SearchList", link: "firms", pks: ["L1", "L2"] })),
+    );
     expect(data.L1[0].$primaryKey).toBe("f1");
     expect(data.L2).toEqual([]);
   });
@@ -131,8 +143,8 @@ describe("/api/reset", () => {
     await actions(post("/api/actions", { action: "qualifyFirm", params: { firm: "f1" } }));
     const res = await resetButton();
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ firms: 1 });
-    const { data } = await (await objects(req("/api/objects?type=Firm"))).json();
+    expect(await read<unknown>(res)).toEqual({ firms: 1 });
+    const { data } = await read<Rows>(await objects(req("/api/objects?type=Firm")));
     expect(data[0].lifecycleState).not.toBe("Qualified");
   });
 
@@ -145,7 +157,9 @@ describe("/api/reset", () => {
 
 describe("/api/functions", () => {
   it("returns { value } for a registered function and 404 for an unknown one", async () => {
-    const { value } = await (await functions(req("/api/functions?name=homeSummary"))).json();
+    const { value } = await read<{
+      value: { funnel: Record<string, number>; needsYouTotal: number };
+    }>(await functions(req("/api/functions?name=homeSummary")));
     expect(value.funnel.Screening).toBeGreaterThanOrEqual(0);
     expect(value.needsYouTotal).toBe(0);
     expect((await functions(req("/api/functions?name=nope"))).status).toBe(404);

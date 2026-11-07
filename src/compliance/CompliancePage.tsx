@@ -1,18 +1,13 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { AccessLogEntry, Firm, Mandate, RestrictedFirm } from "@/data/ontology";
 import { usePersona } from "@/data/persona";
 import { SectionHead } from "@/home/SectionHead";
 import { Chip, EmptyState, Notice, PageHeader, Panel, Skeleton } from "@/ui";
 import styles from "./CompliancePage.module.css";
-import { type LogRow, logTime, objectName, personaLabel } from "./complianceModel";
-
-interface RestrictedRow {
-  firmId: string;
-  reason?: string;
-  addedAt?: string;
-}
+import { logTime, objectName, personaLabel } from "./complianceModel";
 
 const LOG_ROWS = 100;
 
@@ -46,28 +41,16 @@ export default function CompliancePage(): React.ReactElement {
   const mandates = useOsdkObjects(Mandate, { autoFetchMore: true, enabled: allowed });
 
   const firmNames = React.useMemo(
-    () =>
-      new Map(
-        ((firms.data ?? []) as unknown as { firmId: string; firmName?: string }[]).map((f) => [
-          f.firmId,
-          f.firmName ?? f.firmId,
-        ]),
-      ),
+    () => new Map((firms.data ?? []).map((f) => [f.firmId, f.firmName ?? f.firmId])),
     [firms.data],
   );
   const mandateNames = React.useMemo(
-    () =>
-      new Map(
-        ((mandates.data ?? []) as unknown as { mandateId: string; title?: string }[]).map((m) => [
-          m.mandateId,
-          m.title ?? m.mandateId,
-        ]),
-      ),
+    () => new Map((mandates.data ?? []).map((m) => [m.mandateId, m.title ?? m.mandateId])),
     [mandates.data],
   );
 
-  const restrictedRows = (restricted.data ?? []) as unknown as RestrictedRow[];
-  const logRows = (log.data ?? []) as unknown as LogRow[];
+  const restrictedRows = restricted.data ?? [];
+  const logRows = log.data ?? [];
   const error = restricted.error ?? log.error;
 
   return (
@@ -86,7 +69,7 @@ export default function CompliancePage(): React.ReactElement {
         ) : (
           <>
             {error !== undefined && (
-              <Notice>Could not load the barrier data: {error.message}</Notice>
+              <Notice>Could not load the barrier data: {errorMessage(error)}</Notice>
             )}
             <Panel className={styles.panel} aria-labelledby="restricted-title">
               <SectionHead

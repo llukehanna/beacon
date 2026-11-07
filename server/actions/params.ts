@@ -1,8 +1,8 @@
+import type { ParamSpec } from "../../shared/actionParams.js";
 import { type Access, isHidden } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { getObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
-import type { ParamDef } from "./types.js";
 
 /** Input bounds for a public demo: one visitor must not be able to bloat the shared database. */
 export const MAX_STRING = 2000;
@@ -16,7 +16,7 @@ export const MAX_LIST_ITEM = 200;
  */
 export async function resolveParams(
   tx: Queryable,
-  spec: Readonly<Record<string, ParamDef>>,
+  spec: ParamSpec,
   raw: unknown,
   access: Access,
 ): Promise<Record<string, unknown>> {

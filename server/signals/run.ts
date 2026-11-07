@@ -112,7 +112,7 @@ export async function applyDueSignals(
     if (rows.length === 0) {
       return { applied: [], drifts: [] };
     }
-    const signals = rows.map((r) => toWire("MarketSignal", r) as unknown as SignalRow);
+    const signals = rows.map((r) => toWire("MarketSignal", r));
     const firmIds = [...new Set(signals.map((s) => s.firmId))].sort();
     const firmRows = await tx.query<Record<string, unknown>>(
       `SELECT * FROM ${OBJECT_TYPES.Firm.table} WHERE "firmId" = ANY($1::text[]) ORDER BY "firmId" FOR UPDATE`,

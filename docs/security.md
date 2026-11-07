@@ -64,8 +64,10 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - A research finding is inserted once and afterwards changes only its status and verification stamp (for example superseded, verified, rejected). <!-- source: server/actions/findings.ts -->
 - A drift event changes only its status and resolution fields. A proposed rule changes only its status and who decided it, and when. A hard-screen config is inserted per version, and its active flag is switched off when the rule is dismissed, unapproved or amended. <!-- source: server/actions/drift.ts, server/actions/rules.ts -->
 - The firm record itself is current state and is updated in place. <!-- source: server/actions/firms.ts, server/actions/findings.ts -->
-- **How this is enforced: in application code only.** Every write goes through a named action in the registry, and no action updates or deletes those history rows beyond the fields above. <!-- source: server/actions/registry.ts, shared/schema.ts -->
-- The database does not enforce it. There are no triggers and no revoked privileges, and the Worker connects with one connection string that has full rights. A database-level guarantee (write-once tables, or a role without UPDATE and DELETE) is not built. <!-- source: server/db/ddl.ts, worker/index.ts -->
+- **How this is enforced: in the database for scores, decisions and findings, in application code for the rest.** A trigger on `qualification_score` (`qualification_score_append_only`) and on `review_decision` (`review_decision_append_only`) refuses every UPDATE and DELETE. A trigger on `research_finding` (`research_finding_append_only`) refuses every DELETE and any UPDATE that changes more than `findingStatus`, `verifiedByHuman`, `verifiedBy` and `verifiedAt`. Each raises `<table> is append-only`. <!-- source: server/db/migrations/0003_integrity.sql, server/db/history.ts, server/db/integrity.test.ts -->
+- Drift events, proposed rules and hard-screen configs are updated in place by actions, so no trigger guards them: that they change only the fields above is application code. Every write goes through a named action in the registry. <!-- source: server/actions/registry.ts, server/actions/drift.ts, server/actions/rules.ts -->
+- The database also holds the references and the required columns. Each `firmId`, `mandateId`, `searchId` and `sourceProposedRuleId` that names another row is a foreign key, checked at commit. The columns `shared/schema.ts` lists as required are NOT NULL. A proposed rule is unique on its predicate, compared as `ruleKey` does (trimmed, case-insensitive). <!-- source: server/db/migrations/0003_integrity.sql, shared/schema.ts -->
+- **What the triggers do not guarantee.** TRUNCATE fires no row trigger, and the nightly reset truncates and restores the history. The Worker connects with one connection string that has full rights, as the owner of the tables, so anyone holding it can drop a trigger or truncate. A role that owns nothing and cannot do either is not built. <!-- source: server/seed/snapshot.ts, worker/index.ts -->
 - The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`), the link lookup (`/api/links`) and the read-only MCP endpoint (`/api/mcp`) change nothing but the demo access log; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/mcp.ts, api/actions.ts, api/reset.ts -->
 - The nightly reset truncates the history, so the trail covers one demo day, not a permanent record. <!-- source: server/seed/snapshot.ts -->
 
@@ -121,6 +123,6 @@ form-action 'self'
 ## Not built
 
 - Authentication, accounts, real roles and per-user permissions. The information barrier's personas are a demo. <!-- source: worker/index.ts, server/access.ts -->
-- Tenant isolation. <!-- source: server/db/ddl.ts -->
-- Database-enforced immutability of the audit trail. <!-- source: server/db/ddl.ts -->
+- Tenant isolation. <!-- source: server/db/migrations/0001_baseline.sql -->
+- A database role that cannot drop the history triggers or truncate the history. The triggers stop an UPDATE or DELETE, not the table's owner. <!-- source: server/db/migrations/0003_integrity.sql, worker/index.ts -->
 - Any compliance certification. None is claimed. <!-- source: README.md -->

@@ -1,11 +1,12 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
 import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
-import type { FindingLike, FirmLike } from "../../../shared/exportRows";
+import { RetryNotice } from "@/ui";
 import { AGENT } from "../../../shared/vocab";
 import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
@@ -23,7 +24,7 @@ import {
 import { EnrichmentPanel } from "./EnrichmentPanel";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type FirmView, type RediscoveryInfo, formatActionError } from "./deskModel";
+import { type RediscoveryInfo, searchLabel } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 import { useScreeningRules } from "./useScreeningRules";
@@ -33,7 +34,14 @@ function Desk(): React.ReactElement {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
-  const { screeningRules, rankingRules, configLoading, proposedRulesLoading } = useScreeningRules();
+  const {
+    screeningRules,
+    rankingRules,
+    configLoading,
+    proposedRulesLoading,
+    error: rulesError,
+    retry: retryRules,
+  } = useScreeningRules();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFirmId = searchParams.get("firmId") ?? undefined;
   const [selectedId, setSelectedIdState] = React.useState<string | undefined>(initialFirmId);
@@ -85,12 +93,7 @@ function Desk(): React.ReactElement {
     where: { searchId: { $eq: searchIdParam } },
     pageSize: 1,
   });
-  const pinnedSearchList = (pinnedSearchData ?? []) as unknown as Array<{
-    searchId: string;
-    mandateId?: string | null;
-    name?: string | null;
-    runAt?: string | number | Date | null;
-  }>;
+  const pinnedSearchList = pinnedSearchData ?? [];
   const pinnedSearch = searchActive ? pinnedSearchList[0] : undefined;
   // Raw WireObject for useLinks — the link traversal needs the
   // instance itself, not the widened POJO.
@@ -108,7 +111,7 @@ function Desk(): React.ReactElement {
     if (!searchActive) {
       return undefined;
     }
-    const list = (siblingSearchesData ?? []) as unknown as Array<{ searchId: string }>;
+    const list = siblingSearchesData ?? [];
     const idx = list.findIndex((s) => s.searchId === searchIdParam);
     return idx >= 0 ? idx + 1 : undefined;
   }, [searchActive, siblingSearchesData, searchIdParam]);
@@ -117,24 +120,13 @@ function Desk(): React.ReactElement {
     where: { mandateId: { $eq: pinnedMandateId } },
     pageSize: 1,
   });
-  const pinnedMandate = searchActive
-    ? (
-        (pinnedMandateData ?? []) as unknown as Array<{
-          intentStatement?: string | null;
-          title?: string | null;
-        }>
-      )[0]
-    : undefined;
+  const pinnedMandate = searchActive ? (pinnedMandateData ?? [])[0] : undefined;
   const pinnedIntent =
     (pinnedMandate?.intentStatement ?? "").trim() || (pinnedMandate?.title ?? "").trim() || "—";
 
-  // Members via the Search↔firms M2M link. The API returns full linked
-  // objects — we only need firmId + discoveredViaSearchId, but there's
-  // no way to $select on useLinks without breaking the pinnedSearch
-  // instance shape, so we take the whole payload.
-  const membership = useLinks(pinnedSearchInstance as never, "firms", {
-    pageSize: 500,
-  });
+  // Members via the Search↔firms M2M link. The API returns the full linked objects, and only
+  // firmId and discoveredViaSearchId are read.
+  const membership = useLinks(pinnedSearchInstance, "firms");
   // Null while a pinned search's membership is unresolved. An empty Set would read as "this
   // search has no firms" and filter every firm out before the links arrive.
   const membershipLoading =
@@ -147,8 +139,8 @@ function Desk(): React.ReactElement {
     const arr = membership.linkedObjectsBySourcePrimaryKey.get(searchIdParam);
     const set = new Set<string>();
     for (const f of arr ?? []) {
-      const id = (f as unknown as { firmId?: string }).firmId;
-      if (id !== undefined && id !== "") {
+      const id = f.firmId;
+      if (typeof id === "string" && id !== "") {
         set.add(id);
       }
     }
@@ -170,33 +162,23 @@ function Desk(): React.ReactElement {
     // missing we fall back to counting every decision (best-effort — a
     // partially-populated search shouldn't render zero counts across
     // the board and mislead the analyst).
-    const runAtRaw = pinnedSearch?.runAt ?? null;
+    const runAtRaw = pinnedSearch?.runAt;
     const runAtMs = ((): number => {
-      if (runAtRaw === null || runAtRaw === undefined) {
+      // The wire sends an absent timestamp as null as well as leaving it out.
+      if (runAtRaw === undefined || runAtRaw === null) {
         return Number.POSITIVE_INFINITY;
       }
-      const t =
-        runAtRaw instanceof Date
-          ? runAtRaw.getTime()
-          : new Date(runAtRaw as string | number).getTime();
+      const t = new Date(runAtRaw).getTime();
       return Number.isNaN(t) ? Number.POSITIVE_INFINITY : t;
     })();
     const m = new Map<string, number>();
-    for (const d of (decisionData ?? []) as unknown as Array<{
-      firmId?: string;
-      decidedAt?: unknown;
-    }>) {
+    for (const d of decisionData ?? []) {
       const fid = d.firmId ?? "";
       if (fid === "") {
         continue;
       }
       const raw = d.decidedAt;
-      const t =
-        raw instanceof Date
-          ? raw.getTime()
-          : raw !== undefined && raw !== null
-            ? new Date(raw as string | number).getTime()
-            : NaN;
+      const t = raw === undefined || raw === null ? NaN : new Date(raw).getTime();
       if (Number.isNaN(t) || t >= runAtMs) {
         continue;
       }
@@ -207,10 +189,10 @@ function Desk(): React.ReactElement {
 
   const filteredData = React.useMemo(() => {
     if (!searchActive) {
-      return (data ?? []) as typeof data;
+      return data ?? [];
     }
     if (memberFirmIds === null) {
-      return [] as unknown as typeof data;
+      return [];
     }
     return (data ?? []).filter((f) => memberFirmIds.has(f.firmId ?? ""));
   }, [searchActive, memberFirmIds, data]);
@@ -225,8 +207,7 @@ function Desk(): React.ReactElement {
       if (fid === "") {
         continue;
       }
-      const discoveredVia =
-        (f as unknown as { discoveredViaSearchId?: string | null }).discoveredViaSearchId ?? null;
+      const discoveredVia = f.discoveredViaSearchId ?? null;
       const isNew = discoveredVia === searchIdParam;
       m.set(fid, {
         kind: isNew ? "new" : "rediscovered",
@@ -323,7 +304,7 @@ function Desk(): React.ReactElement {
   // Each row's state line: when the firm was last enriched and what is still waiting on it.
   const runByFirmId = React.useMemo(() => {
     const m = new Map<string, QueueRun>();
-    for (const f of (filteredData ?? []) as unknown as FirmView[]) {
+    for (const f of filteredData ?? []) {
       if (f.firmId) {
         m.set(f.firmId, { enrichedAt: f.enrichedAt ?? null, enrichedBy: f.enrichedBy ?? null });
       }
@@ -332,10 +313,7 @@ function Desk(): React.ReactElement {
   }, [filteredData]);
   const { data: allFindings } = useOsdkObjects(ResearchFinding, { autoFetchMore: true });
   const countsByFirmId = React.useMemo<Map<string, FindingCounts>>(
-    () =>
-      findingCountsByFirm(
-        (allFindings ?? []) as unknown as Parameters<typeof findingCountsByFirm>[0],
-      ),
+    () => findingCountsByFirm(allFindings ?? []),
     [allFindings],
   );
 
@@ -366,14 +344,15 @@ function Desk(): React.ReactElement {
         <SearchFilterBar
           intentText={pinnedIntent}
           searchName={pinnedSearch?.name ?? null}
+          searchRunAt={pinnedSearch?.runAt ?? null}
           searchIndex={searchIndex}
           memberCount={filteredData?.length ?? 0}
           loading={memberFirmIds === null}
           exportAction={
             <ExportMenu
-              name={`${pinnedIntent} ${pinnedSearch?.name ?? `search ${searchIndex ?? ""}`}`}
-              firms={(filteredData ?? []) as unknown as FirmLike[]}
-              findings={allFindings as unknown as FindingLike[] | undefined}
+              name={`${pinnedIntent} ${searchLabel(pinnedSearch?.name, pinnedSearch?.runAt) || `search ${searchIndex ?? ""}`}`}
+              firms={filteredData ?? []}
+              findings={allFindings}
             />
           }
           onClear={onClearSearchFilter}
@@ -381,15 +360,21 @@ function Desk(): React.ReactElement {
       )}
       {loadError && panelState !== "error" && (
         <div role="alert" className={styles.error}>
-          {formatActionError(loadError)}
+          {errorMessage(loadError)}
         </div>
+      )}
+      {rulesError !== undefined && (
+        <RetryNotice
+          className={styles.rulesError}
+          message={`Couldn’t load the screening rules (${errorMessage(rulesError).replace(/[.\s]+$/, "")}). Firms are ranked without them until they load.`}
+          onRetry={retryRules}
+        />
       )}
       <div className={styles.body}>
         {panelState === "firm" && selected !== undefined && (
           <EnrichmentPanel
             firm={selected}
-            actionFirm={selected}
-            allFirms={(filteredData ?? []) as unknown as FirmView[]}
+            allFirms={filteredData ?? []}
             firmsLoading={isLoading}
             // Same rule list the queue ranks and partitions on, so the firm
             // header's hard-screen chip can't call a firm workable while the
@@ -404,7 +389,7 @@ function Desk(): React.ReactElement {
         )}
         {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
         {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
-        {panelState === "error" && <LoadFailed message={formatActionError(loadError)} />}
+        {panelState === "error" && <LoadFailed message={errorMessage(loadError)} />}
         {panelState === "queue-empty" && <EmptyQueue />}
         {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
       </div>

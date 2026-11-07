@@ -81,10 +81,7 @@ function headerState(
   // "Hard-rejected" flicker by falling back to the tier label
   // until the query resolves. Once configs land, the shared verdict wins.
   if (!configsLoading) {
-    const verdict = computeHardScreen(
-      { ...firm, firmId: firm.firmId ?? "" } as never,
-      activeConfigs,
-    );
+    const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" }, activeConfigs);
     if (verdict.hardScreened) {
       return { hard: true, label: `Hard-rejected · ${verdict.reason ?? "screened"}` };
     }
@@ -99,14 +96,7 @@ function usePriorScore(firmId: string, enrichedAt: unknown): number | null {
     autoFetchMore: true,
     enabled: firmId !== "" && enrichedAt !== null && enrichedAt !== undefined,
   });
-  return React.useMemo(
-    () =>
-      priorScoreBefore(
-        (data ?? []) as unknown as Parameters<typeof priorScoreBefore>[0],
-        enrichedAt,
-      ),
-    [data, enrichedAt],
-  );
+  return React.useMemo(() => priorScoreBefore(data ?? [], enrichedAt), [data, enrichedAt]);
 }
 
 const signed = (n: number): string => `${n > 0 ? "+" : "−"}${Math.abs(n)}`;
@@ -171,9 +161,9 @@ export function FirmHeader({
           <Chip title="Rubric model">{after.model}</Chip>
           {state.hard && <Chip className={styles.hardChip}>{state.label}</Chip>}
           <OutcomeChip
-            outcome={(firm as unknown as { outcome?: string | null }).outcome}
-            observedAt={(firm as unknown as { outcomeObservedAt?: unknown }).outcomeObservedAt}
-            source={(firm as unknown as { outcomeSource?: string | null }).outcomeSource}
+            outcome={firm.outcome}
+            observedAt={firm.outcomeObservedAt}
+            source={firm.outcomeSource}
           />
           {firm.firmId && (
             <Link

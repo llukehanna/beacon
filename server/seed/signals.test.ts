@@ -37,7 +37,7 @@ function population(): { firms: ObjectOf<"Firm">[]; decidedAt: Map<string, numbe
       lifecycleState: state,
       enrichedAt: new Date(ANCHOR.getTime() - 20 * HOUR).toISOString(),
       ...over,
-    } as ObjectOf<"Firm">);
+    });
   };
   for (let i = 0; i < 60; i++) {
     add(`screen-${String(i).padStart(2, "0")}`, "Screening", {
@@ -232,12 +232,12 @@ describe("the seeded demo's signals", () => {
     const waiting = signals.filter((s) => s.appliedAt === undefined);
     for (const s of applied) {
       expect(s.appliedAt, s.signalId).toBe(s.effectiveDate);
-      expect(Date.parse(s.effectiveDate!)).toBeLessThanOrEqual(ANCHOR.getTime());
+      expect(Date.parse(s.effectiveDate)).toBeLessThanOrEqual(ANCHOR.getTime());
     }
     expect(waiting.length).toBeGreaterThanOrEqual(3);
     expect(waiting.length).toBeLessThanOrEqual(MAX_SIGNALS_PER_RUN);
     for (const s of waiting) {
-      const ahead = Date.parse(s.effectiveDate!) - ANCHOR.getTime();
+      const ahead = Date.parse(s.effectiveDate) - ANCHOR.getTime();
       expect(ahead, s.signalId).toBeGreaterThan(0);
       expect(ahead, s.signalId).toBeLessThanOrEqual(LOOKAHEAD_MS);
     }
@@ -271,9 +271,9 @@ describe("the seeded demo's signals", () => {
     expect(applied.length).toBeGreaterThan(10);
     for (const s of applied) {
       const def = axes.get(s.axis!)!;
-      const firm = (await getObject(db, "Firm", s.firmId!))!;
+      const firm = (await getObject(db, "Firm", s.firmId))!;
       const findings = (
-        await listAll(db, "ResearchFinding", { where: { firmId: { $eq: s.firmId! } } })
+        await listAll(db, "ResearchFinding", { where: { firmId: { $eq: s.firmId } } })
       ).filter(
         (f) =>
           f.axis === s.axis && f.findingStatus !== "superseded" && (f.conflictGroupId ?? "") === "",
@@ -294,7 +294,7 @@ describe("the seeded demo's signals", () => {
     for (const f of findings) {
       expect(f.sourceQuote, f.findingId).toBeUndefined();
       expect(f.sourceDocumentId, f.findingId).toBeUndefined();
-      expect(Date.parse(f.retrievedAt!)).toBeLessThanOrEqual(ANCHOR.getTime());
+      expect(Date.parse(f.retrievedAt)).toBeLessThanOrEqual(ANCHOR.getTime());
     }
     const drifts = await listAll(db, "DriftEvent");
     const fromSignals = drifts.filter((d) => d.changedAxes?.includes("Synthetic market signal"));
@@ -359,7 +359,7 @@ describe("the seeded demo's signals", () => {
     expect(after.map((s) => s.signalId).sort()).toEqual(waiting.map((s) => s.signalId).sort());
     for (const s of after) {
       const was = waiting.find((w) => w.signalId === s.signalId)!;
-      expect(Date.parse(s.effectiveDate!) - Date.parse(was.effectiveDate!)).toBe(48 * HOUR);
+      expect(Date.parse(s.effectiveDate) - Date.parse(was.effectiveDate)).toBe(48 * HOUR);
     }
     // And they come due again after the reset, not before.
     expect((await applyDueSignals(fresh, later)).applied).toEqual([]);

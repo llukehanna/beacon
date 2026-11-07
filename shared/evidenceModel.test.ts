@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { ProviderObservation } from "../../../shared/summaries";
-import { ENRICH_AXES } from "../../../shared/vocab";
-import { type FindingLike } from "../axisState";
-import { buildAxisRows } from "./axisRows";
-import { evidenceChecks, isAnalystEntered, pickReading, rejectReasonText } from "./evidenceModel";
+import { buildAxisRows } from "./axisRows.js";
+import { type FindingLike } from "./axisState.js";
+import {
+  evidenceChecks,
+  isAnalystEntered,
+  pickReading,
+  rejectReasonText,
+} from "./evidenceModel.js";
+import type { ProviderObservation } from "./summaries.js";
+import { ENRICH_AXES } from "./vocab.js";
 
 const axis = (name: string) => {
   const def = ENRICH_AXES.find((a) => a.axis === name);

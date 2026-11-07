@@ -13,7 +13,7 @@ describe("buildWorkbook", () => {
       [],
     );
     const blob = await buildWorkbook(rows, citations);
-    const files = unzipSync(new Uint8Array(await blob.arrayBuffer()));
+    const files: Record<string, Uint8Array> = unzipSync(new Uint8Array(await blob.arrayBuffer()));
     const sheet = strFromU8(files["xl/worksheets/sheet1.xml"]);
     const strings = [
       ...strFromU8(files["xl/sharedStrings.xml"]).matchAll(/<t[^>]*>([^<]*)<\/t>/g),

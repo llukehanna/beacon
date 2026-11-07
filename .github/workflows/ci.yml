@@ -26,3 +26,35 @@ jobs:
       - run: npm run build
       - run: npm run eval -- --check
       - run: npm run ontology:doc -- --check
+      # Boots the built Worker in workerd with no database: catches a bundle that fails to start, which
+      # the unit tests (plain Node) cannot. The static shell must serve, and the API must answer with the
+      # Worker's own 503 rather than crash.
+      - name: Smoke-test the Worker
+        env:
+          WRANGLER_SEND_METRICS: "false"
+        run: |
+          log="$RUNNER_TEMP/wrangler-dev.log"
+          ./node_modules/.bin/wrangler dev --env="" --port 8787 > "$log" 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for _ in $(seq 1 60); do
+            grep -q "Ready on" "$log" && break
+            if ! kill -0 "$pid" 2>/dev/null; then
+              cat "$log"
+              echo "::error::wrangler dev exited before it was ready."
+              exit 1
+            fi
+            sleep 2
+          done
+          if ! grep -q "Ready on" "$log"; then
+            cat "$log"
+            echo "::error::wrangler dev was not ready after 120 seconds."
+            exit 1
+          fi
+          root=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8787/ || true)
+          api=$(curl -s -w '\n%{http_code}' 'http://localhost:8787/api/functions?name=shellCounts' || true)
+          echo "GET / -> $root"
+          echo "GET /api/functions -> $api"
+          [ "$root" = "200" ] || { cat "$log"; echo "::error::The static shell did not serve."; exit 1; }
+          [ "$(printf '%s' "$api" | tail -n 1)" = "503" ] || { cat "$log"; echo "::error::The API did not answer 503."; exit 1; }
+          printf '%s' "$api" | grep -q 'The database is not configured' || { cat "$log"; echo "::error::The 503 was not the Worker's own message."; exit 1; }

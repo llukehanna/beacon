@@ -95,6 +95,7 @@ describe("accuracyTables", () => {
   it("names an axis-less finding's row 'unknown axis'", () => {
     const t2 = accuracyTables(cellsFromFindings([f("1", { provider: "dealdb" })]));
     expect(t2.byAxis).toEqual([
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       { key: "__unknown__", label: "unknown axis", r: expect.objectContaining({ total: 1 }) },
     ]);
   });

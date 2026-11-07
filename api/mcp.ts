@@ -2,11 +2,17 @@ import { resolveAccess } from "../server/access.js";
 import { getDb } from "../server/db/client.js";
 import { HttpError } from "../server/errors.js";
 import { assertSameOrigin, json, readLimitedText } from "../server/http.js";
-import { JSONRPC_PARSE_ERROR, SUPPORTED_PROTOCOL_VERSIONS, handleRpc } from "../server/mcp/rpc.js";
+import {
+  JSONRPC_PARSE_ERROR,
+  SUPPORTED_PROTOCOL_VERSIONS,
+  handleRpc,
+  rpcCodeForStatus,
+  rpcFailureBody,
+} from "../server/mcp/rpc.js";
 import { toolHost } from "../server/mcp/tools.js";
 
 const rpcError = (status: number, code: number, message: string): Response =>
-  json({ jsonrpc: "2.0", id: null, error: { code, message } }, status);
+  json(rpcFailureBody(code, message), status);
 
 /**
  * The read-only MCP endpoint (Streamable HTTP, stateless): one JSON-RPC message per POST, answered
@@ -43,8 +49,9 @@ export async function POST(request: Request): Promise<Response> {
       ? new Response(null, { status: reply.status })
       : json(reply.body, reply.status);
   } catch (e) {
+    // Refused before a message was read (origin, content type, size): same status, JSON-RPC body.
     if (e instanceof HttpError) {
-      return json({ error: e.message }, e.status);
+      return rpcError(e.status, rpcCodeForStatus(e.status), e.message);
     }
     throw e;
   }

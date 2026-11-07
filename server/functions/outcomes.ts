@@ -1,5 +1,6 @@
 import type { FirmOutcomeGroup } from "../../shared/trustMetrics.js";
 import type { Queryable } from "../db/client.js";
+import { notIn } from "../db/repo.js";
 
 /** Firms grouped by the columns the outcome tally reads, leaving out the hidden ones. */
 export async function outcomeGroups(
@@ -8,7 +9,7 @@ export async function outcomeGroups(
 ): Promise<FirmOutcomeGroup[]> {
   return q.query<FirmOutcomeGroup>(
     `SELECT "lifecycleState", "disposition", "outcome", "outcomeSource", count(*)::int AS n
-       FROM firm WHERE "firmId" <> ALL($1::text[])
+       FROM firm WHERE ${notIn('"firmId"', 1)}
       GROUP BY "lifecycleState", "disposition", "outcome", "outcomeSource"`,
     [hidden],
   );

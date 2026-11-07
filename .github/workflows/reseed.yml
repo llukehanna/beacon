@@ -10,6 +10,16 @@ on:
         options:
           - production
           - presenter
+      mode:
+        description: >-
+          migrate applies the schema migrations only. reseed migrates first, then rebuilds the demo
+          data and its reset snapshot.
+        type: choice
+        required: true
+        default: reseed
+        options:
+          - migrate
+          - reseed
 
 permissions:
   contents: read
@@ -41,4 +51,9 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run seed
+      # Always first: a reseed on an older schema would write into the wrong shape.
+      - name: Apply the schema migrations
+        run: npm run migrate
+      - name: Reseed the demo data and its snapshot
+        if: inputs.mode == 'reseed'
+        run: npm run seed

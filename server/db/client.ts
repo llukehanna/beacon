@@ -2,15 +2,20 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import pg from "pg";
-import { ensureSchema } from "./ddl.js";
+import { migrate } from "./migrate.js";
 
 export interface Queryable {
   query<T = Record<string, unknown>>(sql: string, params?: unknown[]): Promise<T[]>;
 }
 
+/** A transaction's handle: `exec` runs multi-statement SQL (a migration) inside it. */
+export interface Tx extends Queryable {
+  exec(sql: string): Promise<void>;
+}
+
 export interface Db extends Queryable {
   exec(sql: string): Promise<void>;
-  transaction<T>(fn: (tx: Queryable) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (tx: Tx) => Promise<T>): Promise<T>;
   close(): Promise<void>;
 }
 
@@ -30,11 +35,14 @@ export async function createPgliteDb(dataDir?: string): Promise<Db> {
     async exec(sql: string) {
       await lite.exec(sql);
     },
-    transaction<T>(fn: (tx: Queryable) => Promise<T>) {
+    transaction<T>(fn: (tx: Tx) => Promise<T>) {
       return lite.transaction((tx) =>
         fn({
           async query<R>(sql: string, params: unknown[] = []) {
             return (await tx.query<R>(sql, params)).rows;
+          },
+          async exec(sql: string) {
+            await tx.exec(sql);
           },
         }),
       );
@@ -55,16 +63,16 @@ export interface TxClient {
  * client is released with that error so pg destroys the connection rather
  * than returning one in an unknown state to the pool.
  */
-export async function runTransaction<T>(
-  client: TxClient,
-  fn: (tx: Queryable) => Promise<T>,
-): Promise<T> {
+export async function runTransaction<T>(client: TxClient, fn: (tx: Tx) => Promise<T>): Promise<T> {
   let failure: Error | undefined;
   try {
     await client.query("BEGIN");
     const result = await fn({
       async query<R>(sql: string, params: unknown[] = []) {
         return (await client.query(sql, params)).rows as R[];
+      },
+      async exec(sql: string) {
+        await client.query(sql); // No parameters: the simple protocol, which accepts many statements.
       },
     });
     await client.query("COMMIT");
@@ -94,7 +102,7 @@ export function createPgDb(connectionString: string): Db {
     async exec(sql: string) {
       await pool.query(sql);
     },
-    async transaction<T>(fn: (tx: Queryable) => Promise<T>) {
+    async transaction<T>(fn: (tx: Tx) => Promise<T>) {
       return runTransaction(await pool.connect(), fn);
     },
     close: () => pool.end(),
@@ -117,7 +125,11 @@ export function withRequestDb<T>(db: Promise<Db>, fn: () => Promise<T>): Promise
   return requestDb.run(db, fn);
 }
 
-/** DATABASE_URL → Postgres; otherwise a PGlite database persisted under .data/. */
+/**
+ * DATABASE_URL → Postgres; otherwise a PGlite database persisted under .data/. Local use (dev
+ * server, seed): it applies pending migrations on first open. The Worker never reaches this path
+ * (it scopes getDb() to a request database and never changes the schema).
+ */
 export function getDb(): Promise<Db> {
   const scoped = requestDb.getStore();
   if (scoped) {
@@ -133,7 +145,7 @@ export function getDb(): Promise<Db> {
       await mkdir(path.dirname(dir), { recursive: true }); // PGlite creates only the leaf directory
       db = await createPgliteDb(dir);
     }
-    await ensureSchema(db);
+    await migrate(db);
     return db;
   })();
   return globalThis.__beaconDb;

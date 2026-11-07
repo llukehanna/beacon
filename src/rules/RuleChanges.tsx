@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { amendRuleThresholdAction, unapproveRuleAction } from "@/data/ontology";
 import { Button, Input, Notice } from "@/ui";
@@ -31,7 +32,7 @@ export function AmendForm({
     // The threshold goes through as typed; the action accepts any comparable and the ontology
     // round-trips the raw value onto the new HardScreenConfig row.
     void amend
-      .applyAction({ proposedRule: rule, newThreshold: value.trim() } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId, newThreshold: value.trim() })
       .then(onDone)
       .catch(() => undefined);
   };
@@ -74,7 +75,7 @@ export function AmendForm({
         the queue.
       </p>
       {amend.error !== undefined && (
-        <Notice>Amend failed: {String(amend.error)}. Your value is preserved.</Notice>
+        <Notice>Amend failed: {errorMessage(amend.error)}. Your value is preserved.</Notice>
       )}
     </div>
   );
@@ -91,7 +92,7 @@ export function UnapproveConfirm({
   const unapprove = useOsdkAction(unapproveRuleAction);
   const confirm = (): void => {
     void unapprove
-      .applyAction({ proposedRule: rule } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId })
       .then(onDone)
       .catch(() => undefined);
   };
@@ -111,7 +112,7 @@ export function UnapproveConfirm({
         </Button>
       </div>
       {unapprove.error !== undefined && (
-        <Notice>Unapprove failed: {String(unapprove.error)}</Notice>
+        <Notice>Unapprove failed: {errorMessage(unapprove.error)}</Notice>
       )}
     </div>
   );

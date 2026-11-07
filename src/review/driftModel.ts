@@ -61,7 +61,7 @@ export interface DriftItem {
   drift: DriftLike;
   firmName: string;
   /** The Firm record the actions are applied to; undefined until it has loaded. */
-  firm: unknown;
+  firm: FirmLike | undefined;
   resolved: boolean;
   /** Which decisions are on offer; null when the firm is not at a stage that has any. */
   kind: DriftKind | null;

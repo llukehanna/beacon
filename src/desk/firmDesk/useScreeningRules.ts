@@ -14,26 +14,24 @@ export function useScreeningRules(): {
   rankingRules: ActiveConfigRule[];
   configLoading: boolean;
   proposedRulesLoading: boolean;
+  /** Why the rules could not be loaded; the screens that read them then rank without the screens. */
+  error: Error | undefined;
+  /** Try the failed rules query again. */
+  retry: () => void;
 } {
   // Active approved HardScreenConfig rows drive the shared hard-screen
   // verdict for both the queue and the header/badge — see queue.ts
   // computeHardScreen. Filter to configActive === true so pending or
   // dismissed proposals cannot silently screen firms.
-  const { data: configData, isLoading: configLoading } = useOsdkObjects(HardScreenConfig, {
-    autoFetchMore: true,
-  });
+  const {
+    data: configData,
+    isLoading: configLoading,
+    error: configError,
+    refetch: refetchConfig,
+  } = useOsdkObjects(HardScreenConfig, { autoFetchMore: true });
   const activeConfigs = React.useMemo<ActiveConfigRule[]>(() => {
     return (
-      (
-        (configData ?? []) as unknown as Array<{
-          configRuleId: string;
-          configActive?: boolean;
-          configAxis?: string;
-          configOperator?: string;
-          configThreshold?: string;
-          configModel?: string;
-        }>
-      )
+      (configData ?? [])
         .filter((r) => r.configActive === true)
         .map((r) => ({
           ruleId: r.configRuleId,
@@ -53,15 +51,14 @@ export function useScreeningRules(): {
   // is what let the header read "711 of 711" while /rules showed an approved
   // rule claiming 160 firms. Config rows still win where present, because an
   // amended threshold is what the analyst sees as the effective predicate.
-  const { data: proposedRuleData, isLoading: proposedRulesLoading } = useOsdkObjects(ProposedRule, {
-    autoFetchMore: true,
-  });
+  const {
+    data: proposedRuleData,
+    isLoading: proposedRulesLoading,
+    error: proposedRulesError,
+    refetch: refetchProposed,
+  } = useOsdkObjects(ProposedRule, { autoFetchMore: true });
   const screeningRules = React.useMemo<ScreeningRule[]>(
-    () =>
-      toScreeningRules(
-        (proposedRuleData ?? []) as unknown as Parameters<typeof toScreeningRules>[0],
-        (configData ?? []) as unknown as Parameters<typeof toScreeningRules>[1],
-      ),
+    () => toScreeningRules(proposedRuleData ?? [], configData ?? []),
     [proposedRuleData, configData],
   );
 
@@ -73,5 +70,17 @@ export function useScreeningRules(): {
     return [...screeningRules, ...activeConfigs.filter((c) => !seen.has(c.ruleId))];
   }, [screeningRules, activeConfigs]);
 
-  return { screeningRules, rankingRules, configLoading, proposedRulesLoading };
+  const retry = React.useCallback((): void => {
+    void refetchConfig();
+    void refetchProposed();
+  }, [refetchConfig, refetchProposed]);
+
+  return {
+    screeningRules,
+    rankingRules,
+    configLoading,
+    proposedRulesLoading,
+    error: proposedRulesError ?? configError,
+    retry,
+  };
 }

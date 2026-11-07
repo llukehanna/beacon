@@ -1,5 +1,6 @@
 import React from "react";
 import { Term } from "@/components/Term";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { runMandateSearchAction } from "@/data/ontology";
 import { Button, Notice, Panel, Segmented, Textarea } from "@/ui";
@@ -27,7 +28,7 @@ export function NewMandateForm({
     // (the only free-text create param); the cards read `intentStatement ?? title`. Geography and
     // max-size are deprecated on the mandate and are not written.
     void run
-      .applyAction({ title: intent.trim(), archetype, priority } as never)
+      .applyAction({ title: intent.trim(), archetype, priority })
       .then(() => setIntent(""))
       .catch(() => undefined);
   };
@@ -83,7 +84,7 @@ export function NewMandateForm({
         />
       </div>
 
-      {run.error !== undefined && <Notice>{String(run.error)}</Notice>}
+      {run.error !== undefined && <Notice>{errorMessage(run.error)}</Notice>}
 
       <Button variant="primary" disabled={!canSubmit} onClick={onRun}>
         {run.isPending ? "Creating mandate…" : "Create mandate"}

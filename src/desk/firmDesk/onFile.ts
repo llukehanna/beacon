@@ -27,7 +27,7 @@ export function buildOnFile(
   const out: Record<string, OnFile> = {};
   for (const row of rows) {
     const key = row.def.actionParam;
-    const value = effectiveAxisValue(firm as unknown as Record<string, unknown>, edits, key);
+    const value = effectiveAxisValue(firm, edits, key);
     if (value === null || value === undefined || value === "") {
       continue;
     }

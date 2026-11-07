@@ -6,17 +6,30 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as mcp } from "../../api/mcp.js";
+import { authoritativeFinding, buildAxisRows } from "../../shared/axisRows.js";
+import type { FindingLike } from "../../shared/axisState.js";
+import { citationOf } from "../../shared/citation.js";
+import { toScoreInput } from "../../shared/deskModel.js";
+import { conflictSides } from "../../shared/evidenceModel.js";
+import { displayFindingValue } from "../../shared/findingActions.js";
+import { mirrorScore } from "../../shared/scoreMirror.js";
+import { ENRICH_AXES } from "../../shared/vocab.js";
 import { type Db, overrideDb } from "../db/client.js";
 import { listAll } from "../db/repo.js";
+import { HttpError } from "../errors.js";
 import { MAX_BODY_BYTES } from "../http.js";
 import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
 import {
+  JSONRPC_FORBIDDEN,
+  JSONRPC_INTERNAL_ERROR,
   JSONRPC_INVALID_PARAMS,
   JSONRPC_INVALID_REQUEST,
   JSONRPC_METHOD_NOT_FOUND,
   JSONRPC_PARSE_ERROR,
   SUPPORTED_PROTOCOL_VERSIONS,
+  type ToolHost,
+  handleRpc,
 } from "./rpc.js";
 import { DEFAULT_RESULTS, MAX_RESULTS, clampLimit, listTools, scan } from "./tools.js";
 
@@ -46,12 +59,59 @@ afterAll(async () => {
   await db.close();
 });
 
+/** A search hit or a listed rule: the fields these tests read. */
+interface Row {
+  firmId: string;
+  firmName: string;
+  score: number;
+  tier: string;
+  status: string;
+  predicate: string;
+}
+
+type Axis = {
+  axis: string;
+  label: string;
+  status: string;
+  sides: Array<Record<string, unknown>>;
+};
+
+/** What a tool returns as structured content, as one shape: each tool fills in its own fields. */
+interface Structured {
+  firms: Row[];
+  rules: Row[];
+  axes: Axis[];
+  firmId: string;
+  limit: number;
+  returned: number;
+  totalMatches: number;
+  partial: boolean;
+}
+
+interface ToolEntry {
+  name: string;
+  annotations: { readOnlyHint: boolean; destructiveHint: boolean };
+  inputSchema: { type: string; additionalProperties: boolean };
+}
+
+/** A JSON-RPC reply. Each test reads the fields its method answers with, so all are declared. */
+interface Rpc {
+  id: number | string | null;
+  error: { code: number; message: string };
+  result: {
+    protocolVersion: string;
+    capabilities: Record<string, unknown>;
+    tools: ToolEntry[];
+    isError?: boolean;
+    content: Array<{ type: string; text: string }>;
+    structuredContent: Structured;
+  };
+}
+
 interface Reply {
   status: number;
   headers: Headers;
-  // The reply is checked field by field; a typed shape per method would only restate the protocol.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  json: any;
+  json: Rpc;
 }
 
 const send = async (
@@ -70,7 +130,12 @@ const send = async (
     }),
   );
   const text = await res.text();
-  return { status: res.status, headers: res.headers, json: text === "" ? null : JSON.parse(text) };
+  // The reply is JSON of the shape under test; a notification has no body.
+  return {
+    status: res.status,
+    headers: res.headers,
+    json: (text === "" ? null : JSON.parse(text)) as Rpc,
+  };
 };
 
 let nextId = 1;
@@ -175,6 +240,61 @@ describe("the JSON-RPC protocol", () => {
   });
 });
 
+describe("mcp errors are JSON-RPC envelopes", () => {
+  const envelope = (code: number) => ({
+    jsonrpc: "2.0",
+    id: null,
+    error: { code, message: expect.any(String) as string },
+  });
+  const ping = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
+
+  it("answers 403, 413 and 415 with {jsonrpc, id: null, error: {code, message}}", async () => {
+    const cross = await send(JSON.parse(ping), { headers: { origin: "https://evil.example" } });
+    expect(cross.status).toBe(403);
+    expect(cross.json).toEqual(envelope(JSONRPC_FORBIDDEN));
+    expect(cross.json.error.message).toContain("Cross-origin");
+
+    const plain = await send(ping, { headers: { "content-type": "text/plain" } });
+    expect(plain.status).toBe(415);
+    expect(plain.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+    expect(plain.json.error.message).toContain("application/json");
+
+    const big = await send(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", pad: "x".repeat(MAX_BODY_BYTES) }),
+    );
+    expect(big.status).toBe(413);
+    expect(big.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+    const declared = await send(JSON.parse(ping), {
+      headers: { "content-length": String(MAX_BODY_BYTES + 1) },
+    });
+    expect(declared.status).toBe(413);
+    expect(declared.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+
+    // Still JSON, still never cached.
+    expect(cross.headers.get("content-type")).toContain("application/json");
+    expect(cross.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("keeps HTTP 200 for an HttpError raised inside a call", async () => {
+    const failing = (status: number): ToolHost => ({
+      list: () => [],
+      call: () => Promise.reject(new HttpError("The database is not configured", status)),
+    });
+    for (const status of [400, 404, 500, 503]) {
+      const reply = await handleRpc(
+        { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "search_firms" } },
+        failing(status),
+      );
+      expect(reply.status, `HttpError ${status}`).toBe(200);
+      expect(reply.body).toEqual({
+        jsonrpc: "2.0",
+        id: 7,
+        error: { code: JSONRPC_INTERNAL_ERROR, message: "The database is not configured" },
+      });
+    }
+  });
+});
+
 describe("tools", () => {
   it("lists exactly three read-only tools, with their schemas", async () => {
     const res = await rpc("tools/list");
@@ -268,21 +388,22 @@ describe("tools", () => {
 
   it("searches by name and filters, best score first", async () => {
     const all = (await tool("search_firms", { limit: 25 })).json.result.structuredContent;
-    const scores = all.firms.map((f: { score: number }) => f.score);
-    expect(scores).toEqual([...scores].sort((a: number, b: number) => b - a));
+    const scores = all.firms.map((f) => f.score);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
     const first = all.firms[0];
-    expect(first).toMatchObject({ maxScore: 18, tier: expect.stringMatching(/^[ABC]|Rejected$/) });
+    expect(first).toMatchObject({ maxScore: 18 });
+    expect(first.tier).toMatch(/^[ABC]|Rejected$/);
 
     const word = first.firmName.split(" ")[0].toLowerCase();
     const byName = (await tool("search_firms", { query: word.toUpperCase(), limit: 25 })).json
       .result.structuredContent;
-    expect(byName.firms.map((f: { firmId: string }) => f.firmId)).toContain(first.firmId);
+    expect(byName.firms.map((f) => f.firmId)).toContain(first.firmId);
     for (const f of byName.firms) {
       expect(f.firmName.toLowerCase()).toContain(word);
     }
     const tierA = (await tool("search_firms", { tier: first.tier, limit: 25 })).json.result
       .structuredContent;
-    expect(tierA.firms.every((f: { tier: string }) => f.tier === first.tier)).toBe(true);
+    expect(tierA.firms.every((f) => f.tier === first.tier)).toBe(true);
     const none = (await tool("search_firms", { query: "zzz-no-such-firm" })).json.result
       .structuredContent;
     expect(none).toMatchObject({ firms: [], totalMatches: 0, returned: 0 });
@@ -297,7 +418,7 @@ describe("tools", () => {
     }
     const approved = (await tool("list_rules", { status: "approved" })).json.result
       .structuredContent;
-    expect(approved.rules.every((r: { status: string }) => r.status === "approved")).toBe(true);
+    expect(approved.rules.every((r) => r.status === "approved")).toBe(true);
     const stored = await listAll(db, "ProposedRule");
     const pending = stored.filter((r) => (r.ruleStatus ?? "pending") === "pending").length;
     const got = (await tool("list_rules", { status: "pending", limit: 25 })).json.result
@@ -330,27 +451,36 @@ describe("tools", () => {
 
 describe("get_firm_evidence", () => {
   it("returns the citations the Desk shows for the showcase firm", async () => {
-    // The Desk's own model for a firm (the tear sheet is built from the same axis rows the grid
-    // renders), loaded the way the browser loads it. It is imported by a computed path because the
-    // server's type check does not resolve the app's "@/" alias.
-    const modelPath = "../../src/tearsheet/tearSheetModel";
-    const { buildTearSheet } = (await import(/* @vite-ignore */ modelPath)) as {
-      buildTearSheet(input: {
-        firm: unknown;
-        findings: unknown[];
-        decisions: unknown[];
-        rules: unknown[];
-      }): {
-        evidence: Array<Record<string, unknown>>;
-        conflicts: Array<{ axis: string; sides: Array<Record<string, unknown>> }>;
-        abstentions: Array<{ axis: string }>;
-      };
-    };
+    // What the Desk shows for the firm, read off the Desk's own axis rows (shared/axisRows), the
+    // same rows the grid and the tear sheet render. The tear sheet's parity with the tool is
+    // checked on fixed findings in src/tearsheet/tearSheetModel.test.ts.
     const [firm] = await listAll(db, "Firm", { where: { firmId: { $eq: showcaseId } } });
     const findings = await listAll(db, "ResearchFinding", {
       where: { firmId: { $eq: showcaseId } },
     });
-    const sheet = buildTearSheet({ firm, findings, decisions: [], rules: [] });
+    const deskRows = buildAxisRows(
+      ENRICH_AXES.filter((a) => a.models.includes(mirrorScore(toScoreInput(firm)).model)),
+      undefined,
+      findings,
+    );
+    const cited = (f: FindingLike) => ({
+      value: displayFindingValue(f.axis, f.value),
+      ...citationOf(f),
+    });
+    const sheet = {
+      evidence: deskRows.flatMap((row) => {
+        const f = authoritativeFinding(row);
+        return ["verified", "proposed", "signal"].includes(row.state) && f !== undefined
+          ? [{ axis: row.label, status: row.state, ...cited(f) }]
+          : [];
+      }),
+      conflicts: deskRows
+        .filter((row) => row.state === "conflict")
+        .map((row) => ({ axis: row.label, sides: conflictSides(row).map(cited) })),
+      abstentions: deskRows
+        .filter((row) => row.state === "abstained")
+        .map((row) => ({ axis: row.label })),
+    };
 
     const res = await tool("get_firm_evidence", { firmId: showcaseId });
     expect(res.json.result.isError).toBeUndefined();
@@ -359,13 +489,7 @@ describe("get_firm_evidence", () => {
     // The text content is the same JSON as the structured content.
     expect(JSON.parse(res.json.result.content[0].text)).toEqual(evidence);
 
-    type Axis = {
-      axis: string;
-      label: string;
-      status: string;
-      sides: Array<Record<string, unknown>>;
-    };
-    const axes: Axis[] = evidence.axes;
+    const axes = evidence.axes;
     const cite = (a: Record<string, unknown>) => ({
       value: a.value,
       provider: a.provider,
@@ -374,7 +498,7 @@ describe("get_firm_evidence", () => {
     });
     const settled = axes
       .filter((a) => ["verified", "proposed", "signal"].includes(a.status))
-      .map((a) => ({ axis: a.label, status: a.status, ...cite(a as never) }));
+      .map((a) => ({ axis: a.label, status: a.status, ...cite(a) }));
     expect(settled).toEqual(
       sheet.evidence.map((e) => ({ axis: e.axis, status: e.status, ...cite(e) })),
     );
@@ -394,7 +518,7 @@ describe("get_firm_evidence", () => {
     expect(sheet.abstentions.length).toBeGreaterThan(0);
     // An axis with no value carries no citation.
     for (const a of axes.filter((x) => x.status === "abstained" || x.status === "empty")) {
-      expect(cite(a as never)).toEqual({ value: null, provider: null, quote: null, model: null });
+      expect(cite(a)).toEqual({ value: null, provider: null, quote: null, model: null });
     }
   });
 
@@ -426,7 +550,7 @@ describe("a round trip through the handler", () => {
     expect((await send({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
 
     const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-    const names = listed.json.result.tools.map((t: { name: string }) => t.name);
+    const names = listed.json.result.tools.map((t) => t.name);
     expect(names).toEqual(["search_firms", "get_firm_evidence", "list_rules"]);
 
     const found = await send(

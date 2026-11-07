@@ -1,19 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import {
-  type ScreenableFirm,
-  countScreened,
-  isEvaluable,
-  toScreeningRules,
-} from "../../shared/activeScreening.js";
+import { countScreened, isEvaluable, toScreeningRules } from "../../shared/activeScreening.js";
 import { buildActivity } from "../../shared/activityFeed.js";
 import { needsYouAxisCountByFirm } from "../../shared/axisState.js";
-import {
-  type MembershipLike,
-  type SearchLike,
-  type SearchListLike,
-  mandateFirmCounts,
-  searchListFirmIds,
-} from "../../shared/mandateFirms.js";
+import { mandateFirmCounts, searchListFirmIds } from "../../shared/mandateFirms.js";
 import { OPEN_BUCKETS, bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
 import {
   QUEUE_FIELDS,
@@ -144,7 +133,7 @@ async function clientHome(d: Db) {
   const configs = (await listAll(d, "HardScreenConfig"))
     .filter((r) => r.configActive === true)
     .map((r) => ({
-      ruleId: r.configRuleId!,
+      ruleId: r.configRuleId,
       axis: r.configAxis ?? "",
       operator: r.configOperator ?? "",
       threshold: r.configThreshold ?? "",
@@ -159,7 +148,7 @@ async function clientHome(d: Db) {
   );
   const findings = await listAll(d, "ResearchFinding");
 
-  const firmNameById = new Map(firms.map((x) => [x.firmId!, x.firmName ?? x.firmId!]));
+  const firmNameById = new Map(firms.map((x) => [x.firmId, x.firmName ?? x.firmId]));
   const workable = orderEnrichmentQueue(firms.map(toQueueFirm), configs).filter(
     (r) => !r.hardScreened && !r.terminal,
   );
@@ -170,9 +159,7 @@ async function clientHome(d: Db) {
       [{ ...r, proposedRuleId: r.proposedRuleId as string, ruleStatus: "approved" }],
       [],
     );
-    return screen === undefined || !isEvaluable(screen)
-      ? null
-      : countScreened(firms as ScreenableFirm[], [screen]);
+    return screen === undefined || !isEvaluable(screen) ? null : countScreened(firms, [screen]);
   };
   const items: Plain[] = [
     ...drifts.map((x) => {
@@ -219,7 +206,7 @@ async function clientHome(d: Db) {
   }
 
   const overall = rates(withIds(findings));
-  const outcomes = tallyOutcomes(firms as FirmOutcomeLike[]);
+  const outcomes = tallyOutcomes(firms);
 
   const searches = await listAll(d, "Search");
   const lists = await listAll(d, "SearchList");
@@ -227,14 +214,14 @@ async function clientHome(d: Db) {
     d,
     "SearchList",
     "firms",
-    lists.map((l) => l.searchId!),
+    lists.map((l) => l.searchId),
     [],
   );
   const counts = mandateFirmCounts({
-    searches: searches as SearchLike[],
-    memberships: (await listAll(d, "SearchMembership")) as MembershipLike[],
+    searches: searches,
+    memberships: await listAll(d, "SearchMembership"),
     firms,
-    searchLists: lists as SearchListLike[],
+    searchLists: lists,
     searchListFirmIds: searchListFirmIds(new Map(Object.entries(linked))),
   });
   const mandates = (await listAll(d, "Mandate", { orderBy: { createdAt: "desc" } })).filter(
@@ -304,7 +291,11 @@ describe("homeSummary", () => {
     expect(summary.grounded).toEqual(groundedCounts(withIds(findings)));
     expect(summary.grounded.agentValues).toBeGreaterThan(0);
     expect(summary.grounded.cited).toBeLessThanOrEqual(summary.grounded.agentValues);
-    for (const trend of Object.values(summary.trends)) {
+    for (const trend of [
+      summary.trends.grounded,
+      summary.trends.abstention,
+      summary.trends.agreement,
+    ]) {
       if (trend !== null) {
         expect(trend.points.length).toBeGreaterThanOrEqual(4);
         for (const p of trend.points) {
@@ -406,10 +397,10 @@ describe("homeSummary", () => {
     // verified-first and latest-wins do not).
     const edgeFirm = (
       await listAll(db, "ResearchFinding", { where: { findingId: { $eq: "edge-1" } } })
-    )[0].firmId!;
+    )[0].firmId;
     const others = (
       await listAll(db, "ResearchFinding", { where: { firmId: { $eq: edgeFirm } } })
-    ).filter((x) => !x.findingId!.startsWith("edge-"));
+    ).filter((x) => !x.findingId.startsWith("edge-"));
     const seededAxes = needsYouAxisCountByFirm(withIds(others)).get(edgeFirm) ?? 0;
     expect(sql.get(edgeFirm)).toBe(seededAxes + 4);
   });
@@ -530,24 +521,38 @@ describe("homeSummary on a small world where rule rows are on screen", () => {
         newScore: 13,
         detectedAt: "2026-09-03T00:00:00.000Z",
       },
-      { driftEventId: "d3", firmId: "c", driftReason: "tier_moved", driftStatus: "resolved" },
+      {
+        driftEventId: "d3",
+        firmId: "c",
+        driftReason: "tier_moved",
+        driftStatus: "resolved",
+        detectedAt: "2026-09-01T00:00:00.000Z",
+      },
     ]);
     await insertObjects(d, "ProposedRule", [
-      { proposedRuleId: "r1", predicateAxis: "employees", ruleOperator: "<", ruleThreshold: "10" },
+      {
+        proposedRuleId: "r1",
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "10",
+        proposedAt: "2026-09-01T00:00:00.000Z",
+      },
       {
         proposedRuleId: "r2",
         predicateAxis: "coverage_model",
         ruleOperator: "in",
         ruleThreshold: '["x"]',
         ruleStatus: "pending",
+        proposedAt: "2026-09-01T00:00:00.000Z",
       },
-      { proposedRuleId: "r3" }, // malformed: no predicate
+      { proposedRuleId: "r3", proposedAt: "2026-09-01T00:00:00.000Z" }, // malformed: no predicate
       {
         proposedRuleId: "r4",
         predicateAxis: "employees",
         ruleOperator: "<",
         ruleThreshold: "99",
         ruleStatus: "approved",
+        proposedAt: "2026-09-01T00:00:00.000Z",
       },
     ]);
     const [summary, client] = await Promise.all([homeSummary(d, NO_WALL), clientHome(d)]);
@@ -591,8 +596,19 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
         axis: "firm_age",
         confidenceTier: "abstain",
         findingStatus: "abstained",
+        retrievedAt: "2026-09-01T00:00:00.000Z",
       })),
     );
+    await insertObjects(d, "ProposedRule", [
+      {
+        proposedRuleId: "solvency-rule",
+        predicateAxis: "solvent",
+        ruleOperator: "==",
+        ruleThreshold: "false",
+        ruleStatus: "approved",
+        proposedAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
     await insertObjects(d, "HardScreenConfig", [
       {
         configRuleId: "c1",
@@ -601,6 +617,8 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
         configThreshold: "false",
         configModel: "both",
         configActive: true,
+        configCreatedAt: "2026-09-01T00:00:00.000Z",
+        sourceProposedRuleId: "solvency-rule",
       },
     ]);
     const configs = [
@@ -614,7 +632,7 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
     expect(ranked.find((r) => r.firm.firmId === "sound")?.hardScreened).toBe(false);
     // ...which the score-inputs-only input it replaced could not see.
     const scoreOnly = firms.map((f) => ({
-      firmId: f.firmId!,
+      firmId: f.firmId,
       ...Object.fromEntries(SCORE_INPUT_FIELDS.map((k) => [k, (f as Plain)[k]])),
     }));
     expect(orderEnrichmentQueue(scoreOnly, configs).some((r) => r.hardScreened)).toBe(false);

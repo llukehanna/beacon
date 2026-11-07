@@ -3,6 +3,7 @@
  * data. They mirror Foundry query functions (the client calls them through
  * useOsdkQuery); a function takes a params object and returns plain JSON.
  */
+import type { FunctionName } from "../../shared/functionNames.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { HttpError } from "../errors.js";
@@ -20,7 +21,7 @@ export type QueryFunction = (
   access: Access,
 ) => Promise<unknown>;
 
-export const FUNCTIONS: Record<string, QueryFunction> = {
+const BY_NAME = {
   homeSummary: (q, _params, access) => homeSummary(q, access),
   accuracySummary: (q, _params, access) => accuracySummary(q, access),
   sourceDocument: (q, params, access) => sourceDocument(q, params, access),
@@ -28,7 +29,9 @@ export const FUNCTIONS: Record<string, QueryFunction> = {
   shellCounts: (q, _params, access) => shellCounts(q, access),
   // Measurements of the app itself (action latency, model spend): no firm appears in them.
   operationsSummary: (q) => operationsSummary(q),
-};
+} satisfies Record<FunctionName, QueryFunction>;
+
+export const FUNCTIONS: Record<string, QueryFunction> = BY_NAME;
 
 export async function runFunction(
   q: Queryable,

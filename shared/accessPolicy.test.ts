@@ -6,6 +6,7 @@ import {
   PERSONAS,
   type Persona,
   type PolicyObject,
+  REDACTED_RULE_PROPS,
   canSee,
   codenameFor,
   firmColumnOf,
@@ -15,6 +16,7 @@ import {
   redactDerivedName,
   redactMandate,
   redactObject,
+  redactRule,
   uniqueCodename,
   visibilityOf,
   walledMandateIds,
@@ -246,9 +248,11 @@ describe("redaction", () => {
     expect([...all].some((n) => /\d$/.test(n))).toBe(true);
   });
 
-  it("renames a search and a list of a walled mandate but keeps the date and the suffix", () => {
+  it("renames a search and a list of a walled mandate but keeps the list suffix", () => {
+    expect(redactDerivedName("Sell-side of Acme", "Project Kestrel")).toBe("Project Kestrel");
+    // A name that still carries a run date (a database not yet migrated) gives nothing away either.
     expect(redactDerivedName("Sell-side of Acme · 2026-09-01", "Project Kestrel")).toBe(
-      "Project Kestrel · 2026-09-01",
+      "Project Kestrel",
     );
     expect(redactDerivedName("Sell-side of Acme — universe", "Project Kestrel")).toBe(
       "Project Kestrel — universe",
@@ -262,15 +266,35 @@ describe("redaction", () => {
       $apiName: "Search",
       $primaryKey: "s1",
       mandateId: "m-walled",
-      name: "Sell-side of Acme · 2026-09-01",
+      name: "Sell-side of Acme",
     };
-    expect(redactObject("analyst", search, GRANTS, names).name).toBe(
-      "Project Kestrel · 2026-09-01",
-    );
+    expect(redactObject("analyst", search, GRANTS, names).name).toBe("Project Kestrel");
     expect(redactObject("deal_lead", search, GRANTS, names)).toBe(search);
     const other = { ...search, mandateId: "m-open" };
     expect(redactObject("analyst", other, GRANTS, names)).toBe(other);
     const firm = { $apiName: "Firm", $primaryKey: "firm-a", firmName: "Acme" };
     expect(redactObject("analyst", firm, GRANTS, names)).toBe(firm);
+  });
+});
+
+describe("REDACTED_RULE_PROPS", () => {
+  it("lists exactly the rule properties redactRule changes", () => {
+    const rule = {
+      supportingDecisionIds: JSON.stringify(["d-ok", "d-hidden"]),
+      rationaleClusterSummary: "Too small for Acme",
+      supportingFirmCount: 2,
+      mandateScope: "Acme",
+    };
+    const hidden = new Map([["d-hidden", "firm-r"]]);
+    const { rule: shown } = redactRule(rule, hidden, (s) => s.replace("Acme", "Kestrel"));
+    // A rule with a hidden decision loses its rationale and count; the scope is masked either way.
+    const changed = (Object.keys(rule) as Array<keyof typeof rule>).filter(
+      (k) => shown[k] !== rule[k],
+    );
+    expect([...changed].sort()).toEqual([...REDACTED_RULE_PROPS].sort());
+    // With nothing hidden the rationale is masked instead of removed.
+    const open = redactRule(rule, new Map(), (s) => s.replace("Acme", "Kestrel")).rule;
+    expect(open.rationaleClusterSummary).toBe("Too small for Kestrel");
+    expect(Object.keys(open).sort()).toEqual(Object.keys(rule).sort());
   });
 });

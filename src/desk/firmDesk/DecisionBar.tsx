@@ -1,5 +1,6 @@
 import React from "react";
 import { Term } from "@/components/Term";
+import { errorMessage } from "@/data/adapter";
 import { useObservableClient, useOsdkAction } from "@/data/hooks";
 import { advanceStageAction, qualifyFirmAction, rejectFirmAction } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
@@ -13,7 +14,7 @@ import { Button, Kbd } from "@/ui";
 import { type MirrorResult } from "../scoreMirror";
 import styles from "./DecisionBar.module.css";
 import { confirmItems, firmDecisionState } from "./decisionState";
-import { type EditMap, type FirmView, formatActionError } from "./deskModel";
+import { type EditMap, type FirmView } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
 
 const NOTE_ID = "decision-note";
@@ -35,7 +36,7 @@ function ErrorList({
       <ul>
         {shown.map((e) => (
           <li key={e.label}>
-            {e.label}: {formatActionError(e.error)}
+            {e.label}: {errorMessage(e.error)}
           </li>
         ))}
       </ul>
@@ -51,7 +52,7 @@ function ErrorList({
  */
 export function DecisionBar({
   firm,
-  actionFirm,
+  firmId,
   mirror,
   edits,
   onCommit,
@@ -60,7 +61,7 @@ export function DecisionBar({
   enrichError,
 }: {
   firm: FirmView;
-  actionFirm: unknown;
+  firmId: string;
   /** The score mirror with staged edits applied. */
   mirror: MirrorResult;
   edits: EditMap;
@@ -89,8 +90,8 @@ export function DecisionBar({
   // stale lifecycle and this bar offering a transition the server has already completed.
   // Invalidate the firm explicitly after every successful decision.
   const refreshFirm = React.useCallback((): void => {
-    void observable.invalidateObjects(actionFirm as never);
-  }, [observable, actionFirm]);
+    void observable.invalidateObjects();
+  }, [observable]);
 
   const { stageLabel, terminalKind, qualified, nextState } = firmDecisionState(firm);
   const canQualify = terminalKind === null && !qualified && !qualify.isPending;
@@ -98,15 +99,19 @@ export function DecisionBar({
   const canPass = terminalKind === null && !reject.isPending;
 
   const onQualify = (): void => {
-    void qualify.applyAction({ firm: actionFirm } as never).then(refreshFirm);
+    void qualify
+      .applyAction({ firm: firmId })
+      .then(refreshFirm)
+      .catch(() => undefined); // Shown by the error list through qualify.error.
   };
   const onAdvance = (): void => {
     if (nextState === null) {
       return;
     }
     void advance
-      .applyAction({ firm: actionFirm, targetState: nextState } as never)
-      .then(refreshFirm);
+      .applyAction({ firm: firmId, targetState: nextState })
+      .then(refreshFirm)
+      .catch(() => undefined); // Shown by the error list through advance.error.
   };
   const onPass = (): void => {
     if (note.trim().length === 0) {
@@ -116,12 +121,13 @@ export function DecisionBar({
     }
     // Note preserved if the pass fails (only cleared on success).
     void reject
-      .applyAction({ firm: actionFirm, rejectionRationale: note.trim() } as never)
+      .applyAction({ firm: firmId, rejectionRationale: note.trim() })
       .then(() => {
         setNote("");
         setAttemptedPass(false);
         refreshFirm();
-      });
+      })
+      .catch(() => undefined); // Shown by the error list through reject.error; the note stays.
   };
 
   // One place that says what each shortcut does right now; the key listener and the palette

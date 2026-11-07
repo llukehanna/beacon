@@ -25,7 +25,7 @@ import {
   visibilityOf,
   walledMandateIds,
 } from "../shared/accessPolicy.js";
-import type { ObjectOf, ObjectTypeName } from "../shared/schema.js";
+import { OBJECT_TYPES, type ObjectOf, type ObjectTypeName } from "../shared/schema.js";
 import { type Queryable, getDb } from "./db/client.js";
 import { listAll } from "./db/repo.js";
 import { HttpError } from "./errors.js";
@@ -172,12 +172,20 @@ export interface RuleWall {
   mask: (s: string) => string;
 }
 
-/** Loads the rule wall for a persona; two small queries at most, none for compliance. */
+/**
+ * Loads the rule wall for a persona: one query for the decisions on every hidden firm, however
+ * many there are, and one for the mandates to mask. None for a persona that hides nothing.
+ */
 export async function ruleWallFor(q: Queryable, access: Access): Promise<RuleWall> {
   const hiddenDecisions = new Map<string, string>();
-  for (const firmId of access.hiddenFirmIds) {
-    for (const d of await listAll(q, "ReviewDecision", { where: { firmId: { $eq: firmId } } })) {
-      hiddenDecisions.set(d.$primaryKey, firmId);
+  if (access.hiddenFirmIds.length > 0) {
+    const { table, primaryKey } = OBJECT_TYPES.ReviewDecision;
+    const rows = await q.query<{ id: string; firmId: string }>(
+      `SELECT "${primaryKey}" AS id, "firmId" FROM ${table} WHERE "firmId" = ANY($1::text[])`,
+      [[...access.hiddenFirmIds]],
+    );
+    for (const r of rows) {
+      hiddenDecisions.set(r.id, r.firmId);
     }
   }
   return { hiddenDecisions, mask: await codenameMasker(q, access) };
