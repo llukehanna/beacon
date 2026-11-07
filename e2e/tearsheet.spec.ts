@@ -205,7 +205,9 @@ test("the command palette opens the open firm's tear sheet", async ({ page }) =>
   await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByRole("dialog", { name: "Command palette" })).toBeVisible();
   await page.keyboard.type("Tear sheet");
-  await expect(page.getByRole("option").first()).toContainText(`Tear sheet: ${name}`);
+  await expect(
+    page.getByRole("dialog", { name: "Command palette" }).getByRole("option").first(),
+  ).toContainText(`Tear sheet: ${name}`);
   await page.keyboard.press("Enter");
 
   await expect(page).toHaveURL(tearSheetPath(id));

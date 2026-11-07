@@ -1,3 +1,4 @@
+import { apiFetch } from "./persona";
 import { type WireObject, serializeParams } from "./wire";
 
 export type { WireObject } from "./wire";
@@ -53,7 +54,7 @@ export async function fetchObjectsPage(type: string, q: ObjectPageQuery = {}): P
   if (q.pageToken !== undefined) {
     params.set("pageToken", q.pageToken);
   }
-  return readJson<ObjectPage>(await fetch(`/api/objects?${params.toString()}`));
+  return readJson<ObjectPage>(await apiFetch(`/api/objects?${params.toString()}`));
 }
 
 /** Runs a server query function (see server/functions/) and returns its value. */
@@ -62,7 +63,7 @@ export async function fetchFunction<T>(name: string, params: Record<string, unkn
   if (Object.keys(params).length > 0) {
     query.set("params", JSON.stringify(params));
   }
-  return (await readJson<{ value: T }>(await fetch(`/api/functions?${query.toString()}`))).value;
+  return (await readJson<{ value: T }>(await apiFetch(`/api/functions?${query.toString()}`))).value;
 }
 
 export async function fetchLinks(
@@ -70,7 +71,7 @@ export async function fetchLinks(
   link: string,
   pks: string[],
 ): Promise<Record<string, WireObject[]>> {
-  const res = await fetch("/api/links", {
+  const res = await apiFetch("/api/links", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ type, link, pks }),
@@ -91,7 +92,7 @@ export async function postAction(
   action: string,
   params: Record<string, unknown>,
 ): Promise<ActionResponse> {
-  const res = await fetch("/api/actions", {
+  const res = await apiFetch("/api/actions", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ action, params: serializeParams(params) }),
@@ -100,5 +101,5 @@ export async function postAction(
 }
 
 export async function resetDemo(): Promise<{ firms: number }> {
-  return readJson<{ firms: number }>(await fetch("/api/reset", { method: "POST" }));
+  return readJson<{ firms: number }>(await apiFetch("/api/reset", { method: "POST" }));
 }

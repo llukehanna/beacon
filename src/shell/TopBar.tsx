@@ -19,6 +19,9 @@ function useCrumbs(): Crumb[] {
   if (/^\/firm\/[^/]+\/tear-sheet$/.test(pathname)) {
     return [{ label: "Pipeline", to: "/pipeline" }, { label: "Tear sheet" }];
   }
+  if (pathname === "/compliance") {
+    return [{ label: "Compliance" }];
+  }
   if (section === undefined) {
     const page = footerLinkFor(pathname);
     return page === undefined ? [] : [{ label: page.label }];

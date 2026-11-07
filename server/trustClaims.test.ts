@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OBJECT_TYPES } from "../shared/schema";
 import {
+  ACCESS_LOG_CEILING,
+  ACCESS_LOG_DEBOUNCE_SECONDS,
   ACTIONS_PER_MINUTE,
   ACTIVITY_ROW_CEILING,
   CLAUDE_COOLDOWN_MINUTES,
@@ -22,8 +24,10 @@ import {
   RECORDED_RUN,
   RESETS_PER_MINUTE,
   RESET_COOLDOWN_MINUTES,
+  RESTRICTED_FIRM_COUNT,
   SEARCH_CEILING,
 } from "../src/about/facts";
+import { MAX_ACCESS_LOG, VIEW_DEBOUNCE_SECONDS } from "./access";
 import { MAX_ACTIVITY_ROWS } from "./actions/apply";
 import { MAX_LIST, MAX_LIST_ITEM, MAX_STRING } from "./actions/params";
 import { MIN_CLUSTER } from "./actions/rules";
@@ -31,6 +35,7 @@ import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
 import { MAX_ACTION_RUNS } from "./operations/record";
+import { RESTRICTED_FIRM_COUNT as SEEDED_RESTRICTED } from "./seed/barriers";
 import { UNIVERSE_SIZE } from "./seed/universe";
 
 const ROOT = resolve(__dirname, "..");
@@ -57,6 +62,9 @@ describe("figures on the About and Trust pages", () => {
     expect(SEARCH_CEILING).toBe(MAX_SEARCHES);
     expect(MAX_BODY_BYTES).toBe(SERVER_BODY_BYTES);
     expect(MIN_FIRMS_PER_RULE).toBe(MIN_CLUSTER);
+    expect(RESTRICTED_FIRM_COUNT).toBe(SEEDED_RESTRICTED);
+    expect(ACCESS_LOG_CEILING).toBe(MAX_ACCESS_LOG);
+    expect(ACCESS_LOG_DEBOUNCE_SECONDS).toBe(VIEW_DEBOUNCE_SECONDS);
   });
 
   it("match the Cloudflare config", () => {
@@ -224,6 +232,13 @@ describe("docs/security.md", () => {
     expect(doc).toContain(
       `at least ${["zero", "one", "two", "three", "four"][MIN_FIRMS_PER_RULE]} distinct firms`,
     );
+    // The information barrier section.
+    const restricted = ["Zero", "One", "Two", "Three", "Four"][RESTRICTED_FIRM_COUNT];
+    expect(doc).toContain(`${restricted} firms are restricted`);
+    expect(doc).toContain(`keeps the newest ${ACCESS_LOG_CEILING} rows`);
+    expect(doc).toContain(`within ${ACCESS_LOG_DEBOUNCE_SECONDS} seconds`);
+    expect(doc).toContain("## Information barriers (demo)");
+    expect(doc).toContain("derive the persona from single sign-on, never from a header");
   });
 
   it("names a source file for every claim, and every named file exists", () => {

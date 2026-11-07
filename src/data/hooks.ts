@@ -37,6 +37,8 @@ export interface ObjectsOptions extends ObjectQuery {
   /** Keep requesting pages until the last; `data` stays undefined until then. */
   autoFetchMore?: boolean;
   enabled?: boolean;
+  /** How long a fetched list counts as fresh, in ms (the client default otherwise). 0 refetches on every mount. */
+  staleTime?: number;
 }
 
 export function useOsdkObjects<N extends ObjectTypeName>(
@@ -51,6 +53,7 @@ export function useOsdkObjects<N extends ObjectTypeName>(
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
     enabled: opts.enabled ?? true,
+    ...(opts.staleTime === undefined ? {} : { staleTime: opts.staleTime }),
   });
   const { hasNextPage, isFetchingNextPage, isFetching, isFetchNextPageError, fetchNextPage } = q;
   const more = hasNextPage === true;

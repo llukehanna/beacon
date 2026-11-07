@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { isActionName } from "../../shared/schema.js";
 import { USER } from "../../shared/vocab.js";
+import type { Access } from "../access.js";
 import { chooseClusterer } from "../clustering/choose.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
@@ -32,6 +33,8 @@ export interface ApplyOptions {
   maxActivityRows?: number;
   /** Where each run's latency is recorded; `null` records nothing (the seed builds history through actions). */
   recordRun?: ActionRunRecorder | null;
+  /** Who is acting. Without it nothing is hidden (the seed, the cron jobs and the tests act for no persona). */
+  access?: Access;
 }
 
 const defaultId = (prefix: string): string => `${prefix}-${randomUUID()}`;
@@ -105,14 +108,15 @@ async function execute(
     user: opts.user ?? USER,
     newId: opts.newId ?? defaultId,
     clusterer,
+    hiddenFirmIds: opts.access?.hiddenFirmIds ?? [],
   };
   // Outside the transaction too: slow work (the Claude call) must not hold a connection open.
   const prep = def.prepare
-    ? await def.prepare(db, await resolveParams(db, def.params, raw), base)
+    ? await def.prepare(db, await resolveParams(db, def.params, raw, opts.access), base)
     : undefined;
   const writes = writeLog();
   const result = await db.transaction(async (tx) => {
-    const params = await resolveParams(tx, def.params, raw);
+    const params = await resolveParams(tx, def.params, raw, opts.access);
     return def.run({ ...base, tx: writes.track(tx) }, params, prep);
   });
   return { ...result, types: writes.types() };

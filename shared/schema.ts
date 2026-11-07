@@ -78,6 +78,7 @@ export const OBJECT_TYPES = {
       industries: "string[]",
       products: "string[]",
       sizeMaxUsdM: "integer",
+      codename: "string",
     },
   },
   Search: {
@@ -277,6 +278,38 @@ export const OBJECT_TYPES = {
       effect: "string",
     },
   },
+  MandateAccess: {
+    apiName: "MandateAccess",
+    table: "mandate_access",
+    primaryKey: "accessId",
+    properties: {
+      accessId: "string",
+      mandateId: "string",
+      persona: "string",
+    },
+  },
+  RestrictedFirm: {
+    apiName: "RestrictedFirm",
+    table: "restricted_firm",
+    primaryKey: "firmId",
+    properties: {
+      firmId: "string",
+      reason: "string",
+      addedAt: "timestamp",
+    },
+  },
+  AccessLogEntry: {
+    apiName: "AccessLogEntry",
+    table: "access_log_entry",
+    primaryKey: "entryId",
+    properties: {
+      entryId: "string",
+      persona: "string",
+      objectType: "string",
+      objectId: "string",
+      viewedAt: "timestamp",
+    },
+  },
   ActionRun: {
     apiName: "ActionRun",
     table: "action_run",
@@ -332,10 +365,12 @@ export type ObjectOf<N extends ObjectTypeName> = {
 /**
  * Operations metrics: measurements of the running app, not demo data. They are written outside
  * any action's transaction, left out of the reset snapshot, and cleared whenever the demo resets.
+ * The access log is one: it records who looked at what while the demo ran.
  */
 export const OPERATIONS_TYPES = [
   "ActionRun",
   "ModelCall",
+  "AccessLogEntry",
 ] as const satisfies readonly ObjectTypeName[];
 
 export function isObjectTypeName(name: string): name is ObjectTypeName {

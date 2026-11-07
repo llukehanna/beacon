@@ -1,0 +1,100 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0;
+}
+
+.scroll {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+  padding: 20px 24px 28px;
+  overflow-y: auto;
+}
+
+.scroll > * {
+  flex: none;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+}
+
+.lede {
+  margin: 4px 0 12px;
+  color: var(--tx2);
+  font-size: 12.5px;
+}
+
+.none {
+  margin: 0;
+  color: var(--tx3);
+}
+
+.scrollX {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th,
+.table td {
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table thead th {
+  color: var(--tx3);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.table tbody th {
+  font-weight: 500;
+}
+
+.table tbody tr:last-child th,
+.table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.table a {
+  color: var(--tx);
+}
+
+.time {
+  color: var(--tx2);
+  font: 12px var(--font-mono);
+  white-space: nowrap;
+}
+
+.how {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--tx2);
+  font-size: 12.5px;
+}
+
+.how b {
+  color: var(--tx);
+  font-weight: 600;
+}
+
+@media (max-width: 899px) {
+  .scroll {
+    padding: 16px;
+  }
+}

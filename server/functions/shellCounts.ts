@@ -6,6 +6,7 @@
 import { bucketOf, isOpenBucket } from "../../shared/pipelineBuckets.js";
 import { mirrorScore } from "../../shared/scoreMirror.js";
 import type { ShellCounts } from "../../shared/summaries.js";
+import { type Access, NO_WALL } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { ACTIVE_MANDATE_WHERE, OPEN_DRIFT_WHERE } from "./homeSummary.js";
 
@@ -27,13 +28,15 @@ interface FirmGroup {
  * grouped by exactly those columns in SQL and the shared rule runs once per distinct group,
  * weighted by its size, instead of once per firm.
  */
-async function openFirmCount(q: Queryable): Promise<number> {
+async function openFirmCount(q: Queryable, hidden: readonly string[]): Promise<number> {
   const groups = await q.query<FirmGroup>(
     `SELECT "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
             "servicesFit", "balanceSheetPrincipal", "advisoryConflict", count(*)::int AS n
        FROM firm
+      WHERE "firmId" <> ALL($1::text[])
       GROUP BY "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
                "servicesFit", "balanceSheetPrincipal", "advisoryConflict"`,
+    [hidden],
   );
   return groups.reduce(
     (sum, g) => (isOpenBucket(bucketOf(g, mirrorScore(g))) ? sum + g.n : sum),
@@ -41,17 +44,28 @@ async function openFirmCount(q: Queryable): Promise<number> {
   );
 }
 
-async function countWhere(q: Queryable, table: string, where: string): Promise<number> {
+async function countWhere(
+  q: Queryable,
+  table: string,
+  where: string,
+  params: unknown[] = [],
+): Promise<number> {
   const [row] = await q.query<{ n: number }>(
     `SELECT count(*)::int AS n FROM ${table} WHERE ${where}`,
+    params,
   );
   return row?.n ?? 0;
 }
 
-export async function shellCounts(q: Queryable): Promise<ShellCounts> {
+export async function shellCounts(q: Queryable, access: Access = NO_WALL): Promise<ShellCounts> {
   const [open, review, activeMandates] = await Promise.all([
-    openFirmCount(q),
-    countWhere(q, "drift_event", OPEN_DRIFT_WHERE),
+    openFirmCount(q, access.hiddenFirmIds),
+    countWhere(
+      q,
+      "drift_event",
+      `${OPEN_DRIFT_WHERE} AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))`,
+      [access.hiddenFirmIds],
+    ),
     countWhere(q, "mandate", ACTIVE_MANDATE_WHERE),
   ]);
   return { open, review, activeMandates };

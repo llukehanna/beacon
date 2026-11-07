@@ -7,6 +7,7 @@
  * trust rates) live in shared/ and are called here unchanged. Counting that
  * is plain row selection (findings, mandate scope) runs as SQL aggregates.
  */
+import { redactMandate } from "../../shared/accessPolicy.js";
 import {
   type ScreenableFirm,
   countScreened,
@@ -43,6 +44,7 @@ import type {
 import { type TrendFinding, findingTrends, groundedCounts } from "../../shared/trends.js";
 import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.js";
 import { MARKET_SIGNAL } from "../../shared/vocab.js";
+import { type Access, NO_WALL } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
@@ -59,9 +61,15 @@ export const VISIBLE_ROWS = 7;
 
 type FirmRow = QueueFirm & ScreenableFirm;
 
-export async function loadLeanFirms(q: Queryable): Promise<FirmRow[]> {
+/** The firms with the columns the queue and the funnel read; `hidden` firms are not among them. */
+export async function loadLeanFirms(
+  q: Queryable,
+  hidden: readonly string[] = [],
+): Promise<FirmRow[]> {
   const rows = await q.query(
-    `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}`,
+    `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
+      WHERE "firmId" <> ALL($1::text[])`,
+    [hidden],
   );
   return rows.map((r) => toWire("Firm", r)) as unknown as FirmRow[];
 }
@@ -94,7 +102,10 @@ async function loadActiveConfigs(q: Queryable): Promise<ActiveConfigRule[]> {
  * conflict-grouped findings are invisible, one authoritative finding per
  * (firm, axis) — human-verified first, else latest retrievedAt — decides.
  */
-export async function needsYouAxes(q: Queryable): Promise<Map<string, number>> {
+export async function needsYouAxes(
+  q: Queryable,
+  hidden: readonly string[] = [],
+): Promise<Map<string, number>> {
   const rows = await q.query<{ firmId: string; axes: number }>(
     `WITH visible AS (
        SELECT "firmId", coalesce("axis", '') AS axis, "findingId", "retrievedAt",
@@ -102,6 +113,7 @@ export async function needsYouAxes(q: Queryable): Promise<Map<string, number>> {
               (lower(coalesce("confidenceTier", '')) = 'abstain' OR lower(coalesce("findingStatus", '')) = 'abstained') AS abstained
          FROM research_finding
         WHERE coalesce("firmId", '') <> ''
+          AND "firmId" <> ALL($1::text[])
           AND lower(coalesce("findingStatus", '')) <> 'superseded'
           AND coalesce("conflictGroupId", '') = ''
           AND lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
@@ -112,12 +124,13 @@ export async function needsYouAxes(q: Queryable): Promise<Map<string, number>> {
      )
      SELECT "firmId", count(*)::int AS axes FROM authoritative
       WHERE abstained AND NOT verified GROUP BY "firmId"`,
+    [hidden],
   );
   return new Map(rows.map((r) => [r.firmId, r.axes]));
 }
 
 /** Open drift events, newest first (the order /review lists them). */
-async function openDrifts(q: Queryable) {
+async function openDrifts(q: Queryable, hidden: readonly string[]) {
   return q.query<{
     driftEventId: string;
     firmId: string | null;
@@ -131,8 +144,9 @@ async function openDrifts(q: Queryable) {
     `SELECT "driftEventId", "firmId", "driftReason", "priorTier", "priorScore", "newTier", "newScore",
             "detectedAt"
        FROM drift_event
-      WHERE ${OPEN_DRIFT_WHERE}
+      WHERE ${OPEN_DRIFT_WHERE} AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))
       ORDER BY "detectedAt" DESC NULLS LAST, "driftEventId" ASC`,
+    [hidden],
   );
 }
 
@@ -168,13 +182,18 @@ type FindingRow = Omit<ActivityFinding & TrendFinding, "retrievedAt" | "verified
  * the pure modules in shared/ do the bucketing and grouping. Only whether a
  * source quote exists is needed, so its first character stands in for it.
  */
-async function loadTimedFindings(q: Queryable): Promise<(ActivityFinding & TrendFinding)[]> {
+async function loadTimedFindings(
+  q: Queryable,
+  hidden: readonly string[],
+): Promise<(ActivityFinding & TrendFinding)[]> {
   const rows = await q.query<FindingRow>(
     `SELECT "findingId", "firmId", "axis", "value", "provider", "findingStatus", "confidenceTier",
             "verifiedByHuman", "conflictGroupId", "retrievedAt", "verifiedAt",
             left(btrim(coalesce("sourceQuote", '')), 1) AS "sourceQuote"
        FROM research_finding
-      WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'`,
+      WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
+        AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))`,
+    [hidden],
   );
   return rows.map((r) => ({
     ...r,
@@ -184,9 +203,13 @@ async function loadTimedFindings(q: Queryable): Promise<(ActivityFinding & Trend
 }
 
 /** When each enriched firm was last enriched. */
-async function enrichmentTimes(q: Queryable): Promise<Map<string, string>> {
+async function enrichmentTimes(
+  q: Queryable,
+  hidden: readonly string[],
+): Promise<Map<string, string>> {
   const rows = await q.query<{ firmId: string; enrichedAt: Date | string }>(
-    `SELECT "firmId", "enrichedAt" FROM firm WHERE "enrichedAt" IS NOT NULL`,
+    `SELECT "firmId", "enrichedAt" FROM firm WHERE "enrichedAt" IS NOT NULL AND "firmId" <> ALL($1::text[])`,
+    [hidden],
   );
   const out = new Map<string, string>();
   for (const r of rows) {
@@ -259,6 +282,7 @@ export function projectRule(r: PendingRule, firms: readonly ScreenableFirm[]): n
  */
 async function mandateCounts(
   q: Queryable,
+  hidden: readonly string[],
 ): Promise<Map<string, { scoped: number; fromSearches: number }>> {
   const rows = await q.query<{ mid: string; scoped: number; fromSearches: number }>(
     `WITH ms AS (
@@ -272,52 +296,60 @@ async function mandateCounts(
        SELECT ms.mid, btrim(m."firmId") AS fid FROM search_membership m
          JOIN ms ON ms.sid = btrim(coalesce(m."searchId", ''))
         WHERE btrim(coalesce(m."firmId", '')) <> ''
+          AND btrim(m."firmId") <> ALL($1::text[])
        UNION
        SELECT ms.mid, btrim(f."firmId") FROM firm f
          JOIN ms ON ms.sid = btrim(coalesce(f."discoveredViaSearchId", ''))
         WHERE btrim(coalesce(f."firmId", '')) <> ''
+          AND btrim(f."firmId") <> ALL($1::text[])
      ), from_lists AS (
        SELECT btrim(sl."mandateId") AS mid, btrim(f."firmId") AS fid FROM search_list sl
          JOIN search_list_firm lf ON lf."searchId" = sl."searchId"
          JOIN firm f ON f."firmId" = lf."firmId"
         WHERE btrim(coalesce(sl."mandateId", '')) <> '' AND btrim(coalesce(f."firmId", '')) <> ''
+          AND btrim(f."firmId") <> ALL($1::text[])
      ), scoped AS (
        SELECT mid, fid FROM from_searches UNION SELECT mid, fid FROM from_lists
      )
      SELECT s.mid, s.n AS scoped, coalesce(fs.n, 0) AS "fromSearches"
        FROM (SELECT mid, count(*)::int AS n FROM scoped GROUP BY mid) s
        LEFT JOIN (SELECT mid, count(*)::int AS n FROM from_searches GROUP BY mid) fs ON fs.mid = s.mid`,
+    [hidden],
   );
   return new Map(rows.map((r) => [r.mid, { scoped: r.scoped, fromSearches: r.fromSearches }]));
 }
 
-async function activeMandates(q: Queryable): Promise<MandateSummary[]> {
+async function activeMandates(q: Queryable, access: Access): Promise<MandateSummary[]> {
   const [mandates, counts] = await Promise.all([
     q.query<{
       mandateId: string;
       title: string | null;
       intentStatement: string | null;
+      codename: string | null;
       archetype: string | null;
       priority: string | null;
     }>(
-      `SELECT "mandateId", "title", "intentStatement", "archetype", "priority" FROM mandate
+      `SELECT "mandateId", "title", "intentStatement", "codename", "archetype", "priority" FROM mandate
         WHERE ${ACTIVE_MANDATE_WHERE}
         ORDER BY "createdAt" DESC NULLS LAST, "mandateId" ASC`,
     ),
-    mandateCounts(q),
+    mandateCounts(q, access.hiddenFirmIds),
   ]);
-  return mandates.map((m) => ({
-    mandateId: m.mandateId,
-    title: orUndefined(m.title),
-    intentStatement: orUndefined(m.intentStatement),
-    archetype: orUndefined(m.archetype),
-    priority: orUndefined(m.priority),
-    scoped: counts.get(m.mandateId)?.scoped ?? 0,
-    fromSearches: counts.get(m.mandateId)?.fromSearches ?? 0,
-  }));
+  return mandates
+    .map((m) => redactMandate(access.persona, m, m.mandateId, access.mandateGrants))
+    .map((m) => ({
+      mandateId: m.mandateId,
+      title: orUndefined(m.title ?? null),
+      intentStatement: orUndefined(m.intentStatement ?? null),
+      archetype: orUndefined(m.archetype),
+      priority: orUndefined(m.priority),
+      scoped: counts.get(m.mandateId)?.scoped ?? 0,
+      fromSearches: counts.get(m.mandateId)?.fromSearches ?? 0,
+    }));
 }
 
-export async function homeSummary(q: Queryable): Promise<HomeSummary> {
+export async function homeSummary(q: Queryable, access: Access = NO_WALL): Promise<HomeSummary> {
+  const hidden = access.hiddenFirmIds;
   const [
     firms,
     configs,
@@ -330,16 +362,16 @@ export async function homeSummary(q: Queryable): Promise<HomeSummary> {
     timedFindings,
     enrichedAt,
   ] = await Promise.all([
-    loadLeanFirms(q),
+    loadLeanFirms(q, hidden),
     loadActiveConfigs(q),
-    needsYouAxes(q),
-    openDrifts(q),
+    needsYouAxes(q, hidden),
+    openDrifts(q, hidden),
     pendingRules(q),
-    activeMandates(q),
-    findingTotals(q),
-    outcomeGroups(q),
-    loadTimedFindings(q),
-    enrichmentTimes(q),
+    activeMandates(q, access),
+    findingTotals(q, hidden),
+    outcomeGroups(q, hidden),
+    loadTimedFindings(q, hidden),
+    enrichmentTimes(q, hidden),
   ]);
 
   // Funnel: one bucket per firm, hard-reject verdict included.

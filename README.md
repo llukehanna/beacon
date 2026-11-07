@@ -44,7 +44,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>source records → grounding → reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>15 object tables)]
+  Actions --> PG[(Postgres<br/>18 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI

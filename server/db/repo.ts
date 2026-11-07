@@ -1,3 +1,4 @@
+import { firmColumnOf } from "../../shared/accessPolicy.js";
 import {
   OBJECT_TYPES,
   type ObjectOf,
@@ -15,7 +16,13 @@ export interface ListOptions {
   pageSize?: number;
   /** The previous page's nextPageToken. */
   pageToken?: string;
+  /** Rows whose `column` holds one of `values` are left out (the access policy's hidden firms). */
+  exclude?: { column: string; values: readonly string[] };
 }
+
+/** `col` is null or none of the values bound at `$n`; true for an empty list. */
+const notIn = (column: string, n: number): string =>
+  `(${col(column)} IS NULL OR ${col(column)} <> ALL($${n}::text[]))`;
 
 // Column names only ever come from the schema (checked below), never from input.
 const col = (name: string): string => `"${name}"`;
@@ -238,6 +245,11 @@ export async function listObjects<N extends ObjectTypeName>(
   ];
   const params: unknown[] = where.map(([, c]) => c.$eq);
   const conditions = where.map(([k], i) => `${col(k)} = $${i + 1}`);
+  if (opts.exclude !== undefined && opts.exclude.values.length > 0) {
+    assertProps(type, [opts.exclude.column]);
+    params.push([...opts.exclude.values]);
+    conditions.push(notIn(opts.exclude.column, params.length));
+  }
   if (opts.pageToken !== undefined) {
     conditions.push(afterCursorSql(sortCols, decodeToken(opts.pageToken, sortCols.length), params));
   }
@@ -285,6 +297,8 @@ export async function listLinked(
   source: string,
   linkName: string,
   pks: readonly string[],
+  /** Target rows whose firmId is one of these are left out (the access policy's hidden firms). */
+  hiddenFirmIds: readonly string[] = [],
 ): Promise<Record<string, ObjectOf<ObjectTypeName>[]>> {
   const link = findLink(source, linkName);
   if (!link) {
@@ -297,12 +311,18 @@ export async function listLinked(
     return out;
   }
   const target = OBJECT_TYPES[link.target];
+  // A target tied to a firm (the Firm itself, or anything with a firmId) is dropped when that firm is hidden.
+  const firmColumn = firmColumnOf(link.target);
+  const hide =
+    hiddenFirmIds.length > 0 && firmColumn !== null
+      ? ` AND (t.${col(firmColumn)} IS NULL OR t.${col(firmColumn)} <> ALL($2::text[]))`
+      : "";
   const rows = await q.query(
     `SELECT j.${col(link.sourceColumn)} AS "__source", t.* FROM ${link.joinTable} j
        JOIN ${target.table} t ON t.${col(target.primaryKey)} = j.${col(link.targetColumn)}
-      WHERE j.${col(link.sourceColumn)} = ANY($1)
+      WHERE j.${col(link.sourceColumn)} = ANY($1)${hide}
       ORDER BY t.${col(target.primaryKey)}`,
-    [pks],
+    hide === "" ? [pks] : [pks, [...hiddenFirmIds]],
   );
   for (const { __source, ...rest } of rows) {
     (out[String(__source)] ??= []).push(toWire(link.target, rest));

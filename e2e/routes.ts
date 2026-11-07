@@ -23,6 +23,8 @@ export const ROUTES: AppRoute[] = [
   { path: "/rules", slug: "rules", heading: headerText("Proposed hard-screen rules") },
   { path: "/accuracy", slug: "accuracy", heading: headerText("Trust metrics") },
   { path: "/mandate", slug: "mandate", heading: headerText("Mandates") },
+  // Seen as the default analyst, so it shows the empty state: the page itself is compliance-only.
+  { path: "/compliance", slug: "compliance", heading: headerText("Information barriers") },
   { path: "/about", slug: "about", heading: headerText("About Beacon") },
   { path: "/trust", slug: "trust", heading: headerText("Trust and security") },
 ];

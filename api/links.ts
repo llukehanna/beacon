@@ -1,3 +1,4 @@
+import { resolveAccess } from "../server/access.js";
 import { getDb } from "../server/db/client.js";
 import { listLinked } from "../server/db/repo.js";
 import { HttpError } from "../server/errors.js";
@@ -19,7 +20,10 @@ export async function POST(request: Request): Promise<Response> {
     if (pks.length > MAX_SOURCES) {
       throw new HttpError(`At most ${MAX_SOURCES} source objects per request`);
     }
-    return json({ data: await listLinked(await getDb(), type, link, pks as string[]) });
+    const db = await getDb();
+    const access = await resolveAccess(request, db);
+    const linked = await listLinked(db, type, link, pks as string[], access.hiddenFirmIds);
+    return json({ data: linked });
   } catch (e) {
     return jsonError(e);
   }

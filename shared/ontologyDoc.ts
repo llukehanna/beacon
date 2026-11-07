@@ -44,7 +44,7 @@ function objectSection(name: ObjectTypeName): string {
   return [
     `### ${name}`,
     "",
-    `Table \`${def.table}\`, primary key \`${def.primaryKey}\`, ${Object.keys(def.properties).length} properties.${measured ? " An operations metric: written outside any action's transaction, left out of the reset snapshot." : ""}`,
+    `Table \`${def.table}\`, primary key \`${def.primaryKey}\`, ${Object.keys(def.properties).length} properties.${measured ? " An operations record: written outside any action's transaction, left out of the reset snapshot." : ""}`,
     "",
     "| Property | Type | Note |",
     "| --- | --- | --- |",

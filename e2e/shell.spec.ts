@@ -98,7 +98,7 @@ test("command palette opens a firm", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+k");
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
-  await expect(page.getByRole("combobox")).toBeFocused();
+  await expect(palette.getByRole("combobox")).toBeFocused();
 
   await page.keyboard.type(name);
   await expect(palette.getByRole("option").first()).toContainText(name);
@@ -115,7 +115,7 @@ test("slash opens the palette outside text fields and escape closes it", async (
   await page.keyboard.press("/");
   const palette = page.getByRole("dialog", { name: "Command palette" });
   await expect(palette).toBeVisible();
-  await expect(page.getByRole("combobox")).toHaveValue("");
+  await expect(palette.getByRole("combobox")).toHaveValue("");
 
   await page.keyboard.type("rul");
   await page.keyboard.press("ArrowDown");
