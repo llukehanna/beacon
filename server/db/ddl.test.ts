@@ -60,6 +60,24 @@ describe("ensureSchema", () => {
     expect(data_type).toBe("timestamp with time zone");
   });
 
+  it("creates the market_signal table and its due index on a database that lacks them", async () => {
+    const db = await createPgliteDb();
+    await ensureSchema(db);
+    await db.exec(`DROP TABLE market_signal`);
+    await ensureSchema(db);
+    await db.query(
+      `INSERT INTO market_signal ("signalId", "firmId", "kind", "effectiveDate") VALUES ('s1', 'f1', 'departure', now())`,
+    );
+    const indexes = await db.query<{ indexname: string }>(
+      `SELECT indexname FROM pg_indexes WHERE tablename = 'market_signal' ORDER BY indexname`,
+    );
+    expect(indexes.map((i) => i.indexname)).toEqual(
+      expect.arrayContaining(["market_signal_due", "market_signal_firm", "market_signal_pkey"]),
+    );
+    // A second start changes nothing.
+    await expect(ensureSchema(db)).resolves.toBeUndefined();
+  });
+
   it("is idempotent", async () => {
     const db = await createPgliteDb();
     await ensureSchema(db);

@@ -21,6 +21,7 @@ import {
   ACQUIRED_BY_COMPETITOR,
   AGENT,
   ANALYST,
+  MARKET_SIGNAL,
   PASSED,
   normalizeLifecycle,
   providerLabel,
@@ -42,6 +43,13 @@ export interface Rates {
   total: number; // all findings in the group
   decided: number; // agree + override
 }
+
+/**
+ * A finding written by a synthetic market signal. It records news, not a reading of a source, so
+ * it is left out of every trust figure: it was never right or wrong about a value.
+ */
+export const isMarketSignalFinding = (f: Pick<RatedFinding, "provider">): boolean =>
+  (f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL;
 
 export function classify(f: RatedFinding): "abstain" | "agree" | "override" | "pending" {
   const ct = (f.confidenceTier ?? "").toLowerCase();
@@ -81,7 +89,8 @@ export function ratesFromCounts({ agree, override, abstain, total }: RateCounts)
   };
 }
 
-export function countFindings(findings: readonly RatedFinding[]): RateCounts {
+export function countFindings(all: readonly RatedFinding[]): RateCounts {
+  const findings = all.filter((f) => !isMarketSignalFinding(f));
   const c: RateCounts = { agree: 0, override: 0, abstain: 0, total: findings.length };
   for (const f of findings) {
     const cls = classify(f);
@@ -109,6 +118,8 @@ export interface FirmOutcomeLike {
   disposition?: string | null;
   outcome?: string | null;
   outcomeObservedAt?: string | number | Date | null;
+  /** Who reported the outcome: "market_signal" for a synthetic market signal, empty for an analyst. */
+  outcomeSource?: string | null;
 }
 
 // A firm counts as "passed" (we decided not to pursue) when either its
@@ -141,6 +152,8 @@ export interface OutcomeTally {
   counts: Record<string, number>;
   passed: number;
   passedAndAcquired: number;
+  /** Firms whose outcome came from a synthetic market signal rather than an analyst. */
+  fromSignals: number;
 }
 
 export const NULL_OUTCOME_KEY = "__null__";
@@ -157,8 +170,12 @@ export function tallyOutcomeGroups(groups: readonly FirmOutcomeGroup[]): Outcome
   }
   let passed = 0;
   let passedAndAcquired = 0;
+  let fromSignals = 0;
   for (const f of groups) {
     const raw = (f.outcome ?? "").trim().toLowerCase();
+    if (raw !== "" && (f.outcomeSource ?? "").trim().toLowerCase() === MARKET_SIGNAL) {
+      fromSignals += f.n;
+    }
     const bucket = raw === "" ? NULL_OUTCOME_KEY : raw;
     if (bucket in counts) {
       counts[bucket] += f.n;
@@ -174,7 +191,7 @@ export function tallyOutcomeGroups(groups: readonly FirmOutcomeGroup[]): Outcome
       }
     }
   }
-  return { counts, passed, passedAndAcquired };
+  return { counts, passed, passedAndAcquired, fromSignals };
 }
 
 export function tallyOutcomes(firms: readonly FirmOutcomeLike[]): OutcomeTally {
@@ -273,6 +290,9 @@ export interface FindingCell extends RateCounts {
 export function cellsFromFindings(findings: readonly RatedFinding[]): FindingCell[] {
   const cells = new Map<string, FindingCell>();
   for (const f of findings) {
+    if (isMarketSignalFinding(f)) {
+      continue;
+    }
     const provider = f.provider ?? "";
     const axis = (f.axis ?? "").trim();
     const key = JSON.stringify([provider, axis]);

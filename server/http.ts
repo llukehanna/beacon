@@ -15,6 +15,8 @@ export function json(body: unknown, status = 200): Response {
     headers: {
       "content-type": "application/json",
       "cache-control": "no-store",
+      // The body depends on the demo persona header, so no cache may share it between personas.
+      vary: "X-Beacon-Persona",
       ...SECURITY_HEADERS,
     },
   });
@@ -69,7 +71,7 @@ export function assertSameOrigin(request: Request): void {
 }
 
 /** Reads the body as text, stopping as soon as it passes MAX_BODY_BYTES. */
-async function readLimitedText(request: Request): Promise<string> {
+export async function readLimitedText(request: Request): Promise<string> {
   const tooLarge = () => new HttpError("Request body is too large", 413);
   const declared = Number(request.headers.get("content-length"));
   if (declared > MAX_BODY_BYTES) {

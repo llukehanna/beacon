@@ -1,0 +1,60 @@
+.wrap {
+  position: relative;
+  display: inline-block;
+}
+
+.menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+  max-width: calc(100vw - 32px);
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--s3);
+  box-shadow:
+    0 0 0 1px var(--line2),
+    0 16px 40px -8px rgba(0, 0, 0, 0.7);
+}
+
+.item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--tx);
+  cursor: pointer;
+  font: 500 13px/1.45 var(--font-ui);
+  text-align: left;
+}
+
+.item:hover,
+.item:focus-visible {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.item:focus-visible {
+  outline: 2px solid var(--acc);
+  outline-offset: -2px;
+}
+
+/* The hover tint lifts the background, so the quiet text steps up to stay at 4.5:1. */
+.item:hover .hint,
+.item:focus-visible .hint {
+  color: var(--tx2);
+}
+
+.hint {
+  display: block;
+  color: var(--tx3);
+  font-size: 11px;
+  font-weight: 400;
+}
+.menu:focus {
+  outline: none;
+}

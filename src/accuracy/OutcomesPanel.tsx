@@ -2,6 +2,7 @@ import React from "react";
 import { outcomeLabel } from "@/desk/tokens";
 import { SectionHead } from "@/home/SectionHead";
 import { Panel } from "@/ui";
+import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import { NULL_OUTCOME_KEY, OUTCOME_SLOTS, type OutcomeTally } from "../../shared/trustMetrics";
 import { ACQUIRED_BY_COMPETITOR } from "../../shared/vocab";
 import styles from "./OutcomesPanel.module.css";
@@ -12,7 +13,7 @@ import styles from "./OutcomesPanel.module.css";
  * later acquired"). Counts only, no chart: five numbers do not need one.
  */
 export function OutcomesPanel({ tally }: { tally: OutcomeTally }): React.ReactElement {
-  const { counts, passed, passedAndAcquired } = tally;
+  const { counts, passed, passedAndAcquired, fromSignals } = tally;
   const observed = OUTCOME_SLOTS.filter((slot): slot is string => slot !== null);
   const notYet = counts[NULL_OUTCOME_KEY] ?? 0;
   return (
@@ -35,6 +36,13 @@ export function OutcomesPanel({ tally }: { tally: OutcomeTally }): React.ReactEl
           <span className={styles.mono}>{notYet}</span> {notYet === 1 ? "firm" : "firms"} with no
           outcome observed yet
         </p>
+        {fromSignals > 0 && (
+          <p className={styles.quiet}>
+            <span className={styles.mono}>{fromSignals}</span>{" "}
+            {fromSignals === 1 ? "outcome comes" : "outcomes come"} from{" "}
+            {SYNTHETIC_LABEL.toLowerCase()}s, not from an analyst.
+          </p>
+        )}
         {passed > 0 && (
           <p className={styles.passed}>
             Of firms we passed, <b className={styles.mono}>{passedAndAcquired}</b>{" "}

@@ -6,7 +6,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 | Foundry (original)                                    | This repo                                                                                                                                                                   |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 14 object types (11 carried over, 1 not ported, 3 added; see below), 2 traversed links; Postgres tables generated from it |
+| Ontology: 12 object types, 12 link types              | `shared/schema.ts`: 18 object types (11 carried over, 1 not ported, 7 added; see below), 2 traversed links; Postgres tables generated from it |
 | Pipeline Builder cleaning a licensed data export      | `server/seed/universe.ts`: deterministic synthetic universe                                                                                                                 |
 | 30 Actions (function-backed + declarative)            | 18 actions in `server/actions/` (every one the UI or seed calls)                                                                                                            |
 | 39 TypeScript v1 Functions                            | Query functions in `server/functions/` plus pure modules in `shared/` and `server/`                                                                                         |
@@ -21,7 +21,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Ontology becomes one schema file and generated tables
 
-- **Object types: 12 became 14.** The Foundry ontology had 12 object types: `DriftEvent`, `HardScreenConfig`, `LghFirm`, `Mandate`, `ProposedRule`, `QualificationScore`, `ResearchFinding`, `ReviewDecision`, `Search`, `SearchList`, `SearchMembership` and `TargetBrief`. The port carried 11 of them (`LghFirm` became `Firm`) and did not port `TargetBrief`. `Extraction`, `ActionRun` and `ModelCall` were added in this repository, which makes 14.
+- **Object types: 12 became 18.** The Foundry ontology had 12 object types: `DriftEvent`, `HardScreenConfig`, `LghFirm`, `Mandate`, `ProposedRule`, `QualificationScore`, `ResearchFinding`, `ReviewDecision`, `Search`, `SearchList`, `SearchMembership` and `TargetBrief`. The port carried 11 of them (`LghFirm` became `Firm`) and did not port `TargetBrief`. `Extraction`, `MarketSignal`, `ActionRun`, `ModelCall`, `MandateAccess`, `RestrictedFirm` and `AccessLogEntry` were added in this repository, which makes 18.
 - **Here.** `shared/schema.ts` declares every object type, its properties and types, the links the screens traverse and the action names. `server/db/ddl.ts` generates one Postgres table per object type from it, `server/db/repo.ts` reads and writes by type and checks every column name against it, and the typed hooks in `src/data/` are keyed by the same names. `npm run ontology:doc` writes [ontology.md](ontology.md) from it, and CI fails if that file is out of date.
 - **Kept.** Object types with typed properties and string primary keys, and the idea that the model is declared once and everything else derives from it.
 - **Not carried over.** Of the original 12 link types, only the two the screens traverse are declared. Foundry also provides managed object-type editing, permissions on object types and properties, and tools for browsing objects; none of that has an equivalent here.
@@ -74,10 +74,11 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 - **Here.** The original frontend was already a custom React app on the OSDK, not a configured app-builder module, so there was no layout to translate. The screens, with their pure modules (queue ranking, axis state, active screening, trust metrics, finding actions) and tests, were ported as they were. A later change rebuilt them on a design-token system with Geist fonts and added an end-to-end suite, without changing their hooks.
 
-### Markings and sign-in become a single shared analyst and a list of limits
+### Markings and sign-in become a single shared analyst, a demo information barrier and a list of limits
 
 - **Exists.** One analyst name stamped on every decision (`demo-analyst`); a same-origin check on writes; per-IP rate limits on the two write endpoints; parameter bounds; ceilings on mandates, searches and activity rows; a content security policy; a nightly reset; scores and decisions that are only ever inserted, enforced in application code. [security.md](security.md) states each claim with the file it comes from.
-- **Does not exist.** Sign-in, accounts, roles, per-user permissions, organization markings, tenant isolation, and database-enforced immutability of history.
+- **A demonstration of Markings.** Three demo personas (analyst, deal-team lead, compliance) chosen in the sidebar and sent as a request header. A restricted firm is hidden from everyone but compliance, which is what a Marking on the object does in Foundry; a mandate's title is replaced by its codename for a persona without need-to-know, which is what mandate-level Markings or a restricted view do. The persona is not an identity: see "Information barriers (demo)" in [security.md](security.md).
+- **Does not exist.** Sign-in, accounts, real roles, per-user permissions, organization markings, tenant isolation, and database-enforced immutability of history.
 - **Why.** A public demo has one shared analyst and no real data. The [production roadmap](production-roadmap.md) lists what a deployment with real data would need.
 
 ### Foundry hosting becomes Workers and Neon
@@ -102,5 +103,5 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 ## Deliberately left out
 
 - Target Brief generation, which was an object type in the original (`TargetBrief`), and the admin data-repair actions (no screen used them).
-- Per-user identity and permissions (a public demo has one shared analyst).
+- Per-user identity and permissions (a public demo has one shared analyst; the information barrier is a demo of the wall, not an identity).
 - Live third-party data connectors (replaced by deterministic mocks).

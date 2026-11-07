@@ -138,7 +138,9 @@ async function latestTimestamp(db: Db): Promise<{ at: Date; where: string }> {
   let latest = { at: new Date(0), where: "" };
   for (const t of Object.values(OBJECT_TYPES)) {
     for (const [column, type] of Object.entries(t.properties)) {
-      if (type !== "timestamp") {
+      // A market signal's effectiveDate is when it is scheduled to take effect: the seed stores the
+      // few due in the next day, so it is not history and may lie after the seed.
+      if (type !== "timestamp" || `${t.table}.${column}` === "market_signal.effectiveDate") {
         continue;
       }
       const [{ at }] = await db.query<{ at: Date | string | null }>(

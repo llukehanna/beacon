@@ -7,6 +7,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { OBJECT_TYPES } from "../shared/schema";
 import {
+  ACCESS_LOG_CEILING,
+  ACCESS_LOG_DEBOUNCE_SECONDS,
   ACTIONS_PER_MINUTE,
   ACTIVITY_ROW_CEILING,
   CLAUDE_COOLDOWN_MINUTES,
@@ -15,6 +17,8 @@ import {
   FIRM_COUNT,
   MANDATE_CEILING,
   MAX_BODY_BYTES,
+  MCP_PER_MINUTE,
+  MCP_RESULT_CAP,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OBJECT_TYPE_COUNT,
@@ -22,16 +26,22 @@ import {
   RECORDED_RUN,
   RESETS_PER_MINUTE,
   RESET_COOLDOWN_MINUTES,
+  RESTRICTED_FIRM_COUNT,
   SEARCH_CEILING,
 } from "../src/about/facts";
+import { MAX_ACCESS_LOG, VIEW_DEBOUNCE_SECONDS } from "./access";
 import { MAX_ACTIVITY_ROWS } from "./actions/apply";
 import { MAX_LIST, MAX_LIST_ITEM, MAX_STRING } from "./actions/params";
 import { MIN_CLUSTER } from "./actions/rules";
 import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
+import { MAX_RESULTS } from "./mcp/tools";
 import { MAX_ACTION_RUNS } from "./operations/record";
+import { RESTRICTED_FIRM_COUNT as SEEDED_RESTRICTED } from "./seed/barriers";
+import { LOOKAHEAD_MS, LOOKBACK_MS, SIGNAL_TARGET } from "./seed/signals";
 import { UNIVERSE_SIZE } from "./seed/universe";
+import { MAX_SIGNALS_PER_RUN } from "./signals/run";
 
 const ROOT = resolve(__dirname, "..");
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), "utf8");
@@ -57,12 +67,17 @@ describe("figures on the About and Trust pages", () => {
     expect(SEARCH_CEILING).toBe(MAX_SEARCHES);
     expect(MAX_BODY_BYTES).toBe(SERVER_BODY_BYTES);
     expect(MIN_FIRMS_PER_RULE).toBe(MIN_CLUSTER);
+    expect(RESTRICTED_FIRM_COUNT).toBe(SEEDED_RESTRICTED);
+    expect(ACCESS_LOG_CEILING).toBe(MAX_ACCESS_LOG);
+    expect(ACCESS_LOG_DEBOUNCE_SECONDS).toBe(VIEW_DEBOUNCE_SECONDS);
   });
 
   it("match the Cloudflare config", () => {
     expect(limiter("ACTIONS_LIMITER")).toEqual({ limit: ACTIONS_PER_MINUTE, period: 60 });
     expect(limiter("RESET_LIMITER")).toEqual({ limit: RESETS_PER_MINUTE, period: 60 });
-    expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *"]');
+    expect(limiter("MCP_LIMITER")).toEqual({ limit: MCP_PER_MINUTE, period: 60 });
+    // The nightly reset, and the hourly run that applies synthetic market signals as they come due.
+    expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *", "0 * * * *"]');
     expect(NIGHTLY_RESET_UTC).toBe("04:00");
     expect(read("api/reset.ts")).toContain(`COOLDOWN_MS = ${RESET_COOLDOWN_MINUTES} * 60_000`);
   });
@@ -204,6 +219,32 @@ describe("About page wording", () => {
   });
 });
 
+describe("the MCP result cap", () => {
+  it("is the one the Trust page, the security notes and the MCP guide state", () => {
+    expect(MCP_RESULT_CAP).toBe(MAX_RESULTS);
+    expect(read("docs/security.md")).toContain(`A list returns at most ${MAX_RESULTS} rows`);
+    const guide = read("docs/mcp.md");
+    expect(guide).toContain(`**Results are capped at ${MAX_RESULTS}.**`);
+    expect(guide).toContain(`A larger \`limit\` is clamped to ${MAX_RESULTS}`);
+    expect(guide).toContain(`capped at ${MAX_RESULTS} `);
+    expect(guide).toContain(`lists stop at ${MAX_RESULTS} rows`);
+    // The Trust page prints the figure from facts.ts, so it must not carry its own literal.
+    expect(read("src/about/TrustPage.tsx")).toContain("{MCP_RESULT_CAP} rows from any list");
+  });
+});
+
+describe("the market signal figures in docs/architecture.md", () => {
+  it("match the seed and the hourly run", () => {
+    const doc = read("docs/architecture.md");
+    const DAY = 24 * 60 * 60_000;
+    const HOUR = 60 * 60_000;
+    expect(doc).toContain(`about ${SIGNAL_TARGET} of them`);
+    expect(doc).toContain(`from ${LOOKBACK_MS / DAY} days before the seed`);
+    expect(doc).toContain(`to ${LOOKAHEAD_MS / HOUR} hours after it`);
+    expect(doc).toContain(`at most ${MAX_SIGNALS_PER_RUN} per run`);
+  });
+});
+
 describe("docs/security.md", () => {
   const doc = read("docs/security.md");
 
@@ -212,6 +253,7 @@ describe("docs/security.md", () => {
     expect(doc).toContain(`${FIRM_COUNT} firms`);
     expect(doc).toContain(`${ACTIONS_PER_MINUTE} requests per minute`);
     expect(doc).toContain(`${RESETS_PER_MINUTE} per minute`);
+    expect(doc).toContain(`${MCP_PER_MINUTE} requests per minute per client IP`);
     expect(doc).toContain(`${CLAUDE_COOLDOWN_MINUTES} minutes and ${CLAUDE_DAILY_MAX} per UTC day`);
     expect(doc).toContain(`${NIGHTLY_RESET_UTC} UTC`);
     expect(doc).toContain(`${RESET_COOLDOWN_MINUTES} minutes`);
@@ -223,6 +265,13 @@ describe("docs/security.md", () => {
     expect(doc).toContain(
       `at least ${["zero", "one", "two", "three", "four"][MIN_FIRMS_PER_RULE]} distinct firms`,
     );
+    // The information barrier section.
+    const restricted = ["Zero", "One", "Two", "Three", "Four"][RESTRICTED_FIRM_COUNT];
+    expect(doc).toContain(`${restricted} firms are restricted`);
+    expect(doc).toContain(`keeps the newest ${ACCESS_LOG_CEILING} rows`);
+    expect(doc).toContain(`within ${ACCESS_LOG_DEBOUNCE_SECONDS} seconds`);
+    expect(doc).toContain("## Information barriers (demo)");
+    expect(doc).toContain("derive the persona from single sign-on, never from a header");
   });
 
   it("names a source file for every claim, and every named file exists", () => {

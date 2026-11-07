@@ -1,3 +1,4 @@
+import { resolveAccess } from "../server/access.js";
 import { applyAction } from "../server/actions/apply.js";
 import { getDb } from "../server/db/client.js";
 import { HttpError } from "../server/errors.js";
@@ -9,7 +10,9 @@ export async function POST(request: Request): Promise<Response> {
     if (typeof body.action !== "string") {
       throw new HttpError("Expected { action: string, params: object }");
     }
-    return json(await applyAction(await getDb(), body.action, body.params ?? {}));
+    const db = await getDb();
+    const access = await resolveAccess(request, db);
+    return json(await applyAction(db, body.action, body.params ?? {}, { access }));
   } catch (e) {
     return jsonError(e);
   }

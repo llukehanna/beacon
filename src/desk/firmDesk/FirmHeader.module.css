@@ -29,6 +29,12 @@
   margin-top: 7px;
 }
 
+.sheetLink {
+  margin-left: 4px;
+  color: var(--acc);
+  font-size: 12px;
+}
+
 .dim {
   margin-left: 4px;
   opacity: 0.75;

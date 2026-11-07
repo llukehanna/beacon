@@ -5,10 +5,13 @@ import {
   Flag,
   Home,
   ListDetailView,
+  Lock,
   Properties,
   TickCircle,
   TimelineLineChart,
 } from "@blueprintjs/icons";
+import { usePersona } from "@/data/persona";
+import PersonaSwitcher from "./PersonaSwitcher";
 import styles from "./Sidebar.module.css";
 import { FOOTER_LINKS, NAV_ITEMS, type NavItem, navItemFor } from "./keys";
 import { mandateSubtitle } from "./status";
@@ -58,6 +61,7 @@ export default function Sidebar({
   const current = navItemFor(pathname);
   const { mandate } = useDeskScope(pathname === "/desk");
   const subtitle = mandateSubtitle(mandate, counts.activeMandates);
+  const persona = usePersona();
 
   return (
     <div className={styles.rail}>
@@ -68,6 +72,7 @@ export default function Sidebar({
           <span title={subtitle ?? undefined}>{subtitle ?? " "}</span>
         </div>
       </div>
+      <PersonaSwitcher />
       <nav aria-label="Primary" className={styles.nav}>
         {NAV_ITEMS.map((item) => {
           const Icon = ICONS[item.to];
@@ -90,6 +95,17 @@ export default function Sidebar({
             </Link>
           );
         })}
+        {/* Only the compliance persona has this page; for everyone else it is not in the rail. */}
+        {persona === "compliance" && (
+          <Link
+            to="/compliance"
+            className={styles.item}
+            aria-current={pathname === "/compliance" ? "page" : undefined}
+          >
+            <Lock size={15} aria-hidden="true" />
+            <span>Compliance</span>
+          </Link>
+        )}
       </nav>
       <div ref={slotRef} className={styles.slot} />
       <nav aria-label="About and trust" className={styles.footer}>

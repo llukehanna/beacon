@@ -31,6 +31,10 @@ export const ReviewDecision = obj("ReviewDecision");
 export const DriftEvent = obj("DriftEvent");
 export const ProposedRule = obj("ProposedRule");
 export const HardScreenConfig = obj("HardScreenConfig");
+export const MarketSignal = obj("MarketSignal");
+export const MandateAccess = obj("MandateAccess");
+export const RestrictedFirm = obj("RestrictedFirm");
+export const AccessLogEntry = obj("AccessLogEntry");
 export const ActionRun = obj("ActionRun");
 export const ModelCall = obj("ModelCall");
 

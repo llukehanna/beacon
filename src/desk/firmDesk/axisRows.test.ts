@@ -241,3 +241,44 @@ describe("summaryText", () => {
     );
   });
 });
+
+describe("an axis a market signal alone has spoken for", () => {
+  const def = ENRICH_AXES.find((a) => a.axis === "fee_generating_count")!;
+  const signal: FindingLike = {
+    findingId: "s1",
+    axis: "fee_generating_count",
+    value: "3",
+    provider: "market_signal",
+    findingStatus: "signal",
+    retrievedAt: "2026-06-01T00:00:00Z",
+  };
+
+  it("is the signal state, not verified", () => {
+    const [row] = buildAxisRows([def], undefined, [signal]);
+    expect(row.state).toBe("signal");
+    expect(authoritativeFinding(row)?.findingId).toBe("s1");
+  });
+
+  const checked = (at: string): FindingLike => ({
+    ...signal,
+    findingId: "m1",
+    provider: "analyst",
+    findingStatus: "verified",
+    verifiedByHuman: true,
+    value: "4",
+    verifiedAt: at,
+    retrievedAt: at,
+  });
+
+  it("gives way to a human check made after it", () => {
+    const [row] = buildAxisRows([def], undefined, [signal, checked("2026-07-01T00:00:00Z")]);
+    expect(row.state).toBe("verified");
+    expect(authoritativeFinding(row)?.findingId).toBe("m1");
+  });
+
+  it("outranks an older human check: the row shows the value the score uses", () => {
+    const [row] = buildAxisRows([def], undefined, [checked("2026-01-01T00:00:00Z"), signal]);
+    expect(row.state).toBe("signal");
+    expect(authoritativeFinding(row)?.value).toBe("3");
+  });
+});

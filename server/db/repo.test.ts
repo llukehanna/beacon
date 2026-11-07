@@ -234,7 +234,7 @@ describe("repository", () => {
     await db.query(
       `INSERT INTO search_list_firm ("searchId","firmId") VALUES ('L1','f1'),('L1','f2'),('L2','f2')`,
     );
-    const out = await listLinked(db, "SearchList", "firms", ["L1", "L2", "L3"]);
+    const out = await listLinked(db, "SearchList", "firms", ["L1", "L2", "L3"], []);
     expect(out.L1.map((f) => f.$primaryKey)).toEqual(["f1", "f2"]);
     expect(out.L2.map((f) => f.$primaryKey)).toEqual(["f2"]);
     expect(out.L3).toEqual([]);

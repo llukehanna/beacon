@@ -20,18 +20,20 @@
   "alias": { "@electric-sql/pglite": "./worker/no-pglite.ts" },
   // Run the Worker near the database (Neon) instead of near the visitor: fewer round trips per request.
   "placement": { "mode": "smart" },
-  // Per-IP limits on the two write endpoints (checked in worker/rateLimit.ts). Free plan; period is 10 or 60 s.
+  // Per-IP limits on the two write endpoints and the read-only MCP endpoint (checked in worker/rateLimit.ts). Free plan; period is 10 or 60 s.
   "ratelimits": [
     { "name": "ACTIONS_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
     { "name": "RESET_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+    { "name": "MCP_LIMITER", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
   ],
   // Optional Hyperdrive (connection pooling and caching in front of Neon). To enable:
   //   npx wrangler hyperdrive create beacon-db --connection-string="<neon connection string>"
   // then paste the id it prints below and uncomment. The Worker uses this binding when present
   // and falls back to the DATABASE_URL secret otherwise. Repeat the block under env.presenter if wanted.
   // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<hyperdrive-id>" }],
-  // Nightly demo reset via Cron Trigger. Secret: DATABASE_URL.
-  "triggers": { "crons": ["0 4 * * *"] },
+  // Nightly demo reset at 04:00 UTC, then the synthetic market signals that have come due; the hourly
+  // trigger applies only those (worker/index.ts scheduled). Secret: DATABASE_URL.
+  "triggers": { "crons": ["0 4 * * *", "0 * * * *"] },
   "observability": { "enabled": true },
   "env": {
     // Presenter deployment (beacon-presenter): same build on a workers.dev URL, pointed at its own
@@ -41,10 +43,11 @@
       "name": "beacon-presenter",
       "workers_dev": true,
       "routes": [],
-      "triggers": { "crons": ["0 4 * * *"] },
+      "triggers": { "crons": ["0 4 * * *", "0 * * * *"] },
       "ratelimits": [
         { "name": "ACTIONS_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
         { "name": "RESET_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
+        { "name": "MCP_LIMITER", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
       ],
     },
   },

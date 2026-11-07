@@ -9,6 +9,7 @@ const ctxFor = (tx: ActionContext["tx"]): ActionContext => ({
   now: T0,
   user: "demo-analyst",
   newId: (p) => `${p}-x`,
+  hiddenFirmIds: [],
 });
 
 describe("computeDriftForFirm", () => {

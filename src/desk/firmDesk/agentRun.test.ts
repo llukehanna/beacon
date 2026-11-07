@@ -10,6 +10,11 @@ describe("agentHasRun", () => {
     expect(agentHasRun([{ provider: "analyst" }, { provider: "analyst" }])).toBe(false);
   });
 
+  it("is false when the only finding is a synthetic market signal's", () => {
+    expect(agentHasRun([{ provider: "market_signal" }])).toBe(false);
+    expect(agentHasRun([{ provider: "market_signal" }, { provider: "dealdb" }])).toBe(true);
+  });
+
   it("is true for a provider finding, a corroborated one, or the agent's abstention", () => {
     expect(agentHasRun([{ provider: "dealdb" }])).toBe(true);
     expect(agentHasRun([{ provider: "dealdb+filings" }])).toBe(true);

@@ -28,6 +28,7 @@ Full-quality video: [golden-path.mp4](docs/media/golden-path.mp4).
 ## More
 
 - [Decision records](docs/decisions/README.md): ten short records of why it is built this way, with a status for each.
+- [MCP server](docs/mcp.md): a read-only Model Context Protocol endpoint for firm evidence and screening rules, with client configuration.
 - [Ontology reference](docs/ontology.md): every object type, link and action, generated from the schema.
 - [Development history](docs/development-history.md): how the project got here, with dates.
 - [Production roadmap](docs/production-roadmap.md): what a production deployment would need that the demo does not have.
@@ -44,7 +45,7 @@ flowchart LR
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>source records → grounding → reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>14 object tables)]
+  Actions --> PG[(Postgres<br/>18 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -115,7 +116,7 @@ npm run deploy:presenter
 | `server/clustering/` | Claude and heuristic rule proposers                                                                   |
 | `server/seed/`       | 700-firm synthetic universe and a history built by the real actions                                   |
 | `api/`               | Thin HTTP adapters (`Request` → `Response`)                                                           |
-| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset                      |
+| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset and hourly signals   |
 | `src/`               | The React app; `src/data/` is the typed data layer                                                    |
 
 ## Data

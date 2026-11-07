@@ -34,6 +34,9 @@ export const CLAUDE_DAILY_MAX = 24;
 /** Pinned to wrangler.jsonc ("ratelimits": limit and period, per client IP). */
 export const ACTIONS_PER_MINUTE = 60;
 export const RESETS_PER_MINUTE = 3;
+export const MCP_PER_MINUTE = 60;
+/** Rows any MCP list returns at most. Pinned to MAX_RESULTS in server/mcp/tools.ts. */
+export const MCP_RESULT_CAP = 25;
 
 /** Pinned to api/reset.ts (COOLDOWN_MS) and wrangler.jsonc ("crons"). */
 export const RESET_COOLDOWN_MINUTES = 5;
@@ -44,6 +47,11 @@ export const ACTIVITY_ROW_CEILING = 10_000;
 export const MANDATE_CEILING = 25;
 export const SEARCH_CEILING = 50;
 export const MAX_BODY_BYTES = 65_536;
+
+/** Pinned to server/seed/barriers.ts (RESTRICTED_FIRM_COUNT) and server/access.ts (the access log). */
+export const RESTRICTED_FIRM_COUNT = 3;
+export const ACCESS_LOG_CEILING = 500;
+export const ACCESS_LOG_DEBOUNCE_SECONDS = 30;
 
 /** Pinned to server/actions/rules.ts (MIN_CLUSTER). */
 export const MIN_FIRMS_PER_RULE = 4;

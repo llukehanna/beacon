@@ -10,9 +10,12 @@ import {
   nextSort,
   rejectDecisionByFirm,
 } from "@/desk/pipelineRows";
+import { ExportMenu } from "@/export/ExportMenu";
+import { ApprovedLookalikes } from "@/lookalikes/ApprovedLookalikes";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, ButtonLink, EmptyState, SidePanel } from "@/ui";
-import { PASSED } from "../../shared/vocab";
+import type { FirmLike } from "../../shared/exportRows";
+import { PASSED, isQualifiedOrLater } from "../../shared/vocab";
 import { Filters } from "./Filters";
 import { FirmDetail } from "./FirmDetail";
 import { FirmList } from "./FirmList";
@@ -99,6 +102,31 @@ export default function PipelinePage(): React.ReactElement {
   );
   const counts = React.useMemo(() => stageCounts(rows), [rows]);
   const visibleRows = React.useMemo(() => rowsForStage(rows, stage), [rows, stage]);
+  // The export is the list as filtered, with the score and tier each row shows.
+  const exportFirms = React.useMemo(
+    () =>
+      visibleRows.map((r): FirmLike => ({
+        ...(r.firm as FirmLike),
+        score: r.score.total,
+        tier: r.score.tier,
+      })),
+    [visibleRows],
+  );
+  // Lookalikes are asked for on demand: nothing is compared until the panel is open.
+  const [lookalikesOpen, setLookalikesOpen] = React.useState(false);
+  const approvedFirms = React.useMemo(
+    () =>
+      lookalikesOpen
+        ? visibleRows.filter((r) => isQualifiedOrLater(r.bucket)).map((r) => r.firm as FirmLike)
+        : [],
+    [lookalikesOpen, visibleRows],
+  );
+  const lookalikesToggle = React.useRef<HTMLButtonElement>(null);
+  // Closing removes the panel, and with it the focus, so the toggle takes the focus back.
+  const closeLookalikes = React.useCallback(() => {
+    setLookalikesOpen(false);
+    lookalikesToggle.current?.focus();
+  }, []);
   const selectedRow = React.useMemo(
     () => visibleRows.find((r) => r.firm.firmId === selectedId),
     [visibleRows, selectedId],
@@ -131,6 +159,16 @@ export default function PipelinePage(): React.ReactElement {
               label: `Open ${selectedName} in the desk`,
               group: "Actions" as const,
               run: () => navigate(`/desk?firmId=${encodeURIComponent(selectedFirmId)}`),
+            },
+          ]),
+      ...(selectedFirmId === undefined
+        ? []
+        : [
+            {
+              id: "pipeline:tear-sheet",
+              label: `Tear sheet: ${selectedName}`,
+              group: "Actions" as const,
+              run: () => navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`),
             },
           ]),
       ...(stage === PASSED
@@ -213,6 +251,10 @@ export default function PipelinePage(): React.ReactElement {
               aria-label="Search firms"
             />
           </div>
+          <ExportMenu
+            name={stage === "all" ? "pipeline" : `pipeline ${stage}`}
+            firms={exportFirms}
+          />
           <ButtonLink to="/mandate" variant="primary">
             New search
           </ButtonLink>
@@ -228,6 +270,26 @@ export default function PipelinePage(): React.ReactElement {
           <div ref={scrollRef} className={styles.scroll}>
             <StageTabs value={stage} counts={counts} loading={loading} onChange={setStage} />
             <Filters profile={profile} onProfile={setProfile} sort={sort} onSort={setSort} />
+            <div className={styles.lookalikes}>
+              <Button
+                ref={lookalikesToggle}
+                aria-expanded={lookalikesOpen}
+                aria-controls={lookalikesOpen ? "approved-lookalikes" : undefined}
+                onClick={() => setLookalikesOpen((open) => !open)}
+                disabled={loading}
+              >
+                Find lookalikes of approved targets
+              </Button>
+            </div>
+            {lookalikesOpen && (
+              <div id="approved-lookalikes">
+                <ApprovedLookalikes
+                  approved={approvedFirms}
+                  universe={firms as FirmLike[]}
+                  onClose={closeLookalikes}
+                />
+              </div>
+            )}
             <FirmList
               rows={visibleRows}
               loading={isLoading}
