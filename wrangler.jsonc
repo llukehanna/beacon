@@ -32,17 +32,23 @@
   // One hourly trigger: the 04:00 UTC run is the nightly demo reset, then the synthetic market signals
   // that have come due; every other run applies only those (worker/index.ts scheduled). Secret: DATABASE_URL.
   "triggers": { "crons": ["0 * * * *"] },
+  // The 04:00 UTC run also resets the presenter deployment, which has no Cron Trigger of its own:
+  // the account's five are in use. A named entrypoint is reachable only through this binding.
+  "services": [
+    { "binding": "PRESENTER", "service": "beacon-presenter", "entrypoint": "PresenterNightly" },
+  ],
   "observability": { "enabled": true },
   "env": {
     // Presenter deployment (beacon-presenter): same build on a workers.dev URL, pointed at its own
     // Neon branch via `wrangler secret put DATABASE_URL --env presenter`. Same nightly reset as production; no custom domain.
-    // Its trigger is nightly only (the free plan allows five per account): it resets, then applies due signals.
+    // It has no Cron Trigger (the account's five are in use): production's 04:00 UTC run resets it
+    // through the PRESENTER service binding, then its due signals are applied.
     // Bindings are not inherited by named environments, so the rate limits are repeated here.
     "presenter": {
       "name": "beacon-presenter",
       "workers_dev": true,
       "routes": [],
-      "triggers": { "crons": ["0 4 * * *"] },
+      "triggers": { "crons": [] },
       "ratelimits": [
         {
           "name": "ACTIONS_LIMITER",
