@@ -24,3 +24,16 @@ export function agentRunFirmIds(firms: readonly FirmLike[], agent: string): Set<
   }
   return ids;
 }
+
+/**
+ * Where the desk goes after the analyst passes on a firm: the firm after it in the live queue, or,
+ * when it was last, the first one still there. Undefined when the passed firm was the only one.
+ */
+export function nextQueueFirmId(
+  liveQueueIds: readonly string[],
+  passedId: string,
+): string | undefined {
+  const at = liveQueueIds.indexOf(passedId);
+  const after = at === -1 ? undefined : liveQueueIds.slice(at + 1).find((id) => id !== passedId);
+  return after ?? liveQueueIds.find((id) => id !== passedId);
+}

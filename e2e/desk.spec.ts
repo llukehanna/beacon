@@ -374,7 +374,7 @@ test("a failed pass says why in words and keeps the note", async ({ page }) => {
   );
   const note = page.getByPlaceholder(/required to pass/);
   await note.fill("Outside the mandate");
-  await page.getByRole("button", { name: /^Pass…/ }).click();
+  await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
 
   const alert = page.getByRole("alert").filter({ hasText: "Couldn’t save your decision." });
   await expect(alert).toContainText("Pass: The database is unavailable.");
@@ -390,7 +390,7 @@ test("reject requires a note", async ({ page }) => {
     return Number(/(\d+) in live queue/.exec(text)?.[1]);
   };
   const before = await queueCount();
-  const pass = page.getByRole("button", { name: /^Pass…/ });
+  const pass = page.getByRole("button", { name: /^Pass(?!ing)/ });
 
   // Without a note, passing is blocked and the firm stays in the queue.
   await pass.click();
@@ -410,4 +410,27 @@ test("reject requires a note", async ({ page }) => {
 
   // With a note it goes through, and the firm leaves the open queue.
   await expect(page.getByText(`${before - 1} in live queue`)).toBeVisible();
+});
+
+test("passing says so, points at the rule review and moves to the next firm", async ({ page }) => {
+  await openDesk(page);
+  const passedId = new URL(page.url()).searchParams.get("firmId")!;
+  const name = (await page.getByRole("heading", { level: 1 }).first().innerText()).trim();
+  // The button does what it says; there is no dialog to promise.
+  await expect(page.getByRole("button", { name: /^Pass…/ })).toHaveCount(0);
+
+  await page.getByPlaceholder(/required to pass/).fill("Outside the mandate");
+  await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
+
+  const toast = page.getByRole("status").filter({ hasText: `Passed ${name}.` });
+  await expect(toast).toContainText(`Passed ${name}. Its reason joins the rule review.`);
+  await expect(toast.getByRole("link", { name: "rule review" })).toHaveAttribute("href", "/rules");
+  // The desk has moved on to the next firm in the queue.
+  await expect(page).not.toHaveURL(new RegExp(`firmId=${passedId}(&|$)`));
+  await expect(page.getByRole("heading", { level: 1 }).first()).not.toHaveText(name);
+
+  // Back on the passed firm, the bar says plainly that nothing more is to be done.
+  await page.goto(`/desk?firmId=${encodeURIComponent(passedId)}`);
+  await expect(page.getByText("Passed. No further actions.")).toBeVisible();
+  await expect(page.getByText(/terminal state/i)).toHaveCount(0);
 });

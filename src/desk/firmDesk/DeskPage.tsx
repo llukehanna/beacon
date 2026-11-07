@@ -8,8 +8,10 @@ import { type Command, useCommands } from "@/shell/commands";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
 import { RetryNotice } from "@/ui";
 import { AGENT } from "../../../shared/vocab";
-import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
+import { isLiveQueueFirm } from "../activeScreening";
+import { agentRunFirmIds, defaultDeskFirmId, nextQueueFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
+import { isOpenFirm } from "../pipelineBuckets";
 import { orderEnrichmentQueue, toQueueFirm } from "../queue";
 import styles from "./DeskPage.module.css";
 import {
@@ -22,9 +24,10 @@ import {
   SearchEmpty,
 } from "./DeskStates";
 import { EnrichmentPanel } from "./EnrichmentPanel";
+import { PassToast } from "./PassToast";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type RediscoveryInfo, searchLabel } from "./deskModel";
+import { type FirmView, type RediscoveryInfo, searchLabel } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 import { useScreeningRules } from "./useScreeningRules";
@@ -297,6 +300,31 @@ function Desk(): React.ReactElement {
     viewCount: filteredData?.length ?? 0,
   });
 
+  // After a pass: say so, point at the rule review the reason joins, and open the next firm in the
+  // live queue (the queue as it stood, which still holds the passed firm, so "next" is its neighbour).
+  const [passed, setPassed] = React.useState<string | null>(null);
+  const liveQueueIds = React.useMemo(
+    () =>
+      queue
+        .filter((r) => isLiveQueueFirm(r.firm, screeningRules, isOpenFirm(r.firm, r.hardRejected)))
+        .map((r) => r.firm.firmId),
+    [queue, screeningRules],
+  );
+  const liveRef = React.useRef(liveQueueIds);
+  liveRef.current = liveQueueIds;
+  const onPassed = React.useCallback(
+    (firm: FirmView): void => {
+      const id = firm.firmId ?? "";
+      setPassed(firm.firmName ?? id);
+      const next = nextQueueFirmId(liveRef.current, id);
+      if (next !== undefined) {
+        setSelectedId(next);
+      }
+    },
+    [setSelectedId],
+  );
+  const closeToast = React.useCallback(() => setPassed(null), []);
+
   // The queue's search text and "Show all firms" live here, above the sidebar portal, so they
   // survive the sidebar remounting its contents (drawer open/close, crossing the breakpoint).
   const filters = useQueueFilters();
@@ -340,6 +368,7 @@ function Desk(): React.ReactElement {
   return (
     <div className={styles.desk}>
       {queueSidebar}
+      {passed !== null && <PassToast firmName={passed} onClose={closeToast} />}
       {searchActive && (
         <SearchFilterBar
           intentText={pinnedIntent}
@@ -381,6 +410,7 @@ function Desk(): React.ReactElement {
             // sidebar shows it screened.
             activeConfigs={rankingRules}
             configsLoading={configLoading}
+            onPassed={onPassed}
           />
         )}
         {panelState === "skeleton" && <FirmSkeleton />}

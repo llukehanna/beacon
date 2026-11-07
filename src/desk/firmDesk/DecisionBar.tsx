@@ -59,6 +59,7 @@ export function DecisionBar({
   dirty,
   enrichPending,
   enrichError,
+  onPassed,
 }: {
   firm: FirmView;
   firmId: string;
@@ -69,6 +70,8 @@ export function DecisionBar({
   dirty: boolean;
   enrichPending: boolean;
   enrichError: unknown;
+  /** Told once a pass has been saved, so the Desk can say so and move on to the next firm. */
+  onPassed?: (firm: FirmView) => void;
 }): React.ReactElement {
   const qualify = useOsdkAction(qualifyFirmAction);
   const reject = useOsdkAction(rejectFirmAction);
@@ -126,6 +129,7 @@ export function DecisionBar({
         setNote("");
         setAttemptedPass(false);
         refreshFirm();
+        onPassed?.(firm);
       })
       .catch(() => undefined); // Shown by the error list through reject.error; the note stays.
   };
@@ -207,7 +211,7 @@ export function DecisionBar({
   const noteMissing = attemptedPass && note.trim() === "";
   const noteHint =
     terminalKind !== null
-      ? "No decision actions are available in a terminal state."
+      ? "No further actions on this firm."
       : noteMissing
         ? "A note is required to pass."
         : note.trim() === ""
@@ -271,7 +275,7 @@ export function DecisionBar({
             placeholder={
               terminalKind === null
                 ? "Decision note. Optional for advance and qualify · required to pass…"
-                : "Firm is in a terminal state. Notes here won't be attached to a decision."
+                : "No further actions on this firm. Notes here won't be attached to a decision."
             }
           />
           <p
@@ -326,7 +330,7 @@ export function DecisionBar({
                 onClick={onPass}
                 title="Pass on this firm. A decision note is required."
               >
-                {reject.isPending ? "Passing…" : "Pass…"} <Kbd>{FIRM_DECISION_KEYS.pass.label}</Kbd>
+                {reject.isPending ? "Passing…" : "Pass"} <Kbd>{FIRM_DECISION_KEYS.pass.label}</Kbd>
               </Button>
             </>
           ) : (
@@ -334,7 +338,7 @@ export function DecisionBar({
               className={styles.terminal}
               title="Advance, Qualify, and Pass are unavailable once a firm is Passed or Closed."
             >
-              Terminal state · {terminalKind === "closed" ? "Closed" : stageLabel}
+              {terminalKind === "closed" ? "Closed" : stageLabel}. No further actions.
             </p>
           )}
         </div>
