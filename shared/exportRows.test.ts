@@ -134,6 +134,42 @@ describe("exportRows", () => {
     });
   });
 
+  it("exports the newer of a market signal and an analyst's check, the value the score uses", () => {
+    const analyst = (at: string) =>
+      finding({
+        findingId: "mine",
+        axis: "fee_generating_count",
+        value: "5",
+        provider: "analyst",
+        sourceDocumentId: null,
+        sourceQuote: null,
+        extractionModel: null,
+        findingStatus: "verified",
+        verifiedByHuman: true,
+        verifiedAt: at,
+        retrievedAt: at,
+      });
+    const signal = finding({
+      findingId: "sig",
+      axis: "fee_generating_count",
+      value: "3",
+      provider: "market_signal",
+      sourceDocumentId: null,
+      sourceQuote: null,
+      extractionModel: null,
+      findingStatus: "signal",
+      confidenceTier: null,
+      retrievedAt: "2026-02-01T00:00:00Z",
+    });
+    const older = exportRows([firm()], [analyst("2026-01-01T00:00:00Z"), signal]);
+    expect(older.rows[0].fee_generating_count).toBe(3);
+    expect(older.citations[0].find((c) => c.axis === "fee_generating_count")?.provider).toBe(
+      "Synthetic market signal",
+    );
+    const newer = exportRows([firm()], [analyst("2026-03-01T00:00:00Z"), signal]);
+    expect(newer.rows[0].fee_generating_count).toBe(5);
+  });
+
   it("prefers the human-verified finding, types numbers and gates, and skips superseded ones", () => {
     const { rows } = exportRows(
       [firm()],

@@ -259,17 +259,26 @@ describe("an axis a market signal alone has spoken for", () => {
     expect(authoritativeFinding(row)?.findingId).toBe("s1");
   });
 
-  it("gives way to a human-verified finding", () => {
-    const mine: FindingLike = {
-      ...signal,
-      findingId: "m1",
-      provider: "analyst",
-      findingStatus: "verified",
-      verifiedByHuman: true,
-      value: "4",
-    };
-    const [row] = buildAxisRows([def], undefined, [signal, mine]);
+  const checked = (at: string): FindingLike => ({
+    ...signal,
+    findingId: "m1",
+    provider: "analyst",
+    findingStatus: "verified",
+    verifiedByHuman: true,
+    value: "4",
+    verifiedAt: at,
+    retrievedAt: at,
+  });
+
+  it("gives way to a human check made after it", () => {
+    const [row] = buildAxisRows([def], undefined, [signal, checked("2026-07-01T00:00:00Z")]);
     expect(row.state).toBe("verified");
     expect(authoritativeFinding(row)?.findingId).toBe("m1");
+  });
+
+  it("outranks an older human check: the row shows the value the score uses", () => {
+    const [row] = buildAxisRows([def], undefined, [checked("2026-01-01T00:00:00Z"), signal]);
+    expect(row.state).toBe("signal");
+    expect(authoritativeFinding(row)?.value).toBe("3");
   });
 });

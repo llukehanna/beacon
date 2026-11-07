@@ -1,8 +1,11 @@
 import { beforeAll, describe, expect, it } from "vitest";
+import { pickAuthoritative } from "../../shared/axisState.js";
 import { SIGNAL_KINDS } from "../../shared/marketSignals.js";
 import type { ObjectOf } from "../../shared/schema.js";
+import { parseAxisValue } from "../../shared/scoring.js";
+import { ENRICH_AXES } from "../../shared/vocab.js";
 import type { Db } from "../db/client.js";
-import { listAll } from "../db/repo.js";
+import { getObject, listAll } from "../db/repo.js";
 import { MAX_SIGNALS_PER_RUN, applyDueSignals } from "../signals/run.js";
 import { createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
@@ -257,6 +260,29 @@ describe("the seeded demo's signals", () => {
     for (const f of findings) {
       expect(f.findingStatus, f.findingId).toBe("signal");
       expect(f.confidenceTier, f.findingId).toBeUndefined();
+    }
+  });
+
+  it("shows, as each firm's authoritative value, the value its score uses", async () => {
+    const axes = new Map(ENRICH_AXES.map((a) => [a.axis, a]));
+    const applied = (await listAll(db, "MarketSignal")).filter(
+      (s) => s.appliedAt !== undefined && s.axis !== undefined,
+    );
+    expect(applied.length).toBeGreaterThan(10);
+    for (const s of applied) {
+      const def = axes.get(s.axis!)!;
+      const firm = (await getObject(db, "Firm", s.firmId!))!;
+      const findings = (
+        await listAll(db, "ResearchFinding", { where: { firmId: { $eq: s.firmId! } } })
+      ).filter(
+        (f) =>
+          f.axis === s.axis && f.findingStatus !== "superseded" && (f.conflictGroupId ?? "") === "",
+      );
+      const shown = pickAuthoritative(findings.map((f) => ({ ...f, findingId: f.$primaryKey })));
+      // The newest signal on this firm and axis is the one whose value the firm carries.
+      expect(parseAxisValue(def, shown.value ?? ""), `${s.signalId} on ${s.firmId}`).toBe(
+        (firm as Record<string, unknown>)[def.firmField],
+      );
     }
   });
 
