@@ -1,0 +1,18 @@
+name: Live check
+
+# Checks the deployed demo once a day, an hour after the nightly reset, and on demand.
+# A failed scheduled run emails the repository owner (GitHub's default for scheduled workflows).
+on:
+  schedule:
+    - cron: "15 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  live:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/live-check.sh https://beacon.lukeghanna.com
