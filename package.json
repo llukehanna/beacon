@@ -16,6 +16,8 @@
     "format": "prettier --write src/ server/ shared/ api/ scripts/ worker/",
     "format:check": "prettier --check src/ server/ shared/ api/ scripts/ worker/",
     "seed": "tsx scripts/seed.ts",
+    "migrate": "tsx scripts/migrate.ts",
+    "migrations:gen": "tsx scripts/gen-migrations.ts && prettier --write server/db/migrations.generated.ts",
     "extract": "tsx scripts/extract.ts",
     "eval": "tsx scripts/eval.ts",
     "ontology:doc": "tsx scripts/ontology-doc.ts",

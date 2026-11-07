@@ -24,7 +24,7 @@ Beacon is a demo on synthetic data. This page lists what a production deployment
 
 ## 5. Audit export
 
-- **Now.** Scores, findings, decisions and drift events are written as history through named actions (`server/actions/`, `server/actions/apply.ts`), and each firm's History tab shows its trail. Append-only is enforced in application code only: the database has no triggers or revoked privileges (`server/db/ddl.ts`), and the nightly reset truncates the history (`server/seed/snapshot.ts`).
+- **Now.** Scores, findings, decisions and drift events are written as history through named actions (`server/actions/`, `server/actions/apply.ts`), and each firm's History tab shows its trail. Append-only is enforced in application code only: the database has no triggers or revoked privileges (`server/db/migrations/`), and the nightly reset truncates the history (`server/seed/snapshot.ts`).
 - **Production needs.** An export of the trail (who, what, when, which evidence) in a form compliance can file or query. Write-once tables or a database role without UPDATE and DELETE, so immutability does not depend on the application being correct. A history that is never truncated, with the user identity from item 2 on every row.
 
 ## 6. Retention and deletion
@@ -34,5 +34,5 @@ Beacon is a demo on synthetic data. This page lists what a production deployment
 
 ## 7. Tenant isolation
 
-- **Now.** One database, one shared demo, no organisation concept (`shared/schema.ts`, `server/db/ddl.ts`). Every visitor reads and writes the same rows.
+- **Now.** One database, one shared demo, no organisation concept (`shared/schema.ts`, `server/db/migrations/`). Every visitor reads and writes the same rows.
 - **Production needs.** A tenant identifier on every object type in the schema, enforced by row-level security in Postgres rather than only by query filters, and tenant-scoped rate limits and spend caps. Separate keys and fixtures per tenant, so one organisation's mandates, rationales and rules never feed another's clustering or evaluation.

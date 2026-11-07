@@ -1,6 +1,7 @@
 import React from "react";
 import { Button } from "@/ui";
 import styles from "./SearchFilterBar.module.css";
+import { searchLabel } from "./deskModel";
 
 // Top strip on the enrichment desk when the queue is pinned to a Search.
 // Reads intent statement, search name / #N, and total member count. The
@@ -8,6 +9,7 @@ import styles from "./SearchFilterBar.module.css";
 export function SearchFilterBar({
   intentText,
   searchName,
+  searchRunAt,
   searchIndex,
   memberCount,
   loading,
@@ -16,6 +18,8 @@ export function SearchFilterBar({
 }: {
   intentText: string;
   searchName?: string | null;
+  /** When the search ran: shown next to its name. */
+  searchRunAt?: string | number | Date | null;
   // 1-based rank of this search under the mandate (freshest = 1). Used
   // when the search has no human-readable name — reads as "Search #2".
   searchIndex?: number;
@@ -25,7 +29,8 @@ export function SearchFilterBar({
   exportAction?: React.ReactNode;
   onClear: () => void;
 }): React.ReactElement {
-  const label = (searchName ?? "").trim() || (searchIndex ? `Search #${searchIndex}` : "Search");
+  const label =
+    searchLabel(searchName, searchRunAt) || (searchIndex ? `Search #${searchIndex}` : "Search");
   return (
     <div role="status" aria-live="polite" className={styles.bar}>
       <span className={styles.kicker}>Filtered</span>

@@ -246,9 +246,11 @@ describe("redaction", () => {
     expect([...all].some((n) => /\d$/.test(n))).toBe(true);
   });
 
-  it("renames a search and a list of a walled mandate but keeps the date and the suffix", () => {
+  it("renames a search and a list of a walled mandate but keeps the list suffix", () => {
+    expect(redactDerivedName("Sell-side of Acme", "Project Kestrel")).toBe("Project Kestrel");
+    // A name that still carries a run date (a database not yet migrated) gives nothing away either.
     expect(redactDerivedName("Sell-side of Acme · 2026-09-01", "Project Kestrel")).toBe(
-      "Project Kestrel · 2026-09-01",
+      "Project Kestrel",
     );
     expect(redactDerivedName("Sell-side of Acme — universe", "Project Kestrel")).toBe(
       "Project Kestrel — universe",
@@ -262,11 +264,9 @@ describe("redaction", () => {
       $apiName: "Search",
       $primaryKey: "s1",
       mandateId: "m-walled",
-      name: "Sell-side of Acme · 2026-09-01",
+      name: "Sell-side of Acme",
     };
-    expect(redactObject("analyst", search, GRANTS, names).name).toBe(
-      "Project Kestrel · 2026-09-01",
-    );
+    expect(redactObject("analyst", search, GRANTS, names).name).toBe("Project Kestrel");
     expect(redactObject("deal_lead", search, GRANTS, names)).toBe(search);
     const other = { ...search, mandateId: "m-open" };
     expect(redactObject("analyst", other, GRANTS, names)).toBe(other);

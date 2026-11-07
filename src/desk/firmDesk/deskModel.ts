@@ -238,6 +238,20 @@ export interface RediscoveryInfo {
   priorDecisions: number;
 }
 
+/**
+ * How the desk labels a search: its name, then the day it ran ("Sell-side of Acme · 2026-09-01").
+ * The date comes from runAt, not from the name, so it is the same moment every other screen shows;
+ * a missing or unreadable runAt leaves the name alone. Empty when the search has neither.
+ */
+export function searchLabel(
+  name: string | null | undefined,
+  runAt: string | number | Date | null | undefined,
+): string {
+  const ms = runAt === null || runAt === undefined ? NaN : new Date(runAt).getTime();
+  const day = Number.isNaN(ms) ? "" : new Date(ms).toISOString().slice(0, 10);
+  return [(name ?? "").trim(), day].filter((part) => part !== "").join(" · ");
+}
+
 // Render an action error as something an analyst can read and report.
 // String(err) on a server error object prints "[object Object]", which
 // hides the one thing the banner exists to show. Prefer the message,

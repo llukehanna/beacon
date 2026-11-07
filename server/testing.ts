@@ -5,7 +5,7 @@ import { type ApplyOptions, applyAction } from "./actions/apply.js";
 import type { ActionResult } from "./actions/types.js";
 import { WRITABLE_TABLES, typesForTable } from "./actions/writes.js";
 import { type Db, createPgliteDb } from "./db/client.js";
-import { ensureSchema } from "./db/ddl.js";
+import { migrate } from "./db/migrate.js";
 import { getObject, insertObject } from "./db/repo.js";
 
 /** Fixed clock for action tests. */
@@ -28,7 +28,7 @@ export const STRONG_CF: Props<"Firm"> = {
 /** Fresh in-memory Postgres with the full schema. One per test. */
 export async function createTestDb(): Promise<Db> {
   const db = await createPgliteDb();
-  await ensureSchema(db);
+  await migrate(db);
   return db;
 }
 

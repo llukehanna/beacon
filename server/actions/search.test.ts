@@ -119,7 +119,9 @@ describe("runSearch", () => {
       status: "complete",
       resultCount: 2,
       runBy: "demo-analyst",
+      name: "M",
     });
+    expect(s.runAt, "the run date is runAt, not part of the name").toBeDefined();
     const members = (await listLinked(db, "Search", "firms", [s.$primaryKey], []))[s.$primaryKey];
     expect(members.map((f) => f.$primaryKey).sort()).toEqual(["us_sw_a", "us_sw_b"]);
   });
