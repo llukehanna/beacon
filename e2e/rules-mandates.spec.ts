@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { ROUTES, openRoute } from "./routes";
 
@@ -410,4 +410,45 @@ test("an active rule's toggle closes an open amend form without opening the deta
   await expect(page.getByLabel("New threshold value")).toHaveCount(0);
   await expect(rules.getByText(/Based on \d+ rejections?/)).toHaveCount(0);
   await expect(rules.getByRole("button", { name: "Details" })).toBeVisible();
+});
+
+/** Makes the rules query fail until `heal()` is called; everything else goes through. */
+async function breakRulesQuery(page: Page): Promise<() => void> {
+  let broken = true;
+  await page.route("**/api/objects?*", (route) =>
+    broken && new URL(route.request().url()).searchParams.get("type") === "ProposedRule"
+      ? route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "The rules service is unavailable." }),
+        })
+      : route.continue(),
+  );
+  return () => {
+    broken = false;
+  };
+}
+
+test("a failed rules load on Rules says why and retries", async ({ page }) => {
+  const heal = await breakRulesQuery(page);
+  await page.goto("/rules");
+  const notice = page.getByRole("alert").filter({ hasText: "Couldn't load the rules" });
+  await expect(notice).toContainText("The rules service is unavailable.");
+  await expect(notice).not.toContainText("Error:");
+
+  heal();
+  await notice.getByRole("button", { name: "Retry" }).click();
+  await expect(notice).toBeHidden();
+  await expect(page.getByRole("region", { name: /deal_size_usd_m/ })).toBeVisible();
+});
+
+test("a failed rules load on the Desk says why and retries", async ({ page }) => {
+  const heal = await breakRulesQuery(page);
+  await page.goto("/desk");
+  const notice = page.getByRole("alert").filter({ hasText: "Couldn't load the screening rules" });
+  await expect(notice).toContainText("The rules service is unavailable");
+
+  heal();
+  await notice.getByRole("button", { name: "Retry" }).click();
+  await expect(notice).toBeHidden();
 });

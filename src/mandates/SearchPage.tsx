@@ -1,5 +1,6 @@
 import React from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { Mandate, Search, runSearchAction } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
@@ -307,7 +308,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
         </Panel>
 
         {run.error !== undefined && (
-          <Notice>Search failed: {String(run.error)}. Your selections are preserved.</Notice>
+          <Notice>Search failed: {errorMessage(run.error)}. Your selections are preserved.</Notice>
         )}
 
         <div className={styles.runBar}>

@@ -1,9 +1,10 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, HardScreenConfig, ProposedRule, ReviewDecision } from "@/data/ontology";
 import { type RejectionNote, buildRejectionNotes } from "@/desk/ruleEvidence";
 import { type Command, useCommands } from "@/shell/commands";
-import { EmptyState, Notice, PageHeader, Skeleton } from "@/ui";
+import { EmptyState, PageHeader, RetryNotice, Skeleton } from "@/ui";
 import { ActiveRules } from "./ActiveRules";
 import { DeclinedRules } from "./DeclinedRules";
 import { ProposeRulesButton } from "./ProposeRulesButton";
@@ -28,6 +29,7 @@ export default function RulesPage(): React.ReactElement {
     data: rulesData,
     isLoading,
     error,
+    refetch: refetchRules,
   } = useOsdkObjects(ProposedRule, {
     autoFetchMore: true,
   });
@@ -39,7 +41,16 @@ export default function RulesPage(): React.ReactElement {
   // Every config row, so an approved rule shows its current version, effective predicate and
   // history. Amending adds a row and deactivates the last; unapproving deactivates them all. Both
   // invalidate this query.
-  const { data: configsData } = useOsdkObjects(HardScreenConfig, { autoFetchMore: true });
+  const {
+    data: configsData,
+    error: configsError,
+    refetch: refetchConfigs,
+  } = useOsdkObjects(HardScreenConfig, { autoFetchMore: true });
+  const loadError = error ?? configsError;
+  const retryLoad = React.useCallback((): void => {
+    void refetchRules();
+    void refetchConfigs();
+  }, [refetchRules, refetchConfigs]);
 
   const propose = useProposeRules();
   const proposeCommands = React.useMemo<Command[]>(
@@ -111,8 +122,12 @@ export default function RulesPage(): React.ReactElement {
         }
         actions={<ProposeRulesButton propose={propose} />}
       />
-      {error !== undefined && error !== null && (
-        <Notice className={styles.error}>{String(error)}</Notice>
+      {loadError !== undefined && (
+        <RetryNotice
+          className={styles.error}
+          message={`Couldn't load the rules: ${errorMessage(loadError)}`}
+          onRetry={retryLoad}
+        />
       )}
 
       <div className={styles.scroll}>

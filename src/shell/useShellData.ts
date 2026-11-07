@@ -1,7 +1,6 @@
 import { useSearchParams } from "react-router-dom";
 import { useOsdkObjects, useOsdkQuery } from "@/data/hooks";
 import { Firm, Mandate, Search } from "@/data/ontology";
-import type { ShellCounts as ShellCountsSummary } from "../../shared/summaries";
 
 export interface ShellCounts {
   /** Firms the funnel counts as open (Discovered or Screening); undefined while loading. */
@@ -17,7 +16,7 @@ export interface ShellCounts {
  * shell asks on every route; the figures use the same definitions as Home's summary.
  */
 export function useShellCounts(): ShellCounts {
-  const { data } = useOsdkQuery<ShellCountsSummary>("shellCounts");
+  const { data } = useOsdkQuery("shellCounts");
   if (data === undefined) {
     return { open: undefined, review: undefined, activeMandates: undefined };
   }

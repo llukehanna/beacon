@@ -1,11 +1,11 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { ResearchFinding, enrichFirmAction, verifyFindingAction } from "@/data/ontology";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { isTypingTarget } from "@/shell/keys";
 import { useTourStepId } from "@/tour/tourContext";
-import { looseText } from "../../../shared/looseText";
 import { ENRICH_AXES } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
 import { HARD_GATE_PASS_WHEN, effectiveAxisValue, verifiedBaselineEdits } from "../findingActions";
@@ -263,7 +263,7 @@ export function EnrichmentPanel({
       }
       setEdits({});
       setPendingVerify(failed);
-      setFlushError(firstError === null ? null : looseText(firstError));
+      setFlushError(firstError === null ? null : errorMessage(firstError));
       // The enrich function modifies the firm, but the action's edit
       // response doesn't reliably list it — refresh explicitly so the
       // committed fields land in the axis rows (and the staged-edit

@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { resolveConflictAction } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
@@ -20,12 +21,7 @@ import styles from "./EvidenceBody.module.css";
 import { SourceView } from "./SourceView";
 import { ValueEditor } from "./ValueEditor";
 import { type AxisRow, authoritativeFinding } from "./axisRows";
-import {
-  type EditMap,
-  formatActionError,
-  formatRetrievedShort,
-  stringifyOverride,
-} from "./deskModel";
+import { type EditMap, formatRetrievedShort, stringifyOverride } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
 import {
   conflictSides,
@@ -219,7 +215,7 @@ export function EvidenceBody({
         applyEdit(key, coerced);
       }
     } catch (e) {
-      setResolveError(formatActionError(e));
+      setResolveError(errorMessage(e));
     }
   };
 
@@ -294,7 +290,7 @@ export function EvidenceBody({
   const excerpt = finding !== undefined && !finding.sourceDocumentId ? excerptText(finding) : null;
   const shownExcerpt = row.state === "abstained" ? null : excerpt;
   const earlier = row.findings.filter((f) => f !== finding && !sides.includes(f));
-  const errorText = resolve.error !== undefined ? formatActionError(resolve.error) : resolveError;
+  const errorText = resolve.error !== undefined ? errorMessage(resolve.error) : resolveError;
 
   return (
     <>

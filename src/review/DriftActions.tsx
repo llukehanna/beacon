@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import {
   acknowledgeDriftAction,
@@ -131,12 +132,16 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
   const canSubmitNote = note.trim().length > 0 && !noteSubmitting;
   const busy = reEngage.isPending || acknowledge.isPending || noteSubmitting;
   const failures: string[] = [
-    reEngage.error !== undefined ? `Re-engage failed: ${String(reEngage.error)}` : "",
-    acknowledge.error !== undefined ? `Keep in pipeline failed: ${String(acknowledge.error)}` : "",
-    keepPassed.error !== undefined
-      ? `Keep passed failed: ${String(keepPassed.error)}. Your note is preserved.`
+    reEngage.error !== undefined ? `Re-engage failed: ${errorMessage(reEngage.error)}` : "",
+    acknowledge.error !== undefined
+      ? `Keep in pipeline failed: ${errorMessage(acknowledge.error)}`
       : "",
-    pass.error !== undefined ? `Pass failed: ${String(pass.error)}. Your note is preserved.` : "",
+    keepPassed.error !== undefined
+      ? `Keep passed failed: ${errorMessage(keepPassed.error)}. Your note is preserved.`
+      : "",
+    pass.error !== undefined
+      ? `Pass failed: ${errorMessage(pass.error)}. Your note is preserved.`
+      : "",
   ].filter((m) => m !== "");
 
   return (

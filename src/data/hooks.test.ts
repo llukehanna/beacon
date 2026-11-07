@@ -1,7 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { type ActionParams } from "../../shared/actionParams";
-import { invalidateAfterAction, type useOsdkAction } from "./hooks";
+import type { ShellCounts, SourceDocumentView } from "../../shared/summaries";
+import { invalidateAfterAction, type useOsdkAction, useOsdkQuery } from "./hooks";
 
 const KEYS = {
   firms: ["objects", "Firm", null, null, null],
@@ -79,5 +80,25 @@ describe("useOsdkAction parameters", () => {
     >();
     expectTypeOf<Parameters<Apply<"qualifyFirm">>[0]>().toHaveProperty("firm").toBeString();
     expectTypeOf<ReturnType<Apply<"qualifyFirm">>>().resolves.toHaveProperty("created");
+  });
+});
+
+describe("useOsdkQuery types", () => {
+  it("types each function's parameters and result", () => {
+    // Only the types matter: the component is never rendered, and `tsc` checks the directives below.
+    const TypeChecks = (): void => {
+      expectTypeOf(useOsdkQuery("shellCounts").data).toEqualTypeOf<ShellCounts | undefined>();
+      expectTypeOf(
+        useOsdkQuery("sourceDocument", { provider: "p", firmId: "f" }).data,
+      ).toEqualTypeOf<SourceDocumentView | undefined>();
+      void useOsdkQuery("sourceDocument", null);
+      // @ts-expect-error a function that takes parameters needs them (or null while unknown)
+      void useOsdkQuery("firmObservations");
+      // @ts-expect-error not a query function
+      void useOsdkQuery("noSuchFunction");
+      // @ts-expect-error a parameter the function does not take
+      void useOsdkQuery("firmObservations", { firmId: "f", extra: 1 });
+    };
+    expect(TypeChecks).toBeTypeOf("function");
   });
 });

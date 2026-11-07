@@ -1,5 +1,6 @@
 import React from "react";
 import { Term } from "@/components/Term";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { DriftEvent, Firm, MarketSignal, ReviewDecision } from "@/data/ontology";
 import { useMediaQuery } from "@/desk/firmDesk/useMediaQuery";
@@ -107,7 +108,7 @@ export default function ReviewPage(): React.ReactElement {
       </header>
       {driftError !== undefined && driftError !== null && (
         <p className={styles.error} role="alert">
-          {String(driftError)}
+          {errorMessage(driftError)}
         </p>
       )}
       <div className={styles.layout} data-panel={wide && panelOpen ? "column" : undefined}>
