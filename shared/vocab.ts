@@ -243,6 +243,16 @@ export const OUTCOMES = [
   ACQUIRED_BY_COMPETITOR,
 ] as const;
 
+/**
+ * Market outcomes after which the firm is no longer there to approach: bought by someone else. A
+ * passed firm with one of these cannot be re-engaged; what is left is the lesson.
+ */
+export const GONE_OUTCOMES: readonly string[] = [ACQUIRED_BY_COMPETITOR];
+
+export function firmIsGone(outcome: string | null | undefined): boolean {
+  return GONE_OUTCOMES.includes((outcome ?? "").trim().toLowerCase());
+}
+
 export const OPERATORS = ["<", "<=", ">", ">=", "==", "!="] as const;
 
 /** Firm primary key, same recipe as the original pipeline: name_country, lowercased, alphanumerics only. */
