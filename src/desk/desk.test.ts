@@ -9,7 +9,7 @@ import {
   toScreeningRules,
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
-import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
+import { agentRunFirmIds, defaultDeskFirmId, nextQueueFirmId } from "./deskDefaults";
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
@@ -2239,6 +2239,19 @@ describe("excerptText", () => {
     ).toBe("No provider grounded this value.");
     expect(excerptText({ sourceExcerpt: "", sourceDocumentId: "dealdb:f1" })).toBeNull();
     expect(excerptText({})).toBeNull();
+  });
+});
+
+describe("nextQueueFirmId", () => {
+  it("moves to the firm after the passed one, else the first left", () => {
+    expect(nextQueueFirmId(["a", "b", "c"], "b")).toBe("c");
+    expect(nextQueueFirmId(["a", "b", "c"], "c")).toBe("a");
+    expect(nextQueueFirmId(["a", "b"], "x")).toBe("a");
+  });
+
+  it("stays put when nothing else is in the queue", () => {
+    expect(nextQueueFirmId(["a"], "a")).toBeUndefined();
+    expect(nextQueueFirmId([], "a")).toBeUndefined();
   });
 });
 

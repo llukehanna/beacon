@@ -39,12 +39,15 @@ export function EnrichmentPanel({
   firmsLoading,
   activeConfigs,
   configsLoading,
+  onPassed,
 }: {
   firm: FirmView;
   allFirms: FirmView[];
   firmsLoading: boolean;
   activeConfigs: readonly ActiveConfigRule[];
   configsLoading: boolean;
+  /** Told once the analyst has passed on the firm. */
+  onPassed?: (firm: FirmView) => void;
 }): React.ReactElement {
   const [edits, setEdits] = React.useState<EditMap>({});
   // Verifications staged locally — findingId → true (plain verify) or the
@@ -397,6 +400,7 @@ export function EnrichmentPanel({
             dirty={dirty}
             enrichPending={enrich.isPending}
             enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
+            onPassed={onPassed}
           />
         </div>
       </div>
