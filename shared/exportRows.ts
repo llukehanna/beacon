@@ -262,7 +262,7 @@ export function exportRows(
       // the firm's value until an analyst decides.
       const sides = conflicts.get(firmId)?.get(def.axis);
       if (sides !== undefined) {
-        const shown = sides.map((f) => displayFindingValue(def.axis, f.value));
+        const shown = sides.map((f) => displayFindingValue(def.axis, f.value, { units: false }));
         row[def.axis] = `Conflict: ${shown.join(" vs ")}`;
         sides.forEach((f, i) => cites.push({ axis: def.axis, value: shown[i], ...citationOf(f) }));
         continue;

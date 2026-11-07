@@ -101,13 +101,14 @@ describe("buildTearSheet", () => {
     // A proposal earns nothing until it is verified: the live score is the record's.
     expect(sheet.score.total).toBe(sheet.axes.reduce((n, a) => n + (a.points ?? 0), 0));
 
-    // The MCP's evidence calls the same axes proposed and in conflict.
+    // The MCP's evidence calls the same axes proposed and in conflict, and gives the deal size as
+    // the bare number: the "$…m" is for the screen.
     const evidence = firmEvidence(
       asRow<"Firm">({ ...bare, $apiName: "Firm", $primaryKey: "acme_us" }),
       findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
     );
     const status = (axis: string) => evidence.axes.find((a) => a.axis === axis);
-    expect(status("deal_size_usd_m")).toMatchObject({ status: "proposed", value: "$46m" });
+    expect(status("deal_size_usd_m")).toMatchObject({ status: "proposed", value: "46" });
     expect(status("firm_age")?.status).toBe("conflict");
     expect(status("md_pedigree")?.status).toBe("abstained");
   });
@@ -438,16 +439,23 @@ describe("the tear sheet and the MCP's firm evidence", () => {
       quote: c.quote,
       model: c.model,
     });
+    // The tear sheet words a deal size "$120m"; the MCP's evidence hands on the bare 120.
+    const onScreen = (c: { value?: unknown }) =>
+      typeof c.value === "string" ? { ...c, value: c.value.replace(/^\$(.*)m$/, "$1") } : c;
     expect(
       evidence.axes
         .filter((a) => ["verified", "proposed", "signal"].includes(a.status))
         .map((a) => ({ axis: a.label, status: a.status, ...cite(a) })),
-    ).toEqual(sheet.evidence.map((e) => ({ axis: e.axis, status: e.status, ...cite(e) })));
+    ).toEqual(
+      sheet.evidence.map((e) => ({ axis: e.axis, status: e.status, ...cite(onScreen(e)) })),
+    );
     expect(
       evidence.axes
         .filter((a) => a.status === "conflict")
         .map((a) => ({ axis: a.label, sides: a.sides.map(cite) })),
-    ).toEqual(sheet.conflicts.map((c) => ({ axis: c.axis, sides: c.sides.map(cite) })));
+    ).toEqual(
+      sheet.conflicts.map((c) => ({ axis: c.axis, sides: c.sides.map((x) => cite(onScreen(x))) })),
+    );
     expect(evidence.axes.filter((a) => a.status === "abstained").map((a) => a.label)).toEqual(
       sheet.abstentions.map((a) => a.axis),
     );

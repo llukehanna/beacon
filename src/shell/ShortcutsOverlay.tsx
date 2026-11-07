@@ -42,7 +42,7 @@ function Section({ title, rows }: { title: string; rows: Row[] }): React.ReactEl
               {r.keys.map((k, i) => (
                 <React.Fragment key={k}>
                   {i > 0 && r.keys[0] === "G" && <span className={styles.then}>then</span>}
-                  <Kbd>{k}</Kbd>
+                  <Kbd listed>{k}</Kbd>
                 </React.Fragment>
               ))}
             </dd>

@@ -267,7 +267,7 @@ describe("exportRows", () => {
     expect(
       conflictSides(desk).map((f) => {
         const c = citationOf(f);
-        return { value: displayFindingValue(desk.axis, f.value), ...c };
+        return { value: displayFindingValue(desk.axis, f.value, { units: false }), ...c };
       }),
     ).toEqual(cited.map(({ axis: _axis, ...side }) => side));
 
@@ -282,6 +282,28 @@ describe("exportRows", () => {
       ["Fee-earning heads (conflict: 3)", "Deal DB"],
       ["Fee-earning heads (conflict: 5)", "Filings"],
     ]);
+  });
+
+  it("prints a deal size conflict as bare numbers, not the $m the screen shows", () => {
+    const side = (findingId: string, value: string, provider: string) =>
+      finding({
+        findingId,
+        axis: "deal_size_usd_m",
+        value,
+        provider,
+        findingStatus: "proposed",
+        conflictGroupId: "g2",
+      });
+    const { rows, citations } = exportRows(
+      [firm()],
+      [side("d1", "40", "dealdb"), side("d2", "55", "filings")],
+    );
+    expect(rows[0].deal_size_usd_m).toBe("Conflict: 40 vs 55");
+    expect(citations[0].filter((c) => c.axis === "deal_size_usd_m").map((c) => c.value)).toEqual([
+      "40",
+      "55",
+    ]);
+    expect(displayFindingValue("deal_size_usd_m", "40")).toBe("$40m");
   });
 
   it("does not mark a conflict nobody can still decide", () => {

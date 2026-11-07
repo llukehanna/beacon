@@ -1,15 +1,18 @@
 /* Fixed to the window, below the top bar: the pass button is at the foot of a long page, and on a
    phone the page has scrolled there, so a note at the top of the Desk would be out of sight. */
-.toast {
+.region {
   position: fixed;
   top: 56px;
   right: 16px;
   z-index: 20;
+  max-width: min(420px, calc(100vw - 32px));
+}
+
+.toast {
   display: flex;
   gap: 12px;
   align-items: flex-start;
   box-sizing: border-box;
-  max-width: min(420px, calc(100vw - 32px));
   padding: 10px 12px;
   border-radius: var(--radius-md);
   background: var(--s2);

@@ -1,10 +1,12 @@
 import {
   matchesPredicate,
+  overlappingPatternKeys,
   predicateField,
   rubricGateFor,
   ruleKey,
   rulePatternKey,
 } from "../../shared/predicate.js";
+import { describePredicate } from "../../shared/rulePredicate.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vocab.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
@@ -18,6 +20,9 @@ import { type ActionContext, defineAction } from "./types.js";
 type RuleObj = ObjectOf<"ProposedRule">;
 
 export const MIN_CLUSTER = 4;
+
+/** The key of the advisory lock that serializes proposing runs on one database. */
+const PROPOSE_LOCK = 7_183_621;
 
 const text = (axis?: string, op?: string, threshold?: string): string =>
   `${axis ?? "?"} ${op ?? "?"} ${threshold ?? "?"}`;
@@ -228,6 +233,9 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       if (clustered === null) {
         return { created: [], note: "No rejections to learn from yet." };
       }
+      // Runs queue here, so each reads the rules the one before it committed. The unique index on
+      // the full rule key cannot see a second threshold for a pattern; this lock does.
+      await ctx.tx.query(`SELECT pg_advisory_xact_lock($1)`, [PROPOSE_LOCK]);
       const { proposals, source } = clustered;
       const firms = await listAll(ctx.tx, "Firm");
       const byId = new Map(rows.map((r) => [r.decisionId, r]));
@@ -240,23 +248,29 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       // with how each is worded in the note. An approved rule screens with its active config, which
       // an amendment may have moved to another operator, so that pattern counts too.
       const covered = new Map<string, string>();
-      const cover = (axis?: string, op?: string, threshold?: string, state?: string): void => {
-        const key = rulePatternKey(axis, op);
+      const cover = (
+        axis?: string,
+        op?: string,
+        threshold?: string,
+        model?: string,
+        state?: string,
+      ): void => {
+        const key = rulePatternKey(axis, op, model);
         if (!covered.has(key)) {
-          covered.set(key, `${text(axis, op, threshold)} (${state})`);
+          covered.set(key, `${describePredicate(axis, op, threshold)} (${state})`);
         }
       };
       for (const r of existing) {
         const status = r.ruleStatus ?? "pending";
         if (status === "approved") {
-          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, "active");
+          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel, "active");
         } else if (status === "pending") {
-          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, "pending");
+          cover(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel, "pending");
         }
       }
       for (const c of await listAll(ctx.tx, "HardScreenConfig")) {
         if (c.configActive) {
-          cover(c.configAxis, c.configOperator, c.configThreshold, "active");
+          cover(c.configAxis, c.configOperator, c.configThreshold, c.configModel, "active");
         }
       }
       const hidden = new Set(ctx.hiddenFirmIds);
@@ -302,13 +316,14 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         // A rule that repeats one of the rubric's hard-rejects would screen nobody the rubric does
         // not already reject.
         if (rubricGateFor(pred) !== null) {
-          enforced.add(text(pred.axis, pred.operator, pred.threshold));
+          enforced.add(describePredicate(pred.axis, pred.operator, pred.threshold));
           continue;
         }
         // One rule per pattern: a second threshold for the same axis and operator is the same
         // reason for passing, so it is not proposed beside the rule that has it.
-        const pattern = rulePatternKey(pred.axis, pred.operator);
-        const coveredBy = covered.get(pattern);
+        const coveredBy = overlappingPatternKeys(pred.axis, pred.operator, pred.model)
+          .map((k) => covered.get(k))
+          .find((c) => c !== undefined);
         if (coveredBy !== undefined) {
           alreadyCovered.add(coveredBy);
           continue;
@@ -343,7 +358,10 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
           continue;
         }
         created.push(proposedRuleId);
-        covered.set(pattern, `${text(pred.axis, pred.operator, pred.threshold)} (pending)`);
+        covered.set(
+          rulePatternKey(pred.axis, pred.operator, pred.model),
+          `${describePredicate(pred.axis, pred.operator, pred.threshold)} (pending)`,
+        );
       }
       const by = source === "claude" ? "Claude" : "the keyword heuristic";
       const lost =
