@@ -23,7 +23,7 @@ import {
 import { EnrichmentPanel } from "./EnrichmentPanel";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type FirmView, type RediscoveryInfo, formatActionError } from "./deskModel";
+import { type FirmView, type RediscoveryInfo, formatActionError, searchLabel } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 import { useScreeningRules } from "./useScreeningRules";
@@ -366,12 +366,13 @@ function Desk(): React.ReactElement {
         <SearchFilterBar
           intentText={pinnedIntent}
           searchName={pinnedSearch?.name ?? null}
+          searchRunAt={pinnedSearch?.runAt ?? null}
           searchIndex={searchIndex}
           memberCount={filteredData?.length ?? 0}
           loading={memberFirmIds === null}
           exportAction={
             <ExportMenu
-              name={`${pinnedIntent} ${pinnedSearch?.name ?? `search ${searchIndex ?? ""}`}`}
+              name={`${pinnedIntent} ${searchLabel(pinnedSearch?.name, pinnedSearch?.runAt) || `search ${searchIndex ?? ""}`}`}
               firms={(filteredData ?? []) as unknown as FirmLike[]}
               findings={allFindings as unknown as FindingLike[] | undefined}
             />

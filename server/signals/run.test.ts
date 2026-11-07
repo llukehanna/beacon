@@ -201,9 +201,12 @@ describe("applyDueSignals", () => {
     });
     const { drifts } = await applyDueSignals(db, NOW);
     const drift = (await getObject(db, "DriftEvent", drifts[0]))!;
-    expect(JSON.parse(drift.changedAxes!)).toEqual([
-      expect.objectContaining({ source: "Synthetic market signal", dated: drift.detectedAt }),
-    ]);
+    const axes = JSON.parse(drift.changedAxes!) as Record<string, unknown>[];
+    expect(axes).toEqual([expect.objectContaining({ source: "Synthetic market signal" })]);
+    expect(axes[0], "when it happened is detectedAt, not a key in the axes").not.toHaveProperty(
+      "dated",
+    );
+    expect(drift.detectedAt).toBeDefined();
     expect((await getObject(db, "Firm", firm.$primaryKey))?.outcomeSource).toBe("market_signal");
     await run(db, "setFirmOutcome", {
       firm: firm.$primaryKey,

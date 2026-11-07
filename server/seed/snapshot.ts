@@ -28,28 +28,6 @@ const TABLES: Readonly<Record<string, Readonly<Record<string, PropType>>>> = {
 
 const snapshotOf = (table: string): string => `snapshot_${table}`;
 
-/** JavaScript's Date#toISOString in SQL; the reset transaction runs in UTC. */
-const isoSql = (expr: string): string => `to_char(${expr}, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')`;
-
-/**
- * Text values that embed a timestamp, so the shift rewrites them too: a
- * search's name ends with its run date, and a drift event's changed axes
- * carry its detection time.
- */
-const TEXT_SHIFTS: Readonly<Record<string, Readonly<Record<string, (shift: string) => string>>>> = {
-  search: {
-    name: (shift) =>
-      `CASE WHEN name ~ ' · \\d{4}-\\d{2}-\\d{2}$' AND "runAt" IS NOT NULL ` +
-      `THEN left(name, -10) || to_char("runAt" + ${shift}, 'YYYY-MM-DD') ELSE name END`,
-  },
-  drift_event: {
-    changedAxes: (shift) =>
-      `CASE WHEN "detectedAt" IS NULL THEN "changedAxes" ELSE replace("changedAxes", ` +
-      `'"dated":"' || ${isoSql(`"detectedAt"`)} || '"', ` +
-      `'"dated":"' || ${isoSql(`"detectedAt" + ${shift}`)} || '"') END`,
-  },
-};
-
 /** Columns each snapshot table actually has: one saved before a property was added lacks it. */
 async function snapshotColumns(tx: Queryable): Promise<Map<string, Set<string>>> {
   const rows = await tx.query<{ table_name: string; column_name: string }>(
@@ -85,20 +63,15 @@ export async function latestTimestampMs(q: Queryable): Promise<number | null> {
 }
 
 /**
- * Move every timestamp in the live demo tables by `shiftMs` milliseconds, including the
- * timestamps embedded in text (the same TEXT_SHIFTS the snapshot restore rewrites). Runs in
- * the caller's transaction, which must be in UTC.
+ * Move every timestamp in the live demo tables by `shiftMs` milliseconds. Runs in the caller's
+ * transaction, which must be in UTC.
  */
 export async function shiftLiveTimestamps(q: Queryable, shiftMs: number): Promise<void> {
   const shift = `interval '${Math.round(shiftMs)} milliseconds'`;
   for (const [table, columns] of Object.entries(TABLES)) {
-    const sets = Object.entries(columns).flatMap(([name, type]) => {
-      const text = TEXT_SHIFTS[table]?.[name];
-      if (text) {
-        return [`"${name}" = ${text(shift)}`];
-      }
-      return type === "timestamp" ? [`"${name}" = "${name}" + ${shift}`] : [];
-    });
+    const sets = Object.entries(columns).flatMap(([name, type]) =>
+      type === "timestamp" ? [`"${name}" = "${name}" + ${shift}`] : [],
+    );
     if (sets.length > 0) {
       await q.query(`UPDATE ${table} SET ${sets.join(", ")}`);
     }
@@ -111,10 +84,6 @@ function restoreSql(table: string, shift: string, have: ReadonlySet<string>): st
     // A property added after the snapshot was taken restores as NULL until the next `npm run seed`.
     if (!have.has(name)) {
       return "NULL";
-    }
-    const text = TEXT_SHIFTS[table]?.[name];
-    if (text) {
-      return text(shift);
     }
     return type === "timestamp" ? `"${name}" + ${shift}` : `"${name}"`;
   });

@@ -253,19 +253,14 @@ export function redactMandate<T extends MandateLike>(
   return { ...rest, title: mandate.codename ?? codenameFor(mandateId) } as T;
 }
 
-const RUN_DATE_SUFFIX = / · \d{4}-\d{2}-\d{2}$/;
 const UNIVERSE_SUFFIX = / — universe$/;
 
 /**
- * A search or a universe list is named after its mandate ("<title> · 2026-09-01", "<title> —
- * universe"). For a walled mandate the title part becomes the codename; the date and the suffix stay.
+ * A search is named after its mandate ("<title>") and a universe list adds a suffix ("<title> —
+ * universe"). For a walled mandate the title part becomes the codename; the suffix stays.
  */
 export function redactDerivedName(name: string | null | undefined, codename: string): string {
   const text = name ?? "";
-  const run = RUN_DATE_SUFFIX.exec(text);
-  if (run) {
-    return `${codename}${run[0]}`;
-  }
   return UNIVERSE_SUFFIX.test(text) ? `${codename} — universe` : codename;
 }
 

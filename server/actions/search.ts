@@ -128,7 +128,7 @@ export const runSearch = defineAction<{
 
     await insertObject(ctx.tx, "Search", {
       searchId,
-      name: `${p.mandate.title ?? "Search"} · ${iso(ctx.now).slice(0, 10)}`,
+      name: p.mandate.title ?? "Search",
       mandateId: p.mandate.$primaryKey,
       geographies: p.geographies ?? [],
       industries: p.industries ?? [],

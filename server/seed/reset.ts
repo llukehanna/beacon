@@ -1,9 +1,9 @@
-import type { Props } from "../../shared/schema.js";
+import { OBJECT_TYPES, type Props } from "../../shared/schema.js";
 import type { ApplyOptions } from "../actions/apply.js";
 import type { Clusterer } from "../clustering/types.js";
-import type { Db, Queryable } from "../db/client.js";
-import { OBJECT_TABLES, ensureSchema } from "../db/ddl.js";
+import type { Db, Tx } from "../db/client.js";
 import { setMeta } from "../db/meta.js";
+import { migrate } from "../db/migrate.js";
 import { insertObjects } from "../db/repo.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { seedBarriers } from "./barriers.js";
@@ -14,8 +14,10 @@ import { generateUniverse } from "./universe.js";
 
 export const HISTORY_DAYS = 30;
 
+const OBJECT_TABLES: readonly string[] = Object.values(OBJECT_TYPES).map((t) => t.table);
+
 /** A Db whose transactions join an enclosing one, so the real action handlers can run inside it. */
-function joined(tx: Queryable, db: Db): Db {
+function joined(tx: Tx, db: Db): Db {
   return {
     query: (sql, params) => tx.query(sql, params),
     exec: () =>
@@ -48,7 +50,7 @@ export async function resetDemo(
   now: Date = new Date(),
   opts: Pick<ApplyOptions, "newId"> & { fixtures?: FixtureRecord[]; clusterer?: Clusterer } = {},
 ): Promise<{ firms: number }> {
-  await ensureSchema(db);
+  await migrate(db);
   const historyStart = new Date(now.getTime() - HISTORY_DAYS * 86_400_000);
   const universe = generateUniverse();
   const firmsById = new Map(universe.map((f) => [f.firmId, f]));

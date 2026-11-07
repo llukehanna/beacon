@@ -158,7 +158,7 @@ async function buildWorld(): Promise<Db> {
   ]);
   await insertObject(d, "Search", {
     searchId: "s1",
-    name: `${WALLED_TITLE} · 2026-09-01`,
+    name: WALLED_TITLE,
     mandateId: WALLED,
     runAt: AT,
   });
@@ -430,7 +430,7 @@ describe("information barrier", () => {
 
       // The searches and lists named after it.
       const searches = await list("Search", persona);
-      expect(searches[0].name).toBe("Project Kestrel · 2026-09-01");
+      expect(searches[0].name).toBe("Project Kestrel");
       expect((await list("SearchList", persona))[0].name).toBe("Project Kestrel — universe");
 
       // Home, the Pipeline's and the exports' mandate name.
@@ -451,7 +451,7 @@ describe("information barrier", () => {
       ).toBe(400);
       const sortName = encodeURIComponent(JSON.stringify({ name: "asc" }));
       for (const [type, title] of [
-        ["Search", `${WALLED_TITLE} · 2026-09-01`],
+        ["Search", WALLED_TITLE],
         ["SearchList", `${WALLED_TITLE} — universe`],
       ]) {
         const byName = encodeURIComponent(JSON.stringify({ name: { $eq: title } }));
@@ -480,7 +480,7 @@ describe("information barrier", () => {
       expect(walled.intentStatement, persona).toBe(
         "Find advisers to sell Acme Wealth to a strategic buyer",
       );
-      expect((await list("Search", persona))[0].name, persona).toBe(`${WALLED_TITLE} · 2026-09-01`);
+      expect((await list("Search", persona))[0].name, persona).toBe(WALLED_TITLE);
       expect(
         (await fn<HomeSummary>("homeSummary", persona)).mandates.find(
           (m) => m.mandateId === WALLED,

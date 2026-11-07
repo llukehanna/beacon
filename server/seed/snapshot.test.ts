@@ -73,13 +73,17 @@ describe("resetFromSnapshot", () => {
       expect(a[table].length, table).toBe(b[table].length);
       expect(a[table], table).toEqual(b[table]);
     }
-    // A search's name ends with its run date; after the shift the date still follows runAt.
-    const searches = (b.search as { name: string; runAt: Date | string | null }[]).filter(
-      (s) => s.runAt !== null && / · \d{4}-\d{2}-\d{2}$/.test(s.name),
-    );
-    expect(searches.length, "searches with a dated name").toBeGreaterThan(0);
+    // No date lives inside text: a search is named by its mandate and a drift's axes carry no
+    // "dated" key, so the shift has nothing to rewrite there and both worlds still match.
+    const searches = b.search as { name: string }[];
+    expect(searches.length, "the seed runs searches").toBeGreaterThan(0);
     for (const s of searches) {
-      expect(s.name.slice(-10), s.name).toBe(new Date(s.runAt!).toISOString().slice(0, 10));
+      expect(s.name, s.name).not.toMatch(/ · \d{4}-\d{2}-\d{2}$/);
+    }
+    const drifts = b.drift_event as { changedAxes: string | null }[];
+    expect(drifts.length, "the seed opens drift events").toBeGreaterThan(0);
+    for (const d of drifts) {
+      expect(d.changedAxes ?? "", "changedAxes").not.toContain('"dated"');
     }
     expect(await getMeta(restored, "lastResetAt")).toBe(later.toISOString());
   }, 300_000);

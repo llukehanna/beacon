@@ -65,7 +65,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - A drift event changes only its status and resolution fields. A proposed rule changes only its status and who decided it, and when. A hard-screen config is inserted per version, and its active flag is switched off when the rule is dismissed, unapproved or amended. <!-- source: server/actions/drift.ts, server/actions/rules.ts -->
 - The firm record itself is current state and is updated in place. <!-- source: server/actions/firms.ts, server/actions/findings.ts -->
 - **How this is enforced: in application code only.** Every write goes through a named action in the registry, and no action updates or deletes those history rows beyond the fields above. <!-- source: server/actions/registry.ts, shared/schema.ts -->
-- The database does not enforce it. There are no triggers and no revoked privileges, and the Worker connects with one connection string that has full rights. A database-level guarantee (write-once tables, or a role without UPDATE and DELETE) is not built. <!-- source: server/db/ddl.ts, worker/index.ts -->
+- The database does not enforce it. There are no triggers and no revoked privileges, and the Worker connects with one connection string that has full rights. A database-level guarantee (write-once tables, or a role without UPDATE and DELETE) is not built. <!-- source: server/db/migrations/0001_baseline.sql, worker/index.ts -->
 - The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`), the link lookup (`/api/links`) and the read-only MCP endpoint (`/api/mcp`) change nothing but the demo access log; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/mcp.ts, api/actions.ts, api/reset.ts -->
 - The nightly reset truncates the history, so the trail covers one demo day, not a permanent record. <!-- source: server/seed/snapshot.ts -->
 
@@ -121,6 +121,6 @@ form-action 'self'
 ## Not built
 
 - Authentication, accounts, real roles and per-user permissions. The information barrier's personas are a demo. <!-- source: worker/index.ts, server/access.ts -->
-- Tenant isolation. <!-- source: server/db/ddl.ts -->
-- Database-enforced immutability of the audit trail. <!-- source: server/db/ddl.ts -->
+- Tenant isolation. <!-- source: server/db/migrations/0001_baseline.sql -->
+- Database-enforced immutability of the audit trail. <!-- source: server/db/migrations/0001_baseline.sql -->
 - Any compliance certification. None is claimed. <!-- source: README.md -->

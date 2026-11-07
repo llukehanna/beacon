@@ -52,7 +52,6 @@ export function diffAxes(
   before: readonly AxisScore[],
   after: readonly AxisScore[],
   source: string,
-  dated: string,
 ) {
   const prev = new Map(before.map((a) => [a.axis, a]));
   return after
@@ -65,7 +64,6 @@ export function diffAxes(
       old: prev.get(a.axis)?.band ?? null,
       new: a.band,
       source,
-      dated,
     }));
 }
 
@@ -110,9 +108,7 @@ export async function computeDriftForFirm(
     priorScore: snap.score,
     newTier: live.tier,
     newScore: live.weightedTotal,
-    changedAxes: JSON.stringify(
-      diffAxes(snap.axes, live.axisScores, cause.source ?? "rescore", iso(ctx.now)),
-    ),
+    changedAxes: JSON.stringify(diffAxes(snap.axes, live.axisScores, cause.source ?? "rescore")),
     driftReason: state === PASSED ? "pass_reason_invalidated" : "tier_moved",
     driftStatus: "open",
     detectedAt: iso(ctx.now),
@@ -157,7 +153,6 @@ export async function openOutcomeDivergence(
               old: null,
               new: "Acquired by a competitor",
               source: cause.source,
-              dated: iso(ctx.now),
             },
           ]),
     driftReason: "outcome_diverged",
