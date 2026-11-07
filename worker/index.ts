@@ -15,7 +15,7 @@ import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
 import { applyDueSignals } from "../server/signals/run.js";
-import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
+import { HOURLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
 
 interface Env {
@@ -114,14 +114,14 @@ export default {
   },
 
   /**
-   * Cron Triggers. The nightly one (04:00 UTC) runs the same reset (and throttle) as the demo bar's
-   * button, then applies the market signals that have come due. The hourly one only applies them,
-   * a bounded batch per run. Both fire at 04:00; the hourly one stands down then, so it cannot
-   * race the reset it would otherwise run beside. Only the exact nightly expression resets: any
-   * other (or none) applies the due signals and nothing more, the safe direction.
+   * The hourly Cron Trigger. The run at 04:00 UTC is the nightly reset: it runs the same reset (and
+   * throttle) as the demo bar's button, then applies the market signals that have come due. Every
+   * other run only applies them, a bounded batch per run. Only the hourly expression at the nightly
+   * hour resets: any other trigger (or none) applies the due signals and nothing more, the safe direction.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
-    if (controller.cron === NIGHTLY_CRON) {
+    const due = new Date(controller.scheduledTime ?? Date.now());
+    if (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC) {
       const res = await withDb(env, ctx, async () => {
         const resetRes = await reset.POST();
         return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
@@ -129,10 +129,6 @@ export default {
       if (!res.ok) {
         throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
       }
-      return;
-    }
-    const due = new Date(controller.scheduledTime ?? Date.now());
-    if (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC) {
       return;
     }
     const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));

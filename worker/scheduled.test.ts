@@ -14,7 +14,7 @@ vi.mock("../server/db/client.js", async (importOriginal) => ({
 }));
 
 const { default: worker } = await import("./index.js");
-const { HOURLY_CRON, NIGHTLY_CRON } = await import("./crons.js");
+const { HOURLY_CRON } = await import("./crons.js");
 
 const env = { ASSETS: { fetch: vi.fn() }, HYPERDRIVE: { connectionString: "postgres://test" } };
 const waits: Promise<unknown>[] = [];
@@ -38,24 +38,14 @@ describe("worker scheduled", () => {
     expect(resetPost).not.toHaveBeenCalled();
   });
 
-  it("the hourly trigger stands down at 04:00, when the nightly one resets and applies", async () => {
-    await worker.scheduled(
-      { cron: HOURLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") },
-      env,
-      ctx,
-    );
-    expect(applyDueSignals).not.toHaveBeenCalled();
-    expect(resetPost).not.toHaveBeenCalled();
-  });
-
-  it("the nightly trigger resets first, then applies the signals that are due", async () => {
+  it("the 04:00 run resets first, then applies the signals that are due", async () => {
     const order: string[] = [];
     resetPost.mockImplementation(async () => (order.push("reset"), Response.json({ firms: 700 })));
     applyDueSignals.mockImplementationOnce(
       async () => (order.push("signals"), { applied: [], drifts: [] }),
     );
     await worker.scheduled(
-      { cron: NIGHTLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") },
+      { cron: HOURLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") },
       env,
       ctx,
     );
@@ -65,13 +55,17 @@ describe("worker scheduled", () => {
   it("applies no signals and fails the run when the nightly reset is refused", async () => {
     resetPost.mockImplementation(async () => Response.json({ error: "too soon" }, { status: 429 }));
     await expect(
-      worker.scheduled({ cron: NIGHTLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") }, env, ctx),
+      worker.scheduled({ cron: HOURLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") }, env, ctx),
     ).rejects.toThrow(/Nightly reset failed: 429/);
     expect(applyDueSignals).not.toHaveBeenCalled();
   });
 
   it("never resets for a trigger it does not know: it only applies the signals that are due", async () => {
-    await worker.scheduled({ cron: "30 4 * * *" }, env, ctx);
+    await worker.scheduled(
+      { cron: "0 4 * * *", scheduledTime: at("2026-11-07T04:00:00Z") },
+      env,
+      ctx,
+    );
     await worker.scheduled({}, env, ctx);
     expect(resetPost).not.toHaveBeenCalled();
     expect(applyDueSignals).toHaveBeenCalledTimes(2);
@@ -79,12 +73,9 @@ describe("worker scheduled", () => {
 });
 
 describe("the Cron Triggers in wrangler.jsonc", () => {
-  it("are the nightly reset and the hourly signals run, on production and the presenter deployment", () => {
+  it("are one hourly trigger each on production and the presenter deployment (free plan: five per account)", () => {
     const config = readFileSync(resolve(__dirname, "../wrangler.jsonc"), "utf8");
     const lists = config.match(/"crons": \[[^\]]*\]/g) ?? [];
-    expect(lists).toEqual([
-      `"crons": ["${NIGHTLY_CRON}", "${HOURLY_CRON}"]`,
-      `"crons": ["${NIGHTLY_CRON}", "${HOURLY_CRON}"]`,
-    ]);
+    expect(lists).toEqual([`"crons": ["${HOURLY_CRON}"]`, `"crons": ["${HOURLY_CRON}"]`]);
   });
 });
