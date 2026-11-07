@@ -4,7 +4,7 @@ import { DECISION, OPERATORS, PASSED, normalizeLifecycle } from "../../shared/vo
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { sortedRows } from "../db/ordering.js";
-import { insertObject, listAll, updateObject } from "../db/repo.js";
+import { insertObject, insertObjectIfAbsent, listAll, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { iso, logDecision } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -159,6 +159,24 @@ export const amendRuleThreshold = defineAction<{
   },
 });
 
+/** The proposed rule that stands for this predicate, as the unique constraint sees it (an empty model matches only an empty model). */
+async function existingRuleId(
+  ctx: ActionContext,
+  pred: { axis: string; operator: string; threshold: string; model: string },
+): Promise<string> {
+  const [row] = await ctx.tx.query<{ id: string }>(
+    `SELECT "proposedRuleId" AS id FROM proposed_rule
+      WHERE "predicateAxis" = $1 AND "ruleOperator" = $2 AND "ruleThreshold" = $3
+        AND "ruleModel" IS NOT DISTINCT FROM $4`,
+    [pred.axis, pred.operator, pred.threshold, pred.model],
+  );
+  if (row === undefined) {
+    // The insert was skipped for another reason (the id is taken): do not let that pass for a duplicate.
+    throw new Error("A proposed rule was skipped but no rule has its predicate.");
+  }
+  return row.id;
+}
+
 interface ClusterPrep {
   rows: RejectionRow[];
   /** Null when there were no rejections to cluster. */
@@ -223,6 +241,7 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
     });
 
     const created: string[] = [];
+    const alreadyProposed: string[] = [];
     for (const p of proposals) {
       const pred = {
         axis: p.predicateAxis.trim(),
@@ -253,7 +272,10 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
       }
       seen.add(key);
       const proposedRuleId = ctx.newId("rule");
-      await insertObject(ctx.tx, "ProposedRule", {
+      // `seen` was read at the start of this transaction. A run on another connection can land the
+      // same rule after that read; the unique constraint on the predicate turns this insert into a
+      // no-op then, and the rule that is there is the one to report.
+      const inserted = await insertObjectIfAbsent(ctx.tx, "ProposedRule", {
         proposedRuleId,
         predicateAxis: pred.axis,
         ruleOperator: pred.operator,
@@ -267,12 +289,20 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
         proposedAt: iso(ctx.now),
         mandateScope: "All mandates",
       });
+      if (!inserted) {
+        alreadyProposed.push(await existingRuleId(ctx, pred));
+        continue;
+      }
       created.push(proposedRuleId);
     }
     const by = source === "claude" ? "Claude" : "the keyword heuristic";
+    const lost =
+      alreadyProposed.length === 0
+        ? ""
+        : ` A run at the same moment had already proposed: ${alreadyProposed.join(", ")}.`;
     return {
       created,
-      note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.`,
+      note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.${lost}`,
     };
   },
 });

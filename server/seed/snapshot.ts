@@ -7,8 +7,14 @@
  * since the snapshot, which gives the same rows a full rebuild would produce
  * at that moment.
  */
-import { OBJECT_TYPES, OPERATIONS_TYPES, type PropType } from "../../shared/schema.js";
+import {
+  OBJECT_TYPES,
+  OPERATIONS_TYPES,
+  type ObjectTypeDef,
+  type PropType,
+} from "../../shared/schema.js";
 import type { Db, Queryable } from "../db/client.js";
+import { APPEND_ONLY_TABLES } from "../db/history.js";
 import { getMeta, setMeta } from "../db/meta.js";
 import { HttpError } from "../errors.js";
 
@@ -25,6 +31,13 @@ const TABLES: Readonly<Record<string, Readonly<Record<string, PropType>>>> = {
   ),
   search_list_firm: { searchId: "string", firmId: "string" },
 };
+
+/** The columns each demo table's rows may not leave empty (NOT NULL since migration 0003). */
+const REQUIRED: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
+  Object.values<ObjectTypeDef>(OBJECT_TYPES)
+    .filter((t) => t.table in TABLES)
+    .map((t) => [t.table, t.required ?? []]),
+);
 
 const snapshotOf = (table: string): string => `snapshot_${table}`;
 
@@ -62,20 +75,54 @@ export async function latestTimestampMs(q: Queryable): Promise<number | null> {
   return latest;
 }
 
+const APPEND_ONLY: readonly string[] = APPEND_ONLY_TABLES;
+
 /**
  * Move every timestamp in the live demo tables by `shiftMs` milliseconds. Runs in the caller's
  * transaction, which must be in UTC.
+ *
+ * An append-only table refuses UPDATE (migration 0003), so its rows are moved by rewriting the
+ * table: the shifted rows go to a temporary table, the table is truncated (which fires no row
+ * trigger) and they are copied back. Postgres will not truncate a table that has deferred
+ * foreign-key checks pending, so those run first (`SET CONSTRAINTS ALL IMMEDIATE`) and the
+ * deferral is restored afterwards.
  */
 export async function shiftLiveTimestamps(q: Queryable, shiftMs: number): Promise<void> {
   const shift = `interval '${Math.round(shiftMs)} milliseconds'`;
+  const rewritten: string[] = [];
   for (const [table, columns] of Object.entries(TABLES)) {
-    const sets = Object.entries(columns).flatMap(([name, type]) =>
-      type === "timestamp" ? [`"${name}" = "${name}" + ${shift}`] : [],
-    );
-    if (sets.length > 0) {
-      await q.query(`UPDATE ${table} SET ${sets.join(", ")}`);
+    const stamps = Object.entries(columns).filter(([, type]) => type === "timestamp");
+    if (stamps.length === 0) {
+      continue;
     }
+    if (APPEND_ONLY.includes(table)) {
+      rewritten.push(table);
+      continue;
+    }
+    await q.query(
+      `UPDATE ${table} SET ${stamps.map(([name]) => `"${name}" = "${name}" + ${shift}`).join(", ")}`,
+    );
   }
+  if (rewritten.length === 0) {
+    return;
+  }
+  await q.query(`SET CONSTRAINTS ALL IMMEDIATE`);
+  for (const table of rewritten) {
+    const cols = Object.keys(TABLES[table]).map((name) => `"${name}"`);
+    const shifted = Object.entries(TABLES[table]).map(([name, type]) =>
+      type === "timestamp" ? `"${name}" + ${shift}` : `"${name}"`,
+    );
+    const copy = `shifted_${table}`;
+    await q.query(
+      `CREATE TEMP TABLE ${copy} ON COMMIT DROP AS SELECT ${shifted.map((v, i) => `${v} AS ${cols[i]}`).join(", ")} FROM ${table}`,
+    );
+    await q.query(`TRUNCATE ${table}`);
+    await q.query(
+      `INSERT INTO ${table} (${cols.join(", ")}) SELECT ${cols.join(", ")} FROM ${copy}`,
+    );
+    await q.query(`DROP TABLE ${copy}`);
+  }
+  await q.query(`SET CONSTRAINTS ALL DEFERRED`);
 }
 
 function restoreSql(table: string, shift: string, have: ReadonlySet<string>): string {
@@ -120,9 +167,23 @@ export async function resetFromSnapshot(
   const shift = `interval '${Math.round(now.getTime() - Date.parse(takenAt))} milliseconds'`;
   const firms = await db.transaction(async (tx) => {
     await tx.query(`SET LOCAL TIME ZONE 'UTC'`);
-    // The metrics tables are cleared but not restored: the operations window starts at each reset.
-    await tx.query(`TRUNCATE ${[...Object.keys(TABLES), ...OPERATIONS_TABLES].join(", ")}`);
     const columns = await snapshotColumns(tx);
+    // A column that became required after the snapshot was saved cannot be restored as NULL. Say so
+    // up front, before the tables are cleared, instead of failing partway on the constraint.
+    for (const [table, required] of Object.entries(REQUIRED)) {
+      const have = columns.get(snapshotOf(table));
+      const missing = have ? required.filter((c) => !have.has(c)) : [];
+      if (missing.length > 0) {
+        throw new HttpError(
+          `The demo snapshot predates ${table}.${missing[0]}, which is now required. Run \`npm run seed\` against this database.`,
+          503,
+        );
+      }
+    }
+    // The metrics tables are cleared but not restored: the operations window starts at each reset.
+    // One statement, naming every demo table: Postgres refuses to truncate a table a foreign key
+    // points at unless the tables that point at it are truncated with it.
+    await tx.query(`TRUNCATE ${[...Object.keys(TABLES), ...OPERATIONS_TABLES].join(", ")}`);
     for (const table of Object.keys(TABLES)) {
       const have = columns.get(snapshotOf(table));
       // A table added after the snapshot was taken has no snapshot table: it stays empty.

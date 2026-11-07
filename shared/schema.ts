@@ -12,6 +12,12 @@ export interface ObjectTypeDef {
   readonly table: string;
   readonly primaryKey: string;
   readonly properties: Readonly<Record<string, PropType>>;
+  /**
+   * Properties no row may leave empty, besides the primary key (which is implied): the reference
+   * columns and the timestamps every writer sets. The database enforces them as NOT NULL
+   * (migration 0003), so a writer that forgets one fails instead of storing a hole.
+   */
+  readonly required?: readonly string[];
 }
 
 export const OBJECT_TYPES = {
@@ -66,6 +72,7 @@ export const OBJECT_TYPES = {
     apiName: "Mandate",
     table: "mandate",
     primaryKey: "mandateId",
+    required: ["createdAt"],
     properties: {
       mandateId: "string",
       title: "string",
@@ -85,6 +92,7 @@ export const OBJECT_TYPES = {
     apiName: "Search",
     table: "search",
     primaryKey: "searchId",
+    required: ["mandateId", "runAt"],
     properties: {
       searchId: "string",
       name: "string",
@@ -104,6 +112,7 @@ export const OBJECT_TYPES = {
     apiName: "SearchList",
     table: "search_list",
     primaryKey: "searchId",
+    required: ["mandateId", "createdAt"],
     properties: {
       searchId: "string",
       name: "string",
@@ -118,12 +127,14 @@ export const OBJECT_TYPES = {
     apiName: "SearchMembership",
     table: "search_membership",
     primaryKey: "membershipId",
+    required: ["searchId", "firmId"],
     properties: { membershipId: "string", searchId: "string", firmId: "string" },
   },
   ResearchFinding: {
     apiName: "ResearchFinding",
     table: "research_finding",
     primaryKey: "findingId",
+    required: ["firmId", "retrievedAt"],
     properties: {
       findingId: "string",
       firmId: "string",
@@ -151,6 +162,7 @@ export const OBJECT_TYPES = {
     apiName: "Extraction",
     table: "extraction",
     primaryKey: "extractionId",
+    required: ["firmId", "extractedAt"],
     properties: {
       extractionId: "string",
       firmId: "string",
@@ -170,6 +182,7 @@ export const OBJECT_TYPES = {
     apiName: "QualificationScore",
     table: "qualification_score",
     primaryKey: "scoreId",
+    required: ["firmId", "computedAt"],
     properties: {
       scoreId: "string",
       firmId: "string",
@@ -190,6 +203,7 @@ export const OBJECT_TYPES = {
     apiName: "ReviewDecision",
     table: "review_decision",
     primaryKey: "decisionId",
+    required: ["decidedAt"],
     properties: {
       decisionId: "string",
       firmId: "string",
@@ -208,6 +222,7 @@ export const OBJECT_TYPES = {
     apiName: "DriftEvent",
     table: "drift_event",
     primaryKey: "driftEventId",
+    required: ["firmId", "detectedAt"],
     properties: {
       driftEventId: "string",
       firmId: "string",
@@ -228,6 +243,7 @@ export const OBJECT_TYPES = {
     apiName: "ProposedRule",
     table: "proposed_rule",
     primaryKey: "proposedRuleId",
+    required: ["proposedAt"],
     properties: {
       proposedRuleId: "string",
       predicateAxis: "string",
@@ -249,6 +265,7 @@ export const OBJECT_TYPES = {
     apiName: "HardScreenConfig",
     table: "hard_screen_config",
     primaryKey: "configRuleId",
+    required: ["sourceProposedRuleId", "configCreatedAt"],
     properties: {
       configRuleId: "string",
       configAxis: "string",
@@ -266,6 +283,7 @@ export const OBJECT_TYPES = {
     apiName: "MarketSignal",
     table: "market_signal",
     primaryKey: "signalId",
+    required: ["firmId", "effectiveDate"],
     properties: {
       signalId: "string",
       firmId: "string",
@@ -282,6 +300,7 @@ export const OBJECT_TYPES = {
     apiName: "MandateAccess",
     table: "mandate_access",
     primaryKey: "accessId",
+    required: ["mandateId"],
     properties: {
       accessId: "string",
       mandateId: "string",
@@ -292,6 +311,7 @@ export const OBJECT_TYPES = {
     apiName: "RestrictedFirm",
     table: "restricted_firm",
     primaryKey: "firmId",
+    required: ["addedAt"],
     properties: {
       firmId: "string",
       reason: "string",
@@ -302,6 +322,7 @@ export const OBJECT_TYPES = {
     apiName: "AccessLogEntry",
     table: "access_log_entry",
     primaryKey: "entryId",
+    required: ["viewedAt"],
     properties: {
       entryId: "string",
       persona: "string",
@@ -314,6 +335,7 @@ export const OBJECT_TYPES = {
     apiName: "ActionRun",
     table: "action_run",
     primaryKey: "actionRunId",
+    required: ["startedAt"],
     properties: {
       actionRunId: "string",
       actionName: "string",
@@ -327,6 +349,7 @@ export const OBJECT_TYPES = {
     apiName: "ModelCall",
     table: "model_call",
     primaryKey: "modelCallId",
+    required: ["calledAt"],
     properties: {
       modelCallId: "string",
       purpose: "string",

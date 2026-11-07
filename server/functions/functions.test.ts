@@ -530,24 +530,38 @@ describe("homeSummary on a small world where rule rows are on screen", () => {
         newScore: 13,
         detectedAt: "2026-09-03T00:00:00.000Z",
       },
-      { driftEventId: "d3", firmId: "c", driftReason: "tier_moved", driftStatus: "resolved" },
+      {
+        driftEventId: "d3",
+        firmId: "c",
+        driftReason: "tier_moved",
+        driftStatus: "resolved",
+        detectedAt: "2026-09-01T00:00:00.000Z",
+      },
     ]);
     await insertObjects(d, "ProposedRule", [
-      { proposedRuleId: "r1", predicateAxis: "employees", ruleOperator: "<", ruleThreshold: "10" },
+      {
+        proposedRuleId: "r1",
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "10",
+        proposedAt: "2026-09-01T00:00:00.000Z",
+      },
       {
         proposedRuleId: "r2",
         predicateAxis: "coverage_model",
         ruleOperator: "in",
         ruleThreshold: '["x"]',
         ruleStatus: "pending",
+        proposedAt: "2026-09-01T00:00:00.000Z",
       },
-      { proposedRuleId: "r3" }, // malformed: no predicate
+      { proposedRuleId: "r3", proposedAt: "2026-09-01T00:00:00.000Z" }, // malformed: no predicate
       {
         proposedRuleId: "r4",
         predicateAxis: "employees",
         ruleOperator: "<",
         ruleThreshold: "99",
         ruleStatus: "approved",
+        proposedAt: "2026-09-01T00:00:00.000Z",
       },
     ]);
     const [summary, client] = await Promise.all([homeSummary(d, NO_WALL), clientHome(d)]);
@@ -591,8 +605,19 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
         axis: "firm_age",
         confidenceTier: "abstain",
         findingStatus: "abstained",
+        retrievedAt: "2026-09-01T00:00:00.000Z",
       })),
     );
+    await insertObjects(d, "ProposedRule", [
+      {
+        proposedRuleId: "solvency-rule",
+        predicateAxis: "solvent",
+        ruleOperator: "==",
+        ruleThreshold: "false",
+        ruleStatus: "approved",
+        proposedAt: "2026-09-01T00:00:00.000Z",
+      },
+    ]);
     await insertObjects(d, "HardScreenConfig", [
       {
         configRuleId: "c1",
@@ -601,6 +626,8 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
         configThreshold: "false",
         configModel: "both",
         configActive: true,
+        configCreatedAt: "2026-09-01T00:00:00.000Z",
+        sourceProposedRuleId: "solvency-rule",
       },
     ]);
     const configs = [

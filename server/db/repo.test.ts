@@ -231,8 +231,10 @@ describe("repository", () => {
   it("traverses a join-table link for many sources at once", async () => {
     await insertObject(db, "Firm", { firmId: "f1", firmName: "One" });
     await insertObject(db, "Firm", { firmId: "f2", firmName: "Two" });
-    await db.query(
-      `INSERT INTO search_list_firm ("searchId","firmId") VALUES ('L1','f1'),('L1','f2'),('L2','f2')`,
+    await db.exec(
+      `INSERT INTO mandate ("mandateId","createdAt") VALUES ('M1', now());
+       INSERT INTO search_list ("searchId","mandateId","createdAt") VALUES ('L1','M1', now()), ('L2','M1', now()), ('L3','M1', now());
+       INSERT INTO search_list_firm ("searchId","firmId") VALUES ('L1','f1'),('L1','f2'),('L2','f2')`,
     );
     const out = await listLinked(db, "SearchList", "firms", ["L1", "L2", "L3"], []);
     expect(out.L1.map((f) => f.$primaryKey)).toEqual(["f1", "f2"]);

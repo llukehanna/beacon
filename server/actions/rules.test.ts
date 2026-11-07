@@ -14,6 +14,7 @@ async function pendingRule(db: Db, id = "r1") {
     ruleModel: "both",
     ruleStatus: "pending",
     supportingDecisionIds: "[]",
+    proposedAt: T0.toISOString(),
   });
   return id;
 }

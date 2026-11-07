@@ -93,7 +93,10 @@ describe("demo row ceilings", () => {
   it("refuses new mandates once the demo is full", async () => {
     const db = await createTestDb();
     for (let i = 0; i < MAX_MANDATES; i++) {
-      await db.query(`INSERT INTO mandate ("mandateId", title) VALUES ($1, 'M')`, [`m${i}`]);
+      await db.query(
+        `INSERT INTO mandate ("mandateId", title, "createdAt") VALUES ($1, 'M', now())`,
+        [`m${i}`],
+      );
     }
     await expect(
       run(db, "runMandateSearch", { title: "One more", archetype: "CF" }),

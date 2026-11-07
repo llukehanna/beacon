@@ -116,7 +116,12 @@ async function buildWorld(): Promise<Db> {
         retrievedAt: AT,
       },
     ]);
-    await insertObject(d, "QualificationScore", { scoreId: `score-${firmId}`, firmId, tier: "A" });
+    await insertObject(d, "QualificationScore", {
+      scoreId: `score-${firmId}`,
+      firmId,
+      tier: "A",
+      computedAt: AT,
+    });
     await insertObject(d, "ReviewDecision", {
       decisionId: `decision-${firmId}`,
       firmId,
@@ -130,7 +135,12 @@ async function buildWorld(): Promise<Db> {
       driftStatus: "open",
       detectedAt: AT,
     });
-    await insertObject(d, "MarketSignal", { signalId: `signal-${firmId}`, firmId, kind: "hire" });
+    await insertObject(d, "MarketSignal", {
+      signalId: `signal-${firmId}`,
+      firmId,
+      kind: "hire",
+      effectiveDate: AT,
+    });
   }
 
   await insertObject(d, "Mandate", {
@@ -166,6 +176,7 @@ async function buildWorld(): Promise<Db> {
     searchId: "L1",
     name: `${WALLED_TITLE} — universe`,
     mandateId: WALLED,
+    createdAt: AT,
   });
   await insertObjects(d, "SearchMembership", [
     { membershipId: "s1:ok", searchId: "s1", firmId: "firm-ok-1" },
@@ -734,6 +745,7 @@ describe("information barrier", () => {
       mandateId: "m-fresh",
       title: "A fresh mandate",
       active: true,
+      createdAt: AT,
     });
     const fresh = (await list("Mandate", "analyst")).find((m) => m.$primaryKey === "m-fresh")!;
     expect(fresh.title).toBe("A fresh mandate");
@@ -749,6 +761,7 @@ describe("a new mandate's codename", () => {
       mandateId: "m-taken",
       title: "Taken",
       codename: codenameFor(id),
+      createdAt: AT,
     });
     const made = await run(
       d,

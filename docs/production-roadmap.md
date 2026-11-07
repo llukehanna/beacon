@@ -24,8 +24,8 @@ Beacon is a demo on synthetic data. This page lists what a production deployment
 
 ## 5. Audit export
 
-- **Now.** Scores, findings, decisions and drift events are written as history through named actions (`server/actions/`, `server/actions/apply.ts`), and each firm's History tab shows its trail. Append-only is enforced in application code only: the database has no triggers or revoked privileges (`server/db/migrations/`), and the nightly reset truncates the history (`server/seed/snapshot.ts`).
-- **Production needs.** An export of the trail (who, what, when, which evidence) in a form compliance can file or query. Write-once tables or a database role without UPDATE and DELETE, so immutability does not depend on the application being correct. A history that is never truncated, with the user identity from item 2 on every row.
+- **Now.** Scores, findings, decisions and drift events are written as history through named actions (`server/actions/`, `server/actions/apply.ts`), and each firm's History tab shows its trail. Scores, decisions and findings are append-only in the database through triggers (`server/db/migrations/0003_integrity.sql`), and the nightly reset truncates the history, which a trigger does not stop (`server/seed/snapshot.ts`).
+- **Production needs.** An export of the trail (who, what, when, which evidence) in a form compliance can file or query. A database role that owns none of the tables and has no UPDATE, DELETE or TRUNCATE on the history, so immutability does not depend on the Worker's connection string staying private (the triggers do not stop the table's owner). A history that is never truncated, with the user identity from item 2 on every row.
 
 ## 6. Retention and deletion
 

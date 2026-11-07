@@ -53,11 +53,10 @@ export function toWire<N extends ObjectTypeName>(
   return out as ObjectOf<N>;
 }
 
-export async function insertObject<N extends ObjectTypeName>(
-  q: Queryable,
+function insertParts<N extends ObjectTypeName>(
   type: N,
   obj: Props<N>,
-): Promise<void> {
+): { sql: string; values: unknown[] } {
   const def = OBJECT_TYPES[type];
   const entries = Object.entries(obj).filter(([, v]) => v !== undefined);
   assertProps(
@@ -68,10 +67,37 @@ export async function insertObject<N extends ObjectTypeName>(
   if (typeof pk !== "string" || pk === "") {
     throw new Error(`${type} insert is missing ${def.primaryKey}`);
   }
-  await q.query(
-    `INSERT INTO ${def.table} (${entries.map(([k]) => col(k)).join(", ")}) VALUES (${entries.map((_, i) => `$${i + 1}`).join(", ")})`,
-    entries.map(([, v]) => v),
+  return {
+    sql: `INSERT INTO ${def.table} (${entries.map(([k]) => col(k)).join(", ")}) VALUES (${entries.map((_, i) => `$${i + 1}`).join(", ")})`,
+    values: entries.map(([, v]) => v),
+  };
+}
+
+export async function insertObject<N extends ObjectTypeName>(
+  q: Queryable,
+  type: N,
+  obj: Props<N>,
+): Promise<void> {
+  const { sql, values } = insertParts(type, obj);
+  await q.query(sql, values);
+}
+
+/**
+ * Insert one row unless it collides with an existing one: its key, or a unique constraint such as
+ * the one proposed_rule has on its predicate. Returns false when it was left out. Any other
+ * constraint violation still fails.
+ */
+export async function insertObjectIfAbsent<N extends ObjectTypeName>(
+  q: Queryable,
+  type: N,
+  obj: Props<N>,
+): Promise<boolean> {
+  const { sql, values } = insertParts(type, obj);
+  const rows = await q.query(
+    `${sql} ON CONFLICT DO NOTHING RETURNING ${col(OBJECT_TYPES[type].primaryKey)}`,
+    values,
   );
+  return rows.length > 0;
 }
 
 /** Insert many rows in one statement (one round trip); the rows' own keys pick the columns. */

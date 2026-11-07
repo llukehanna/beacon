@@ -76,9 +76,9 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Markings and sign-in become a single shared analyst, a demo information barrier and a list of limits
 
-- **Exists.** One analyst name stamped on every decision (`demo-analyst`); a same-origin check on writes; per-IP rate limits on the two write endpoints; parameter bounds; ceilings on mandates, searches and activity rows; a content security policy; a nightly reset; scores and decisions that are only ever inserted, enforced in application code. [security.md](security.md) states each claim with the file it comes from.
+- **Exists.** One analyst name stamped on every decision (`demo-analyst`); a same-origin check on writes; per-IP rate limits on the two write endpoints; parameter bounds; ceilings on mandates, searches and activity rows; a content security policy; a nightly reset; scores and decisions that are only ever inserted, refused by database triggers as well as by the actions. [security.md](security.md) states each claim with the file it comes from.
 - **A demonstration of Markings.** Three demo personas (analyst, deal-team lead, compliance) chosen in the sidebar and sent as a request header. A restricted firm is hidden from everyone but compliance, which is what a Marking on the object does in Foundry; a mandate's title is replaced by its codename for a persona without need-to-know, which is what mandate-level Markings or a restricted view do. The persona is not an identity: see "Information barriers (demo)" in [security.md](security.md).
-- **Does not exist.** Sign-in, accounts, real roles, per-user permissions, organization markings, tenant isolation, and database-enforced immutability of history.
+- **Does not exist.** Sign-in, accounts, real roles, per-user permissions, organization markings, tenant isolation, and a database role that cannot drop the history triggers or truncate history.
 - **Why.** A public demo has one shared analyst and no real data. The [production roadmap](production-roadmap.md) lists what a deployment with real data would need.
 
 ### Foundry hosting becomes Workers and Neon

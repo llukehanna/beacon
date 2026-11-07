@@ -23,7 +23,7 @@ npm run deploy    # typecheck, vite build, wrangler deploy
 
 **Release order.** A release that adds a migration goes out in this order, for production and then for the presenter:
 
-1. Run the "Reseed" GitHub Actions workflow with `mode: migrate` (or `npm run migrate` against that database). The previous build keeps working on the migrated schema. A migration may also rewrite data (0002 strips the date from search names); rows the previous build writes before step 2 keep the old form until the reseed in step 3.
+1. Run the "Reseed" GitHub Actions workflow with `mode: migrate` (or `npm run migrate` against that database). The previous build keeps working on the migrated schema. A migration may also rewrite data (0002 strips the date from search names; 0003 removes or repairs any row that would break its new constraints, and writes each repair, with the row as it was, to the `migration_repair` table: read it after migrating with `SELECT * FROM migration_repair`); rows the previous build writes before step 2 keep the old form until the reseed in step 3.
 2. `npm run deploy` (or `npm run deploy:presenter`).
 3. Run the "Reseed" workflow with `mode: reseed`, so the demo data and its reset snapshot are rebuilt by the new code.
 
