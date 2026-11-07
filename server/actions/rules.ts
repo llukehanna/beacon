@@ -159,15 +159,25 @@ export const amendRuleThreshold = defineAction<{
   },
 });
 
-/** The proposed rule that stands for this predicate, as the unique constraint sees it (an empty model matches only an empty model). */
+/** The text a rule key is built from, as SQL: trimmed and lower-cased, as `ruleKey` does. */
+const keyPart = (value: string, whenEmpty = ""): string =>
+  `lower(btrim(coalesce(${value}, '${whenEmpty}'), E' \\t\\n\\r\\f\\v'))`;
+
+/**
+ * The proposed rule whose key equals this predicate's, matched the way the unique index on
+ * `proposed_rule` (migration 0003) matches: ignoring case and surrounding spaces, an empty model
+ * meaning "both".
+ */
 async function existingRuleId(
   ctx: ActionContext,
   pred: { axis: string; operator: string; threshold: string; model: string },
 ): Promise<string> {
   const [row] = await ctx.tx.query<{ id: string }>(
     `SELECT "proposedRuleId" AS id FROM proposed_rule
-      WHERE "predicateAxis" = $1 AND "ruleOperator" = $2 AND "ruleThreshold" = $3
-        AND "ruleModel" IS NOT DISTINCT FROM $4`,
+      WHERE ${keyPart(`"predicateAxis"`)} = ${keyPart("$1::text")}
+        AND ${keyPart(`"ruleOperator"`)} = ${keyPart("$2::text")}
+        AND ${keyPart(`"ruleThreshold"`)} = ${keyPart("$3::text")}
+        AND ${keyPart(`nullif("ruleModel", '')`, "both")} = ${keyPart("nullif($4::text, '')", "both")}`,
     [pred.axis, pred.operator, pred.threshold, pred.model],
   );
   if (row === undefined) {
@@ -216,8 +226,9 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
     }
     return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows) };
   },
-  // Writes only. The queue and the existing-proposal set are read here, inside
-  // the transaction, so a proposal another request landed meanwhile is not duplicated.
+  // Writes only. The queue and the existing-proposal set are read here, inside the transaction, so
+  // a rule that was already committed is not proposed again. A rule another request commits after
+  // that read is caught by the unique index on the rule key (see the insert below).
   async run(ctx, _params, { rows, clustered }) {
     if (clustered === null) {
       return { created: [], note: "No rejections to learn from yet." };

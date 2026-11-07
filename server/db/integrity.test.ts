@@ -2,6 +2,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { ruleKey } from "../../shared/predicate.js";
 import { OBJECT_TYPES, type ObjectTypeDef, type PropType } from "../../shared/schema.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
+import type { Clusterer } from "../clustering/types.js";
 import { resetDemo } from "../seed/reset.js";
 import { resetFromSnapshot, saveSnapshot } from "../seed/snapshot.js";
 import { createTestDb, run, seedFirm } from "../testing.js";
@@ -345,7 +346,7 @@ describe("database integrity, on a seeded database", () => {
         );
         expect(fks).toBe(REFERENCES.length);
         const [{ uniques }] = await db.query<{ uniques: number }>(
-          `SELECT count(*)::int AS uniques FROM pg_constraint WHERE conname = 'proposed_rule_predicate_key'`,
+          `SELECT count(*)::int AS uniques FROM pg_indexes WHERE indexname = 'proposed_rule_predicate_key' AND indexdef LIKE 'CREATE UNIQUE INDEX%'`,
         );
         expect(uniques).toBe(1);
 
@@ -384,6 +385,27 @@ describe("database integrity, on a seeded database", () => {
     );
   });
 });
+
+/** A Db whose transactions read the proposed rules as empty on their first look, as a transaction that began before another committed would. */
+function blindToRules(real: Db): Db {
+  let stale = true;
+  return {
+    ...real,
+    transaction: (fn) =>
+      real.transaction((tx) =>
+        fn({
+          ...tx,
+          query: ((sql: string, params?: unknown[]) => {
+            if (stale && /^\s*SELECT[\s\S]*FROM proposed_rule\b/i.test(sql)) {
+              stale = false; // only the first read, the one that lists what exists
+              return Promise.resolve([]);
+            }
+            return tx.query(sql, params);
+          }) as Tx["query"],
+        }),
+      ),
+  };
+}
 
 describe("one proposed rule per predicate", () => {
   /** Five small firms rejected for being small: the heuristic clusters them into one rule. */
@@ -428,42 +450,93 @@ describe("one proposed rule per predicate", () => {
     const [existing] = await rules(real);
     // This run's transaction reads the rules as they were before the other committed (two requests
     // in flight on separate connections), so only the database can say the rule is taken.
-    let stale = true;
-    const blind: Db = {
-      ...real,
-      transaction: (fn) =>
-        real.transaction((tx) =>
-          fn({
-            ...tx,
-            query: ((sql: string, params?: unknown[]) => {
-              if (stale && /^\s*SELECT[\s\S]*FROM proposed_rule\b/i.test(sql)) {
-                stale = false; // only the first read, the one that lists what exists
-                return Promise.resolve([]);
-              }
-              return tx.query(sql, params);
-            }) as Tx["query"],
-          }),
-        ),
-    };
+    const blind = blindToRules(real);
     const result = await run(blind, "clusterRejections", {}, { clusterer: heuristicClusterer });
     expect(await rules(real)).toHaveLength(1);
     expect(result.created).toEqual([]);
     expect(result.note).toContain(`already proposed: ${existing.proposedRuleId}`);
   });
 
-  it("the database refuses a second rule for the same predicate, nulls included", async () => {
+  it("Employees racing employees lands one rule", async () => {
     const db = await createTestDb();
-    const insert = (id: string, model: string | null) =>
+    await rejectedSmallFirms(db);
+    const shouting: Clusterer = async (rows) => {
+      const out = await heuristicClusterer(rows);
+      return {
+        ...out,
+        proposals: out.proposals.map((p) => ({
+          ...p,
+          predicateAxis: ` ${p.predicateAxis.replace(/^./, (c) => c.toUpperCase())} `,
+        })),
+      };
+    };
+    // The second run cannot see the first's rule, as when both are in flight at once.
+    await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    const before = await rules(db);
+    const result = await run(blindToRules(db), "clusterRejections", {}, { clusterer: shouting });
+    expect(result.created).toEqual([]);
+    expect(result.note).toContain("already proposed");
+    expect(await rules(db)).toEqual(before);
+  });
+
+  /** Predicates as a run might write them, some the same rule by ruleKey and some not. */
+  const KEYS: Array<[string, string, string, string | null]> = [
+    // axis, operator, threshold, model
+    ["employees", "<", "10", "both"],
+    ["Employees", "<", "10", "both"],
+    ["  EMPLOYEES ", " < ", " 10 ", "BOTH"],
+    ["employees", "<", "10", null],
+    ["employees", "<", "10", ""],
+    ["employees", "<", "10", "CF"],
+    ["employees", "<", "10", " cf"],
+    ["employees", "<", "10", "   "],
+    ["employees", "<", "10", "CS"],
+    ["employees", "<", "9", "both"],
+    ["employees", "<=", "10", "both"],
+    ["firm_age", "<", "10", "both"],
+    ["coverage_model", "==", "Generalist", "both"],
+    ["coverage_model", "==", "generalist", "both"],
+    ["coverage_model", "==", "Generalist", "CF"],
+    ["employees", "<", "", "both"],
+    ["employees", "<", "  ", null],
+  ];
+
+  it("the unique index and ruleKey agree on whether two predicates are the same rule", async () => {
+    const db = await createTestDb();
+    const insert = (id: string, k: (typeof KEYS)[number]) =>
       db.query(
         `INSERT INTO proposed_rule ("proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel", "proposedAt")
-         VALUES ($1, 'employees', '<', '10', $2, now())`,
-        [id, model],
+         VALUES ($1, $2, $3, $4, $5, now())`,
+        [id, k[0], k[1], k[2], k[3]],
       );
-    await insert("r1", "both");
-    await expect(insert("r2", "both")).rejects.toThrow(/proposed_rule_predicate_key/);
-    await insert("r3", "CF"); // another model is another rule
-    await insert("r4", null);
-    await expect(insert("r5", null)).rejects.toThrow(/proposed_rule_predicate_key/);
+    let pairs = 0;
+    let sameKey = 0;
+    for (let i = 0; i < KEYS.length; i++) {
+      for (let j = i + 1; j < KEYS.length; j++) {
+        const same =
+          ruleKey(KEYS[i][0], KEYS[i][1], KEYS[i][2], KEYS[i][3]) ===
+          ruleKey(KEYS[j][0], KEYS[j][1], KEYS[j][2], KEYS[j][3]);
+        await db.query(`DELETE FROM proposed_rule`);
+        await insert("a", KEYS[i]);
+        const second = insert("b", KEYS[j]);
+        if (same) {
+          await expect(
+            second,
+            `${JSON.stringify(KEYS[i])} ~ ${JSON.stringify(KEYS[j])}`,
+          ).rejects.toThrow(/proposed_rule_predicate_key/);
+          sameKey++;
+        } else {
+          await expect(
+            second,
+            `${JSON.stringify(KEYS[i])} != ${JSON.stringify(KEYS[j])}`,
+          ).resolves.toBeDefined();
+        }
+        pairs++;
+      }
+    }
+    // The table has both kinds of pair in it, so the test cannot pass by agreeing on one answer.
+    expect(sameKey).toBeGreaterThan(5);
+    expect(pairs - sameKey).toBeGreaterThan(50);
   });
 });
 
@@ -507,7 +580,11 @@ describe("migration 0003 on a database that already holds rows", () => {
       INSERT INTO search_list ("searchId", "mandateId", "createdAt") VALUES ('l1', 'm1', now());
       INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('l1', 'f1'), ('l1', 'ghost'), ('l-ghost', 'f1');
       INSERT INTO research_finding ("findingId", "firmId", "retrievedAt") VALUES
-        ('rf-ok', 'f1', now()), ('rf-ghost', 'ghost', now()), ('rf-nodate', 'f1', NULL);
+        ('rf-ok', 'f1', now()), ('rf-ghost', 'ghost', now());
+      INSERT INTO research_finding ("findingId", "firmId", "retrievedAt", "verifiedAt") VALUES
+        ('rf-nodate', 'f1', NULL, '2026-09-05T00:00:00Z');
+      INSERT INTO research_finding ("findingId", "firmId", "retrievedAt") VALUES
+        ('rf-undated', 'f1', NULL), ('rf-nofirm', NULL, now());
       INSERT INTO qualification_score ("scoreId", "firmId", "computedAt") VALUES
         ('qs-ok', 'f1', now()), ('qs-ghost', 'ghost', now());
       INSERT INTO review_decision ("decisionId", "firmId", "decisionType", "decidedAt") VALUES
@@ -519,7 +596,9 @@ describe("migration 0003 on a database that already holds rows", () => {
         ('r-approved', 'employees', '<', '10', 'both', 'approved', '2026-09-02T00:00:00Z'),
         ('r-null-a', 'firm_age', '<', '3', NULL, 'dismissed', '2026-09-01T00:00:00Z'),
         ('r-null-b', 'firm_age', '<', '3', NULL, 'pending', '2026-09-03T00:00:00Z'),
-        ('r-other', 'employees', '<', '10', 'CF', 'pending', '2026-09-01T00:00:00Z');
+        ('r-other', 'employees', '<', '10', 'CF', 'pending', '2026-09-01T00:00:00Z'),
+        ('r-case', ' Employees', '<', '10', NULL, 'dismissed', '2026-09-04T00:00:00Z');
+      INSERT INTO meta (key, value) VALUES ('snapshotAt', '2026-09-10T00:00:00.000Z');
       INSERT INTO hard_screen_config ("configRuleId", "sourceProposedRuleId", "configCreatedAt") VALUES
         ('hsc-on-keeper', 'r-approved', now()),
         ('hsc-on-duplicate', 'r-pending', now()),
@@ -533,12 +612,32 @@ describe("migration 0003 on a database that already holds rows", () => {
 
     // What is kept.
     expect(await ids(db, "firm", "firmId")).toEqual(["f-via-orphan", "f1", "f2"]);
-    expect(await ids(db, "mandate", "mandateId")).toEqual(["m1"]);
+    expect(await ids(db, "mandate", "mandateId")).toEqual(["m-nodate", "m1"]);
     expect(await ids(db, "mandate_access", "accessId")).toEqual(["a1"]);
-    expect(await ids(db, "search", "searchId")).toEqual(["s1"]);
+    expect(await ids(db, "search", "searchId")).toEqual(["s-of-nodate", "s1"]);
     expect(await ids(db, "search_membership", "membershipId")).toEqual(["sm1"]);
     expect(await ids(db, "search_list_firm", "firmId")).toEqual(["f1"]);
-    expect(await ids(db, "research_finding", "findingId")).toEqual(["rf-ok"]);
+    expect(await ids(db, "research_finding", "findingId")).toEqual([
+      "rf-nodate",
+      "rf-ok",
+      "rf-undated",
+    ]);
+    // An empty timestamp is filled in from what says when, else the time of the migration (the
+    // snapshot's own time in its copy), and the row stays.
+    const stamp = (table: string, id: string) =>
+      db
+        .query<{ at: Date }>(`SELECT "retrievedAt" AS at FROM ${table} WHERE "findingId" = '${id}'`)
+        .then((r) => r[0].at.toISOString());
+    expect(await stamp("research_finding", "rf-nodate")).toBe("2026-09-05T00:00:00.000Z");
+    expect(Date.now() - Date.parse(await stamp("research_finding", "rf-undated"))).toBeLessThan(
+      60_000,
+    );
+    expect(await stamp("snapshot_research_finding", "rf-undated")).toBe("2026-09-10T00:00:00.000Z");
+    expect(
+      await db
+        .query<{ at: Date }>(`SELECT "createdAt" AS at FROM mandate WHERE "mandateId" = 'm-nodate'`)
+        .then((r) => r[0].at.toISOString()),
+    ).toBe("2026-09-01T00:00:00.000Z");
     expect(await ids(db, "qualification_score", "scoreId")).toEqual(["qs-ok"]);
     expect(await ids(db, "review_decision", "decisionId")).toEqual([
       "rd-activity",
@@ -559,7 +658,7 @@ describe("migration 0003 on a database that already holds rows", () => {
       "r-approved",
       "r-null-b",
       "r-other",
-    ]);
+    ]); // r-pending and r-case share r-approved's key, whatever their case or model spelling
     expect(
       await db.query(
         `SELECT "configRuleId", "sourceProposedRuleId" FROM hard_screen_config ORDER BY 1`,
@@ -569,7 +668,11 @@ describe("migration 0003 on a database that already holds rows", () => {
       { configRuleId: "hsc-on-keeper", sourceProposedRuleId: "r-approved" },
     ]);
     // The reset's copy is repaired too, or the next reset would fail on it.
-    expect(await ids(db, "snapshot_research_finding", "findingId")).toEqual(["rf-ok"]);
+    expect(await ids(db, "snapshot_research_finding", "findingId")).toEqual([
+      "rf-nodate",
+      "rf-ok",
+      "rf-undated",
+    ]);
 
     // Every repair is logged, with the row as it was.
     const log = await db.query<{
@@ -586,22 +689,26 @@ describe("migration 0003 on a database that already holds rows", () => {
         "firm f-via-orphan cleared",
         "hard_screen_config hsc-ghost deleted",
         "hard_screen_config hsc-on-duplicate repointed",
-        "mandate m-nodate deleted",
+        "mandate m-nodate backfilled",
         "mandate_access a-ghost deleted",
+        "proposed_rule r-case deleted",
         "proposed_rule r-null-a deleted",
         "proposed_rule r-pending deleted",
         "qualification_score qs-ghost deleted",
         "research_finding rf-ghost deleted",
-        "research_finding rf-nodate deleted",
+        "research_finding rf-nodate backfilled",
+        "research_finding rf-nofirm deleted",
+        "research_finding rf-undated backfilled",
         "review_decision rd-ghost cleared",
-        "search s-of-nodate deleted",
         "search s-orphan deleted",
         "search_list_firm l-ghost:f1 deleted",
         "search_list_firm l1:ghost deleted",
         "search_membership sm-ghost-firm deleted",
         "search_membership sm-orphan deleted",
         "snapshot_research_finding rf-ghost deleted",
-        "snapshot_research_finding rf-nodate deleted",
+        "snapshot_research_finding rf-nodate backfilled",
+        "snapshot_research_finding rf-nofirm deleted",
+        "snapshot_research_finding rf-undated backfilled",
       ].sort(),
     );
     const ghost = log.find((r) => r.rowKey === "rf-ghost" && r.tableName === "research_finding")!;
@@ -609,6 +716,8 @@ describe("migration 0003 on a database that already holds rows", () => {
     expect(ghost.reason).toBe("firmId names no firm");
     const dup = log.find((r) => r.rowKey === "r-pending")!;
     expect(dup.reason).toBe("duplicates the rule r-approved");
+    const nofirm = log.find((r) => r.rowKey === "rf-nofirm" && r.tableName === "research_finding")!;
+    expect(nofirm.reason).toBe("firmId is required");
 
     // And the database now holds the line.
     await expect(
@@ -630,20 +739,120 @@ describe("migration 0003 on a database that already holds rows", () => {
     expect(await db.query(`SELECT * FROM migration_repair`)).toEqual([]);
   });
 
-  it("skips a snapshot copy saved before a required column existed, and says so", async () => {
+  it("adds a required timestamp a snapshot copy lacks and backfills it; a missing reference is skipped, and said", async () => {
     const db = await migratedBefore(3);
     await db.exec(`
+      INSERT INTO meta (key, value) VALUES ('snapshotAt', '2026-09-10T00:00:00.000Z');
       CREATE TABLE snapshot_research_finding ("findingId" text, "firmId" text);
       INSERT INTO snapshot_research_finding VALUES ('rf1', 'f1');
+      CREATE TABLE snapshot_extraction ("extractionId" text, "extractedAt" timestamptz);
+      INSERT INTO snapshot_extraction VALUES ('e1', now());
     `);
     await migrate(db);
-    expect(await db.query(`SELECT "tableName", action, reason FROM migration_repair`)).toEqual([
+    expect(
+      await db.query(
+        `SELECT "tableName", action, reason FROM migration_repair ORDER BY "tableName", action`,
+      ),
+    ).toEqual([
+      {
+        tableName: "snapshot_extraction",
+        action: "skipped",
+        reason: "firmId is missing from the snapshot copy: run npm run seed",
+      },
       {
         tableName: "snapshot_research_finding",
-        action: "skipped",
-        reason: "retrievedAt is missing from the snapshot copy: run npm run seed",
+        action: "added",
+        reason: "retrievedAt was missing from the snapshot copy; added and backfilled",
+      },
+      {
+        tableName: "snapshot_research_finding",
+        action: "backfilled",
+        reason: "retrievedAt is required and was empty",
       },
     ]);
+    const [row] = await db.query<{ at: Date }>(
+      `SELECT "retrievedAt" AS at FROM snapshot_research_finding`,
+    );
+    expect(row.at.toISOString()).toBe("2026-09-10T00:00:00.000Z");
+  });
+
+  it("keeps the rules and active screens of a database from before proposedAt existed", async () => {
+    // Production's shape if its tables and its snapshot were saved before ProposedRule.proposedAt:
+    // every rule has no time, the snapshot has no such column, and a screen is live on a rule.
+    const db = await migratedBefore(3);
+    await db.exec(`
+      INSERT INTO firm ("firmId", "firmName") VALUES ('f1', 'One');
+      INSERT INTO review_decision ("decisionId", "firmId", "decisionType", "decidedAt") VALUES
+        ('d1', 'f1', 'reject', '2026-09-01T00:00:00Z'),
+        ('d2', 'f1', 'reject', '2026-09-03T00:00:00Z'),
+        ('d3', 'f1', 'reject', '2026-09-05T00:00:00Z');
+      INSERT INTO proposed_rule ("proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel", "ruleStatus", "supportingDecisionIds", "ruleDecidedAt") VALUES
+        ('r-supported', 'employees', '<', '10', 'both', 'approved', '["d1","d2"]', '2026-09-08T00:00:00Z'),
+        ('r-decided', 'firm_age', '<', '3', 'both', 'approved', '[]', '2026-09-09T00:00:00Z'),
+        ('r-bare', 'deal_size_usd_m', '<', '30', 'both', 'pending', NULL, NULL);
+      INSERT INTO hard_screen_config ("configRuleId", "sourceProposedRuleId", "configActive", "configCreatedAt") VALUES
+        ('c1', 'r-supported', true, '2026-09-08T00:00:00Z'),
+        ('c2', 'r-decided', true, '2026-09-09T00:00:00Z');
+      INSERT INTO meta (key, value) VALUES ('snapshotAt', '2026-09-10T00:00:00.000Z');
+      CREATE TABLE snapshot_firm AS TABLE firm;
+      CREATE TABLE snapshot_review_decision AS TABLE review_decision;
+      CREATE TABLE snapshot_hard_screen_config AS TABLE hard_screen_config;
+      CREATE TABLE snapshot_proposed_rule AS SELECT "proposedRuleId", "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel", "ruleStatus", "supportingDecisionIds", "ruleDecidedAt" FROM proposed_rule;
+    `);
+    expect(
+      await db.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name = 'snapshot_proposed_rule' AND column_name = 'proposedAt'`,
+      ),
+    ).toEqual([]);
+
+    await migrate(db);
+
+    const at = async (table: string) =>
+      (
+        await db.query<{ id: string; at: Date }>(
+          `SELECT "proposedRuleId" AS id, "proposedAt" AS at FROM ${table} ORDER BY 1`,
+        )
+      ).map((r) => [r.id, r.at.toISOString()]);
+    for (const table of ["proposed_rule", "snapshot_proposed_rule"]) {
+      const rows = Object.fromEntries(await at(table));
+      expect(Object.keys(rows), table).toEqual(["r-bare", "r-decided", "r-supported"]);
+      // Proposed when the last supporting decision was made; else when it was decided; else the
+      // moment of the migration (the snapshot's own moment in its copy).
+      expect(rows["r-supported"], table).toBe("2026-09-03T00:00:00.000Z");
+      expect(rows["r-decided"], table).toBe("2026-09-09T00:00:00.000Z");
+      if (table === "snapshot_proposed_rule") {
+        expect(rows["r-bare"]).toBe("2026-09-10T00:00:00.000Z");
+      } else {
+        expect(Date.now() - Date.parse(rows["r-bare"])).toBeLessThan(60_000);
+      }
+    }
+    // The screens are still live on their rules.
+    expect(
+      await db.query(
+        `SELECT "configRuleId", "sourceProposedRuleId", "configActive" FROM hard_screen_config ORDER BY 1`,
+      ),
+    ).toEqual([
+      { configRuleId: "c1", sourceProposedRuleId: "r-supported", configActive: true },
+      { configRuleId: "c2", sourceProposedRuleId: "r-decided", configActive: true },
+    ]);
+    // Nothing was deleted, and the log says what was filled in.
+    const log = await db.query<{ tableName: string; action: string }>(
+      `SELECT "tableName", action FROM migration_repair ORDER BY "repairId"`,
+    );
+    // One entry per rule filled in, and the column added to the snapshot copy; no deletions.
+    expect(log.map((r) => `${r.tableName} ${r.action}`)).toEqual([
+      ...Array(3).fill("proposed_rule backfilled"),
+      "snapshot_proposed_rule added",
+      ...Array(3).fill("snapshot_proposed_rule backfilled"),
+    ]);
+    // And the reset can restore from the older snapshot.
+    await expect(resetFromSnapshot(db, new Date("2026-09-10T00:00:00Z"))).resolves.toEqual({
+      firms: 1,
+    });
+    expect(await db.query(`SELECT count(*)::int AS n FROM proposed_rule`)).toEqual([{ n: 3 }]);
+    expect(
+      await db.query(`SELECT count(*)::int AS n FROM hard_screen_config WHERE "configActive"`),
+    ).toEqual([{ n: 2 }]);
   });
 
   it("rolls back whole when the repair fails part way", async () => {
