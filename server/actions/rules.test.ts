@@ -103,6 +103,132 @@ describe("clusterRejections", () => {
     expect(await listAll(db, "ProposedRule")).toHaveLength(1);
   });
 
+  it("a second run adds nothing and says so plainly", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    const before = await listAll(db, "ProposedRule");
+    expect(before).toHaveLength(1);
+
+    const again = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(again.created).toEqual([]);
+    expect(again.note).toBe(
+      "No new patterns since the last run (6 passes checked). Already covered by an existing rule: employees < 10 (pending).",
+    );
+    expect(await listAll(db, "ProposedRule")).toEqual(before);
+  });
+
+  /** A clusterer that proposes one predicate, backed by every rejection on file. */
+  const proposing =
+    (
+      predicateAxis: string,
+      ruleOperator: string,
+      ruleThreshold: string,
+      ruleModel: "CF" | "CS" | "both" = "both",
+    ): Clusterer =>
+    async (rows) => ({
+      source: "claude",
+      proposals: [
+        {
+          predicateAxis,
+          ruleOperator,
+          ruleThreshold,
+          ruleModel,
+          summary: "x",
+          supportingDecisionIds: rows.map((r) => r.decisionId),
+        },
+      ],
+    });
+
+  it("a threshold variant of a pending or active rule is the same pattern, whatever its model", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: proposing("employees", "<", "12", "CF") });
+    const [first] = await listAll(db, "ProposedRule");
+    expect(first).toMatchObject({ ruleThreshold: "12", ruleModel: "CF" });
+
+    const pending = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(pending.created).toEqual([]);
+    expect(pending.note).toContain(
+      "Already covered by an existing rule: employees < 12 (pending).",
+    );
+
+    // Approved and then amended, the rule still covers its pattern.
+    await run(db, "approveRule", { proposedRule: first.$primaryKey });
+    await run(db, "amendRuleThreshold", { proposedRule: first.$primaryKey, newThreshold: "9" });
+    const active = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(active.created).toEqual([]);
+    expect(active.note).toContain("employees < 12 (active)");
+    expect(await listAll(db, "ProposedRule")).toHaveLength(1);
+  });
+
+  it("proposes a threshold variant once the rule that had the pattern is dismissed", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    await run(db, "clusterRejections", {}, { clusterer: proposing("employees", "<", "12") });
+    const [first] = await listAll(db, "ProposedRule");
+    await run(db, "dismissRule", { proposedRule: first.$primaryKey, reason: "Too broad" });
+
+    const result = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(result.created).toHaveLength(1);
+    // The dismissed rule itself is never proposed again.
+    const repeat = await run(
+      db,
+      "clusterRejections",
+      {},
+      { clusterer: proposing("employees", "<", "12") },
+    );
+    expect(repeat.created).toEqual([]);
+    expect(await listAll(db, "ProposedRule")).toHaveLength(2);
+  });
+
+  it("one run proposes one rule per pattern", async () => {
+    const db = await createTestDb();
+    await rejectedSmallFirms(db);
+    const twice: Clusterer = async (rows) => ({
+      source: "claude",
+      proposals: [
+        ...(await proposing("employees", "<", "10")(rows)).proposals,
+        ...(await proposing("employees", "<", "12")(rows)).proposals,
+      ],
+    });
+    const result = await run(db, "clusterRejections", {}, { clusterer: twice });
+    expect(result.created).toHaveLength(1);
+    expect(result.note).toContain("Already covered by an existing rule: employees < 10 (pending).");
+  });
+
+  it("does not propose a rule the rubric already enforces", async () => {
+    const db = await createTestDb();
+    for (let i = 0; i < 4; i++) {
+      const f = await seedFirm(db, { coverageModel: "Generalist" });
+      await run(db, "rejectFirm", {
+        firm: f.$primaryKey,
+        rejectionRationale: "Generalist coverage with no sector depth.",
+      });
+    }
+    for (const model of ["CF", "both"] as const) {
+      const result = await run(
+        db,
+        "clusterRejections",
+        {},
+        { clusterer: proposing("coverage_model", "==", "Generalist", model) },
+      );
+      expect(result.created).toEqual([]);
+      expect(result.note).toBe(
+        "No new patterns since the last run (4 passes checked). Already enforced by the rubric: coverage_model == Generalist.",
+      );
+    }
+    expect(await listAll(db, "ProposedRule")).toHaveLength(0);
+  });
+
+  it("says when no pattern has enough support", async () => {
+    const db = await createTestDb();
+    const f = await seedFirm(db, { employees: 4 });
+    await run(db, "rejectFirm", { firm: f.$primaryKey, rejectionRationale: "Too small." });
+    const result = await run(db, "clusterRejections", {}, { clusterer: heuristicClusterer });
+    expect(result.note).toBe("No pattern has enough support yet (1 pass checked).");
+  });
+
   it("calls the clusterer outside the transaction", async () => {
     const real = await createTestDb();
     await rejectedSmallFirms(real);

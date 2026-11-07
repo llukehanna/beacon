@@ -5,6 +5,7 @@
  * string equality otherwise, and a missing value never screens a firm.
  */
 import { looseText } from "./looseText.js";
+import { type Model, type ScoreInput, mirrorScore } from "./scoreMirror.js";
 import { OPERATORS } from "./vocab.js";
 
 export interface Predicate {
@@ -39,6 +40,38 @@ export function ruleKey(
   return [axis, operator, threshold, model || "both"]
     .map((s) => (s ?? "").trim().toLowerCase())
     .join("|");
+}
+
+/**
+ * The pattern a rule expresses, whatever its threshold or model: its axis and operator. Two rules
+ * with the same pattern (`deal_size_usd_m < 20` and `deal_size_usd_m < 30`) screen for the same
+ * reason, so the learning loop proposes at most one rule per pattern.
+ */
+export function rulePatternKey(axis?: string | null, operator?: string | null): string {
+  return [axis, operator].map((s) => (s ?? "").trim().toLowerCase()).join("|");
+}
+
+/**
+ * The rubric's own hard-reject this predicate repeats, or null. Only an equality can repeat one: a
+ * firm whose field holds the threshold is then hard-rejected by the rubric (`mirrorScore`) whatever
+ * else is true of it. A rule scoped to both models repeats a gate when either model's rubric
+ * rejects on it (the generalist gate is a CF gate; the CS rubric does not score coverage at all).
+ */
+export function rubricGateFor(p: Predicate): string | null {
+  const field = predicateField(p.axis);
+  if (field === null || p.operator.trim() !== "==" || p.threshold.trim() === "") {
+    return null;
+  }
+  const scope = (p.model ?? "").trim().toUpperCase();
+  const models: Model[] = scope === "CF" ? ["CF"] : scope === "CS" ? ["CS"] : ["CF", "CS"];
+  for (const model of models) {
+    const input: ScoreInput = { firmType: model, [field]: p.threshold.trim() };
+    const result = mirrorScore(input);
+    if (result.hardRejected) {
+      return result.rejectReason;
+    }
+  }
+  return null;
 }
 
 export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Predicate): boolean {

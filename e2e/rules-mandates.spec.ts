@@ -28,6 +28,35 @@ test("a proposed rule can be declined only with a reason, and the form cancels",
   await expect(panel.getByRole("button", { name: "Approve" })).toBeVisible();
 });
 
+test("proposing rules again adds nothing new and says so", async ({ page }) => {
+  await openRoute(page, route("/rules"));
+  const heading = page.getByRole("heading", { level: 2, name: /^Proposed \d+$/ });
+  const pending = async (): Promise<number> =>
+    Number(/(\d+)$/.exec((await heading.innerText()).trim())?.[1]);
+  const before = await pending();
+  expect(before).toBeGreaterThan(0);
+  // The seeded rules are not proposed twice, and none repeats a rubric gate.
+  await expect(page.getByRole("region", { name: /coverage_model/ })).toHaveCount(0);
+
+  const button = page.getByRole("button", { name: "Propose rules from rejections" });
+  const note = page.getByRole("status").filter({ hasText: /passes checked/ });
+  for (let run = 0; run < 2; run += 1) {
+    const done = page.waitForResponse(
+      (res) =>
+        res.url().endsWith("/api/actions") &&
+        res.request().postData()?.includes("clusterRejections") === true,
+    );
+    await button.click();
+    expect((await done).status()).toBe(200);
+    await expect(note).toContainText(
+      /^No new patterns since the last run \(\d+ passes checked\)\./,
+    );
+    await expect(note).toContainText("Already covered by an existing rule");
+    await expect(button).toBeEnabled();
+    expect(await pending()).toBe(before);
+  }
+});
+
 test("a proposed rule lists the rejections it came from", async ({ page }) => {
   await openRoute(page, route("/rules"));
   const panel = page.getByRole("region", { name: /deal_size_usd_m/ });
