@@ -51,8 +51,8 @@ jobs:
             echo "::error::wrangler dev was not ready after 120 seconds."
             exit 1
           fi
-          root=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8787/)
-          api=$(curl -s -w '\n%{http_code}' 'http://localhost:8787/api/functions?name=shellCounts')
+          root=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8787/ || true)
+          api=$(curl -s -w '\n%{http_code}' 'http://localhost:8787/api/functions?name=shellCounts' || true)
           echo "GET / -> $root"
           echo "GET /api/functions -> $api"
           [ "$root" = "200" ] || { cat "$log"; echo "::error::The static shell did not serve."; exit 1; }

@@ -23,11 +23,11 @@ npm run deploy    # typecheck, vite build, wrangler deploy
 
 **Release order.** A release that adds a migration goes out in this order, for production and then for the presenter:
 
-1. Run the "Reseed" GitHub Actions workflow with `mode: migrate` (or `npm run migrate` against that database). The previous build keeps working on the migrated schema, because a migration only adds to what it reads.
+1. Run the "Reseed" GitHub Actions workflow with `mode: migrate` (or `npm run migrate` against that database). The previous build keeps working on the migrated schema. A migration may also rewrite data (0002 strips the date from search names); rows the previous build writes before step 2 keep the old form until the reseed in step 3.
 2. `npm run deploy` (or `npm run deploy:presenter`).
 3. Run the "Reseed" workflow with `mode: reseed`, so the demo data and its reset snapshot are rebuilt by the new code.
 
-To add a migration, write `server/db/migrations/NNNN_name.sql` (the next number, idempotent, never an edit to a shipped file), run `npm run migrations:gen`, and commit both; tests fail if the bundled copy is stale or if `shared/schema.ts` and the migrated schema disagree.
+To add a migration, write `server/db/migrations/NNNN_name.sql` (the next number, idempotent, never an edit to a shipped file; every pending migration runs in one transaction, so `CREATE INDEX CONCURRENTLY` is unavailable and a heavy rewrite holds the locks of the migrations before it until commit), run `npm run migrations:gen`, and commit both; tests fail if the bundled copy is stale or if `shared/schema.ts` and the migrated schema disagree.
 
 **Hyperdrive (optional).** To pool and cache connections in front of Neon, create the config once, then uncomment the `hyperdrive` block in `wrangler.jsonc` and paste the id. The Worker uses the binding when present and falls back to `DATABASE_URL` otherwise.
 
