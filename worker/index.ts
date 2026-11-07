@@ -1,17 +1,21 @@
 /**
  * Cloudflare Workers entry. Static assets (the Vite build) are served by the
  * platform with an SPA fallback; /api/* runs here through the handlers in
- * api/; the nightly Cron Trigger runs the demo reset.
+ * api/; the nightly Cron Trigger runs the demo reset, and an hourly one applies the synthetic
+ * market signals that have come due.
  */
 import * as actions from "../api/actions.js";
 import * as functions from "../api/functions.js";
 import * as links from "../api/links.js";
+import * as mcp from "../api/mcp.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
-import { type Db, createPgDb, withRequestDb } from "../server/db/client.js";
+import { type Db, createPgDb, getDb, withRequestDb } from "../server/db/client.js";
 import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
-import { jsonError } from "../server/http.js";
+import { json, jsonError } from "../server/http.js";
+import { applyDueSignals } from "../server/signals/run.js";
+import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
 
 interface Env {
@@ -19,6 +23,7 @@ interface Env {
   /** Rate limit bindings (wrangler.jsonc "ratelimits"); absent in local dev and tests. */
   ACTIONS_LIMITER?: RateLimit;
   RESET_LIMITER?: RateLimit;
+  MCP_LIMITER?: RateLimit;
   /** Optional Hyperdrive binding; when present it replaces the direct DATABASE_URL. */
   HYPERDRIVE?: { connectionString: string };
 }
@@ -27,12 +32,19 @@ interface ExecutionContext {
   waitUntil(promise: Promise<unknown>): void;
 }
 
+/** What a Cron Trigger passes to `scheduled`: the expression that fired and when it was due. */
+interface ScheduledController {
+  cron?: string;
+  scheduledTime?: number;
+}
+
 type Handler = (request: Request) => Promise<Response>;
 
 const ROUTES: Record<string, Partial<Record<string, Handler>>> = {
   actions,
   functions,
   links,
+  mcp,
   objects,
   reset,
 };
@@ -87,8 +99,12 @@ export default {
         : jsonError(new HttpError("Not found", 404));
     }
     if (request.method === "POST") {
-      const limiter =
-        m[1] === "actions" ? env.ACTIONS_LIMITER : m[1] === "reset" ? env.RESET_LIMITER : undefined;
+      // /api/mcp is a POST that only reads; it is limited like the write routes, since a model can loop.
+      const limiter = {
+        actions: env.ACTIONS_LIMITER,
+        reset: env.RESET_LIMITER,
+        mcp: env.MCP_LIMITER,
+      }[m[1] as "actions" | "reset" | "mcp"];
       const refused = await checkRate(limiter, request);
       if (refused) {
         return refused;
@@ -97,11 +113,31 @@ export default {
     return withDb(env, ctx, () => handler(request));
   },
 
-  /** Nightly Cron Trigger: runs the same reset (and throttle) as the demo bar's button. */
-  async scheduled(_controller: unknown, env: Env, ctx: ExecutionContext): Promise<void> {
-    const res = await withDb(env, ctx, () => reset.POST());
+  /**
+   * Cron Triggers. The nightly one (04:00 UTC) runs the same reset (and throttle) as the demo bar's
+   * button, then applies the market signals that have come due. The hourly one only applies them,
+   * a bounded batch per run. Both fire at 04:00; the hourly one stands down then, so it cannot
+   * race the reset it would otherwise run beside. Only the exact nightly expression resets: any
+   * other (or none) applies the due signals and nothing more, the safe direction.
+   */
+  async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    if (controller.cron === NIGHTLY_CRON) {
+      const res = await withDb(env, ctx, async () => {
+        const resetRes = await reset.POST();
+        return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
+      });
+      if (!res.ok) {
+        throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
+      }
+      return;
+    }
+    const due = new Date(controller.scheduledTime ?? Date.now());
+    if (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC) {
+      return;
+    }
+    const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));
     if (!res.ok) {
-      throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
+      throw new Error(`Market signals failed: ${res.status} ${await res.text()}`);
     }
   },
 };

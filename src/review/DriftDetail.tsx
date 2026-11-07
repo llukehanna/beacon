@@ -106,6 +106,7 @@ export function DriftDetail({
           <div>
             <h3 className={styles.kicker}>Market observed</h3>
             <p className={styles.observed}>{outcomeLabel(item.observedOutcome)}</p>
+            {firstChange?.source && <p className={styles.source}>{firstChange.source}</p>}
           </div>
         </section>
       )}

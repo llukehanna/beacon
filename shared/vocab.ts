@@ -86,6 +86,7 @@ export const PROVIDER_LABEL: Record<string, string> = {
   websearch: "Web search",
   analyst: "Analyst",
   agent: "Agent",
+  market_signal: "Synthetic market signal",
 };
 
 /** Label a provider key, including corroboration keys like "dealdb+websearch". */
@@ -98,6 +99,8 @@ export function providerLabel(raw: string): string {
 
 export const ANALYST = "analyst";
 export const AGENT = "agent";
+/** The provider key of a finding written by a synthetic market signal (see shared/marketSignals.ts). */
+export const MARKET_SIGNAL = "market_signal";
 
 export type AxisKind = "enum" | "number" | "gate";
 

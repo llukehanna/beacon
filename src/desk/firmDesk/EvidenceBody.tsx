@@ -19,7 +19,7 @@ import { excerptText, modelChipTitle, modelLabel } from "../sourceHighlight";
 import styles from "./EvidenceBody.module.css";
 import { SourceView } from "./SourceView";
 import { ValueEditor } from "./ValueEditor";
-import { type AxisRow, authoritativeFinding, openConflictFindings } from "./axisRows";
+import { type AxisRow, authoritativeFinding } from "./axisRows";
 import {
   type EditMap,
   formatActionError,
@@ -27,15 +27,16 @@ import {
   stringifyOverride,
 } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
-import { evidenceChecks, isAnalystEntered, pickReading, rejectReasonText } from "./evidenceModel";
+import {
+  conflictSides,
+  evidenceChecks,
+  isAnalystEntered,
+  pickReading,
+  rejectReasonText,
+} from "./evidenceModel";
 import { type OnFile } from "./onFile";
 
 type Staged = string | number | boolean;
-
-const trustIndex = (f: FindingLike): number => {
-  const i = PROVIDER_TRUST.findIndex((p) => p === f.provider);
-  return i < 0 ? PROVIDER_TRUST.length : i;
-};
 
 const confidenceText = (tier: string | undefined): string | null => {
   const t = (tier ?? "").toLowerCase();
@@ -130,10 +131,7 @@ export function EvidenceBody({
   const [editing, setEditing] = React.useState(false);
   const [historyOpen, setHistoryOpen] = React.useState(false);
 
-  const sides = React.useMemo(
-    () => [...openConflictFindings(row)].sort((a, b) => trustIndex(a) - trustIndex(b)).slice(0, 2),
-    [row],
-  );
+  const sides = React.useMemo(() => conflictSides(row), [row]);
   const finding = authoritativeFinding(row);
   const proposed = row.state === "proposed" && finding !== undefined;
   const said = row.readings.filter((r) => r.value !== null);
@@ -368,7 +366,7 @@ export function EvidenceBody({
                 {modelName !== null && (
                   <Chip title={modelChipTitle(finding.extractionModel)}>{modelName}</Chip>
                 )}
-                {formatRetrievedShort(finding) !== "" && (
+                {row.state !== "signal" && formatRetrievedShort(finding) !== "" && (
                   <Chip title="When the source was read">{formatRetrievedShort(finding)}</Chip>
                 )}
               </div>

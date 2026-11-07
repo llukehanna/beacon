@@ -4,6 +4,8 @@ import { Notice } from "@/ui";
 import { DocPage, DocSection, ExternalLink } from "./DocLayout";
 import styles from "./TrustPage.module.css";
 import {
+  ACCESS_LOG_CEILING,
+  ACCESS_LOG_DEBOUNCE_SECONDS,
   ACTIONS_PER_MINUTE,
   ACTIVITY_ROW_CEILING,
   CLAUDE_COOLDOWN_MINUTES,
@@ -12,12 +14,15 @@ import {
   FIRM_COUNT,
   MANDATE_CEILING,
   MAX_BODY_BYTES,
+  MCP_PER_MINUTE,
+  MCP_RESULT_CAP,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OTHER_HEADERS,
   RECORDED_RUN,
   RESETS_PER_MINUTE,
   RESET_COOLDOWN_MINUTES,
+  RESTRICTED_FIRM_COUNT,
   SEARCH_CEILING,
   SECURITY_DOC_URL,
 } from "./facts";
@@ -67,7 +72,9 @@ export default function TrustPage(): React.ReactElement {
       <DocSection id="tenancy" title="Tenancy">
         <ul>
           <li>
-            One shared demo and one shared analyst. There are no accounts, organisations or roles.
+            One shared demo and one shared analyst. There are no accounts, sign-in or organisations.
+            The only roles are the three demo personas of the information barrier below, which
+            anyone can pick.
           </li>
           <li>
             A production deployment would add sign-in, a tenant per organisation with isolation in
@@ -75,6 +82,48 @@ export default function TrustPage(): React.ReactElement {
           </li>
         </ul>
         <More anchor="tenancy" />
+      </DocSection>
+
+      <DocSection id="barriers" title="Information barriers (demo)">
+        <ul>
+          <li>
+            Beacon demonstrates a wall between people on a deal: {RESTRICTED_FIRM_COUNT} firms are
+            restricted, and one mandate is closed to the analyst. It shows how a wall behaves; it is
+            not a security control.
+          </li>
+          <li>
+            <b>The identity is demo-only.</b> The persona (analyst, deal-team lead or compliance) is
+            picked in the sidebar and sent in a request header. The server trusts it and nothing
+            checks who you are, so anyone can pick any persona. A real deployment would derive the
+            persona from single sign-on, never from a header.
+          </li>
+          <li>
+            A restricted firm is visible to compliance alone, with its reason. For the analyst and
+            the deal-team lead it is missing from lists, lookups, counts, exports, tear sheets and
+            search, and an action on it is a not-found. Counts the agent computes or stored when a
+            search ran may still include a restricted firm.
+          </li>
+          <li>
+            Without need-to-know, a mandate keeps its place and its firms but shows a codename
+            instead of its title and intent.
+          </li>
+          <li>
+            Opening a firm in detail or a mandate adds a row to an access log that compliance can
+            read. It keeps the newest {n(ACCESS_LOG_CEILING)} rows, counts a repeat view within{" "}
+            {ACCESS_LOG_DEBOUNCE_SECONDS} seconds once, and is cleared by every reset.
+          </li>
+          <li>
+            An AI assistant can read the demo through a read-only MCP endpoint. It gets the same
+            view as the persona it names in the header, can change nothing, and receives at most{" "}
+            {MCP_RESULT_CAP} rows from any list. What the assistant&rsquo;s provider does with that
+            data is governed by that provider&rsquo;s terms.
+          </li>
+          <li>
+            In Foundry a restricted firm is a Marking on the object, and need-to-know is a
+            mandate-level Marking or a restricted view.
+          </li>
+        </ul>
+        <More anchor="information-barriers-demo" />
       </DocSection>
 
       <DocSection id="secrets" title="Secrets">
@@ -201,8 +250,8 @@ export default function TrustPage(): React.ReactElement {
         </p>
         <ul>
           <li>
-            Per client IP: {ACTIONS_PER_MINUTE} action requests and {RESETS_PER_MINUTE} resets per
-            minute.
+            Per client IP: {ACTIONS_PER_MINUTE} action requests, {RESETS_PER_MINUTE} resets and{" "}
+            {MCP_PER_MINUTE} MCP requests per minute.
           </li>
           <li>
             A POST naming another origin is refused, and a body must be JSON of at most{" "}
@@ -218,7 +267,10 @@ export default function TrustPage(): React.ReactElement {
 
       <DocSection id="not-built" title="Not built">
         <ul>
-          <li>Authentication, accounts, roles and per-user permissions.</li>
+          <li>
+            Authentication, accounts, real roles and per-user permissions. The information
+            barrier&rsquo;s personas are a demo.
+          </li>
           <li>Tenant isolation.</li>
           <li>Database-enforced immutability of the audit trail.</li>
           <li>Any compliance certification. None is claimed.</li>

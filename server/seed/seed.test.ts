@@ -12,6 +12,7 @@ import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { listAll } from "../db/repo.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { createTestDb } from "../testing.js";
+import { RESTRICTED_FIRM_COUNT, RESTRICTION_REASONS, WALLED_MANDATE } from "./barriers.js";
 import { resetDemo } from "./reset.js";
 import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms } from "./showcase.js";
 import { PLACES, RESERVED_WORDS, SURNAMES, generateUniverse } from "./universe.js";
@@ -194,7 +195,8 @@ describe("resetDemo", () => {
         `SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" = 'Passed' AND outcome = 'acquired_by_competitor'`,
       ),
     ).toBeGreaterThanOrEqual(1);
-    expect(await n(`SELECT count(*)::int AS n FROM mandate`)).toBe(3);
+    // The three the history makes, and the walled one the information barrier adds last.
+    expect(await n(`SELECT count(*)::int AS n FROM mandate`)).toBe(4);
     expect(await n(`SELECT count(*)::int AS n FROM search`)).toBe(2);
     expect(await n(`SELECT count(*)::int AS n FROM search_list_firm`)).toBeGreaterThan(0);
     expect(
@@ -233,8 +235,66 @@ describe("resetDemo", () => {
     );
     expect(new Date(last).getTime()).toBeLessThan(now.getTime());
 
+    // The information barrier: three restricted firms nothing else touched, a codename on every
+    // mandate, and grants that leave exactly one mandate closed to the analyst.
+    const restricted = await db.query<{ firmId: string; reason: string }>(
+      `SELECT "firmId", "reason" FROM restricted_firm ORDER BY "addedAt" DESC`,
+    );
+    expect(restricted.map((r) => r.reason)).toEqual([...RESTRICTION_REASONS]);
+    const ids = restricted.map((r) => r.firmId);
+    expect(ids).toHaveLength(RESTRICTED_FIRM_COUNT);
+    for (const table of [
+      "research_finding",
+      "review_decision",
+      "drift_event",
+      "market_signal",
+      "qualification_score",
+      "search_membership",
+    ]) {
+      expect(
+        await n(
+          `SELECT count(*)::int AS n FROM ${table} WHERE "firmId" = ANY('{${ids.join(",")}}')`,
+        ),
+        table,
+      ).toBe(0);
+    }
+    expect(
+      await n(
+        `SELECT count(*)::int AS n FROM firm WHERE "firmId" = ANY('{${ids.join(",")}}') AND "lifecycleState" = 'Discovered' AND "enrichedBy" IS NULL`,
+      ),
+    ).toBe(RESTRICTED_FIRM_COUNT);
+    const codenames = await db.query<{ mandateId: string; title: string; codename: string }>(
+      `SELECT "mandateId", "title", "codename" FROM mandate ORDER BY "createdAt", "mandateId"`,
+    );
+    expect(codenames.every((m) => /^Project [A-Z][a-z]+$/.test(m.codename))).toBe(true);
+    expect(new Set(codenames.map((m) => m.codename)).size).toBe(4);
+    const walled = codenames.find((m) => m.codename === WALLED_MANDATE.codename)!;
+    expect(walled.title).toBe(WALLED_MANDATE.title);
+    const grants = await db.query<{ mandateId: string; persona: string }>(
+      `SELECT "mandateId", "persona" FROM mandate_access`,
+    );
+    const personasOf = (id: string) =>
+      grants
+        .filter((g) => g.mandateId === id)
+        .map((g) => g.persona)
+        .sort();
+    for (const m of codenames) {
+      expect(personasOf(m.mandateId), m.title).toEqual(
+        m.mandateId === walled.mandateId
+          ? ["compliance", "deal_lead"]
+          : ["analyst", "compliance", "deal_lead"],
+      );
+    }
+    // The access log starts empty: it records what happens while the demo runs.
+    expect(await n(`SELECT count(*)::int AS n FROM access_log_entry`)).toBe(0);
+
     await resetDemo(db, now); // idempotent: truncates and rebuilds
     expect(await n(`SELECT count(*)::int AS n FROM firm`)).toBe(700);
+    expect(
+      (await db.query<{ firmId: string }>(`SELECT "firmId" FROM restricted_firm`))
+        .map((r) => r.firmId)
+        .sort(),
+    ).toEqual([...ids].sort());
   }, 300_000);
 });
 

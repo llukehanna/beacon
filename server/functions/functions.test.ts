@@ -34,6 +34,7 @@ import {
   rates,
   tallyOutcomes,
 } from "../../shared/trustMetrics.js";
+import { NO_WALL } from "../access.js";
 import { type Db } from "../db/client.js";
 import { insertObjects, listAll, listLinked } from "../db/repo.js";
 import { type SourceDocument, sourceDocument } from "../extraction/documents.js";
@@ -50,6 +51,9 @@ import {
   projectRule,
 } from "./homeSummary.js";
 import { runFunction } from "./index.js";
+
+const runFn = (db: Db, name: string, params: Record<string, unknown> = {}) =>
+  runFunction(db, name, params, NO_WALL);
 
 let db: Db;
 
@@ -105,6 +109,20 @@ beforeAll(async () => {
     f("edge_analyst", { provider: "analyst", findingStatus: "verified" }, "13"),
     // Only the analyst's own value is credited by status; another provider's is merely pending.
     f("edge_other_verified", { provider: "dealdb", findingStatus: "verified" }, "14"),
+    // A synthetic market signal's finding is news, not a reading of a source: no trust figure counts it.
+    f("edge_market_signal", { provider: "market_signal", findingStatus: "signal" }, "15"),
+    // A newer market signal does not settle an axis the agent abstained on: it still needs the analyst.
+    f("edge_signal_over_abstained", { confidenceTier: "abstain" }, "16"),
+    f(
+      "edge_signal_over_abstained",
+      {
+        provider: "market_signal",
+        findingStatus: "signal",
+        confidenceTier: undefined,
+        retrievedAt: "2026-09-10T00:00:00.000Z",
+      },
+      "17",
+    ),
   ]);
 }, 600_000);
 
@@ -210,6 +228,7 @@ async function clientHome(d: Db) {
     "SearchList",
     "firms",
     lists.map((l) => l.searchId!),
+    [],
   );
   const counts = mandateFirmCounts({
     searches: searches as SearchLike[],
@@ -228,7 +247,7 @@ describe("homeSummary", () => {
   let summary: HomeSummary;
   let client: Awaited<ReturnType<typeof clientHome>>;
   beforeAll(async () => {
-    [summary, client] = await Promise.all([homeSummary(db), clientHome(db)]);
+    [summary, client] = await Promise.all([homeSummary(db, NO_WALL), clientHome(db)]);
   }, 600_000);
 
   it("is not a vacuous comparison", () => {
@@ -248,7 +267,7 @@ describe("homeSummary", () => {
   });
 
   it("gives the shell the same counts Home shows, from its own lean query", async () => {
-    const counts = (await runFunction(db, "shellCounts")) as ShellCounts;
+    const counts = (await runFn(db, "shellCounts")) as ShellCounts;
     expect(counts).toEqual({
       open: OPEN_BUCKETS.reduce((sum, bucket) => sum + summary.funnel[bucket], 0),
       review: summary.needsYouCounts.review,
@@ -349,7 +368,7 @@ describe("homeSummary", () => {
   it("projects every pending rule like the client, whether or not it is on screen", async () => {
     const pending = await runPendingRules();
     expect(pending.length).toBeGreaterThan(1);
-    const firms = await loadLeanFirms(db);
+    const firms = await loadLeanFirms(db, []);
     const projected = pending.map((r) => projectRule(r, firms));
     expect(projected).toEqual(pending.map((r) => client.screens(r as unknown as Plain)));
     // Not vacuous: some rules are evaluable, some are not.
@@ -379,11 +398,12 @@ describe("homeSummary", () => {
   });
 
   it("finds the same abstained axes as needsYouAxisCountByFirm, edge cases included", async () => {
-    const sql = await needsYouAxes(db);
+    const sql = await needsYouAxes(db, []);
     const reference = needsYouAxisCountByFirm(withIds(await listAll(db, "ResearchFinding")));
     expect(Object.fromEntries(sql)).toEqual(Object.fromEntries(reference));
-    // The edge-case firm gets exactly the axes that should abstain: edge_abstained, edge_tie and
-    // edge_status_abstained (superseded, conflict-grouped, verified-first and latest-wins do not).
+    // The edge-case firm gets exactly the axes that should abstain: edge_abstained, edge_tie,
+    // edge_status_abstained and edge_signal_over_abstained (superseded, conflict-grouped,
+    // verified-first and latest-wins do not).
     const edgeFirm = (
       await listAll(db, "ResearchFinding", { where: { findingId: { $eq: "edge-1" } } })
     )[0].firmId!;
@@ -391,7 +411,7 @@ describe("homeSummary", () => {
       await listAll(db, "ResearchFinding", { where: { firmId: { $eq: edgeFirm } } })
     ).filter((x) => !x.findingId!.startsWith("edge-"));
     const seededAxes = needsYouAxisCountByFirm(withIds(others)).get(edgeFirm) ?? 0;
-    expect(sql.get(edgeFirm)).toBe(seededAxes + 3);
+    expect(sql.get(edgeFirm)).toBe(seededAxes + 4);
   });
 
   it("selects every Firm column the rules and the score can read, and only real ones", () => {
@@ -407,7 +427,7 @@ describe("homeSummary", () => {
 
 describe("accuracySummary", () => {
   it("matches the client-side tables built from the same rows", async () => {
-    const summary = (await runFunction(db, "accuracySummary")) as AccuracySummary;
+    const summary = (await runFn(db, "accuracySummary")) as AccuracySummary;
     const findings = withIds(await listAll(db, "ResearchFinding"));
     const firms = await listAll(db, "Firm");
     const expected = accuracyTables(cellsFromFindings(findings));
@@ -422,7 +442,7 @@ describe("accuracySummary", () => {
 
   it("classifies findings in SQL exactly as classify does", async () => {
     const byKey = (c: { provider: string; axis: string }) => `${c.provider}\u0000${c.axis}`;
-    const sql = [...(await findingCells(db))].sort((a, b) => byKey(a).localeCompare(byKey(b)));
+    const sql = [...(await findingCells(db, []))].sort((a, b) => byKey(a).localeCompare(byKey(b)));
     const js = cellsFromFindings(withIds(await listAll(db, "ResearchFinding"))).sort((a, b) =>
       byKey(a).localeCompare(byKey(b)),
     );
@@ -431,10 +451,17 @@ describe("accuracySummary", () => {
     const analyst = sql.find((c) => c.axis === "edge_analyst");
     expect(analyst).toMatchObject({ provider: "analyst", agree: 1, override: 0, total: 1 });
     expect(sql.find((c) => c.axis === "edge_other_verified")).toMatchObject({ agree: 0 });
+    // Market-signal findings exist in the world, and neither side counts them.
+    const stored = await listAll(db, "ResearchFinding", {
+      where: { provider: { $eq: "market_signal" } },
+    });
+    expect(stored.length).toBeGreaterThan(1);
+    expect(sql.some((c) => c.provider === "market_signal")).toBe(false);
+    expect(js.some((c) => c.provider === "market_signal")).toBe(false);
   });
 
   it("reports the agent's abstentions as 'No source' rather than a provider row", async () => {
-    const summary = (await runFunction(db, "accuracySummary")) as AccuracySummary;
+    const summary = (await runFn(db, "accuracySummary")) as AccuracySummary;
     const keys = summary.byProvider.map((r) => r.key);
     expect(keys).not.toContain("agent");
     expect(keys).not.toContain("analyst");
@@ -446,7 +473,7 @@ describe("accuracySummary", () => {
 describe("sourceDocument", () => {
   it("returns the firm's document and 404s on unknown ids", async () => {
     const [firm] = await listAll(db, "Firm", { where: { lifecycleState: { $eq: "Screening" } } });
-    const doc = (await runFunction(db, "sourceDocument", {
+    const doc = (await runFn(db, "sourceDocument", {
       firmId: firm.$primaryKey,
       provider: "dealdb",
     })) as SourceDocument;
@@ -454,25 +481,25 @@ describe("sourceDocument", () => {
     expect(doc.documentId).toBe(`dealdb:${firm.$primaryKey}`);
     expect(doc.body).toContain(firm.firmName);
 
-    const unknownFirm = runFunction(db, "sourceDocument", {
+    const unknownFirm = runFn(db, "sourceDocument", {
       firmId: "no-such-firm",
       provider: "dealdb",
     });
     await expect(unknownFirm).rejects.toMatchObject({ status: 404 });
-    const unknownProvider = runFunction(db, "sourceDocument", {
+    const unknownProvider = runFn(db, "sourceDocument", {
       firmId: firm.$primaryKey,
       provider: "nope",
     });
     await expect(unknownProvider).rejects.toMatchObject({ status: 404 });
-    await expect(runFunction(db, "sourceDocument", {})).rejects.toMatchObject({ status: 404 });
+    await expect(runFn(db, "sourceDocument", {})).rejects.toMatchObject({ status: 404 });
   });
 });
 
 describe("runFunction", () => {
   it("404s an unknown function, including inherited names", async () => {
-    await expect(runFunction(db, "nope")).rejects.toMatchObject({ status: 404 });
-    await expect(runFunction(db, "constructor")).rejects.toMatchObject({ status: 404 });
-    await expect(runFunction(db, "toString")).rejects.toMatchObject({ status: 404 });
+    await expect(runFn(db, "nope")).rejects.toMatchObject({ status: 404 });
+    await expect(runFn(db, "constructor")).rejects.toMatchObject({ status: 404 });
+    await expect(runFn(db, "toString")).rejects.toMatchObject({ status: 404 });
   });
 });
 
@@ -523,7 +550,7 @@ describe("homeSummary on a small world where rule rows are on screen", () => {
         ruleStatus: "approved",
       },
     ]);
-    const [summary, client] = await Promise.all([homeSummary(d), clientHome(d)]);
+    const [summary, client] = await Promise.all([homeSummary(d, NO_WALL), clientHome(d)]);
 
     expect(summary.needsYou.filter((i) => i.kind === "rule")).toHaveLength(3);
     expect(summary.needsYouTotal).toBe(5);
@@ -593,7 +620,7 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
     expect(orderEnrichmentQueue(scoreOnly, configs).some((r) => r.hardScreened)).toBe(false);
 
     // And the summary agrees with it.
-    const summary = await homeSummary(d);
+    const summary = await homeSummary(d, NO_WALL);
     expect(summary.needsYou.map((i) => i.key)).toEqual(["firm:sound"]);
     expect((await clientHome(d)).items.map((i) => i.key)).toEqual(["firm:sound"]);
   });

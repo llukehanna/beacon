@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { firmModel } from "../../shared/scoring.js";
 import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { NO_WALL } from "../access.js";
 import type { Db } from "../db/client.js";
 import { listAll } from "../db/repo.js";
 import { sameValue } from "../enrichment/reconcile.js";
@@ -11,11 +12,14 @@ import { createTestDb } from "../testing.js";
 import { type FirmObservations, observeFirm } from "./firmObservations.js";
 import { runFunction } from "./index.js";
 
+const runFn = (db: Db, name: string, params: Record<string, unknown> = {}) =>
+  runFunction(db, name, params, NO_WALL);
+
 let db: Db;
 let firmId: string;
 
 const observationsFor = (id: string) =>
-  runFunction(db, "firmObservations", { firmId: id }) as Promise<FirmObservations>;
+  runFn(db, "firmObservations", { firmId: id }) as Promise<FirmObservations>;
 
 beforeAll(async () => {
   db = await createTestDb();
@@ -38,8 +42,8 @@ beforeAll(async () => {
 
 describe("firmObservations", () => {
   it("rejects a missing firmId with 400 and an unknown firm with 404", async () => {
-    await expect(runFunction(db, "firmObservations", {})).rejects.toMatchObject({ status: 400 });
-    await expect(runFunction(db, "firmObservations", { firmId: "" })).rejects.toMatchObject({
+    await expect(runFn(db, "firmObservations", {})).rejects.toMatchObject({ status: 400 });
+    await expect(runFn(db, "firmObservations", { firmId: "" })).rejects.toMatchObject({
       status: 400,
     });
     await expect(observationsFor("no-such-firm")).rejects.toMatchObject({ status: 404 });

@@ -120,6 +120,53 @@ export async function computeDriftForFirm(
   return driftEventId;
 }
 
+/**
+ * A passed firm the market has since seen acquired by a competitor: "we passed, the market did
+ * not". Opens one outcome_diverged drift event per firm (none if it already has one) so the firm
+ * resurfaces in Review. Returns the new DriftEvent id.
+ */
+export async function openOutcomeDivergence(
+  ctx: ActionContext,
+  firm: FirmObj,
+  /** What reported the outcome, when it is not a person: named on the event, as drift names its source. */
+  cause: { source?: string } = {},
+): Promise<string | null> {
+  const existing = await ctx.tx.query(
+    `SELECT 1 FROM drift_event WHERE "firmId" = $1 AND "driftReason" = 'outcome_diverged' LIMIT 1`,
+    [firm.$primaryKey],
+  );
+  if (existing.length > 0) {
+    return null;
+  }
+  const snap = await terminalSnapshot(ctx, firm);
+  const live = scoreFirm(firm);
+  const driftEventId = ctx.newId("drift");
+  await insertObject(ctx.tx, "DriftEvent", {
+    driftEventId,
+    firmId: firm.$primaryKey,
+    priorTier: snap?.tier ?? live.tier,
+    priorScore: snap?.score ?? live.weightedTotal,
+    newTier: snap?.tier ?? live.tier,
+    newScore: snap?.score ?? live.weightedTotal,
+    changedAxes:
+      cause.source === undefined
+        ? "[]"
+        : JSON.stringify([
+            {
+              axis: "Market outcome",
+              old: null,
+              new: "Acquired by a competitor",
+              source: cause.source,
+              dated: iso(ctx.now),
+            },
+          ]),
+    driftReason: "outcome_diverged",
+    driftStatus: "open",
+    detectedAt: iso(ctx.now),
+  });
+  return driftEventId;
+}
+
 export const setFirmOutcome = defineAction<{
   firm: FirmObj;
   outcome: string;
@@ -134,29 +181,16 @@ export const setFirmOutcome = defineAction<{
     if (!(OUTCOMES as readonly string[]).includes(outcome)) {
       throw new ActionError(`Unknown outcome "${outcome}"; expected one of ${OUTCOMES.join(", ")}`);
     }
-    await updateObject(ctx.tx, "Firm", firm.$primaryKey, { outcome, outcomeObservedAt });
+    // An outcome an analyst records is not a market signal's, even over one a signal recorded.
+    await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
+      outcome,
+      outcomeObservedAt,
+      outcomeSource: null,
+    });
     const created: string[] = [];
     if (normalizeLifecycle(firm.lifecycleState) === PASSED && outcome === ACQUIRED_BY_COMPETITOR) {
-      const existing = await ctx.tx.query(
-        `SELECT 1 FROM drift_event WHERE "firmId" = $1 AND "driftReason" = 'outcome_diverged' LIMIT 1`,
-        [firm.$primaryKey],
-      );
-      if (existing.length === 0) {
-        const snap = await terminalSnapshot(ctx, firm);
-        const live = scoreFirm(firm);
-        const driftEventId = ctx.newId("drift");
-        await insertObject(ctx.tx, "DriftEvent", {
-          driftEventId,
-          firmId: firm.$primaryKey,
-          priorTier: snap?.tier ?? live.tier,
-          priorScore: snap?.score ?? live.weightedTotal,
-          newTier: snap?.tier ?? live.tier,
-          newScore: snap?.score ?? live.weightedTotal,
-          changedAxes: "[]",
-          driftReason: "outcome_diverged",
-          driftStatus: "open",
-          detectedAt: iso(ctx.now),
-        });
+      const driftEventId = await openOutcomeDivergence(ctx, firm);
+      if (driftEventId) {
         created.push(driftEventId);
       }
     }

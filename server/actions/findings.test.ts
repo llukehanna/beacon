@@ -58,6 +58,24 @@ describe("runAgentEnrichment", () => {
     expect(new Set(live.map((f) => f.axis)).size).toBe(9);
     expect(findings.some((f) => f.findingStatus === "superseded")).toBe(true);
   });
+
+  it("still researches an axis that only a market signal has spoken for", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db);
+    await addFinding(db, {
+      findingId: "sig1",
+      firmId: firm.$primaryKey,
+      provider: "market_signal",
+      findingStatus: "signal",
+      confidenceTier: undefined,
+    });
+    await run(db, "runAgentEnrichment", { firm: firm.$primaryKey });
+    const onAxis = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.axis === "deal_size_usd_m",
+    );
+    expect(onAxis.some((f) => f.findingId === "sig1")).toBe(true);
+    expect(onAxis.some((f) => f.provider !== "market_signal")).toBe(true);
+  });
 });
 
 async function storeExtractions(

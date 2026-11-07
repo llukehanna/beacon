@@ -1,3 +1,4 @@
+import { type Access, isHidden } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { getObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
@@ -8,11 +9,16 @@ export const MAX_STRING = 2000;
 export const MAX_LIST = 50;
 export const MAX_LIST_ITEM = 200;
 
-/** Validate raw JSON params against a spec; object params (primary keys) are loaded. */
+/**
+ * Validate raw JSON params against a spec; object params (primary keys) are loaded. An object the
+ * persona may not see (a restricted firm, or a finding or decision of one) is "not found", exactly
+ * as if the id did not exist.
+ */
 export async function resolveParams(
   tx: Queryable,
   spec: Readonly<Record<string, ParamDef>>,
   raw: unknown,
+  access: Access,
 ): Promise<Record<string, unknown>> {
   const input = raw ?? {};
   if (typeof input !== "object" || Array.isArray(input)) {
@@ -41,7 +47,7 @@ export async function resolveParams(
       }
       // Locked for the action's transaction: concurrent actions on one object serialize.
       const obj = await getObject(tx, t.object, v, { forUpdate: true });
-      if (!obj) {
+      if (!obj || isHidden(access, t.object, obj)) {
         throw new ActionError(`${t.object} ${v} not found`, 404);
       }
       out[name] = obj;

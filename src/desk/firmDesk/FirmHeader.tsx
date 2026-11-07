@@ -1,9 +1,11 @@
 import React from "react";
+import { Link } from "react-router-dom";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore } from "@/data/ontology";
 import { Chip, MonogramTile } from "@/ui";
+import { SYNTHETIC_LABEL } from "../../../shared/marketSignals";
 import { MAX_POSSIBLE } from "../../../shared/scoreMirror";
-import { normalizeLifecycle } from "../../../shared/vocab";
+import { MARKET_SIGNAL, normalizeLifecycle } from "../../../shared/vocab";
 import { type ActiveConfigRule, computeHardScreen } from "../queue";
 import { formatScore } from "../scoreFormat";
 import { type MirrorResult } from "../scoreMirror";
@@ -22,9 +24,12 @@ import { tierText } from "./tierMeter";
 function OutcomeChip({
   outcome,
   observedAt,
+  source,
 }: {
   outcome: string | null | undefined;
   observedAt: unknown;
+  /** Who reported it: a synthetic market signal is named on the chip. */
+  source?: string | null;
 }): React.ReactElement | null {
   const raw = (outcome ?? "").trim();
   if (raw === "") {
@@ -33,7 +38,10 @@ function OutcomeChip({
   const style = outcomeChipStyle(raw);
   const label = outcomeLabel(raw);
   const dateStr = formatObservedDate(observedAt);
-  const tooltip = dateStr === null ? `Outcome: ${label}` : `Outcome: ${label} · ${dateStr}`;
+  const synthetic = source === MARKET_SIGNAL;
+  const tooltip = [`Outcome: ${label}`, dateStr, synthetic ? SYNTHETIC_LABEL : null]
+    .filter(Boolean)
+    .join(" · ");
   return (
     <Chip
       title={tooltip}
@@ -41,6 +49,7 @@ function OutcomeChip({
     >
       Outcome: {label}
       {dateStr !== null && <span className={styles.dim}>· {dateStr}</span>}
+      {synthetic && <span className={styles.dim}>· {SYNTHETIC_LABEL}</span>}
     </Chip>
   );
 }
@@ -164,7 +173,16 @@ export function FirmHeader({
           <OutcomeChip
             outcome={(firm as unknown as { outcome?: string | null }).outcome}
             observedAt={(firm as unknown as { outcomeObservedAt?: unknown }).outcomeObservedAt}
+            source={(firm as unknown as { outcomeSource?: string | null }).outcomeSource}
           />
+          {firm.firmId && (
+            <Link
+              to={`/firm/${encodeURIComponent(firm.firmId)}/tear-sheet`}
+              className={styles.sheetLink}
+            >
+              Tear sheet
+            </Link>
+          )}
         </div>
       </div>
 

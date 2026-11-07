@@ -1,4 +1,7 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+import { StatusPill } from "./StatusPill";
 import { confidenceBarCount } from "./confidence";
 import { visibleTrend } from "./metricTrend";
 import { monogram } from "./monogram";
@@ -61,5 +64,14 @@ describe("visibleTrend", () => {
     expect(visibleTrend(null)).toEqual({ points: null, delta: null });
     expect(visibleTrend(undefined)).toEqual({ points: null, delta: null });
     expect(visibleTrend({ points: [50], delta: null })).toEqual({ points: null, delta: null });
+  });
+});
+
+describe("StatusPill", () => {
+  it("says a market signal's finding is synthetic, never verified", () => {
+    const html = renderToStaticMarkup(createElement(StatusPill, { status: "signal" }));
+    expect(html).toContain("Synthetic market signal");
+    expect(html).not.toContain("Verified");
+    expect(html).toContain('data-status="signal"');
   });
 });

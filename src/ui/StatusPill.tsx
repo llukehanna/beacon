@@ -1,6 +1,7 @@
 import styles from "./StatusPill.module.css";
 
-export type FindingStatus = "conflict" | "proposed" | "verified" | "abstained" | "rejected";
+export type FindingStatus =
+  "conflict" | "proposed" | "verified" | "abstained" | "rejected" | "signal";
 
 const LABEL: Record<FindingStatus, string> = {
   conflict: "Conflict",
@@ -8,6 +9,7 @@ const LABEL: Record<FindingStatus, string> = {
   verified: "Verified",
   abstained: "Abstained",
   rejected: "Rejected",
+  signal: "Synthetic market signal",
 };
 
 /** Status of a finding: a dot and a label, coloured by meaning. */

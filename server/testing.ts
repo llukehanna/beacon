@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ActionName, ObjectOf, Props } from "../shared/schema.js";
+import { NO_WALL } from "./access.js";
 import { type ApplyOptions, applyAction } from "./actions/apply.js";
 import type { ActionResult } from "./actions/types.js";
 import { WRITABLE_TABLES, typesForTable } from "./actions/writes.js";
@@ -73,10 +74,10 @@ export async function run(
   db: Db,
   name: ActionName,
   params: Record<string, unknown>,
-  opts: ApplyOptions = {},
+  opts: Partial<ApplyOptions> = {},
 ): Promise<ActionResult> {
   const before = await tableFingerprints(db);
-  const result = await applyAction(db, name, params, { now: T0, ...opts });
+  const result = await applyAction(db, name, params, { now: T0, access: NO_WALL, ...opts });
   const after = await tableFingerprints(db);
   const reported = result.types ?? [];
   if (reported.length > 0) {

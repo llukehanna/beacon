@@ -11,12 +11,14 @@ import AppShell from "@/shell/AppShell";
 // surface is split into its own chunk and fetched on first navigation.
 const About = lazy(() => import("@/about/AboutPage"));
 const Accuracy = lazy(() => import("@/accuracy/AccuracyPage"));
+const Compliance = lazy(() => import("@/compliance/CompliancePage"));
 const Desk = lazy(() => import("@/desk/firmDesk/DeskPage"));
 const MandatePage = lazy(() => import("@/mandates/MandatePage"));
 const Pipeline = lazy(() => import("@/pipeline/PipelinePage"));
 const Review = lazy(() => import("@/review/ReviewPage"));
 const Rules = lazy(() => import("@/rules/RulesPage"));
 const SearchPage = lazy(() => import("@/mandates/SearchPage"));
+const TearSheet = lazy(() => import("@/tearsheet/TearSheetPage"));
 const Trust = lazy(() => import("@/about/TrustPage"));
 
 export const router = createBrowserRouter(
@@ -118,6 +120,19 @@ export const router = createBrowserRouter(
           ),
         },
         {
+          // One printable page per firm. The print stylesheet drops the shell, so "Print / Save
+          // as PDF" produces the sheet alone.
+          errorElement: <RouteError />,
+          path: "/firm/:firmId/tear-sheet",
+          element: (
+            <Titled title="Beacon — Tear sheet">
+              <Suspense fallback={<Loading />}>
+                <TearSheet />
+              </Suspense>
+            </Titled>
+          ),
+        },
+        {
           // What Beacon is, and what it does with data and models. Linked from the sidebar footer
           // and the home intro, not part of the go-to keys.
           errorElement: <RouteError />,
@@ -137,6 +152,19 @@ export const router = createBrowserRouter(
             <Titled title="Beacon — Trust and security">
               <Suspense fallback={<Loading />}>
                 <Trust />
+              </Suspense>
+            </Titled>
+          ),
+        },
+        {
+          // Restricted firms and the access log: compliance persona only (the server enforces it;
+          // any other persona sees an empty state). Linked from the sidebar for that persona alone.
+          errorElement: <RouteError />,
+          path: "/compliance",
+          element: (
+            <Titled title="Beacon — Information barriers">
+              <Suspense fallback={<Loading />}>
+                <Compliance />
               </Suspense>
             </Titled>
           ),

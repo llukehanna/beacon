@@ -29,6 +29,7 @@ import {
   postAction,
 } from "./api";
 import type { ActionToken, ObjectTypeToken } from "./ontology";
+import { usePersona } from "./persona";
 import { type WireObject, linkQueryReads, normalizeError, toLinkMap } from "./wire";
 
 export interface ObjectsOptions extends ObjectQuery {
@@ -37,6 +38,8 @@ export interface ObjectsOptions extends ObjectQuery {
   /** Keep requesting pages until the last; `data` stays undefined until then. */
   autoFetchMore?: boolean;
   enabled?: boolean;
+  /** How long a fetched list counts as fresh, in ms (the client default otherwise). 0 refetches on every mount. */
+  staleTime?: number;
 }
 
 export function useOsdkObjects<N extends ObjectTypeName>(
@@ -44,13 +47,16 @@ export function useOsdkObjects<N extends ObjectTypeName>(
   opts: ObjectsOptions = {},
 ) {
   const { where, orderBy, pageSize, autoFetchMore = false } = opts;
+  const persona = usePersona();
   const q = useInfiniteQuery({
-    queryKey: ["objects", type.apiName, where ?? null, orderBy ?? null, pageSize ?? null],
+    // The persona is last, so the prefixes the invalidations use (["objects", type]) still match.
+    queryKey: ["objects", type.apiName, where ?? null, orderBy ?? null, pageSize ?? null, persona],
     queryFn: ({ pageParam }) =>
       fetchObjectsPage(type.apiName, { where, orderBy, pageSize, pageToken: pageParam }),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextPageToken ?? undefined,
     enabled: opts.enabled ?? true,
+    ...(opts.staleTime === undefined ? {} : { staleTime: opts.staleTime }),
   });
   const { hasNextPage, isFetchingNextPage, isFetching, isFetchNextPageError, fetchNextPage } = q;
   const more = hasNextPage === true;
@@ -85,15 +91,16 @@ export function useOsdkObjects<N extends ObjectTypeName>(
 
 /**
  * A server query function (server/functions/), like OSDK's `useOsdkFunction`.
- * Results are cached per name and params and refetched after any action.
+ * Results are cached per name, params and persona, and refetched after any action.
  */
 export function useOsdkQuery<T>(
   name: string,
   params: Record<string, unknown> = {},
   opts: { enabled?: boolean } = {},
 ) {
+  const persona = usePersona();
   const q = useQuery({
-    queryKey: ["functions", name, params],
+    queryKey: ["functions", name, params, persona],
     queryFn: () => fetchFunction<T>(name, params),
     enabled: opts.enabled ?? true,
   });
@@ -142,8 +149,9 @@ export function useLinks(
     source == null ? [] : Array.isArray(source) ? source : [source as WireObject];
   const type = sources[0]?.$apiName;
   const pks = sources.map((s) => s.$primaryKey);
+  const persona = usePersona();
   const q = useQuery({
-    queryKey: ["links", type ?? null, linkName, pks],
+    queryKey: ["links", type ?? null, linkName, pks, persona],
     queryFn: () => fetchLinks(type as string, linkName, pks),
     enabled: type !== undefined && pks.length > 0,
   });

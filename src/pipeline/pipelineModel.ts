@@ -42,6 +42,7 @@ export interface FirmView {
   // converted_to_talks / loi / went_cold / acquired_by_competitor / null.
   outcome?: string | null;
   outcomeObservedAt?: string | number | Date | null;
+  outcomeSource?: string | null;
   // Fields needed by mirrorScore:
   servicesFit?: string | null;
   mdPedigree?: string | null;
