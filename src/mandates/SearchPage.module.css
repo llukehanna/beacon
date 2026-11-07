@@ -41,13 +41,6 @@
   color: var(--tx3);
 }
 
-.explain {
-  margin: 8px 0 0;
-  color: var(--tx2);
-  font-size: 12px;
-  line-height: 1.5;
-}
-
 .read {
   margin-top: 12px;
   padding-top: 12px;

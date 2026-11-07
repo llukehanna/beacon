@@ -212,7 +212,7 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
       <PageHeader
         back={<Link to="/mandate">← Mandates</Link>}
         title="Interpret & run search"
-        sub="What the mandate’s intent means, operationally: pick the regions and service / sector categories that qualify a firm."
+        sub="Pick the regions and the service and sector categories that qualify a firm; a broad category selects its sub-options."
         actions={
           <>
             {mandate?.archetype && <Chip>{mandate.archetype}</Chip>}
@@ -227,11 +227,6 @@ function SearchPage({ mandateId }: { mandateId: string | undefined }): React.Rea
           <h2 className={styles.headline} data-loading={mandateQuery.isLoading || undefined}>
             {mandateQuery.isLoading ? "Loading mandate…" : headline}
           </h2>
-          <p className={styles.explain}>
-            The tiles below are how you translate that sentence into an operational filter: pick the
-            geographies, service lines, and sector groups that qualify a firm. Broad categories
-            cascade to their sub-options; deselect any you don&rsquo;t want.
-          </p>
           {read !== null && (read.none || read.matches.length > 0 || read.unmatched.length > 0) && (
             <div className={styles.read} role="group" aria-label="Read from the mandate">
               <div className={styles.readLabel}>Read from the mandate</div>

@@ -8,6 +8,7 @@ import { summarizePredicate } from "@/desk/rulePredicate";
 import { repairTruncatedText } from "@/desk/ruleText";
 import { type Command, useCommands } from "@/shell/commands";
 import { Button, Notice, Panel, StatusPill, Textarea } from "@/ui";
+import { type FirmView } from "../../shared/deskModel";
 import styles from "./ProposedRulePanel.module.css";
 import { RuleEvidence } from "./RuleEvidence";
 import { PredicateCode, RuleMeta } from "./RuleParts";
@@ -32,7 +33,7 @@ export function ProposedRulePanel({
   /** True on the one panel per page that wraps "Model: both" in a glossary tooltip. */
   explainModel: boolean;
   versions: RuleVersions;
-  firms: readonly ScreenableFirm[];
+  firms: readonly (ScreenableFirm & FirmView)[];
 }): React.ReactElement {
   const approve = useOsdkAction(approveRuleAction);
   const dismiss = useOsdkAction(dismissRuleAction);
@@ -117,7 +118,11 @@ export function ProposedRulePanel({
       {screen.projected !== null && (
         <Notice tone="accent">
           If approved, this rule would screen <b className={styles.figure}>{screen.projected}</b>{" "}
-          firm{screen.projected === 1 ? "" : "s"} from your current queue.
+          firm{screen.projected === 1 ? "" : "s"}
+          {screen.projectedOpen !== null && screen.projectedOpen !== screen.projected
+            ? ` (${screen.projectedOpen} still open)`
+            : ""}{" "}
+          from your current queue.
         </Notice>
       )}
       {screen.unavailable && (

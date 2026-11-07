@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { EVAL_REPORT } from "@/accuracy/evalReportData";
 import { Metric, Panel, Skeleton } from "@/ui";
 import { visibleTrend } from "@/ui/metricTrend";
 import type { HomeSummary } from "../../shared/summaries";
@@ -6,7 +7,7 @@ import type { Trend } from "../../shared/trends";
 import { INSUFFICIENT_THRESHOLD } from "../../shared/trustMetrics";
 import styles from "./MetricRow.module.css";
 import { coverageParts } from "./coverage";
-import { sharePercent } from "./share";
+import { groundingCard } from "./groundingCard";
 
 const count = (n: number) => n.toLocaleString("en-US");
 
@@ -16,7 +17,7 @@ const asTrend = (t: Trend | null) =>
 
 /** The window label, only while the card actually draws the trend it describes. */
 const daysOf = (t: Trend | null) =>
-  visibleTrend(asTrend(t)).points === null ? undefined : `${t!.points.length} days`;
+  visibleTrend(asTrend(t)).points === null ? undefined : `last ${t!.points.length} days`;
 
 // The link is named by what the card says (label, value, meaning), not by a fixed label that
 // would leave the number out.
@@ -42,27 +43,21 @@ export function MetricRow({ data }: { data: HomeSummary | undefined }) {
     );
   }
 
-  const { grounded, trust, trends, funnel, mandates } = data;
+  const { trust, trends, funnel, mandates } = data;
+  const grounding = groundingCard(EVAL_REPORT.recordedRun);
   const coverage = coverageParts(funnel);
   const agreementReady = trust.decidedFindings >= INSUFFICIENT_THRESHOLD;
 
   return (
     <div className={styles.row}>
-      <Card to="/accuracy">
+      <Card to="/accuracy?tab=evals">
         <Metric
           highlighted
-          label="Grounded in a source"
-          aside={daysOf(trends.grounded)}
-          value={
-            grounded.agentValues === 0 ? "—" : sharePercent(grounded.cited, grounded.agentValues)
-          }
-          unit={grounded.agentValues === 0 ? undefined : "%"}
-          meaning={
-            grounded.agentValues === 0
-              ? "No agent values yet"
-              : `${count(grounded.cited)} of ${count(grounded.agentValues)} agent values cite a verbatim quote`
-          }
-          trend={asTrend(trends.grounded)}
+          label="Passed grounding"
+          aside="recorded run"
+          value={grounding === null ? "—" : grounding.value}
+          unit={grounding === null ? undefined : "%"}
+          meaning={grounding === null ? "No extraction run recorded" : grounding.meaning}
           tone="accent"
         />
       </Card>
