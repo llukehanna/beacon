@@ -5,14 +5,21 @@ import {
   isHidden,
   logAccess,
   present,
+  presentRule,
   resolveAccess,
+  ruleWallFor,
   walledMandates,
 } from "../server/access.js";
 import { getDb } from "../server/db/client.js";
 import { type ListOptions, getObject, listObjects } from "../server/db/repo.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError, jsonParam } from "../server/http.js";
-import { OBJECT_TYPES, type ObjectTypeName, isObjectTypeName } from "../shared/schema.js";
+import {
+  OBJECT_TYPES,
+  type ObjectOf,
+  type ObjectTypeName,
+  isObjectTypeName,
+} from "../shared/schema.js";
 
 /**
  * Properties that carry a walled mandate's real name: a Mandate's title and intent, and the name of
@@ -62,7 +69,7 @@ export async function GET(request: Request): Promise<Response> {
         throw new HttpError(`${type} ${id} not found`, 404);
       }
       await logOpen(db, access, type, id);
-      return json({ data: present(access, obj) });
+      return json({ data: (await presentAll(db, access, type, [obj]))[0] });
     }
 
     const size = url.searchParams.get("pageSize");
@@ -82,10 +89,30 @@ export async function GET(request: Request): Promise<Response> {
     if (pinned !== null && page.data.length > 0) {
       await logOpen(db, access, type, pinned);
     }
-    return json({ ...page, data: page.data.map((o) => present(access, o)) });
+    return json({ ...page, data: await presentAll(db, access, type, page.data) });
   } catch (e) {
     return jsonError(e);
   }
+}
+
+/**
+ * The persona's view of objects read from the database. A rule that rests on a decision about a
+ * hidden firm loses that decision, and its rationale, exactly as the MCP's list_rules does.
+ */
+async function presentAll<N extends ObjectTypeName>(
+  db: Awaited<ReturnType<typeof getDb>>,
+  access: Access,
+  type: N,
+  objects: ObjectOf<N>[],
+): Promise<ObjectOf<N>[]> {
+  const shown = objects.map((o) => present(access, o));
+  if (type !== "ProposedRule" || shown.length === 0) {
+    return shown;
+  }
+  const wall = await ruleWallFor(db, access);
+  return (shown as ObjectOf<"ProposedRule">[]).map(
+    (r) => presentRule(wall, r).rule,
+  ) as unknown as ObjectOf<N>[];
 }
 
 async function logOpen(

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb, withRequestDb } from "../server/db/client.js";
 import { createTestDb } from "../server/testing.js";
+import * as entry from "./index.js";
 import worker, { connectionStringFor } from "./index.js";
 
 const assets = { fetch: vi.fn(async () => new Response("<!doctype html>", { status: 200 })) };
@@ -139,5 +140,21 @@ describe("functions route", () => {
     expect(res.status).toBe(503);
     expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
     expect((await get("/api/functions?name=homeSummary", { method: "POST" })).status).toBe(405);
+  });
+});
+
+describe("worker entry module", () => {
+  // workerd treats every named export of the entry module as an entrypoint and refuses to boot when
+  // one is a string or number, so constants live elsewhere (worker/crons.ts).
+  it("exports only functions or handler objects, and a default with fetch and scheduled", () => {
+    for (const [name, value] of Object.entries(entry)) {
+      if (name === "default") {
+        continue;
+      }
+      const ok = typeof value === "function" || (typeof value === "object" && value !== null);
+      expect(ok, `named export ${name} is a ${typeof value}`).toBe(true);
+    }
+    expect(typeof entry.default.fetch).toBe("function");
+    expect(typeof entry.default.scheduled).toBe("function");
   });
 });

@@ -1,13 +1,13 @@
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { setPersona, usePersona } from "@/data/persona";
+import { getPersona, setPersona, usePersona } from "@/data/persona";
 import { PERSONAS, PERSONA_LABELS, isPersona } from "../../shared/accessPolicy";
 import styles from "./PersonaSwitcher.module.css";
 
 /**
  * Who the demo is viewed as: analyst, deal-team lead or compliance. The choice is sent with every
  * request and decides what the server returns (restricted firms, mandate names). It is demo-only:
- * anyone can switch, and nothing here is a login. Switching refetches everything on screen.
+ * anyone can switch, and nothing here is a login. Switching fetches everything on screen again as the new persona.
  */
 export default function PersonaSwitcher(): React.ReactElement {
   const persona = usePersona();
@@ -17,9 +17,13 @@ export default function PersonaSwitcher(): React.ReactElement {
 
   const onChange = (e: React.ChangeEvent<HTMLSelectElement>): void => {
     if (isPersona(e.target.value)) {
+      const previous = getPersona();
       setPersona(e.target.value);
-      // Drop what the last persona was shown and fetch again as the new one.
-      void qc.resetQueries();
+      // Every query key ends with the persona, so the re-render fetches the new persona's keys on
+      // its own. Drop what the last persona was shown, without refetching it under the new header.
+      qc.removeQueries({
+        predicate: (query) => query.queryKey[query.queryKey.length - 1] === previous,
+      });
     }
   };
 

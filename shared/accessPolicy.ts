@@ -306,3 +306,60 @@ export function redactObject<T extends WireLike>(
   }
   return object;
 }
+
+// ─── Rules ───────────────────────────────────────────────────────────────
+
+/** `supportingDecisionIds` is stored as a JSON array or a comma-separated list. */
+export function parseDecisionIds(raw: string | null | undefined): string[] {
+  if (raw === undefined || raw === null || raw === "") {
+    return [];
+  }
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.filter((x): x is string => typeof x === "string");
+    }
+  } catch {
+    // Not JSON: fall through to the comma-separated form.
+  }
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s !== "");
+}
+
+export interface RuleLike {
+  supportingDecisionIds?: string | null;
+  rationaleClusterSummary?: string | null;
+  supportingFirmCount?: number | null;
+  mandateScope?: string | null;
+}
+
+/**
+ * A screening rule as the persona may see it. A rule rests on pass decisions. When one of them is
+ * about a firm the persona cannot see (`hiddenDecisions` maps such a decision to its firm), the
+ * rule's firm count drops by those firms, those decision ids are removed, and the rationale (which
+ * summarises the analysts' notes on those decisions) is withheld rather than guessed at. A walled
+ * mandate named in the scope or the rationale appears by its codename (`mask`). The one rule for
+ * every path that returns a rule: the objects route and the MCP's `list_rules`.
+ */
+export function redactRule<T extends RuleLike>(
+  rule: T,
+  hiddenDecisions: ReadonlyMap<string, string>,
+  mask: (text: string) => string = (s) => s,
+): { rule: T; hiddenFirmCount: number } {
+  const ids = parseDecisionIds(rule.supportingDecisionIds);
+  const hiddenFirms = new Set(ids.flatMap((id) => hiddenDecisions.get(id) ?? []));
+  const out: T = { ...rule };
+  if (typeof out.mandateScope === "string") {
+    out.mandateScope = mask(out.mandateScope);
+  }
+  if (hiddenFirms.size > 0) {
+    delete out.rationaleClusterSummary;
+    out.supportingDecisionIds = JSON.stringify(ids.filter((id) => !hiddenDecisions.has(id)));
+    out.supportingFirmCount = Math.max(0, (rule.supportingFirmCount ?? 0) - hiddenFirms.size);
+  } else if (typeof out.rationaleClusterSummary === "string") {
+    out.rationaleClusterSummary = mask(out.rationaleClusterSummary);
+  }
+  return { rule: out, hiddenFirmCount: hiddenFirms.size };
+}

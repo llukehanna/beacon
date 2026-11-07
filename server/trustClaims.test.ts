@@ -18,6 +18,7 @@ import {
   MANDATE_CEILING,
   MAX_BODY_BYTES,
   MCP_PER_MINUTE,
+  MCP_RESULT_CAP,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OBJECT_TYPE_COUNT,
@@ -35,9 +36,12 @@ import { MIN_CLUSTER } from "./actions/rules";
 import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
+import { MAX_RESULTS } from "./mcp/tools";
 import { MAX_ACTION_RUNS } from "./operations/record";
 import { RESTRICTED_FIRM_COUNT as SEEDED_RESTRICTED } from "./seed/barriers";
+import { LOOKAHEAD_MS, LOOKBACK_MS, SIGNAL_TARGET } from "./seed/signals";
 import { UNIVERSE_SIZE } from "./seed/universe";
+import { MAX_SIGNALS_PER_RUN } from "./signals/run";
 
 const ROOT = resolve(__dirname, "..");
 const read = (rel: string): string => readFileSync(resolve(ROOT, rel), "utf8");
@@ -212,6 +216,32 @@ describe("About page wording", () => {
     // Findings, drift events and rules change status fields; only scores and decisions are insert-only.
     expect(about).not.toMatch(/append-only|only add rows/i);
     expect(about).toContain("scores and decisions");
+  });
+});
+
+describe("the MCP result cap", () => {
+  it("is the one the Trust page, the security notes and the MCP guide state", () => {
+    expect(MCP_RESULT_CAP).toBe(MAX_RESULTS);
+    expect(read("docs/security.md")).toContain(`A list returns at most ${MAX_RESULTS} rows`);
+    const guide = read("docs/mcp.md");
+    expect(guide).toContain(`**Results are capped at ${MAX_RESULTS}.**`);
+    expect(guide).toContain(`A larger \`limit\` is clamped to ${MAX_RESULTS}`);
+    expect(guide).toContain(`capped at ${MAX_RESULTS} `);
+    expect(guide).toContain(`lists stop at ${MAX_RESULTS} rows`);
+    // The Trust page prints the figure from facts.ts, so it must not carry its own literal.
+    expect(read("src/about/TrustPage.tsx")).toContain("{MCP_RESULT_CAP} rows from any list");
+  });
+});
+
+describe("the market signal figures in docs/architecture.md", () => {
+  it("match the seed and the hourly run", () => {
+    const doc = read("docs/architecture.md");
+    const DAY = 24 * 60 * 60_000;
+    const HOUR = 60 * 60_000;
+    expect(doc).toContain(`about ${SIGNAL_TARGET} of them`);
+    expect(doc).toContain(`from ${LOOKBACK_MS / DAY} days before the seed`);
+    expect(doc).toContain(`to ${LOOKAHEAD_MS / HOUR} hours after it`);
+    expect(doc).toContain(`at most ${MAX_SIGNALS_PER_RUN} per run`);
   });
 });
 

@@ -15,6 +15,7 @@ import {
   MANDATE_CEILING,
   MAX_BODY_BYTES,
   MCP_PER_MINUTE,
+  MCP_RESULT_CAP,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OTHER_HEADERS,
@@ -113,9 +114,9 @@ export default function TrustPage(): React.ReactElement {
           </li>
           <li>
             An AI assistant can read the demo through a read-only MCP endpoint. It gets the same
-            view as the persona it names in the header, can change nothing, and receives at most 25
-            rows from any list. What the assistant&rsquo;s provider does with that data is governed
-            by that provider&rsquo;s terms.
+            view as the persona it names in the header, can change nothing, and receives at most{" "}
+            {MCP_RESULT_CAP} rows from any list. What the assistant&rsquo;s provider does with that
+            data is governed by that provider&rsquo;s terms.
           </li>
           <li>
             In Foundry a restricted firm is a Marking on the object, and need-to-know is a

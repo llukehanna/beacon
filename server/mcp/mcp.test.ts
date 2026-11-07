@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as mcp } from "../../api/mcp.js";
 import { type Db, overrideDb } from "../db/client.js";
 import { listAll } from "../db/repo.js";
+import { MAX_BODY_BYTES } from "../http.js";
 import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
 import {
@@ -17,7 +18,7 @@ import {
   JSONRPC_PARSE_ERROR,
   SUPPORTED_PROTOCOL_VERSIONS,
 } from "./rpc.js";
-import { DEFAULT_RESULTS, MAX_RESULTS, clampLimit, listTools } from "./tools.js";
+import { DEFAULT_RESULTS, MAX_RESULTS, clampLimit, listTools, scan } from "./tools.js";
 
 let db: Db;
 let showcaseId: string;
@@ -131,6 +132,26 @@ describe("the JSON-RPC protocol", () => {
     expect(badParams.json.error.code).toBe(JSONRPC_INVALID_PARAMS);
   });
 
+  it("refuses a body over the size cap, declared or streamed, before reading it", async () => {
+    const big = JSON.stringify({
+      jsonrpc: "2.0",
+      id: 1,
+      method: "ping",
+      pad: "x".repeat(MAX_BODY_BYTES),
+    });
+    // Streamed: no Content-Length, so the bytes are counted as they arrive.
+    const streamed = await send(big);
+    expect(streamed.status).toBe(413);
+    // Declared: refused on the header alone.
+    const declared = await send(
+      { jsonrpc: "2.0", id: 1, method: "ping" },
+      { headers: { "content-length": String(MAX_BODY_BYTES + 1) } },
+    );
+    expect(declared.status).toBe(413);
+    // The cap is not on the message but on the body: a small one still works.
+    expect((await rpc("ping")).status).toBe(200);
+  });
+
   it("refuses another content type, another origin and an unknown protocol version", async () => {
     const msg = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
     const plain = await mcp(
@@ -209,6 +230,40 @@ describe("tools", () => {
     expect(one.json.result.structuredContent.firms).toHaveLength(1);
     const rules = await tool("list_rules", { limit: 9_999 });
     expect(rules.json.result.structuredContent.rules.length).toBeLessThanOrEqual(MAX_RESULTS);
+  });
+
+  it("says when the search stopped early, and only then", async () => {
+    const total = (await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`))[0].n;
+    const saved = { ...scan };
+    try {
+      // Three pages of 100 firms read of a longer list: partial, and the count is of those read.
+      scan.pageSize = 100;
+      scan.maxPages = 3;
+      const cut = (await tool("search_firms", {}, "compliance")).json.result.structuredContent;
+      expect(cut.partial).toBe(true);
+      expect(cut.totalMatches).toBe(300);
+
+      // The scan ends exactly at the last firm: nothing was left unread.
+      scan.pageSize = total;
+      scan.maxPages = 1;
+      const whole = (await tool("search_firms", {}, "compliance")).json.result.structuredContent;
+      expect(whole.partial).toBe(false);
+      expect(whole.totalMatches).toBe(total);
+
+      // One firm short of the whole list is partial.
+      scan.pageSize = total - 1;
+      const short = (await tool("search_firms", {}, "compliance")).json.result.structuredContent;
+      expect(short.partial).toBe(true);
+      expect(short.totalMatches).toBe(total - 1);
+    } finally {
+      Object.assign(scan, saved);
+    }
+    // At the real limits the demo is searched in full.
+    expect((await tool("search_firms")).json.result.structuredContent.partial).toBe(false);
+    // The tool tells the model what to do about it.
+    const description = listTools().find((t) => t.name === "search_firms")!.description;
+    expect(description).toContain("partial: true");
+    expect(description).toContain("narrow the query");
   });
 
   it("searches by name and filters, best score first", async () => {

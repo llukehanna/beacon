@@ -18,7 +18,8 @@ import {
   isHidden,
   logAccess,
   present,
-  walledMandates,
+  presentRule,
+  ruleWallFor,
 } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { MAX_PAGE_SIZE, getObject, listAll, listObjects } from "../db/repo.js";
@@ -35,8 +36,11 @@ import {
 /** The most rows any list tool returns; a larger `limit` is clamped to this. */
 export const MAX_RESULTS = 25;
 export const DEFAULT_RESULTS = 10;
-/** Pages of firms a search will read before it stops and says the scan was partial. */
-const MAX_SCAN_PAGES = 3;
+/**
+ * How much of the firm list a search reads before it stops and says the scan was partial: pages of
+ * `pageSize` firms, at most `maxPages` of them. A constant in practice; the tests lower it.
+ */
+export const scan = { maxPages: 3, pageSize: MAX_PAGE_SIZE };
 
 type Tool<S extends z.ZodType> = {
   title: string;
@@ -109,15 +113,11 @@ async function searchFirms(
   const needle = args.query?.toLowerCase();
 
   const hits: FirmHit[] = [];
+  const read = { orderBy: { firmName: "asc" as const }, exclude: excludeFor(access, "Firm") };
   let pageToken: string | undefined;
   let pages = 0;
   do {
-    const page = await listObjects(q, "Firm", {
-      orderBy: { firmName: "asc" },
-      pageSize: MAX_PAGE_SIZE,
-      pageToken,
-      exclude: excludeFor(access, "Firm"),
-    });
+    const page = await listObjects(q, "Firm", { ...read, pageSize: scan.pageSize, pageToken });
     pageToken = page.nextPageToken ?? undefined;
     pages++;
     for (const raw of page.data) {
@@ -151,7 +151,12 @@ async function searchFirms(
         maxScore: MAX_POSSIBLE,
       });
     }
-  } while (pageToken !== undefined && pages < MAX_SCAN_PAGES);
+  } while (pageToken !== undefined && pages < scan.maxPages);
+
+  // A full last page carries a token even when nothing follows it, so look for one more firm.
+  const partial =
+    pageToken !== undefined &&
+    (await listObjects(q, "Firm", { ...read, pageSize: 1, pageToken })).data.length > 0;
 
   // Best score first; the name and id break ties so the order is stable.
   hits.sort(
@@ -164,7 +169,7 @@ async function searchFirms(
     totalMatches: hits.length,
     limit,
     // True when more firms exist than were read: the matches above may be an undercount.
-    partial: pageToken !== undefined,
+    partial,
   };
 }
 
@@ -207,48 +212,6 @@ const listRulesInput = z
   })
   .strict();
 
-/** `supportingDecisionIds` is a JSON array or a comma-separated list. */
-function supportingIds(raw: string | undefined): string[] {
-  if (raw === undefined || raw === "") {
-    return [];
-  }
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((x): x is string => typeof x === "string");
-    }
-  } catch {
-    // Not JSON: fall through to the comma-separated form.
-  }
-  return raw
-    .split(",")
-    .map((s) => s.trim())
-    .filter((s) => s !== "");
-}
-
-/** Replaces the real name of every mandate walled from the persona with its codename. */
-async function codenameMasker(q: Queryable, access: Access): Promise<(s: string) => string> {
-  const walled = walledMandates(access);
-  if (walled.size === 0) {
-    return (s) => s;
-  }
-  const swaps: Array<[string, string]> = [];
-  for (const m of await listAll(q, "Mandate")) {
-    if (!walled.has(m.$primaryKey)) {
-      continue;
-    }
-    const codename = access.mandateCodenames.get(m.$primaryKey) ?? "Restricted mandate";
-    for (const real of [m.title, m.intentStatement, m.$primaryKey]) {
-      if (real !== undefined && real.trim() !== "") {
-        swaps.push([real, codename]);
-      }
-    }
-  }
-  // Longest first, so a title is never half-replaced by a shorter name inside it.
-  swaps.sort((a, b) => b[0].length - a[0].length);
-  return (s) => swaps.reduce((out, [real, codename]) => out.split(real).join(codename), s);
-}
-
 async function listRules(
   q: Queryable,
   args: z.infer<typeof listRulesInput>,
@@ -274,23 +237,15 @@ async function listRules(
       .filter((c) => c.sourceProposedRuleId === ruleId)
       .sort((a, b) => (b.configVersion ?? 0) - (a.configVersion ?? 0))[0];
 
-  // Decisions on firms this persona cannot see. A rule that rests on one is shown without them:
-  // its firm count drops by the hidden firms, and its rationale (which summarises the analysts'
-  // notes on those decisions) is withheld rather than guessed at.
-  const hiddenDecisions = new Map<string, string>();
-  for (const firmId of access.hiddenFirmIds) {
-    for (const d of await listAll(q, "ReviewDecision", { where: { firmId: { $eq: firmId } } })) {
-      hiddenDecisions.set(d.$primaryKey, firmId);
-    }
-  }
-  const mask = await codenameMasker(q, access);
+  // A rule that rests on a decision about a firm this persona cannot see is shown without it (the
+  // same redaction the objects route applies): its firm count drops by the hidden firms, and its
+  // rationale is withheld rather than guessed at.
+  const wall = await ruleWallFor(q, access);
 
   return {
-    rules: shown.map((r) => {
+    rules: shown.map((full) => {
+      const { rule: r, hiddenFirmCount } = presentRule(wall, full);
       const active = activeOf(r.$primaryKey);
-      const hiddenFirms = new Set(
-        supportingIds(r.supportingDecisionIds).flatMap((id) => hiddenDecisions.get(id) ?? []),
-      );
       const predicate =
         (active &&
           summarizePredicate(active.configAxis, active.configOperator, active.configThreshold)) ??
@@ -300,13 +255,10 @@ async function listRules(
         status: (r.ruleStatus ?? "pending").toLowerCase(),
         predicate,
         model: r.ruleModel ?? null,
-        scope: r.mandateScope === undefined ? null : mask(r.mandateScope),
-        rationale:
-          hiddenFirms.size > 0 || r.rationaleClusterSummary === undefined
-            ? null
-            : mask(r.rationaleClusterSummary),
-        rationaleWithheld: hiddenFirms.size > 0,
-        supportingFirmCount: Math.max(0, (r.supportingFirmCount ?? 0) - hiddenFirms.size),
+        scope: r.mandateScope ?? null,
+        rationale: r.rationaleClusterSummary ?? null,
+        rationaleWithheld: hiddenFirmCount > 0,
+        supportingFirmCount: r.supportingFirmCount ?? 0,
         // Firms in the queue the rule screens, as counted when it was proposed.
         projectedScreenCount: r.projectedScreenCount ?? null,
         activeVersion: active?.configVersion ?? null,
@@ -334,7 +286,10 @@ const TOOLS: Record<string, Tool<z.ZodType>> = {
     title: "Search firms",
     description:
       "Find advisory firms in Beacon's synthetic universe by name, sector, headquarters country, " +
-      "scoring model, tier or pipeline stage. Returns each firm's live score and tier, best first.",
+      "scoring model, tier or pipeline stage. Returns each firm's live score and tier, best first. " +
+      "If the reply has partial: true, only the first firms in name order were searched, so the " +
+      "matches and totalMatches may be incomplete and the order is best first within that part: " +
+      "narrow the query (a name, sector, country or stage) and search again.",
     input: searchFirmsInput,
     run: searchFirms,
   },

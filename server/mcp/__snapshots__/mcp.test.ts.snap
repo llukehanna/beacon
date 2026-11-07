@@ -9,7 +9,7 @@ exports[`tools > lists exactly three read-only tools, with their schemas 1`] = `
       "openWorldHint": false,
       "readOnlyHint": true,
     },
-    "description": "Find advisory firms in Beacon's synthetic universe by name, sector, headquarters country, scoring model, tier or pipeline stage. Returns each firm's live score and tier, best first.",
+    "description": "Find advisory firms in Beacon's synthetic universe by name, sector, headquarters country, scoring model, tier or pipeline stage. Returns each firm's live score and tier, best first. If the reply has partial: true, only the first firms in name order were searched, so the matches and totalMatches may be incomplete and the order is best first within that part: narrow the query (a name, sector, country or stage) and search again.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,

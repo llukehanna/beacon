@@ -35,6 +35,8 @@ export const CLAUDE_DAILY_MAX = 24;
 export const ACTIONS_PER_MINUTE = 60;
 export const RESETS_PER_MINUTE = 3;
 export const MCP_PER_MINUTE = 60;
+/** Rows any MCP list returns at most. Pinned to MAX_RESULTS in server/mcp/tools.ts. */
+export const MCP_RESULT_CAP = 25;
 
 /** Pinned to api/reset.ts (COOLDOWN_MS) and wrangler.jsonc ("crons"). */
 export const RESET_COOLDOWN_MINUTES = 5;
