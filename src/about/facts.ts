@@ -10,6 +10,7 @@ import { MAX_POSSIBLE } from "../../shared/scoreMirror";
 
 export const REPO_URL = "https://github.com/llukehanna/beacon";
 export const AUTHOR_URL = "https://lukeghanna.com";
+export const CASE_STUDY_URL = `${AUTHOR_URL}/work/beacon`;
 const DOCS_URL = `${REPO_URL}/blob/main/docs`;
 export const ARCHITECTURE_DOC_URL = `${DOCS_URL}/architecture.md`;
 export const FOUNDRY_DOC_URL = `${DOCS_URL}/foundry-origins.md`;
@@ -68,6 +69,12 @@ export const RECORDED_RUN = {
   clusteringCost: "$0.04",
   model: "Claude Haiku 4.5",
 } as const;
+
+/**
+ * How the app says its agent activity is recorded, not live: the README's wording for the run
+ * ("the recorded extraction run", Claude Haiku 4.5, all 700 firms, $1.39).
+ */
+export const RECORDED_RUN_NOTE = `Replayed from the recorded ${RECORDED_RUN.model} extraction run (${RECORDED_RUN.firms} firms, ${RECORDED_RUN.extractionCost}). The live app calls no model.`;
 
 /** Pinned, character for character, to public/_headers. */
 export const CSP_DIRECTIVES: readonly string[] = [

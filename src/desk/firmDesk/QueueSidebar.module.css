@@ -207,6 +207,11 @@
   font: 500 11.5px var(--font-mono);
 }
 
+.gain {
+  color: var(--tx3);
+  font-weight: 400;
+}
+
 .on .score {
   color: var(--tx);
 }

@@ -1,5 +1,5 @@
 import React from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useLocation, useParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
@@ -7,6 +7,7 @@ import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
 import { formatScore } from "@/desk/scoreFormat";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { type Command, useCommands } from "@/shell/commands";
+import { cameFromDesk } from "@/shell/origin";
 import { Button, ButtonLink, EmptyState, Notice, Panel, Skeleton } from "@/ui";
 import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
 import styles from "./TearSheetPage.module.css";
@@ -229,7 +230,9 @@ function Sheet({
         <p className={styles.scoreLine}>
           <span className={styles.big}>{score.total}</span>
           <span className={styles.of}> / {score.max}</span>
-          <span className={styles.tier}>{score.tierText}</span>
+          <span className={styles.tier} title={score.tierNote ?? undefined}>
+            {score.tierText}
+          </span>
         </p>
         {score.screenedBecause !== null && (
           <p className={styles.plain}>Screened out: {score.screenedBecause}.</p>
@@ -415,11 +418,12 @@ export default function TearSheetPage(): React.ReactElement {
   useCommands(commands);
 
   const deskHref = `/desk?firmId=${encodeURIComponent(firmId)}`;
+  const fromDesk = cameFromDesk(useLocation().state);
   return (
     <div className={styles.page}>
       <div className={styles.toolbar}>
-        <Link to="/pipeline" className={styles.back}>
-          Pipeline
+        <Link to={fromDesk ? "/desk" : "/pipeline"} className={styles.back}>
+          {fromDesk ? "Desk" : "Pipeline"}
         </Link>
         <div className={styles.actions}>
           <ButtonLink to={deskHref}>Open in the Desk</ButtonLink>

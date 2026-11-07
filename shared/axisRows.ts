@@ -6,6 +6,7 @@
 import { type FindingLike, classifyAxis, pickAuthoritative } from "./axisState.js";
 import { displayAxis } from "./deskModel.js";
 import { FINDING_AXIS_TO_KEY, displayFindingValue } from "./findingActions.js";
+import { MAX_POSSIBLE } from "./scoreMirror.js";
 import type { FirmObservations, ProviderObservation } from "./summaries.js";
 import { type AxisDef, PROVIDER_TRUST } from "./vocab.js";
 
@@ -171,4 +172,30 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
 /** "1 conflict · 3 proposed · 2 abstained · 1 verified": the open work on this firm. */
 export function summaryText(c: RowCounts): string {
   return `${plural(c.conflicts, "conflict", "conflicts")} · ${c.proposed} proposed · ${c.abstained} abstained · ${c.verified} verified`;
+}
+
+/** The rubric's scored axes: each earns 0 to 2 of the 18 points. */
+export const SCORED_AXIS_COUNT = MAX_POSSIBLE / 2;
+
+/**
+ * How the grid's rows add up, so the count above it and the rubric's nine axes reconcile: the
+ * scored axes and gates in the grid, plus the scored axes that come from the firm record alone.
+ */
+export function gridComposition(rows: readonly Pick<AxisRow, "def">[]): {
+  scored: number;
+  gates: number;
+  fromRecord: number;
+} {
+  const gates = rows.filter((r) => r.def.kind === "gate").length;
+  const scored = rows.length - gates;
+  return { scored, gates, fromRecord: Math.max(0, SCORED_AXIS_COUNT - scored) };
+}
+
+/** "7 scored axes + 4 gates. 2 more scored axes come from the firm record, below." */
+export function compositionText(rows: readonly Pick<AxisRow, "def">[]): string {
+  const { scored, gates, fromRecord } = gridComposition(rows);
+  const head = `${plural(scored, "scored axis", "scored axes")} + ${plural(gates, "gate", "gates")}.`;
+  return fromRecord === 0
+    ? head
+    : `${head} ${fromRecord} more of the ${SCORED_AXIS_COUNT} scored axes come${fromRecord === 1 ? "s" : ""} from the firm record, below.`;
 }

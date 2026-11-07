@@ -4,6 +4,7 @@ import { Menu, Search } from "@blueprintjs/icons";
 import { Kbd } from "@/ui";
 import styles from "./TopBar.module.css";
 import { footerLinkFor, navItemFor } from "./keys";
+import { cameFromDesk } from "./origin";
 import { useDeskScope } from "./useShellData";
 
 interface Crumb {
@@ -12,12 +13,17 @@ interface Crumb {
 }
 
 function useCrumbs(): Crumb[] {
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
+  // Router state is `any`; it is only ever read through cameFromDesk, which checks its shape.
+  const state: unknown = location.state;
   const onDesk = pathname === "/desk";
   const { mandate, firm } = useDeskScope(onDesk);
   const section = navItemFor(pathname);
   if (/^\/firm\/[^/]+\/tear-sheet$/.test(pathname)) {
-    return [{ label: "Pipeline", to: "/pipeline" }, { label: "Tear sheet" }];
+    return cameFromDesk(state)
+      ? [{ label: "Desk", to: "/desk" }, { label: "Tear sheet" }]
+      : [{ label: "Pipeline", to: "/pipeline" }, { label: "Tear sheet" }];
   }
   if (pathname === "/compliance") {
     return [{ label: "Compliance" }];

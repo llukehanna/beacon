@@ -32,7 +32,7 @@ async function openDesk(page: Page): Promise<void> {
   await expect(page.getByText(SUMMARY)).toBeVisible();
 }
 
-const commitEnrichment = (page: Page) => page.getByRole("button", { name: /Commit enrichment/ });
+const commitEnrichment = (page: Page) => page.getByRole("button", { name: /Save verified values/ });
 /** The first grid row in a state ("conflict", "proposed", ...); selecting it fills the evidence panel. */
 const gridRow = (page: Page, state: string) => page.locator(`tr[data-state="${state}"]`).first();
 const evidence = (page: Page) => page.getByRole("complementary", { name: "Evidence" });
