@@ -13,7 +13,8 @@ vi.mock("../server/db/client.js", async (importOriginal) => ({
   createPgDb: vi.fn(() => ({ close: vi.fn(async () => {}) })),
 }));
 
-const { default: worker, HOURLY_CRON, NIGHTLY_CRON } = await import("./index.js");
+const { default: worker } = await import("./index.js");
+const { HOURLY_CRON, NIGHTLY_CRON } = await import("./crons.js");
 
 const env = { ASSETS: { fetch: vi.fn() }, HYPERDRIVE: { connectionString: "postgres://test" } };
 const waits: Promise<unknown>[] = [];

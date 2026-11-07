@@ -21,11 +21,13 @@ import {
   isComplianceOnly,
   parsePersona,
   redactObject,
+  redactRule,
   visibilityOf,
   walledMandateIds,
 } from "../shared/accessPolicy.js";
 import type { ObjectOf, ObjectTypeName } from "../shared/schema.js";
 import { type Queryable, getDb } from "./db/client.js";
+import { listAll } from "./db/repo.js";
 import { HttpError } from "./errors.js";
 
 export interface Access {
@@ -138,6 +140,59 @@ export function excludeFor(
 /** The persona's view of one object read from the database. */
 export function present<N extends ObjectTypeName>(access: Access, obj: ObjectOf<N>): ObjectOf<N> {
   return redactObject(access.persona, obj, access.mandateGrants, access.mandateCodenames);
+}
+
+/** Replaces the real name of every mandate walled from the persona with its codename. */
+async function codenameMasker(q: Queryable, access: Access): Promise<(s: string) => string> {
+  const walled = walledMandates(access);
+  if (walled.size === 0) {
+    return (s) => s;
+  }
+  const swaps: Array<[string, string]> = [];
+  for (const m of await listAll(q, "Mandate")) {
+    if (!walled.has(m.$primaryKey)) {
+      continue;
+    }
+    const codename = access.mandateCodenames.get(m.$primaryKey) ?? "Restricted mandate";
+    for (const real of [m.title, m.intentStatement, m.$primaryKey]) {
+      if (real !== undefined && real.trim() !== "") {
+        swaps.push([real, codename]);
+      }
+    }
+  }
+  // Longest first, so a title is never half-replaced by a shorter name inside it.
+  swaps.sort((a, b) => b[0].length - a[0].length);
+  return (s) => swaps.reduce((out, [real, codename]) => out.split(real).join(codename), s);
+}
+
+/** What a persona needs to see rules without the walled parts: see `presentRule`. */
+export interface RuleWall {
+  /** Decisions on firms the persona cannot see, each with its firm. */
+  hiddenDecisions: ReadonlyMap<string, string>;
+  mask: (s: string) => string;
+}
+
+/** Loads the rule wall for a persona; two small queries at most, none for compliance. */
+export async function ruleWallFor(q: Queryable, access: Access): Promise<RuleWall> {
+  const hiddenDecisions = new Map<string, string>();
+  for (const firmId of access.hiddenFirmIds) {
+    for (const d of await listAll(q, "ReviewDecision", { where: { firmId: { $eq: firmId } } })) {
+      hiddenDecisions.set(d.$primaryKey, firmId);
+    }
+  }
+  return { hiddenDecisions, mask: await codenameMasker(q, access) };
+}
+
+/**
+ * The persona's view of a rule (a ProposedRule): decisions on hidden firms leave its count, its id
+ * list and its rationale, and a walled mandate is named by its codename. Used by the objects route
+ * and by the MCP, so both withhold exactly the same things.
+ */
+export function presentRule(
+  wall: RuleWall,
+  rule: ObjectOf<"ProposedRule">,
+): { rule: ObjectOf<"ProposedRule">; hiddenFirmCount: number } {
+  return redactRule(rule, wall.hiddenDecisions, wall.mask);
 }
 
 /** The mandates the persona sees by codename. */

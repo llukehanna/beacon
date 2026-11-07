@@ -15,6 +15,7 @@ import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
 import { applyDueSignals } from "../server/signals/run.js";
+import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
 
 interface Env {
@@ -36,11 +37,6 @@ interface ScheduledController {
   cron?: string;
   scheduledTime?: number;
 }
-
-/** The two Cron Triggers in wrangler.jsonc ("crons"). */
-export const NIGHTLY_CRON = "0 4 * * *";
-export const HOURLY_CRON = "0 * * * *";
-const NIGHTLY_HOUR_UTC = 4;
 
 type Handler = (request: Request) => Promise<Response>;
 

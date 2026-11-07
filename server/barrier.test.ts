@@ -624,6 +624,111 @@ describe("information barrier", () => {
     await db.query(`DELETE FROM proposed_rule WHERE "proposedRuleId" LIKE 'rule-%'`);
   });
 
+  it("redacts a rule's rationale and decision ids on the objects route as the MCP does", async () => {
+    await insertObjects(db, "ProposedRule", [
+      {
+        proposedRuleId: "rule-mixed",
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "10",
+        ruleModel: "CF",
+        rationaleClusterSummary: "Too small to cover",
+        supportingFirmCount: 2,
+        supportingDecisionIds: JSON.stringify(["decision-firm-ok-1", `decision-${SECRET}`]),
+        projectedScreenCount: 3,
+        ruleStatus: "pending",
+        proposedAt: AT,
+        mandateScope: "All mandates",
+      },
+      {
+        proposedRuleId: "rule-walled",
+        predicateAxis: "firm_age",
+        ruleOperator: "<",
+        ruleThreshold: "3",
+        ruleModel: "CF",
+        rationaleClusterSummary: `Too young for ${WALLED_TITLE}`,
+        supportingFirmCount: 4,
+        supportingDecisionIds: "[]",
+        projectedScreenCount: 1,
+        ruleStatus: "pending",
+        proposedAt: "2026-09-02T12:00:00.000Z",
+        mandateScope: WALLED_TITLE,
+      },
+    ]);
+    const mcpRules = async (persona: string | undefined) => {
+      const res = await mcp(
+        post(
+          "/api/mcp",
+          {
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/call",
+            params: { name: "list_rules", arguments: {} },
+          },
+          persona,
+        ),
+      );
+      const reply = (await res.json()) as {
+        result: {
+          structuredContent: {
+            rules: Array<{
+              ruleId: string;
+              rationale: string | null;
+              rationaleWithheld: boolean;
+              supportingFirmCount: number;
+              scope: string | null;
+            }>;
+          };
+        };
+      };
+      return new Map(reply.result.structuredContent.rules.map((r) => [r.ruleId, r] as const));
+    };
+
+    for (const persona of ["analyst", "deal_lead", undefined, "not-a-persona"]) {
+      const as = persona ?? "(no header)";
+      const rules = new Map((await list("ProposedRule", persona)).map((r) => [r.$primaryKey, r]));
+      const viaMcp = await mcpRules(persona);
+      const mixed = rules.get("rule-mixed")!;
+
+      // The decision on the restricted firm: out of the count, the id list and the rationale.
+      expect(mixed.supportingFirmCount, as).toBe(1);
+      expect(JSON.parse(mixed.supportingDecisionIds as string), as).toEqual(["decision-firm-ok-1"]);
+      expect(mixed.rationaleClusterSummary, as).toBeUndefined();
+      expect(JSON.stringify(mixed), as).not.toContain(SECRET);
+      expect(JSON.stringify(mixed), as).not.toContain("Too small to cover");
+
+      // The same facts as the MCP tool gives for the same persona.
+      expect(mixed.supportingFirmCount, as).toBe(viaMcp.get("rule-mixed")!.supportingFirmCount);
+      expect(viaMcp.get("rule-mixed")!.rationaleWithheld, as).toBe(true);
+      const walled = rules.get("rule-walled")!;
+      expect(walled.mandateScope, as).toBe(viaMcp.get("rule-walled")!.scope);
+      expect(walled.rationaleClusterSummary, as).toBe(viaMcp.get("rule-walled")!.rationale);
+      if (persona !== "deal_lead") {
+        expect(JSON.stringify([...rules.values()]), as).not.toContain("Acme");
+      }
+
+      // A lookup by key is redacted the same way.
+      const one = await objects(call("/api/objects?type=ProposedRule&id=rule-mixed", persona));
+      const lookup = ((await one.json()) as { data: Wire }).data;
+      expect(lookup.rationaleClusterSummary, as).toBeUndefined();
+      expect(lookup.supportingFirmCount, as).toBe(1);
+    }
+
+    // Compliance sees the whole rule.
+    const whole = (await list("ProposedRule", "compliance")).find(
+      (r) => r.$primaryKey === "rule-mixed",
+    )!;
+    expect(whole).toMatchObject({
+      supportingFirmCount: 2,
+      rationaleClusterSummary: "Too small to cover",
+    });
+    expect(JSON.parse(whole.supportingDecisionIds as string)).toEqual([
+      "decision-firm-ok-1",
+      `decision-${SECRET}`,
+    ]);
+    await db.query(`DELETE FROM proposed_rule WHERE "proposedRuleId" LIKE 'rule-%'`);
+  });
+
   it("gives a mandate nobody has been granted no codename, and a new one its own", async () => {
     await insertObject(db, "Mandate", {
       mandateId: "m-fresh",

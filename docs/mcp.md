@@ -3,7 +3,7 @@
 Beacon exposes a small, read-only [Model Context Protocol](https://modelcontextprotocol.io) server, so an AI assistant can look a firm up, read the evidence behind its score, and see the proposed screening rules. It reads the same synthetic demo data as the app, through the same information barrier, and cannot change anything.
 
 - **Endpoint:** `https://beacon.lukeghanna.com/api/mcp`
-- **Transport:** Streamable HTTP, stateless. Each request is one JSON-RPC 2.0 message in a `POST`, answered with one `application/json` body. There is no session, no event stream and no `Mcp-Session-Id`; `GET` and `DELETE` return `405`.
+- **Transport:** Streamable HTTP, stateless. Each request is one JSON-RPC 2.0 message in a `POST`, answered with one `application/json` body. There is no session, no event stream and no `Mcp-Session-Id`; `GET` and `DELETE` return `405`. A JSON-RPC batch (an array of messages) is refused with `-32600`: send one message per request.
 - **Methods:** `initialize`, `ping`, `tools/list`, `tools/call`. A notification such as `notifications/initialized` gets `202` with no body. Anything else is JSON-RPC `-32601`.
 - **Protocol versions:** `2025-11-25`, `2025-06-18`, `2025-03-26` and `2024-11-05`. `initialize` echoes the client's version when it is one of these and otherwise answers with the newest.
 - **Authentication:** none. Beacon is a public demo on synthetic data.
@@ -42,7 +42,7 @@ Find firms by name, sector, headquarters country, scoring model, tier or pipelin
 
 **Results are capped at 25.** A larger `limit` is clamped to 25, not refused; the reply's `limit` says what was applied and `totalMatches` how many firms matched. A `limit` below 1 or not an integer is `-32602`.
 
-Reply: `{ firms: [{ firmId, firmName, firmType, sector, hqCountry, employees, stage, tier, score, maxScore }], returned, totalMatches, limit, partial }`. `partial` is true only if the firm list was longer than the three pages the search reads.
+Reply: `{ firms: [{ firmId, firmName, firmType, sector, hqCountry, employees, stage, tier, score, maxScore }], returned, totalMatches, limit, partial }`. `partial` is true when there are more firms than the search read (it reads the first three pages of 1,000 firms, in name order); `totalMatches` and the order then cover only the firms read, so narrow the query (a name, sector, country or stage) and search again. A list of exactly that size is not partial.
 
 ### `get_firm_evidence`
 
