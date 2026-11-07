@@ -1,4 +1,5 @@
 // Pure helpers behind the Evals tab: how a report figure reads, and where an example firm opens.
+import type { EvalReport } from "../../shared/evalReport";
 
 /** A 0 to 1 rate as a percentage with one decimal, or an em dash when it could not be measured. */
 export function evalPct(rate: number | null): string {
@@ -8,6 +9,34 @@ export function evalPct(rate: number | null): string {
 /** The Desk, on the given firm. */
 export function deskHref(firmId: string): string {
   return `/desk?firmId=${encodeURIComponent(firmId)}`;
+}
+
+/**
+ * What an example firm is called: its name once the firms are in, a dash while they load, and a
+ * plain phrase for a firm this persona cannot see. A firm id is never shown.
+ */
+export function exampleFirmName(
+  firmId: string,
+  names: ReadonlyMap<string, string> | undefined,
+): string {
+  if (names === undefined) {
+    return "…";
+  }
+  return names.get(firmId) ?? "A firm outside this view";
+}
+
+/**
+ * The line under the headline measures that says what tier agreement is: measured before any
+ * analyst input, where an abstained or conflicted axis counts as unknown. Of the axes that did not
+ * end with the true value, the abstentions and the wrong settled values are named, so a low figure
+ * reads as "mostly unknown", not "mostly wrong".
+ */
+export function tierFraming(report: EvalReport): string {
+  const count = (kind: string): number => report.failures.find((f) => f.kind === kind)?.count ?? 0;
+  const abstained = count("abstained-correctly") + count("abstained-wrongly");
+  const conflicts = count("conflict-surfaced");
+  const wrong = count("wrong-source-wins");
+  return `Tier agreement is measured before any analyst input, with abstained and conflicted axes counted as unknown. Of the axes that did not end with the true value, ${evalCount(abstained)} are abstentions, ${evalCount(conflicts)} are conflicts left to the analyst and ${evalCount(wrong)} are wrong settled values.`;
 }
 
 /** Thousands separators, the way every count on the page reads. */

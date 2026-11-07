@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { headlineText } from "./headlineText";
+import { headlineText, needsParts } from "./headlineText";
 
 const counts = (enrichedFirms: number, abstainedAxes: number) => ({
   enrichedFirms,
@@ -33,5 +33,22 @@ describe("headlineText", () => {
 
   it("leaves out the agent sentence when no firm has been enriched", () => {
     expect(headlineText(5, null)).toEqual({ lead: "5 items need you.", detail: null });
+  });
+});
+
+describe("needsParts", () => {
+  it("splits the total by where each kind of work is done, leaving out empty kinds", () => {
+    expect(needsParts({ review: 11, desk: 40, rules: 3 })).toEqual([
+      { destination: "review", text: "11 drift to review", to: "/review" },
+      { destination: "desk", text: "40 firms to resolve", to: "/desk" },
+      { destination: "rules", text: "3 proposed rules", to: "/rules" },
+    ]);
+    expect(needsParts({ review: 0, desk: 1, rules: 0 }).map((p) => p.text)).toEqual([
+      "1 firm to resolve",
+    ]);
+  });
+
+  it("is empty while the summary loads", () => {
+    expect(needsParts(undefined)).toEqual([]);
   });
 });

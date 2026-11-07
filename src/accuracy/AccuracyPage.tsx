@@ -4,8 +4,6 @@ import { Term } from "@/components/Term";
 import { errorMessage } from "@/data/adapter";
 import { useOsdkQuery } from "@/data/hooks";
 import { Chip, EmptyState, Metric, Notice, PageHeader, Panel, Skeleton } from "@/ui";
-import evalReportJson from "../../docs/evals.json";
-import type { EvalReport } from "../../shared/evalReport";
 import type { AccuracySummary } from "../../shared/summaries";
 import { INSUFFICIENT_THRESHOLD } from "../../shared/trustMetrics";
 import styles from "./AccuracyPage.module.css";
@@ -13,11 +11,8 @@ import { BreakdownTable } from "./BreakdownTable";
 import { EvalsPanel } from "./EvalsPanel";
 import { OperationsPanel } from "./OperationsPanel";
 import { OutcomesPanel } from "./OutcomesPanel";
+import { EVAL_REPORT } from "./evalReportData";
 import { type AccuracyTab, tabFromParam, tabTarget } from "./evalsModel";
-
-/** Written by `npm run eval` and bundled at build time; `server/eval` checks it is current in CI. */
-// The JSON import widens the report's literal unions to string; the file is generated from EvalReport.
-const EVAL_REPORT = evalReportJson as unknown as EvalReport;
 
 const TABS: readonly { id: AccuracyTab; label: string }[] = [
   { id: "overview", label: "Overview" },

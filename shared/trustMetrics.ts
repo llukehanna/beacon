@@ -17,6 +17,7 @@
  *   abstention%  = abstain / all-findings        (denominator = everything
  *                                                 in the group)
  */
+import { axisLabel } from "./axisLabels.js";
 import {
   ACQUIRED_BY_COMPETITOR,
   AGENT,
@@ -200,58 +201,11 @@ export function tallyOutcomes(firms: readonly FirmOutcomeLike[]): OutcomeTally {
 
 // ─── Per-provider and per-axis tables ───────────────────────────────────
 
-// Findings arrive with raw axis keys (either camelCase or snake_case).
-// Render human labels matching the design's dataProvider.AXES vocabulary.
-// The backend canonicalizes to the agent vocabulary (deal_size_usd_m,
-// firm_age_years, deals_per_md_l3y, …) so the map is mostly a no-op; the
-// older camelCase / short-form variants keep any residual legacy row in the
-// same axis bucket instead of splitting the table.
-const AXIS_LABEL: Record<string, string> = {
-  coverage_model: "Sector coverage",
-  coveragemodel: "Sector coverage",
-  services_fit: "Services fit",
-  servicesfit: "Services fit",
-  md_pedigree: "MD pedigree",
-  mdpedigree: "MD pedigree",
-  balance_sheet_principal: "Balance sheet / principal",
-  balancesheetprincipal: "Balance sheet / principal",
-  deal_size: "Avg deal size",
-  dealsize: "Avg deal size",
-  dealsizemusd: "Avg deal size",
-  dealsizeusdm: "Avg deal size",
-  deals_per_md: "Deals / MD (L3Y)",
-  dealspermd: "Deals / MD (L3Y)",
-  dealspermdl3y: "Deals / MD (L3Y)",
-  firm_age: "Firm age",
-  firmage: "Firm age",
-  firmageyears: "Firm age",
-  employees: "Employees",
-  fee_generating_count: "Fee-earning heads",
-  feegeneratingcount: "Fee-earning heads",
-  geographic_footprint: "Geographic fit",
-  geographicfootprint: "Geographic fit",
-};
+export { axisLabel };
 
+/** One key per axis whatever its spelling, so a legacy row lands in the same bucket. */
 function canonicalAxisKey(raw: string): string {
-  return raw
-    .trim()
-    .toLowerCase()
-    .replace(/[_\s-]+/g, "");
-}
-
-function titleize(raw: string): string {
-  return raw
-    .trim()
-    .split(/[_\s-]+/)
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1).toLowerCase() : ""))
-    .join(" ");
-}
-
-export function axisLabel(raw: string | undefined): string {
-  if (raw === undefined || raw === "") {
-    return "unknown axis";
-  }
-  return AXIS_LABEL[canonicalAxisKey(raw)] ?? titleize(raw);
+  return raw.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // Provider strings that name no data source at all. Findings carrying them

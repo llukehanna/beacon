@@ -206,5 +206,7 @@ export function mandateFirmCounts(input: MandateFirmInput): Map<string, MandateF
  * wording alone.
  */
 export function formatMandateFirmCounts(counts: MandateFirmCounts): string {
-  return `${counts.scoped} scoped · ${counts.fromSearches} from searches`;
+  return `${counts.scoped} firms in scope · ${
+    counts.fromSearches === 0 ? "no search run yet" : `${counts.fromSearches} added by searches`
+  }`;
 }

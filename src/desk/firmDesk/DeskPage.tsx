@@ -5,11 +5,13 @@ import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
 import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
+import { FROM_DESK } from "@/shell/origin";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
 import { RetryNotice } from "@/ui";
 import { AGENT } from "../../../shared/vocab";
-import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
+import { agentRunFirmIds, defaultDeskFirmId, nextAfterPass } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
+import { isOpenFirm } from "../pipelineBuckets";
 import { orderEnrichmentQueue, toQueueFirm } from "../queue";
 import styles from "./DeskPage.module.css";
 import {
@@ -22,12 +24,14 @@ import {
   SearchEmpty,
 } from "./DeskStates";
 import { EnrichmentPanel } from "./EnrichmentPanel";
+import { PassToast } from "./PassToast";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type RediscoveryInfo, searchLabel } from "./deskModel";
+import { type FirmView, type RediscoveryInfo, searchLabel } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 import { useScreeningRules } from "./useScreeningRules";
+import { visibleQueue } from "./visibleQueue";
 
 function Desk(): React.ReactElement {
   const { data, isLoading, error } = useOsdkObjects(Firm, {
@@ -280,7 +284,10 @@ function Desk(): React.ReactElement {
               id: "desk:tear-sheet",
               label: `Tear sheet: ${selectedName}`,
               group: "Actions",
-              run: () => navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`),
+              run: () =>
+                navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`, {
+                  state: FROM_DESK,
+                }),
             },
           ],
     [selectedFirmId, selectedName, navigate],
@@ -297,9 +304,43 @@ function Desk(): React.ReactElement {
     viewCount: filteredData?.length ?? 0,
   });
 
+  // After a pass: say so, point at the rule review the reason joins, and open the next firm in the
+  // queue as the analyst sees it (search text, "Show all firms" and a pinned search applied), unless
+  // they have already moved to another firm. The list still holds the passed firm when this runs,
+  // so "next" is its neighbour.
+  const [passed, setPassed] = React.useState<string | null>(null);
   // The queue's search text and "Show all firms" live here, above the sidebar portal, so they
   // survive the sidebar remounting its contents (drawer open/close, crossing the breakpoint).
   const filters = useQueueFilters();
+  const visibleIds = React.useMemo(
+    () =>
+      visibleQueue(queue, {
+        query: filters.query,
+        showAll: filters.showAll,
+        membershipPinned: searchActive,
+        screeningRules,
+        openIds: new Set(
+          queue.filter((r) => isOpenFirm(r.firm, r.hardRejected)).map((r) => r.firm.firmId),
+        ),
+      }).map((r) => r.firm.firmId),
+    [queue, filters.query, filters.showAll, searchActive, screeningRules],
+  );
+  const visibleRef = React.useRef(visibleIds);
+  visibleRef.current = visibleIds;
+  const currentRef = React.useRef(effectiveId);
+  currentRef.current = effectiveId;
+  const onPassed = React.useCallback(
+    (firm: FirmView): void => {
+      const id = firm.firmId ?? "";
+      setPassed(firm.firmName ?? id);
+      const next = nextAfterPass(visibleRef.current, id, currentRef.current);
+      if (next !== undefined) {
+        setSelectedId(next);
+      }
+    },
+    [setSelectedId],
+  );
+  const closeToast = React.useCallback(() => setPassed(null), []);
 
   // Each row's state line: when the firm was last enriched and what is still waiting on it.
   const runByFirmId = React.useMemo(() => {
@@ -340,6 +381,7 @@ function Desk(): React.ReactElement {
   return (
     <div className={styles.desk}>
       {queueSidebar}
+      <PassToast firmName={passed} onClose={closeToast} />
       {searchActive && (
         <SearchFilterBar
           intentText={pinnedIntent}
@@ -381,6 +423,7 @@ function Desk(): React.ReactElement {
             // sidebar shows it screened.
             activeConfigs={rankingRules}
             configsLoading={configLoading}
+            onPassed={onPassed}
           />
         )}
         {panelState === "skeleton" && <FirmSkeleton />}

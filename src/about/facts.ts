@@ -10,6 +10,7 @@ import { MAX_POSSIBLE } from "../../shared/scoreMirror";
 
 export const REPO_URL = "https://github.com/llukehanna/beacon";
 export const AUTHOR_URL = "https://lukeghanna.com";
+export const CASE_STUDY_URL = `${AUTHOR_URL}/work/beacon`;
 const DOCS_URL = `${REPO_URL}/blob/main/docs`;
 export const ARCHITECTURE_DOC_URL = `${DOCS_URL}/architecture.md`;
 export const FOUNDRY_DOC_URL = `${DOCS_URL}/foundry-origins.md`;
@@ -68,6 +69,19 @@ export const RECORDED_RUN = {
   clusteringCost: "$0.04",
   model: "Claude Haiku 4.5",
 } as const;
+
+/**
+ * How the Desk says what its agent run is: the README's wording for the run ("the recorded
+ * extraction run", Claude Haiku 4.5, all 700 firms, $1.39). Pressing Run agent replays it.
+ */
+export const RECORDED_RUN_NOTE = `Replayed from the recorded ${RECORDED_RUN.model} extraction run (${RECORDED_RUN.firms} firms, ${RECORDED_RUN.extractionCost}). No model is called to enrich a firm.`;
+
+/**
+ * What the Home activity feed is made of. It mixes three sources, so the note names each: the
+ * recorded extraction run, the clustering that proposes rules (which calls Claude only when it is
+ * switched on, see README "Rule clustering") and the synthetic market signals behind drift.
+ */
+export const ACTIVITY_FEED_NOTE = `Extraction is replayed from the recorded ${RECORDED_RUN.model} run (${RECORDED_RUN.firms} firms, ${RECORDED_RUN.extractionCost}). Proposed rules come from clustering, which calls Claude only when switched on. Drift comes from synthetic market signals.`;
 
 /** Pinned, character for character, to public/_headers. */
 export const CSP_DIRECTIVES: readonly string[] = [

@@ -4,6 +4,7 @@ import { parseChangedAxes, resolutionLabel } from "@/desk/driftReview";
 import { formatScore } from "@/desk/scoreFormat";
 import { TIER_COLOR, isOutcomeDivergence, outcomeLabel } from "@/desk/tokens";
 import { Button } from "@/ui";
+import { axisLabel } from "../../shared/axisLabels";
 import { DriftActions } from "./DriftActions";
 import styles from "./DriftDetail.module.css";
 import { type DriftItem, agoText, formatChangeValue, reasonStyle } from "./driftModel";
@@ -66,7 +67,11 @@ export function DriftDetail({
             {reason.label}
           </span>
           {detected !== null && <span className={styles.when}>Detected {detected}</span>}
-          {resolved && <span className={styles.resolved}>{resolutionLabel(drift.resolution)}</span>}
+          {resolved && (
+            <span className={styles.resolved}>
+              {resolutionLabel(drift.resolution, item.lessonRecorded)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -104,7 +109,7 @@ export function DriftDetail({
             </p>
           </div>
           <div>
-            <h3 className={styles.kicker}>Market observed</h3>
+            <h3 className={styles.kicker}>{item.firmGone ? "Later" : "Market observed"}</h3>
             <p className={styles.observed}>{outcomeLabel(item.observedOutcome)}</p>
             {firstChange?.source && <p className={styles.source}>{firstChange.source}</p>}
           </div>
@@ -114,7 +119,7 @@ export function DriftDetail({
       {!resolved && !divergence && firstChange && (
         <section className={styles.quote} aria-label="What changed">
           <p className={styles.why}>
-            {firstChange.axis ?? "unknown axis"}: {formatChangeValue(firstChange.old)} →{" "}
+            {axisLabel(firstChange.axis)}: {formatChangeValue(firstChange.old)} →{" "}
             {formatChangeValue(firstChange.new)}
           </p>
           {firstChange.source && (

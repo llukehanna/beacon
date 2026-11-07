@@ -84,14 +84,17 @@
 }
 
 .detail {
+  min-width: 0;
   color: var(--tx3);
   font: 11.5px var(--font-mono);
+  overflow-wrap: anywhere;
 }
 
 /* Wide: what to confirm, the note, then the buttons, side by side. */
 .main {
   display: grid;
-  grid-template: "confirm note actions" auto / auto minmax(0, 1fr) 244px;
+  /* The checklist takes what it needs up to 420 px and wraps beyond that, so a long line never squeezes the note. */
+  grid-template: "confirm note actions" auto / minmax(0, 420px) minmax(180px, 1fr) 244px;
   gap: 16px;
   align-items: start;
 }

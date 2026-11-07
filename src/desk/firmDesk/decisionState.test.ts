@@ -50,8 +50,31 @@ describe("confirmItems", () => {
     });
   });
 
-  it("reports axes known against the rubric's total", () => {
+  it("reports the scored axes on file against the rubric's total", () => {
     const axes = confirmItems(firm, mirror, {}).find((i) => i.id === "axes");
-    expect(axes?.detail).toMatch(/^\d+\/\d+ axes known$/);
+    expect(axes?.detail).toMatch(/^\d+ of 9 scored axes on file$/);
+  });
+
+  it("says a firm that is not scored is hard-rejected, not '0 of 0'", () => {
+    const rejected = mirrorScore(toScoreInput({ firmType: "CS", advisoryConflict: true }));
+    const axes = confirmItems(firm, rejected, {}).find((i) => i.id === "axes");
+    expect(axes?.detail).toBe("not scored: the firm is hard-rejected");
+  });
+
+  it("clears the screen on the values on file and still warns when proposals would reject", () => {
+    const screen = (p: { hardRejected: boolean; rejectReason: string } | null) =>
+      confirmItems(firm, mirror, {}, p).find((i) => i.id === "screen");
+    expect(screen(null)).toMatchObject({ label: "Cleared the hard screen", ok: true });
+    expect(screen({ hardRejected: false, rejectReason: "" })?.detail).toBe("no rejection triggers");
+    const warned = screen({
+      hardRejected: true,
+      rejectReason: "Advisory conflict (CS hard-reject)",
+    });
+    expect(warned).toMatchObject({
+      label: "Cleared the hard screen on the values on file",
+      detail:
+        "would be hard-rejected if proposals are verified: Advisory conflict (CS hard-reject)",
+      ok: true,
+    });
   });
 });

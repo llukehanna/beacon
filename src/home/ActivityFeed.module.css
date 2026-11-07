@@ -5,6 +5,14 @@
   overflow: hidden;
 }
 
+.note {
+  margin: 0;
+  padding: 0 16px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--tx3);
+  font-size: 12px;
+}
+
 .pad {
   padding: 16px;
 }

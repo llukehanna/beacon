@@ -1,4 +1,5 @@
 import React from "react";
+import { RECORDED_RUN_NOTE } from "@/about/facts";
 import { errorMessage } from "@/data/adapter";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useOsdkAction } from "@/data/hooks";
@@ -10,14 +11,15 @@ import styles from "./AgentRunStrip.module.css";
 import { type FirmView } from "./deskModel";
 import { agoText } from "./queueState";
 
-const RERUN_HINT = "Re-query sources and propose fresh findings for unresolved axes";
+const RERUN_HINT =
+  "Reads the recorded source records for this firm again and proposes fresh findings for the axes still open. It replays the recorded extraction; no model is called.";
 
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /**
  * The agent's last run on this firm in one row: when it ran and, per source, how many axes that
  * source supplied a grounded value for and what share of the axes that is. A firm the agent has
- * not run on gets the call to action instead. "Re-run" stays available once it has.
+ * not run on gets the call to action instead. "Replay run" stays available once it has.
  *
  * `agentRan` comes from the firm's findings (see `agentHasRun`), not from `enrichedAt`: an analyst
  * committing values by hand stamps the firm too, and that is not a run. It is undefined while the
@@ -55,7 +57,7 @@ export function AgentRunStrip({
     () => [
       {
         id: "desk:run-agent",
-        label: ran ? "Re-run agent on this firm" : "Run agent on this firm",
+        label: ran ? "Replay agent run on this firm" : "Run agent on this firm",
         group: "Actions",
         run: () => runRef.current(),
       },
@@ -116,11 +118,12 @@ export function AgentRunStrip({
           />
           <div>
             <div className={styles.headline}>
-              {byAgent ? "Agent run complete" : "Enriched by analyst"}
+              {byAgent ? "Recorded run, replayed" : "Enriched by analyst"}
             </div>
             <div className={`${styles.sub} ${styles.mono}`}>
               {when}
-              {data !== undefined && `${when === null ? "" : " · "}${plural(axes, "axis", "axes")}`}
+              {data !== undefined &&
+                `${when === null ? "" : " · "}${plural(axes, "field", "fields")}`}
             </div>
           </div>
         </div>
@@ -135,7 +138,7 @@ export function AgentRunStrip({
               title={
                 data === undefined
                   ? undefined
-                  : `${label} supplied a grounded value for ${hits} of ${plural(axes, "axis", "axes")}`
+                  : `${label} supplied a grounded value for ${hits} of ${plural(axes, "field", "fields")}`
               }
             >
               <div className={styles.providerRow}>
@@ -158,10 +161,11 @@ export function AgentRunStrip({
         })}
         <div className={styles.rerun}>
           <Button variant="ghost" disabled={runAgent.isPending} onClick={run} title={RERUN_HINT}>
-            {runAgent.isPending ? "Running…" : "Re-run"}
+            {runAgent.isPending ? "Running…" : "Replay run"}
           </Button>
         </div>
       </section>
+      <p className={styles.replay}>{RECORDED_RUN_NOTE}</p>
       {failure}
     </>
   );

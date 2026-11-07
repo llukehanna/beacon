@@ -55,3 +55,18 @@ export function tierText(tier: MeterTier, hardScreened: boolean): string {
 export function segmentLabel(tier: MeterTier, hardScreened: boolean): string {
   return tier === "Rejected" ? tierText(tier, hardScreened) : tier;
 }
+
+/**
+ * What "Below C" means, for a tooltip: the score is under the model's C cut-off, so the firm has
+ * no tier yet. Enrichment can still raise it. Null for any other tier.
+ */
+export function belowCGloss(
+  tier: MeterTier,
+  hardScreened: boolean,
+  cutC: number,
+  max: number,
+): string | null {
+  return tier === "Rejected" && !hardScreened
+    ? `Below C: under ${cutC} of ${max} points, the lowest score that earns a C. Enrichment can still raise it.`
+    : null;
+}

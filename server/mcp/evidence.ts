@@ -78,7 +78,7 @@ export function firmEvidence(
       return {
         ...base,
         sides: conflictSides(row).map((f) => ({
-          value: displayFindingValue(row.axis, f.value),
+          value: displayFindingValue(row.axis, f.value, { units: false }),
           ...citationOf(f),
         })),
       };
@@ -87,7 +87,11 @@ export function firmEvidence(
     if (f === undefined || row.state === "abstained") {
       return base;
     }
-    return { ...base, value: displayFindingValue(row.axis, f.value), ...citationOf(f) };
+    return {
+      ...base,
+      value: displayFindingValue(row.axis, f.value, { units: false }),
+      ...citationOf(f),
+    };
   });
   return {
     firmId: firm.$primaryKey,

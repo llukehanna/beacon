@@ -151,8 +151,15 @@ export const RESOLUTION_LABEL: Readonly<Record<string, string>> = {
 // A Map, so a stray value like "constructor" can't resolve through the prototype.
 const RESOLUTION_BY_VALUE: ReadonlyMap<string, string> = new Map(Object.entries(RESOLUTION_LABEL));
 
-export function resolutionLabel(resolution: string | null | undefined): string {
+export function resolutionLabel(
+  resolution: string | null | undefined,
+  /** True for the acquisition event itself: keeping the firm passed then records the lesson. */
+  lesson = false,
+): string {
   const raw = (resolution ?? "").trim();
+  if (lesson && raw === "kept_passed") {
+    return "Lesson recorded";
+  }
   if (raw === "") {
     return "Resolved";
   }

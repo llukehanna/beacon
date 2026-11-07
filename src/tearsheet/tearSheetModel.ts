@@ -9,16 +9,22 @@ import { agentHasRun } from "@/desk/firmDesk/agentRun";
 import { firmDecisionState } from "@/desk/firmDesk/decisionState";
 import { type FirmDecision, firmDecisions } from "@/desk/firmDesk/firmDecisions";
 import { buildOnFile } from "@/desk/firmDesk/onFile";
-import { tierText } from "@/desk/firmDesk/tierMeter";
+import { belowCGloss, tierText } from "@/desk/firmDesk/tierMeter";
 import { rejectDecisionByFirm } from "@/desk/pipelineRows";
 import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
 import { mirrorScore } from "@/desk/scoreMirror";
 import { firmFacts } from "@/pipeline/pipelineModel";
+import { axisLabel } from "../../shared/axisLabels";
 import { type AxisRow, authoritativeFinding, buildAxisRows } from "../../shared/axisRows";
 import { type Citation, citationOf, nonEmpty } from "../../shared/citation";
-import { type FirmView, humanAxisValue, toScoreInput } from "../../shared/deskModel";
+import {
+  type FirmView,
+  humanAxisValue,
+  mirrorLabelForEditKey,
+  toScoreInput,
+} from "../../shared/deskModel";
 import { conflictSides } from "../../shared/evidenceModel";
-import { displayFindingValue } from "../../shared/findingActions";
+import { coerceFindingValue, displayFindingValue } from "../../shared/findingActions";
 import {
   SYNTHETIC_LABEL,
   type SignalLike,
@@ -26,7 +32,7 @@ import {
   isApplied,
   kindLabel,
 } from "../../shared/marketSignals";
-import { MAX_POSSIBLE } from "../../shared/scoreMirror";
+import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../../shared/scoreMirror";
 import { ENRICH_AXES, MARKET_SIGNAL } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
@@ -66,10 +72,15 @@ export interface SignalLine {
 
 export interface AxisLine {
   axis: string;
-  /** The value on file, worded as the Desk words it. */
+  /** The value on file, worded as the Desk words it; with nothing on file, the agent's open proposal. */
   value: string;
-  /** Points out of 2; null when the axis is unknown. */
+  /** Points out of 2; null when nothing is on file for the axis. */
   points: number | null;
+  /**
+   * Where the value comes from: the firm record, an agent proposal no analyst has verified yet,
+   * sources that disagree, or nothing at all. Only an on-file value earns points.
+   */
+  status: "on_file" | "proposed" | "conflict" | "unknown";
 }
 
 export type { Citation };
@@ -115,6 +126,8 @@ export interface TearSheet {
     tier: string;
     /** "Tier B", "Below C" or "Rejected", as the Desk words it. */
     tierText: string;
+    /** What "Below C" means, for a tooltip; null for any other tier. */
+    tierNote: string | null;
     model: "CF" | "CS";
     /** Why a screened firm is out; null otherwise. */
     screenedBecause: string | null;
@@ -161,6 +174,47 @@ export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
       moved: axisMovedText(s),
       label: SYNTHETIC_LABEL,
     }));
+}
+
+/**
+ * One row of the score table. A value on file is scored. With nothing on file the Desk's grid has
+ * the answer: an open proposal is shown, marked unverified and not scored, and sources that disagree
+ * say so. "Unknown" is left for an axis nobody has a value for.
+ */
+function axisLine(
+  mirrorAxis: { axis: string; score: number; known: boolean },
+  firm: FirmView,
+  rows: readonly AxisRow[],
+  model: "CF" | "CS",
+): AxisLine {
+  // The rubric mirror's own axis name keys the lookups; the sheet shows the shared label.
+  const a = mirrorAxis;
+  const shown = axisLabel(a.axis);
+  if (a.known) {
+    return {
+      axis: shown,
+      value: humanAxisValue(a.axis, firm),
+      points: a.score,
+      status: "on_file",
+    };
+  }
+  const row = rows.find((r) => mirrorLabelForEditKey(r.def.actionParam, model) === a.axis);
+  if (row?.state === "proposed") {
+    const proposal = coerceFindingValue(row.def.actionParam, authoritativeFinding(row)?.value);
+    if (proposal !== undefined) {
+      const withProposal: FirmView = { ...firm, [row.def.firmField]: proposal };
+      return {
+        axis: shown,
+        value: humanAxisValue(a.axis, withProposal),
+        points: null,
+        status: "proposed",
+      };
+    }
+  }
+  if (row?.state === "conflict") {
+    return { axis: shown, value: "Sources disagree", points: null, status: "conflict" };
+  }
+  return { axis: shown, value: humanAxisValue(a.axis, firm), points: null, status: "unknown" };
 }
 
 export function buildTearSheet({
@@ -254,15 +308,12 @@ export function buildTearSheet({
       max: MAX_POSSIBLE,
       tier: mirror.tier,
       tierText: tierText(mirror.tier, hard),
+      tierNote: belowCGloss(mirror.tier, hard, TIER_THRESHOLDS[mirror.model].C, MAX_POSSIBLE),
       model: mirror.model,
       screenedBecause,
     },
     atDecision,
-    axes: mirror.axisScores.map((a) => ({
-      axis: a.axis,
-      value: humanAxisValue(a.axis, firm),
-      points: a.known ? a.score : null,
-    })),
+    axes: mirror.axisScores.map((a) => axisLine(a, firm, rows, mirror.model)),
     evidence,
     conflicts,
     abstentions,

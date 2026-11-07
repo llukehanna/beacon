@@ -1,4 +1,5 @@
 import type { ActionParams } from "./actionParams.js";
+import { axisLabel } from "./axisLabels.js";
 import { type FindingLike, retrievedMs } from "./axisState.js";
 import { HARD_GATE_EDIT_KEYS } from "./findingActions.js";
 import { type Model, type ScoreInput } from "./scoreMirror.js";
@@ -67,38 +68,9 @@ export function enrichParams(firmId: string, edits: EditMap): ActionParams<"enri
 // Canonical axis→edit-key mapping lives in ./findingActions so the accept
 // / verify / conflict-detection logic can be unit-tested without React.
 
-// Human labels for the findings section header. Anything not in the map falls
-// back to the raw axis key (still readable — the agent vocabulary is
-// snake_case English).
-const AXIS_DISPLAY_LABEL: Record<string, string> = {
-  services_fit: "Services fit",
-  md_pedigree: "MD pedigree",
-  balance_sheet_principal: "Balance sheet / principal",
-  deal_size: "Avg deal size",
-  deal_size_usd_m: "Avg deal size",
-  deals_per_md: "Deals / MD (L3Y)",
-  deals_per_md_l3y: "Deals / MD (L3Y)",
-  firm_age: "Firm age",
-  firm_age_years: "Firm age",
-  fee_generating_count: "Fee-earning heads",
-  coverage_model: "Sector coverage",
-  geographic_footprint: "Geographic fit",
-  employees: "Employees",
-  // Hard-gate axes render with the same labels as the hard-gate checklist so
-  // the analyst reads one vocabulary. Two spellings for the balance-sheet
-  // gate mirror FINDING_AXIS_TO_KEY's alias.
-  advisory_conflict: "Advisory conflict",
-  has_st_or_balance_sheet: "S&T / balance sheet",
-  st_or_balance_sheet: "S&T / balance sheet",
-  web_activity: "Web activity",
-  solvent: "Solvent",
-};
-
+/** The findings' axis label. The one label map is shared/axisLabels. */
 export function displayAxis(raw: string | undefined): string {
-  if (raw === undefined || raw === "") {
-    return "unknown axis";
-  }
-  return AXIS_DISPLAY_LABEL[raw.trim().toLowerCase()] ?? raw;
+  return axisLabel(raw);
 }
 
 export function toScoreInput(f: FirmView): ScoreInput {
@@ -207,7 +179,7 @@ export function editorForAxis(axisLabel: string, model: Model): AxisEditor | und
     case "Deal Size":
       return { editKey: "dealSizeMUsd", kind: "number", unit: "$m USD" };
     case "Deals per MD":
-      return { editKey: "dealsPerMdL3y", kind: "number", unit: "per MD, L3Y" };
+      return { editKey: "dealsPerMdL3y", kind: "number", unit: "per MD, last 3 years" };
     case "Firm Age":
       return { editKey: "firmAge", kind: "number", unit: "yrs" };
     case "Fee-Generating":

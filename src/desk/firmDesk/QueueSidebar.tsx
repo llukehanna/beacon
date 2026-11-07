@@ -2,13 +2,14 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { Search } from "@blueprintjs/icons";
 import { AGENT } from "../../../shared/vocab";
-import { type ScreeningRule, isLiveQueueFirm, screenFirm } from "../activeScreening";
+import { type ScreeningRule, screenFirm } from "../activeScreening";
 import { isOpenFirm } from "../pipelineBuckets";
 import { type RankedFirm } from "../queue";
 import { formatScore, scoreFraction } from "../scoreFormat";
 import styles from "./QueueSidebar.module.css";
 import { type RediscoveryInfo } from "./deskModel";
 import { type FindingCounts, queueStateLine } from "./queueState";
+import { visibleQueue } from "./visibleQueue";
 
 /** What the queue knows about a firm's last enrichment, for the row's state line. */
 export interface QueueRun {
@@ -125,28 +126,17 @@ export function QueueSidebar({
     return { liveCount: open - openScreened, openCount: open, openScreenedCount: openScreened };
   }, [openByFirmId, screenByFirmId]);
 
-  const filtered = React.useMemo(() => {
-    // The search box reaches every firm in scope regardless of the switch —
-    // an analyst looking up a firm by name should never have to know it was
-    // screened or already decided to find it.
-    const base =
-      searching || showAll || membershipPinned
-        ? queue
-        : queue.filter((r) =>
-            // Same predicate the header counts, so the list length and the
-            // "N in live queue" figure above it can never disagree.
-            isLiveQueueFirm(r.firm, screeningRules, openByFirmId.has(r.firm.firmId)),
-          );
-    if (!searching) {
-      return base;
-    }
-    const needle = query.trim().toLowerCase();
-    return base.filter(
-      (r) =>
-        (r.firm.firmName ?? "").toLowerCase().includes(needle) ||
-        (r.firm.firmId ?? "").toLowerCase().includes(needle),
-    );
-  }, [queue, query, searching, showAll, membershipPinned, screeningRules, openByFirmId]);
+  const filtered = React.useMemo(
+    () =>
+      visibleQueue(queue, {
+        query,
+        showAll,
+        membershipPinned,
+        screeningRules,
+        openIds: openByFirmId,
+      }),
+    [queue, query, showAll, membershipPinned, screeningRules, openByFirmId],
+  );
 
   // Roving tabindex: one row is in the tab order (the open firm, else the one last focused, else
   // the first), so Tab enters the list once and arrow keys move within it.
@@ -204,7 +194,12 @@ export function QueueSidebar({
     <div className={styles.queue}>
       <div className={styles.head}>
         <span className={styles.title}>Queue</span>
-        <span className={styles.order}>by expected gain</span>
+        <span
+          className={styles.order}
+          title="Sorted by the points a firm could still gain if its missing fields were filled: the +N beside each score. Ties go to the firm with fewer fields missing, then A to Z."
+        >
+          most points to gain first
+        </span>
       </div>
 
       <div className={styles.search}>
@@ -320,6 +315,14 @@ export function QueueSidebar({
                     }
                   >
                     {rejected ? "R" : r.currentScore}
+                    {!rejected && r.gain > 0 && (
+                      <span className={styles.gain} title={`Up to +${r.gain} points if enriched`}>
+                        <span aria-hidden="true"> +{r.gain}</span>
+                        <span className="sr-only">
+                          , up to {r.gain} more point{r.gain === 1 ? "" : "s"} if enriched
+                        </span>
+                      </span>
+                    )}
                   </span>
                   <span className={styles.bar} aria-hidden="true">
                     <i className={styles.ceiling} style={{ width: `${barCeiling * 100}%` }} />

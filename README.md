@@ -55,10 +55,10 @@ Every figure is measured against the synthetic universe's hidden truth; none say
 | Settled values that match the truth                               | 93.2%, on 68.3% of axes                                               |
 | Conflicts where the more trusted source was right                 | 90.8%                                                                 |
 | Abstentions where no source had the value                         | 100%                                                                  |
-| Planted rejection patterns recovered as rules                     | 4 of 4                                                                |
+| Planted rejection patterns the clusterer recovers, in the evaluation | 4 of 4 (the app does not keep a proposal that repeats a rubric gate) |
 | Cost of the recorded extraction run, all 700 firms                | $1.39                                                                 |
 | Ontology                                                          | 18 object tables, every write a named action in one transaction       |
-| Tests                                                             | over 1,100 unit and integration tests and 161 end-to-end tests, in CI, plus a daily check of the live demo |
+| Tests                                                             | over 1,200 unit and integration tests and 176 end-to-end tests, in CI, plus a daily check of the live demo |
 
 ## Why it is built this way
 

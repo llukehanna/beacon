@@ -57,7 +57,8 @@ export function needsRow(item: NeedsYouItem): NeedsRow {
           ...base,
           mark: "!",
           tone: "attention",
-          reason: "we passed, the market did not",
+          // The server opens outcome_diverged only when a passed firm is acquired by a competitor.
+          reason: "passed; later acquired by a competitor",
           figure: null,
         };
       }

@@ -9,7 +9,7 @@ import {
   toScreeningRules,
 } from "./activeScreening";
 import { type FindingLike, axisBadge, classifyAxis, needsYouAxisCountByFirm } from "./axisState";
-import { agentRunFirmIds, defaultDeskFirmId } from "./deskDefaults";
+import { agentRunFirmIds, defaultDeskFirmId, nextQueueFirmId } from "./deskDefaults";
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
@@ -705,8 +705,10 @@ describe("displayFindingValue — gate cards read Pass/Fail, never raw booleans"
     expect(displayFindingValue("st_or_balance_sheet", "yes")).toBe("Fail");
   });
 
-  it("scoring axes pass their string value through untouched", () => {
-    expect(displayFindingValue("deal_size_usd_m", "150")).toBe("150");
+  it("scoring axes pass their words through untouched and give deal size its unit", () => {
+    expect(displayFindingValue("deal_size_usd_m", "150")).toBe("$150m");
+    // The MCP tools and the exports ask for the bare number.
+    expect(displayFindingValue("deal_size_usd_m", "150", { units: false })).toBe("150");
     expect(displayFindingValue("services_fit", "Full advisory suite")).toBe("Full advisory suite");
   });
 
@@ -1531,7 +1533,7 @@ describe("mandateFirmCounts — one union, both pages", () => {
     const home = formatMandateFirmCounts(counts as MandateFirmCounts);
     const mandatePage = formatMandateFirmCounts(counts as MandateFirmCounts);
     expect(home).toBe(mandatePage);
-    expect(home).toBe("5 scoped · 3 from searches");
+    expect(home).toBe("5 firms in scope · 3 added by searches");
   });
 });
 
@@ -1638,7 +1640,9 @@ describe("providerLabel", () => {
   it("labels single providers and any corroboration combination", () => {
     expect(providerLabel("dealdb")).toBe("Deal DB");
     expect(providerLabel("dealdb+websearch")).toBe("Deal DB + Web search");
-    expect(providerLabel("beacondb+dealdb+filings")).toBe("BeaconDB + Deal DB + Filings");
+    expect(providerLabel("beacondb+dealdb+filings")).toBe(
+      "Internal CRM (mock) + Deal DB + Filings",
+    );
     expect(providerLabel("mystery")).toBe("mystery");
   });
 });
@@ -2239,6 +2243,19 @@ describe("excerptText", () => {
     ).toBe("No provider grounded this value.");
     expect(excerptText({ sourceExcerpt: "", sourceDocumentId: "dealdb:f1" })).toBeNull();
     expect(excerptText({})).toBeNull();
+  });
+});
+
+describe("nextQueueFirmId", () => {
+  it("moves to the firm after the passed one, else the first left", () => {
+    expect(nextQueueFirmId(["a", "b", "c"], "b")).toBe("c");
+    expect(nextQueueFirmId(["a", "b", "c"], "c")).toBe("a");
+    expect(nextQueueFirmId(["a", "b"], "x")).toBe("a");
+  });
+
+  it("stays put when nothing else is in the queue", () => {
+    expect(nextQueueFirmId(["a"], "a")).toBeUndefined();
+    expect(nextQueueFirmId([], "a")).toBeUndefined();
   });
 });
 

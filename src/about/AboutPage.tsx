@@ -41,9 +41,13 @@ const STEPS: ReadonlyArray<{ title: string; body: React.ReactNode }> = [
     title: "A deterministic rubric",
     body: (
       <>
-        A plain-code rubric of {AXIS_COUNT} axes, each scored 0 to 2 ({RUBRIC_MAX} points), turns
-        the values on file into a score and a tier. The same module runs in the browser for live
-        previews and on the server for the record, so the two cannot disagree.
+        A plain-code rubric of {AXIS_COUNT} scored axes, each scored 0 to 2 ({RUBRIC_MAX} points),
+        turns the values on file into a score and a tier. Four pass or fail gates (advisory
+        conflict, sales and trading or a balance sheet, web activity, solvency) are recorded beside
+        them and earn no points, so the desk lists a firm&rsquo;s axes and gates together: six or
+        seven scored axes and the four gates, with the rest of the nine scored from the firm record.
+        The same module runs in the browser for live previews and on the server for the record, so
+        the two cannot disagree.
       </>
     ),
   },

@@ -39,17 +39,20 @@ export function EnrichmentPanel({
   firmsLoading,
   activeConfigs,
   configsLoading,
+  onPassed,
 }: {
   firm: FirmView;
   allFirms: FirmView[];
   firmsLoading: boolean;
   activeConfigs: readonly ActiveConfigRule[];
   configsLoading: boolean;
+  /** Told once the analyst has passed on the firm. */
+  onPassed?: (firm: FirmView) => void;
 }): React.ReactElement {
   const [edits, setEdits] = React.useState<EditMap>({});
   // Verifications staged locally — findingId → true (plain verify) or the
   // override value string ("Keep mine"). Nothing reaches verifyFindingAction
-  // until Commit enrichment: walking away from the desk discards these,
+  // until the analyst saves: walking away from the desk discards these,
   // exactly like uncommitted axis edits. Commit is the one transaction
   // boundary for both the firm fields and the finding statuses.
   const [pendingVerify, setPendingVerify] = React.useState<Record<string, string | true>>({});
@@ -397,6 +400,8 @@ export function EnrichmentPanel({
             dirty={dirty}
             enrichPending={enrich.isPending}
             enrichError={enrich.error ?? (flushError === null ? undefined : flushError)}
+            onPassed={onPassed}
+            projection={projection}
           />
         </div>
       </div>
