@@ -8,7 +8,8 @@
 import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
-import { USER, axisByName } from "../../shared/vocab.js";
+import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
+import { ENRICH_AXES, USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { NO_WALL } from "../access.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
@@ -159,6 +160,55 @@ export async function seedHistory(
         firm: id,
         ...accepted,
         fieldsEnteredManually: JSON.stringify(manual),
+        agentValuesOverridden: JSON.stringify(overridden),
+      });
+    }
+  }
+
+  /**
+   * A strong showcase firm: the agent runs, and an analyst verifies its proposed values on the
+   * scored axes, in rubric order (correcting any the truth contradicts), until the firm reaches
+   * tier B, then commits them. The conflict, the hard-gate values, the abstentions and any scored
+   * value still unverified are left for the visitor: the score is already a real one, and the work
+   * left is the work the tour shows.
+   */
+  async function enrichStrongFirm(id: string): Promise<void> {
+    await act("runAgentEnrichment", { firm: id });
+    const firm = await loadFirm(id);
+    const order = (f: ObjectOf<"ResearchFinding">): number =>
+      ENRICH_AXES.findIndex((a) => a.axis === f.axis);
+    const scored = (await all(db, "ResearchFinding", { where: { firmId: { $eq: id } } }))
+      .filter(
+        (f) =>
+          f.findingStatus === "proposed" &&
+          !f.conflictGroupId &&
+          axisByName(f.axis ?? "")?.kind !== "gate",
+      )
+      .sort((a, b) => order(a) - order(b));
+    const accepted: Record<string, unknown> = {};
+    const fields: Record<string, unknown> = {};
+    const overridden: string[] = [];
+    for (const f of scored) {
+      const live = scoreFirm({ ...firm, ...fields });
+      if (!live.hardRejected && (live.tier === "A" || live.tier === "B")) {
+        break;
+      }
+      const axis = axisByName(f.axis!)!;
+      const truth = truthFor(firm, axis);
+      if (sameValue(axis, f.value!, truth)) {
+        await act("verifyFinding", { finding: f.$primaryKey });
+      } else {
+        await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
+        overridden.push(axis.actionParam);
+      }
+      accepted[axis.actionParam] = parseAxisValue(axis, truth);
+      fields[axis.firmField] = accepted[axis.actionParam];
+    }
+    if (Object.keys(accepted).length > 0) {
+      await act("enrichFirm", {
+        firm: id,
+        ...accepted,
+        fieldsEnteredManually: "[]",
         agentValuesOverridden: JSON.stringify(overridden),
       });
     }
@@ -315,9 +365,22 @@ export async function seedHistory(
     });
   }
 
-  // 9. Showcase: the agent runs the demo opens on, left open. The picker skips firms an earlier
-  // step touched, and firms the desk's own queue would hard-screen under the approved rules
+  // 9. Showcase. First the strong firms the tour opens on (shared/showcaseFirms.ts): nearly
+  // complete, verified as far as tier B (see enrichStrongFirm). A firm an earlier step touched
+  // is left alone, and the seed test says so. Then the agent runs left open for the analyst, which
+  // show more conflicts and abstentions. Their picker skips firms an earlier step touched (the
+  // strong ones included) and firms the desk's own queue would hard-screen under the approved rules
   // (base rules included), so all stay in the live queue.
+  for (const id of STRONG_SHOWCASE_FIRM_IDS) {
+    const firm = await getObject(db, "Firm", id);
+    if (
+      firm !== null &&
+      normalizeLifecycle(firm.lifecycleState) === "Discovered" &&
+      firm.enrichedBy == null
+    ) {
+      await enrichStrongFirm(id);
+    }
+  }
   const rules = toScreeningRules(
     (await all(db, "ProposedRule")).map((p) => ({ ...p, proposedRuleId: p.$primaryKey })),
     await all(db, "HardScreenConfig"),

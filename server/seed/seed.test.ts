@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ObjectOf } from "../../shared/schema.js";
+import { scoreFirm } from "../../shared/scoring.js";
+import { STRONG_SHOWCASE_FIRM_IDS, TOUR_FIRM_ID } from "../../shared/showcaseFirms.js";
 import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
 import { type ClusteringFixture, fixtureClusterer, hashRejections } from "../clustering/fixture.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
@@ -14,7 +16,7 @@ import type { FindingPlan } from "../enrichment/reconcile.js";
 import { createTestDb } from "../testing.js";
 import { RESTRICTED_FIRM_COUNT, RESTRICTION_REASONS, WALLED_MANDATE } from "./barriers.js";
 import { resetDemo } from "./reset.js";
-import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms } from "./showcase.js";
+import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms, runProfile } from "./showcase.js";
 import { PLACES, RESERVED_WORDS, SURNAMES, generateUniverse } from "./universe.js";
 
 describe("generateUniverse", () => {
@@ -357,6 +359,26 @@ describe("showcase seed", () => {
     for (const id of byFirm.keys()) {
       const firm = firms.find((f) => f.$primaryKey === id)!;
       expect(isScreened(firm, rules), `${id} is hard-screened`).toBe(false);
+    }
+
+    // The strong firms, the tour's first among them: nearly complete, verified where it scores,
+    // and worth a look. Still in the live queue, with a conflict and the gates left to the visitor.
+    expect(STRONG_SHOWCASE_FIRM_IDS).toContain(TOUR_FIRM_ID);
+    const findings = await listAll(db, "ResearchFinding");
+    for (const id of STRONG_SHOWCASE_FIRM_IDS) {
+      const firm = firms.find((f) => f.$primaryKey === id)!;
+      expect(firm.lifecycleState, `${id} stage`).toBe("Screening");
+      expect(isScreened(firm, rules), `${id} is hard-screened`).toBe(false);
+      const run = runProfile(firm, findings);
+      expect(run.conflicts, `${id} conflicts`).toBe(1);
+      expect(run.abstained, `${id} abstentions`).toBeLessThanOrEqual(2);
+      expect(run.verified, `${id} verified`).toBeGreaterThanOrEqual(3);
+      expect(run.proposed + run.verified, `${id} values`).toBeGreaterThanOrEqual(6);
+      expect(run.failingGates, `${id} failing gates`).toEqual([]);
+      const live = scoreFirm(firm);
+      expect(live.hardRejected, `${id} rejected`).toBe(false);
+      expect(["A", "B"], `${id} tier`).toContain(live.tier);
+      expect(["A", "B"], `${id} tier if verified`).toContain(run.projected.tier);
     }
   }, 300_000);
 
