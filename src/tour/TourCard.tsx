@@ -1,8 +1,10 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { CASE_STUDY_URL, REPO_URL } from "@/about/facts";
 import { Button, Kbd } from "@/ui";
 import styles from "./TourCard.module.css";
 import { type Box, type Size, placeCard } from "./placement";
+import { contentBoxes } from "./tourModel";
 import { type TourStep } from "./tourSteps";
 
 /** What the card assumes about its own size until it has been measured. */
@@ -68,7 +70,31 @@ export function TourCard({
     cardRef.current?.focus({ preventScroll: true });
   }, [step.id]);
 
-  const placement = placeCard(rect, size, view, narrow);
+  // What is on the page, read once the anchor has stopped moving (reading every box on each
+  // scroll frame would be slow), so a wide card lands where it covers the least.
+  const [obstacles, setObstacles] = React.useState<Box[]>([]);
+  const [area, setArea] = React.useState<Box | undefined>(undefined);
+  React.useEffect(() => {
+    if (narrow || rect === null) {
+      setObstacles([]);
+      return undefined;
+    }
+    const t = window.setTimeout(() => {
+      const main = document.getElementById("main")?.getBoundingClientRect();
+      setArea(
+        main === undefined
+          ? undefined
+          : { top: main.top, left: main.left, width: main.width, height: main.height },
+      );
+      setObstacles([
+        ...contentBoxes(document, { width: window.innerWidth, height: window.innerHeight }),
+        rect,
+      ]);
+    }, 150);
+    return () => window.clearTimeout(t);
+  }, [rect, narrow, step.id]);
+
+  const placement = placeCard(rect, size, view, narrow, obstacles, area);
   const position: React.CSSProperties =
     placement.kind === "float" ? { top: placement.top, left: placement.left } : {};
 
@@ -114,15 +140,32 @@ export function TourCard({
           {step.body}
         </p>
         {last && (
-          <p className={styles.links}>
-            <Link to="/accuracy">See how accurate it is</Link>
-            <Link to="/about">About Beacon</Link>
-          </p>
+          <>
+            <p className={styles.tryIt}>
+              <b>Try it:</b> <Link to="/desk">pass on a firm</Link> and watch its reason reach{" "}
+              <Link to="/rules">Rules</Link>.
+            </p>
+            <p className={styles.links}>
+              <Link to="/accuracy">See how accurate it is</Link>
+              <Link to="/about">About Beacon</Link>
+              <a href={REPO_URL} target="_blank" rel="noopener noreferrer">
+                GitHub repo <span aria-hidden="true">↗</span>
+              </a>
+              <a href={CASE_STUDY_URL} target="_blank" rel="noopener noreferrer">
+                Case study <span aria-hidden="true">↗</span>
+              </a>
+            </p>
+          </>
         )}
         <div className={styles.actions}>
-          <Button onClick={onPrev ?? undefined} disabled={onPrev === null}>
-            <Kbd>←</Kbd> Back
-          </Button>
+          {onPrev === null ? (
+            // The first stop has nowhere to go back to: no button, so none looks pressable.
+            <span aria-hidden="true" />
+          ) : (
+            <Button onClick={onPrev}>
+              <Kbd>←</Kbd> Back
+            </Button>
+          )}
           {last ? (
             <Button variant="primary" onClick={onClose}>
               Done

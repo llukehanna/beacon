@@ -76,3 +76,29 @@ describe("placeCard as a sheet", () => {
     });
   });
 });
+
+describe("placeCard around page content", () => {
+  const anchor = { top: 100, left: 300, width: 400, height: 80 };
+
+  it("keeps the first side with room when nothing is in the way", () => {
+    expect(placeCard(anchor, card, view, false, [])).toEqual(placeCard(anchor, card, view, false));
+  });
+
+  it("moves to free space when the first side would cover other content", () => {
+    // A neighbour sits right of the anchor, so the card goes to the free left side.
+    const neighbour = { top: 100, left: 714, width: 340, height: 400 };
+    const p = placeCard({ ...anchor, left: 400 }, card, view, false, [neighbour]);
+    expect(p).toEqual({ kind: "float", top: 100, left: 400 - GAP - card.width });
+  });
+
+  it("falls back to a corner that covers nothing when no side of the anchor is free", () => {
+    const wide = { top: 100, left: 20, width: 1400, height: 120 };
+    const content = [wide, { top: 240, left: 20, width: 1400, height: 400 }];
+    const p = placeCard(wide, card, view, false, content);
+    expect(p.kind).toBe("float");
+    if (p.kind === "float") {
+      // The bottom strip below the content is empty: the card sits in it.
+      expect(p.top).toBeGreaterThanOrEqual(640);
+    }
+  });
+});

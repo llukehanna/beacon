@@ -9,6 +9,11 @@ export interface TourStep {
   params?: Readonly<Record<string, string>>;
   /** The `data-tour` value of the element to highlight; null shows a centred card instead. */
   anchor: string | null;
+  /**
+   * The `data-tour` value of an element that must be fully on screen, above the card, on a narrow
+   * screen: the Desk's whole decision bar for the note box it points at. Defaults to the anchor.
+   */
+  reveal?: string;
   title: string;
   body: string;
 }
@@ -45,9 +50,10 @@ export const TOUR_STEPS: readonly TourStep[] = [
     id: "pass",
     route: "/desk",
     params: DESK,
-    anchor: "pass-button",
+    anchor: "pass-note",
+    reveal: "decision-bar",
     title: "Passing takes a reason",
-    body: "To pass on a firm you write down why. The tour only points at this control and never presses it. Those reasons are the raw material for rules.",
+    body: "To pass on a firm you write down why in this note. The tour only points at it and never presses Pass. Those reasons are the raw material for rules.",
   },
   {
     id: "rule",
