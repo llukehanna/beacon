@@ -362,6 +362,41 @@ describe("market signals on the sheet", () => {
     expect(sheet.hasQuotes).toBe(false);
   });
 
+  it("shows the newer of a signal and an analyst's check as the value on the sheet", () => {
+    const analyst = (at: string) =>
+      finding({
+        findingId: "mine",
+        axis: "fee_generating_count",
+        value: "5",
+        provider: "analyst",
+        findingStatus: "verified",
+        verifiedByHuman: true,
+        verifiedAt: at,
+        retrievedAt: at,
+      });
+    const signal = finding({
+      findingId: "sig",
+      axis: "fee_generating_count",
+      value: "2",
+      provider: "market_signal",
+      findingStatus: "signal",
+      retrievedAt: "2026-05-02T00:00:00Z",
+    });
+    const heads = (findings: FindingLike[]) =>
+      buildTearSheet({ firm, findings, decisions: [], rules: [] }).evidence.find(
+        (e) => e.axis === "Fee-earning heads",
+      );
+    expect(heads([analyst("2026-05-01T00:00:00Z"), signal])).toMatchObject({
+      value: "2",
+      status: "signal",
+      synthetic: true,
+    });
+    expect(heads([analyst("2026-05-03T00:00:00Z"), signal])).toMatchObject({
+      status: "verified",
+      synthetic: false,
+    });
+  });
+
   it("does not call a signal's finding research", () => {
     const sheet = buildTearSheet({
       firm,

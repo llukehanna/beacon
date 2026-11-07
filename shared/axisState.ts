@@ -35,6 +35,8 @@ export interface FindingLike {
   // Server timestamp — ISO string over the wire; used to pick the freshest
   // finding for an axis when no verified one exists.
   retrievedAt?: string | number | Date | null;
+  // When a person verified it (an analyst's own entry is stamped when entered).
+  verifiedAt?: string | number | Date | null;
 }
 
 /** A finding written by a synthetic market signal: news that moves a score, never a checked value. */
@@ -65,14 +67,48 @@ export function retrievedMs(f: FindingLike): number {
   return Number.isNaN(t) ? 0 : t;
 }
 
+const timeMs = (raw: FindingLike["retrievedAt"]): number | null => {
+  if (raw === null || raw === undefined) {
+    return null;
+  }
+  const t = raw instanceof Date ? raw.getTime() : new Date(raw).getTime();
+  return Number.isNaN(t) ? null : t;
+};
+
+/** When a verified finding was checked: its verification time, else the time it was recorded. */
+export function verifiedMs(f: FindingLike): number | null {
+  return timeMs(f.verifiedAt) ?? timeMs(f.retrievedAt);
+}
+
+/**
+ * Whether a market signal dated `signalMs` outranks a human check made at `checkedMs` (null: none
+ * on file). News newer than the check wins; a check made after the news wins. The apply step uses
+ * this to decide whether a signal may move a value, and `pickAuthoritative` uses it to decide which
+ * finding the desk, the tear sheet and the exports show, so the value shown is the value scored.
+ */
+export function signalOutranksCheck(signalMs: number, checkedMs: number | null): boolean {
+  return checkedMs === null || checkedMs <= signalMs;
+}
+
 export function pickAuthoritative(findings: FindingLike[]): FindingLike {
-  // A market signal speaks for an axis only when nothing else has been found for it: a human-
-  // verified finding outranks it, and an open proposal or abstention is still work for the analyst.
   const real = findings.filter((f) => !isSignalFinding(f));
   const candidates = real.length > 0 ? real : findings;
   const verified = candidates.filter(isVerifiedFinding);
-  const pool = verified.length > 0 ? verified : candidates;
-  return [...pool].sort((a, b) => retrievedMs(b) - retrievedMs(a))[0];
+  const newest = (pool: FindingLike[]): FindingLike =>
+    [...pool].sort((a, b) => retrievedMs(b) - retrievedMs(a))[0];
+  // The newest signal takes the place of a human-verified finding it is newer than: the firm's
+  // value (and so its score) is the signal's, and the older check is history. A check made after
+  // the signal, or any other finding while nothing is verified (an open proposal or abstention is
+  // still work for the analyst), keeps the earlier rules.
+  const signals = findings.filter(isSignalFinding);
+  if (signals.length > 0 && verified.length > 0) {
+    const signal = newest(signals);
+    const checkedMs = Math.max(...verified.map((f) => verifiedMs(f) ?? 0));
+    if (signalOutranksCheck(retrievedMs(signal), checkedMs)) {
+      return signal;
+    }
+  }
+  return newest(verified.length > 0 ? verified : candidates);
 }
 
 export type AxisState = "verified" | "abstained" | "proposed" | "signal";

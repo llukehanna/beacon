@@ -30,6 +30,7 @@
  * the score, the run re-scores through the same rubric, and a qualified or passed firm whose tier
  * moved opens a drift event through the same rule enrichFirm uses (computeDriftForFirm).
  */
+import { signalOutranksCheck } from "../../shared/axisState.js";
 import { SIGNAL_AXES, isApplied, isSignalKind } from "../../shared/marketSignals.js";
 import type { Props } from "../../shared/schema.js";
 import { axisPoints, formatAxisValue, scoreFirm } from "../../shared/scoring.js";
@@ -210,8 +211,10 @@ export function planSignals(
       return skip("no_value", before);
     }
     // An analyst's check made after the news outranks it: the signal is listed, nothing moves.
-    const verified = verifiedAt(signal.firmId, move.axis);
-    if (verified !== null && verified > Date.parse(signal.effectiveDate)) {
+    // The same rule decides which finding the desk shows (pickAuthoritative).
+    if (
+      !signalOutranksCheck(Date.parse(signal.effectiveDate), verifiedAt(signal.firmId, move.axis))
+    ) {
       return skip("analyst_newer", before);
     }
     // Clamped to the value already on file: applied, but nothing changed and nothing is written.

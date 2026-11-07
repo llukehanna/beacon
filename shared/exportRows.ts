@@ -74,6 +74,7 @@ export type FindingLike = Nullable<
     | "verifiedByHuman"
     | "conflictGroupId"
     | "retrievedAt"
+    | "verifiedAt"
   >
 >;
 
@@ -155,6 +156,7 @@ function forAxisState(f: FindingLike): AxisFinding {
     verifiedByHuman: opt(f.verifiedByHuman),
     conflictGroupId: opt(f.conflictGroupId),
     retrievedAt: f.retrievedAt,
+    verifiedAt: f.verifiedAt,
   };
 }
 
