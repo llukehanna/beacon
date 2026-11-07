@@ -24,7 +24,7 @@
     "preview": "vite preview",
     "deploy": "npm run build && wrangler deploy --env=\"\"",
     "deploy:presenter": "npm run build && wrangler deploy --env presenter",
-    "cf:dev": "npm run build && wrangler dev --env=\"\"",
+    "cf:dev": "npm run build && wrangler dev --env presenter",
     "e2e": "playwright test --grep-invert @shots",
     "shots": "playwright test --grep @shots",
     "media:record": "tsx scripts/record-demo.ts"
