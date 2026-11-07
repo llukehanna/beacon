@@ -421,7 +421,7 @@ export default function TearSheetPage(): React.ReactElement {
             <h1 className="sr-only">Tear sheet</h1>
             <Notice>
               <span>
-                Couldn&apos;t load this firm&apos;s tear sheet. Check your connection and try again.
+                Couldn’t load this firm’s tear sheet. Check your connection and try again.
               </span>{" "}
               <Button onClick={retry}>Try again</Button>
             </Notice>

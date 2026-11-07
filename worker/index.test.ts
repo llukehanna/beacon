@@ -77,6 +77,13 @@ describe("rate limiting", () => {
     const { path, init } = post("/api/mcp");
     const res = await get(path, init, { ...env, ACTIONS_LIMITER, MCP_LIMITER });
     expect(res.status).toBe(429);
+    // Still a 429 with Retry-After, but the body is a JSON-RPC error like the route's other refusals.
+    expect(res.headers.get("retry-after")).toBe("60");
+    expect(await res.json()).toEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32002, message: expect.stringContaining("Too many requests") as string },
+    });
     expect(MCP_LIMITER.limit).toHaveBeenCalledWith({ key: "203.0.113.7" });
     expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
     // No event stream is offered, so the Worker answers a GET 405 before it touches a database.

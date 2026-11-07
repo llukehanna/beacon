@@ -14,6 +14,7 @@ import { getDb } from "../server/db/client.js";
 import { type ListOptions, getObject, listObjects } from "../server/db/repo.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError, jsonParam } from "../server/http.js";
+import { REDACTED_RULE_PROPS } from "../shared/accessPolicy.js";
 import {
   OBJECT_TYPES,
   type ObjectOf,
@@ -27,8 +28,9 @@ import {
  *
  * - A walled mandate's real name: a Mandate's title and intent, and the name of a Search or list,
  *   which is built from the title. Refused for a persona with walled mandates.
- * - A rule's rationale, decision ids and mandate scope: a rule that rests on a decision about a
- *   hidden firm loses its rationale and ids, and a scope that names a walled mandate is masked.
+ * - The rule properties `redactRule` rewrites (rationale, decision ids, supporting firm count,
+ *   mandate scope): a rule that rests on a decision about a hidden firm loses its rationale and ids
+ *   and its count drops, and a scope that names a walled mandate is masked.
  *   Refused for a persona that has hidden firms or walled mandates.
  */
 const PROBE_GUARDS: Partial<
@@ -53,10 +55,10 @@ const PROBE_GUARDS: Partial<
     message: "A mandate's name cannot be filtered or sorted without need-to-know",
   },
   ProposedRule: {
-    props: ["rationaleClusterSummary", "supportingDecisionIds", "mandateScope"],
+    props: REDACTED_RULE_PROPS,
     applies: (access) => access.hiddenFirmIds.length > 0 || walledMandates(access).size > 0,
     message:
-      "A rule's rationale, decision ids and scope cannot be filtered or sorted while firms or mandates are hidden from you",
+      "A rule's rationale, decision ids, firm count and scope cannot be filtered or sorted while firms or mandates are hidden from you",
   },
 };
 

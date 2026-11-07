@@ -758,7 +758,9 @@ describe("information barrier", () => {
         { supportingDecisionIds: { $eq: `["decision-${SECRET}"]` } },
       ],
       ["where mandateScope", "where", { mandateScope: { $eq: WALLED_TITLE } }],
+      ["where supportingFirmCount", "where", { supportingFirmCount: { $eq: 2 } }],
       ["orderBy rationaleClusterSummary", "orderBy", { rationaleClusterSummary: "asc" }],
+      ["orderBy supportingFirmCount", "orderBy", { supportingFirmCount: "desc" }],
       ["orderBy supportingDecisionIds", "orderBy", { supportingDecisionIds: "desc" }],
     ] as const;
     const ask = (persona: string | undefined, param: string, value: object) =>

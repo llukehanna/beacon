@@ -192,7 +192,7 @@ test("tear sheet shows a retry on load failure", async ({ page }) => {
   );
   await page.goto(tearSheetPath(id));
 
-  const notice = page.getByRole("alert").filter({ hasText: "load this firm's tear sheet" });
+  const notice = page.getByRole("alert").filter({ hasText: "load this firm’s tear sheet" });
   await expect(notice).toBeVisible();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tear sheet");
   await expect(page.getByRole("button", { name: "Print / Save as PDF" })).toBeDisabled();

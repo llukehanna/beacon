@@ -35,9 +35,7 @@ export function MoreLikeThis({
         More like this
       </h2>
       {error !== undefined && error !== null ? (
-        <Notice>
-          Couldn&apos;t load the firms to compare. Check your connection and try again.
-        </Notice>
+        <Notice>Couldn’t load the firms to compare. Check your connection and try again.</Notice>
       ) : isLoading ? (
         <Skeleton lines={3} />
       ) : rows.length === 0 ? (

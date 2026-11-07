@@ -15,6 +15,7 @@ import { type Db, createPgDb, getDb, withRequestDb } from "../server/db/client.j
 import { LATEST_MIGRATION, schemaVersion } from "../server/db/migrate.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
+import { rpcCodeForStatus, rpcFailureBody } from "../server/mcp/rpc.js";
 import { applyDueSignals } from "../server/signals/run.js";
 import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
@@ -146,7 +147,12 @@ export default {
         reset: env.RESET_LIMITER,
         mcp: env.MCP_LIMITER,
       }[m[1] as "actions" | "reset" | "mcp"];
-      const refused = await checkRate(limiter, request);
+      // A limited MCP call is answered as a JSON-RPC error, like every other refusal on that route.
+      const refused = await checkRate(
+        limiter,
+        request,
+        m[1] === "mcp" ? (message) => rpcFailureBody(rpcCodeForStatus(429), message) : undefined,
+      );
       if (refused) {
         return refused;
       }

@@ -90,6 +90,9 @@ test("requests the browser abandons do not raise the Vite error overlay", async 
       abort.abort();
     }
   });
-  await page.waitForTimeout(1500);
+  // One request that is not abandoned, answered after the dev server has dealt with the others,
+  // then the network going quiet: Vite sends an error to the page right after the failed request.
+  expect((await page.request.get("/api/functions?name=shellCounts")).ok()).toBe(true);
+  await page.waitForLoadState("networkidle");
   await expect(page.locator("vite-error-overlay")).toHaveCount(0);
 });
