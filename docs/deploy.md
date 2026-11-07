@@ -29,11 +29,14 @@ npm run deploy    # typecheck, vite build, wrangler deploy
 
 To add a migration, write `server/db/migrations/NNNN_name.sql` (the next number, idempotent, never an edit to a shipped file; every pending migration runs in one transaction, so `CREATE INDEX CONCURRENTLY` is unavailable and a heavy rewrite holds the locks of the migrations before it until commit), run `npm run migrations:gen`, and commit both; a migration that rewrites `qualification_score`, `review_decision` or `research_finding` meets the append-only triggers of migration 0003 and its UPDATE or DELETE fails, so rewrite such a table the way `shiftLiveTimestamps` in `server/seed/snapshot.ts` does (copy the rows, changed, into a temporary table, `TRUNCATE` the table, which fires no row trigger, and insert them back; run `SET CONSTRAINTS ALL IMMEDIATE` first, because Postgres will not truncate a table with deferred foreign-key checks pending) or, in the migration only, drop and recreate the trigger around the statement; tests fail if the bundled copy is stale or if `shared/schema.ts` and the migrated schema disagree.
 
-**Hyperdrive (optional).** To pool and cache connections in front of Neon, create the config once, then uncomment the `hyperdrive` block in `wrangler.jsonc` and paste the id. The Worker uses the binding when present and falls back to `DATABASE_URL` otherwise.
+**Hyperdrive.** Production reaches Neon through Hyperdrive, which pools connections: the `hyperdrive` block in `wrangler.jsonc` names the config, and the Worker falls back to `DATABASE_URL` when no binding is present. The config points at the direct Neon host (not the `-pooler` one, since Hyperdrive pools) and has query caching off, because a cached read could trail the write an action just made. To create it for another database:
 
 ```bash
-npx wrangler hyperdrive create beacon-db --connection-string='<neon connection string>'
+npx wrangler hyperdrive create <name> --connection-string='<direct neon connection string>'
+npx wrangler hyperdrive update <id> --caching-disabled true
 ```
+
+Then put the id it prints in `wrangler.jsonc`. Bindings are not inherited by environments, so the presenter keeps its `DATABASE_URL` secret unless it gets a block of its own.
 
 **Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and the same nightly reset (triggered by production; its signals are applied after that reset), so it can be edited live without touching production.
 

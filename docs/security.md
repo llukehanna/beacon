@@ -22,7 +22,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 ## Secrets
 
 - The production Worker reads one secret, `DATABASE_URL` (a Neon Postgres connection string), set with `wrangler secret put`. <!-- source: README.md, worker/index.ts -->
-- If a Hyperdrive binding is configured, the Worker uses it instead of the secret. It is commented out in the checked-in config. <!-- source: wrangler.jsonc, worker/index.ts -->
+- Production connects through a Hyperdrive binding, which holds its own copy of the database credentials; the Worker falls back to the secret when no binding is present (the presenter deployment uses its secret). <!-- source: wrangler.jsonc, worker/index.ts -->
 - GitHub Actions secrets hold `ANTHROPIC_API_KEY` (the extraction workflow), and `DATABASE_URL_PRODUCTION` and `DATABASE_URL_PRESENTER` (the reseed workflow). <!-- source: .github/workflows/extract.yml, .github/workflows/reseed.yml -->
 - The browser bundle reads no environment value other than the build's base path, and holds no key or connection string. <!-- source: src/router.tsx -->
 
