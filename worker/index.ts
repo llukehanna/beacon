@@ -15,7 +15,7 @@ import { ensureSchema } from "../server/db/ddl.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
 import { applyDueSignals } from "../server/signals/run.js";
-import { HOURLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
+import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
 
 interface Env {
@@ -114,14 +114,17 @@ export default {
   },
 
   /**
-   * The hourly Cron Trigger. The run at 04:00 UTC is the nightly reset: it runs the same reset (and
+   * The Cron Triggers. The hourly run at 04:00 UTC, or the nightly-only trigger, is the nightly reset: it runs the same reset (and
    * throttle) as the demo bar's button, then applies the market signals that have come due. Every
-   * other run only applies them, a bounded batch per run. Only the hourly expression at the nightly
-   * hour resets: any other trigger (or none) applies the due signals and nothing more, the safe direction.
+   * other run only applies them, a bounded batch per run. Only those two expressions reset: any other
+   * trigger (or none) applies the due signals and nothing more, the safe direction.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const due = new Date(controller.scheduledTime ?? Date.now());
-    if (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC) {
+    const nightly =
+      controller.cron === NIGHTLY_CRON ||
+      (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC);
+    if (nightly) {
       const res = await withDb(env, ctx, async () => {
         const resetRes = await reset.POST();
         return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
