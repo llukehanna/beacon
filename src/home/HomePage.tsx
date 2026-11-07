@@ -11,7 +11,7 @@ import { IntroCard } from "./IntroCard";
 import { MetricRow } from "./MetricRow";
 import { NeedsYou } from "./NeedsYou";
 import { PipelineFunnel } from "./PipelineFunnel";
-import { headlineText } from "./headlineText";
+import { headlineText, needsParts } from "./headlineText";
 
 /** "Thursday, 5 November": the day the analyst is looking at, from the clock, not the data. */
 const dayFormat = new Intl.DateTimeFormat("en-GB", {
@@ -65,6 +65,7 @@ export default function HomePage(): React.ReactElement {
           <Headline
             dateLine={dateLine}
             text={text}
+            parts={needsParts(data?.needsYouCounts)}
             status={
               error !== undefined && error !== null
                 ? "The summary could not be loaded."

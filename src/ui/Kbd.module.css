@@ -14,3 +14,10 @@
   border-color: rgba(255, 255, 255, 0.25);
   color: #e8eaff;
 }
+
+/* A phone or tablet has no keyboard to press them on, and a narrow window has no room to spare. */
+@media (hover: none) and (pointer: coarse), (max-width: 719px) {
+  .kbd {
+    display: none;
+  }
+}
