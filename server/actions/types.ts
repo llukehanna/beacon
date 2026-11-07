@@ -23,6 +23,8 @@ export interface ActionContext {
   newId(prefix: string): string;
   /** Injected by tests and the seed; otherwise chosen by applyAction for actions with needsClusterer. */
   clusterer?: Clusterer;
+  /** Firms the acting persona may not see: a search must not pull them into its results. */
+  hiddenFirmIds?: readonly string[];
 }
 
 export interface ActionResult {

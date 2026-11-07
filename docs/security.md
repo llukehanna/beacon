@@ -15,7 +15,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 ## Tenancy
 
 - There is one shared demo and one shared analyst. Every decision is stamped with the same user name, `demo-analyst`. <!-- source: shared/vocab.ts, server/actions/apply.ts -->
-- There are no accounts, organisations, roles or per-user permissions. <!-- source: worker/index.ts, docs/foundry-origins.md -->
+- There are no accounts, sign-in, organisations or per-user permissions. The only roles are three demo personas for the information barrier, chosen by anyone; see Information barriers (demo). <!-- source: worker/index.ts, docs/foundry-origins.md, server/access.ts -->
 - The Foundry original had OAuth and an organisation marking on every action. That was left out of the port because a public demo has one shared analyst. <!-- source: docs/foundry-origins.md -->
 - A production deployment would need what the demo leaves out: sign-in, one tenant per organisation with row-level isolation in the database, and permission checks on each action. None of that is built. <!-- source: docs/foundry-origins.md, server/actions/apply.ts -->
 
@@ -32,6 +32,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - Anyone can also press the demo bar's Reset button. One reset is allowed per 5 minutes across all visitors. <!-- source: api/reset.ts -->
 - Within a demo day, history tables only grow (see Audit trail). A row ceiling of 10,000 activity rows stops a script from filling the database before the next reset. <!-- source: server/actions/apply.ts -->
 - Operations metrics (an action's name, start time, duration and outcome; a live model call's token counts and cost) are stored without parameters or visitor identity, up to 10,000 action runs, and are cleared by every reset. <!-- source: server/operations/record.ts, server/seed/snapshot.ts -->
+- The demo access log (which persona opened which firm or mandate, and when) keeps its newest 500 rows and is cleared by every reset. <!-- source: server/access.ts, server/seed/snapshot.ts -->
 - Retention and backups on the database host (Neon) are set in that provider's console, not in this repository, and are not described here. <!-- source: README.md -->
 
 ## Model-provider data use
@@ -65,8 +66,22 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - The firm record itself is current state and is updated in place. <!-- source: server/actions/firms.ts, server/actions/findings.ts -->
 - **How this is enforced: in application code only.** Every write goes through a named action in the registry, and no action updates or deletes those history rows beyond the fields above. <!-- source: server/actions/registry.ts, shared/schema.ts -->
 - The database does not enforce it. There are no triggers and no revoked privileges, and the Worker connects with one connection string that has full rights. A database-level guarantee (write-once tables, or a role without UPDATE and DELETE) is not built. <!-- source: server/db/ddl.ts, worker/index.ts -->
-- The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`) and the link lookup (`/api/links`) change nothing; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/actions.ts, api/reset.ts -->
+- The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`) and the link lookup (`/api/links`) change nothing but the demo access log; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/actions.ts, api/reset.ts -->
 - The nightly reset truncates the history, so the trail covers one demo day, not a permanent record. <!-- source: server/seed/snapshot.ts -->
+
+## Information barriers (demo)
+
+- Beacon demonstrates an information barrier: restricted firms and need-to-know on mandates. It shows how a wall behaves; it is not a security control. <!-- source: shared/accessPolicy.ts -->
+- **The identity is demo-only.** The persona (analyst, deal-team lead or compliance) is chosen in the sidebar, kept in the browser and sent in an `X-Beacon-Persona` request header. The server trusts the header and there is no sign-in, so anyone can send any value. A missing or unknown value is the analyst. <!-- source: shared/accessPolicy.ts, server/access.ts, src/data/persona.ts -->
+- The Worker sets no CORS headers, and the header is sent same-origin, so the Content-Security-Policy needs no change for it. A page on another origin cannot read the API from a browser. <!-- source: worker/index.ts, server/http.ts, public/_headers -->
+- Three firms are restricted, each with a reason. Only the compliance persona sees them. For the analyst and the deal-team lead they are left out of object lists, a lookup by key is a 404, links, every query function including the aggregate counts, and so of the lists that exports, tear sheets, lookalikes and the command palette are built from. <!-- source: server/access.ts, api/objects.ts, api/links.ts, api/functions.ts, server/functions/homeSummary.ts -->
+- An action on a restricted firm, or on a finding, decision or drift event that belongs to one, is a 404, the same as an unknown id, and a search an analyst runs does not pull a restricted firm into its results. <!-- source: server/actions/params.ts, server/actions/search.ts -->
+- Counts computed from a restricted firm's rows by the agent, such as the number of firms behind a proposed rule, are not adjusted, so they can still include it. <!-- source: server/actions/rules.ts -->
+- Need-to-know is a grant of a persona to a mandate. The deal-team lead and compliance hold every mandate; the analyst holds all but one. A persona without a grant still sees the mandate and its firms, but its title and free-text intent are replaced by its codename in lists, lookups, search names, Home and export file names. A mandate nobody has been granted is open. <!-- source: shared/accessPolicy.ts, server/seed/barriers.ts, server/functions/homeSummary.ts -->
+- Opening a firm in detail (a lookup by key, a firm's observations or source document, a tear sheet) or a mandate adds a row to an access log: the persona, the object and the time. Writing it is best effort and never fails the read. <!-- source: server/access.ts, api/objects.ts, api/functions.ts -->
+- The log keeps the newest 500 rows, a repeat view within 30 seconds counts once, and only the compliance persona can read it, together with the restricted list and the grants. <!-- source: server/access.ts, api/objects.ts -->
+- **How this maps to Foundry.** A restricted firm becomes a Marking on the object, which hides it from everyone who does not hold the Marking, in search, object sets and links. Need-to-know becomes mandate-level Markings on a mandate's objects, or a restricted view that shows the codename to everyone and the real title to the holders. The persona becomes the signed-in user and their groups. <!-- source: docs/foundry-origins.md, shared/accessPolicy.ts -->
+- **A real deployment would derive the persona from single sign-on, never from a header**, and would enforce the same rules in the data layer (Markings, or row-level security in the database), not only in the API. <!-- source: server/access.ts, docs/production-roadmap.md -->
 
 ## Security headers and rate limits
 
@@ -94,7 +109,7 @@ form-action 'self'
 
 ## Not built
 
-- Authentication, accounts, roles and per-user permissions. <!-- source: worker/index.ts -->
+- Authentication, accounts, real roles and per-user permissions. The information barrier's personas are a demo. <!-- source: worker/index.ts, server/access.ts -->
 - Tenant isolation. <!-- source: server/db/ddl.ts -->
 - Database-enforced immutability of the audit trail. <!-- source: server/db/ddl.ts -->
 - Any compliance certification. None is claimed. <!-- source: README.md -->

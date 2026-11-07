@@ -1,3 +1,4 @@
+import { codenameFor } from "../../shared/accessPolicy.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
@@ -79,7 +80,8 @@ export const runSearch = defineAction<{
 
     await assertRoom(ctx, "search", MAX_SEARCHES, "searches");
     const searchId = ctx.newId("search");
-    const all = await listAll(ctx.tx, "Firm");
+    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const all = (await listAll(ctx.tx, "Firm")).filter((f) => !hidden.has(f.$primaryKey));
     const seeds: FirmObj[] = [];
     for (const name of p.seedFirms ?? []) {
       const hit = all.find((f) => norm(f.firmName) === norm(name));
@@ -183,6 +185,7 @@ export const runMandateSearch = defineAction<{
       mandateId,
       title,
       intentStatement: title,
+      codename: codenameFor(mandateId),
       archetype,
       priority: p.priority ?? "Medium",
       active: true,
@@ -192,8 +195,12 @@ export const runMandateSearch = defineAction<{
       products: [],
       sizeMaxUsdM: p.sizeMaxUsdM,
     });
+    const hidden = new Set(ctx.hiddenFirmIds ?? []);
     const firms = (await listAll(ctx.tx, "Firm")).filter(
-      (f) => normalizeLifecycle(f.lifecycleState) !== PASSED && matchesSelection(f, sel),
+      (f) =>
+        !hidden.has(f.$primaryKey) &&
+        normalizeLifecycle(f.lifecycleState) !== PASSED &&
+        matchesSelection(f, sel),
     );
     const listId = ctx.newId("list");
     await insertObject(ctx.tx, "SearchList", {

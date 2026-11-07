@@ -9,7 +9,7 @@ Beacon is a demo on synthetic data. This page lists what a production deployment
 
 ## 2. Sign-in and permissions
 
-- **Now.** None. There is one shared analyst, `demo-analyst`, stamped on every decision (`shared/vocab.ts`), and the API is open (`worker/index.ts`, `api/`). The original Foundry build had sign-in and an organisation marking on every action; the port dropped them (`docs/foundry-origins.md`).
+- **Now.** No sign-in. A demonstration of an information barrier exists (three demo personas sent in a request header, restricted firms, mandate codenames; see `docs/security.md`), but the header is not an identity. There is one shared analyst, `demo-analyst`, stamped on every decision (`shared/vocab.ts`), and the API is open (`worker/index.ts`, `api/`). The original Foundry build had sign-in and an organisation marking on every action; the port dropped them (`docs/foundry-origins.md`).
 - **Production needs.** Single sign-on, named users, and roles (analyst, reviewer, administrator). Mandate-level need-to-know, so that analysts see only the mandates and firms they are staffed on. A permission check inside each action in `server/actions/` before anything is written, with decisions attributed to the real user instead of a constant.
 
 ## 3. Monitoring

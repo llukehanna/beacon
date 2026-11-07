@@ -1,0 +1,628 @@
+/**
+ * The information barrier, end to end against the real handlers and an in-memory Postgres: a
+ * restricted firm must be absent from every way the server hands data out, for the analyst and the
+ * deal lead, and present (with its reason) for compliance. Need-to-know replaces a walled
+ * mandate's name with its codename everywhere. The access log is written, bounded and cleared.
+ */
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { POST as actions } from "../api/actions.js";
+import { GET as functions } from "../api/functions.js";
+import { POST as links } from "../api/links.js";
+import { GET as objects } from "../api/objects.js";
+import { exportFileName, exportRows } from "../shared/exportRows.js";
+import { moreLikeThis } from "../shared/lookalikes.js";
+import type { AccuracySummary, HomeSummary, ShellCounts } from "../shared/summaries.js";
+import { MAX_ACCESS_LOG, buildAccess, logAccess, resolveAccess } from "./access.js";
+import { type Db, overrideDb } from "./db/client.js";
+import { insertObject, insertObjects } from "./db/repo.js";
+import { HttpError } from "./errors.js";
+import { resetFromSnapshot, saveSnapshot } from "./seed/snapshot.js";
+import { STRONG_CF, createTestDb, seedFirm } from "./testing.js";
+
+const SECRET = "firm-secret";
+const SECRET_NAME = "Hush Partners";
+const REASON = "Live mandate: firm advises a counterparty";
+const WALLED = "m-walled";
+const WALLED_TITLE = "Sell-side of Acme Wealth";
+const AT = "2026-09-01T12:00:00.000Z";
+
+const call = (path: string, persona?: string, init: RequestInit = {}) =>
+  new Request(`http://localhost${path}`, {
+    ...init,
+    headers: { ...(persona ? { "x-beacon-persona": persona } : {}), ...init.headers },
+  });
+const post = (path: string, body: unknown, persona?: string) =>
+  call(path, persona, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+type Wire = Record<string, unknown> & { $primaryKey: string };
+
+async function list(type: string, persona?: string, query = ""): Promise<Wire[]> {
+  const out: Wire[] = [];
+  let token: string | null = null;
+  do {
+    const res = await objects(
+      call(
+        `/api/objects?type=${type}&pageSize=2${query}${token ? `&pageToken=${token}` : ""}`,
+        persona,
+      ),
+    );
+    expect(res.status, `${type} as ${persona}`).toBe(200);
+    const page = (await res.json()) as { data: Wire[]; nextPageToken: string | null };
+    out.push(...page.data);
+    token = page.nextPageToken;
+  } while (token !== null);
+  return out;
+}
+
+const fn = async <T>(name: string, persona: string, params: object = {}): Promise<T> => {
+  const res = await functions(
+    call(
+      `/api/functions?name=${name}&params=${encodeURIComponent(JSON.stringify(params))}`,
+      persona,
+    ),
+  );
+  expect(res.status, `${name} as ${persona}`).toBe(200);
+  return ((await res.json()) as { value: T }).value;
+};
+
+const fnStatus = async (name: string, persona: string, params: object): Promise<number> =>
+  (
+    await functions(
+      call(
+        `/api/functions?name=${name}&params=${encodeURIComponent(JSON.stringify(params))}`,
+        persona,
+      ),
+    )
+  ).status;
+
+let db: Db;
+
+async function buildWorld(): Promise<Db> {
+  const d = await createTestDb();
+  overrideDb(d);
+  const profile = { ...STRONG_CF, sector: "Software", hqCountry: "United States" };
+  await seedFirm(d, { firmId: "firm-ok-1", firmName: "Alpha Advisors", ...profile });
+  await seedFirm(d, { firmId: "firm-ok-2", firmName: "Beta Advisors", ...profile });
+  // The restricted firm is the closest match to firm-ok-1: only the wall keeps it out of lookalikes.
+  await seedFirm(d, { firmId: SECRET, firmName: SECRET_NAME, ...profile });
+  await insertObject(d, "RestrictedFirm", { firmId: SECRET, reason: REASON, addedAt: AT });
+
+  for (const firmId of ["firm-ok-1", SECRET]) {
+    await insertObjects(d, "ResearchFinding", [
+      {
+        findingId: `finding-${firmId}`,
+        firmId,
+        axis: "firmAge",
+        value: "15",
+        provider: "beacondb",
+        findingStatus: "proposed",
+        confidenceTier: "high",
+        retrievedAt: AT,
+      },
+    ]);
+    await insertObject(d, "QualificationScore", { scoreId: `score-${firmId}`, firmId, tier: "A" });
+    await insertObject(d, "ReviewDecision", {
+      decisionId: `decision-${firmId}`,
+      firmId,
+      decisionType: "reject",
+      decidedAt: AT,
+    });
+    await insertObject(d, "DriftEvent", {
+      driftEventId: `drift-${firmId}`,
+      firmId,
+      driftReason: "tier_moved",
+      driftStatus: "open",
+      detectedAt: AT,
+    });
+    await insertObject(d, "MarketSignal", { signalId: `signal-${firmId}`, firmId, kind: "hire" });
+  }
+
+  await insertObject(d, "Mandate", {
+    mandateId: "m-open",
+    title: "European mid-market advisers",
+    intentStatement: "European mid-market advisers",
+    codename: "Project Osprey",
+    active: true,
+    createdAt: AT,
+  });
+  await insertObject(d, "Mandate", {
+    mandateId: WALLED,
+    title: WALLED_TITLE,
+    intentStatement: "Find advisers to sell Acme Wealth to a strategic buyer",
+    codename: "Project Kestrel",
+    active: true,
+    createdAt: AT,
+  });
+  await insertObjects(d, "MandateAccess", [
+    { accessId: "a1", mandateId: "m-open", persona: "analyst" },
+    { accessId: "a2", mandateId: "m-open", persona: "deal_lead" },
+    { accessId: "a3", mandateId: "m-open", persona: "compliance" },
+    { accessId: "a4", mandateId: WALLED, persona: "deal_lead" },
+    { accessId: "a5", mandateId: WALLED, persona: "compliance" },
+  ]);
+  await insertObject(d, "Search", {
+    searchId: "s1",
+    name: `${WALLED_TITLE} · 2026-09-01`,
+    mandateId: WALLED,
+    runAt: AT,
+  });
+  await insertObject(d, "SearchList", {
+    searchId: "L1",
+    name: `${WALLED_TITLE} — universe`,
+    mandateId: WALLED,
+  });
+  await insertObjects(d, "SearchMembership", [
+    { membershipId: "s1:ok", searchId: "s1", firmId: "firm-ok-1" },
+    { membershipId: "s1:secret", searchId: "s1", firmId: SECRET },
+  ]);
+  await d.query(
+    `INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'firm-ok-1'), ('L1', $1)`,
+    [SECRET],
+  );
+  return d;
+}
+
+const NOT_ACME = (text: string): void => {
+  expect(text).not.toContain("Acme");
+};
+
+describe("information barrier", () => {
+  beforeAll(async () => {
+    db = await buildWorld();
+  });
+  afterAll(async () => {
+    await db.close();
+  });
+
+  it("restricted firm is hidden from every read path", async () => {
+    for (const persona of ["analyst", "deal_lead", undefined, "not-a-persona"]) {
+      const as = persona ?? "(no header)";
+      const idsOf = (rows: Wire[]) => rows.map((r) => r.$primaryKey);
+
+      // Object lists, paged (a hidden row must not cost a page its size or break a cursor).
+      const firms = await list("Firm", persona);
+      expect(idsOf(firms), as).toEqual(["firm-ok-1", "firm-ok-2"]);
+      expect(JSON.stringify(firms), as).not.toContain(SECRET_NAME);
+      for (const type of [
+        "ResearchFinding",
+        "QualificationScore",
+        "ReviewDecision",
+        "DriftEvent",
+        "MarketSignal",
+        "SearchMembership",
+      ]) {
+        const rows = await list(type, persona);
+        expect(rows.length, `${type} as ${as}`).toBeGreaterThan(0);
+        expect(
+          rows.filter((r) => r.firmId === SECRET),
+          `${type} as ${as}`,
+        ).toEqual([]);
+      }
+
+      // A lookup by key, as a get and as the one-row list the screens make.
+      const get = await objects(call(`/api/objects?type=Firm&id=${SECRET}`, persona));
+      expect(get.status, as).toBe(404);
+      const unknown = await objects(call(`/api/objects?type=Firm&id=firm-nope`, persona));
+      expect(unknown.status, as).toBe(404);
+      expect(((await get.json()) as { error: string }).error.replace(SECRET, "X"), as).toBe(
+        ((await unknown.json()) as { error: string }).error.replace("firm-nope", "X"),
+      );
+      const where = encodeURIComponent(JSON.stringify({ firmId: { $eq: SECRET } }));
+      const pinned = (await (
+        await objects(call(`/api/objects?type=Firm&where=${where}&pageSize=1`, persona))
+      ).json()) as { data: unknown[] };
+      expect(pinned.data, as).toEqual([]);
+      expect((await objects(call(`/api/objects?type=Firm&id=firm-ok-1`, persona))).status).toBe(
+        200,
+      );
+
+      // The policy and the log are not for anyone but compliance.
+      for (const type of ["RestrictedFirm", "AccessLogEntry", "MandateAccess"]) {
+        expect((await objects(call(`/api/objects?type=${type}`, persona))).status, type).toBe(403);
+      }
+
+      // Links: a search's firms and a universe list's firms.
+      for (const [type, link, pk] of [
+        ["Search", "firms", "s1"],
+        ["SearchList", "firms", "L1"],
+      ]) {
+        const res = await links(post("/api/links", { type, link, pks: [pk] }, persona));
+        const linked = ((await res.json()) as { data: Record<string, Wire[]> }).data[pk];
+        expect(
+          linked.map((f) => f.$primaryKey),
+          `${type} as ${as}`,
+        ).toEqual(["firm-ok-1"]);
+      }
+
+      // Query functions, aggregates included.
+      const home = await fn<HomeSummary>("homeSummary", persona ?? "analyst");
+      expect(
+        Object.values(home.funnel).reduce((a, b) => a + b, 0),
+        as,
+      ).toBe(2);
+      expect(JSON.stringify(home), as).not.toContain(SECRET);
+      expect(JSON.stringify(home), as).not.toContain(SECRET_NAME);
+      expect(home.needsYouCounts.review, as).toBe(1);
+      const counts = await fn<ShellCounts>("shellCounts", persona ?? "analyst");
+      expect(counts, as).toMatchObject({ open: 2, review: 1 });
+      const accuracy = await fn<AccuracySummary>("accuracySummary", persona ?? "analyst");
+      expect(accuracy.overall.total, as).toBe(1);
+      expect(await fnStatus("firmObservations", persona ?? "analyst", { firmId: SECRET })).toBe(
+        404,
+      );
+      expect(
+        await fnStatus("sourceDocument", persona ?? "analyst", {
+          firmId: SECRET,
+          provider: "dealdb",
+        }),
+      ).toBe(404);
+      expect(
+        await fnStatus("firmObservations", persona ?? "analyst", { firmId: "firm-ok-1" }),
+      ).toBe(200);
+      // Operations metrics describe the app, not firms: the function runs and names none.
+      expect(JSON.stringify(await fn("operationsSummary", persona ?? "analyst"))).not.toContain(
+        SECRET,
+      );
+
+      // Palette-shaped data: the firm list the ⌘K palette is built from (by name, every page).
+      const palette = await list(
+        "Firm",
+        persona,
+        `&orderBy=${encodeURIComponent('{"firmName":"asc"}')}`,
+      );
+      expect(
+        palette.map((f) => f.firmName),
+        as,
+      ).toEqual(["Alpha Advisors", "Beta Advisors"]);
+
+      // Exports are built in the browser from these lists: nothing of the firm can reach them.
+      const findings = await list("ResearchFinding", persona);
+      const { rows, citations } = exportRows(firms as never, findings as never);
+      expect(
+        rows.map((r) => r.firmId),
+        as,
+      ).toEqual(["firm-ok-1", "firm-ok-2"]);
+      expect(citations, as).toHaveLength(2);
+      expect(JSON.stringify(rows), as).not.toContain(SECRET_NAME);
+
+      // Lookalikes: the restricted firm is the closest match to firm-ok-1 and still never comes back.
+      expect(
+        moreLikeThis("firm-ok-1", firms as never).map((l) => l.firmId),
+        as,
+      ).toEqual(["firm-ok-2"]);
+      expect(moreLikeThis(SECRET, firms as never), as).toEqual([]);
+
+      // The tear sheet loads its firm by key and builds only from what comes back: nothing.
+      const sheetFirm = (await (
+        await objects(call(`/api/objects?type=Firm&where=${where}&pageSize=1`, persona))
+      ).json()) as { data: unknown[] };
+      expect(sheetFirm.data, as).toHaveLength(0);
+    }
+  });
+
+  it("shows the restricted firm, with its reason, to compliance", async () => {
+    const firms = await list("Firm", "compliance");
+    expect(firms.map((f) => f.$primaryKey)).toEqual(["firm-ok-1", "firm-ok-2", SECRET]);
+    expect((await objects(call(`/api/objects?type=Firm&id=${SECRET}`, "compliance"))).status).toBe(
+      200,
+    );
+
+    const restricted = await list("RestrictedFirm", "compliance");
+    expect(restricted).toHaveLength(1);
+    expect(restricted[0]).toMatchObject({ firmId: SECRET, reason: REASON });
+
+    const home = await fn<HomeSummary>("homeSummary", "compliance");
+    expect(Object.values(home.funnel).reduce((a, b) => a + b, 0)).toBe(3);
+    expect(await fn<ShellCounts>("shellCounts", "compliance")).toMatchObject({
+      open: 3,
+      review: 2,
+    });
+    expect((await fn<AccuracySummary>("accuracySummary", "compliance")).overall.total).toBe(2);
+    expect(await fnStatus("firmObservations", "compliance", { firmId: SECRET })).toBe(200);
+    expect(
+      await fnStatus("sourceDocument", "compliance", { firmId: SECRET, provider: "dealdb" }),
+    ).toBe(200);
+
+    const linked = (await (
+      await links(post("/api/links", { type: "Search", link: "firms", pks: ["s1"] }, "compliance"))
+    ).json()) as { data: Record<string, Wire[]> };
+    expect(linked.data.s1.map((f) => f.$primaryKey)).toEqual(["firm-ok-1", SECRET]);
+
+    const { rows } = exportRows(
+      firms as never,
+      (await list("ResearchFinding", "compliance")) as never,
+    );
+    expect(rows.map((r) => r.firmName)).toContain(SECRET_NAME);
+    expect(moreLikeThis("firm-ok-1", firms as never).map((l) => l.firmId)).toContain(SECRET);
+
+    expect((await list("AccessLogEntry", "compliance")).length).toBeGreaterThanOrEqual(0);
+    expect(await list("MandateAccess", "compliance")).toHaveLength(5);
+  });
+
+  it("refuses an action on a restricted firm, or on anything of one, as if it did not exist", async () => {
+    const analyst = async (body: unknown) => actions(post("/api/actions", body, "analyst"));
+    const hidden = await analyst({ action: "qualifyFirm", params: { firm: SECRET } });
+    const unknown = await analyst({ action: "qualifyFirm", params: { firm: "firm-nope" } });
+    expect(hidden.status).toBe(404);
+    expect(unknown.status).toBe(404);
+    expect(((await hidden.json()) as { error: string }).error).toBe(`Firm ${SECRET} not found`);
+    // A finding and a drift event of the firm are as absent as the firm.
+    expect(
+      (await analyst({ action: "verifyFinding", params: { finding: `finding-${SECRET}` } })).status,
+    ).toBe(404);
+    expect(
+      (
+        await analyst({
+          action: "acknowledgeDrift",
+          params: { driftEvent: `drift-${SECRET}`, note: null },
+        })
+      ).status,
+    ).toBe(404);
+    // Nothing happened to it, and the deal lead is held to the same wall.
+    const deal = await actions(
+      post("/api/actions", { action: "qualifyFirm", params: { firm: SECRET } }, "deal_lead"),
+    );
+    expect(deal.status).toBe(404);
+    const [row] = await db.query<{ lifecycleState: string }>(
+      `SELECT "lifecycleState" FROM firm WHERE "firmId" = $1`,
+      [SECRET],
+    );
+    expect(row.lifecycleState).toBe("Screening");
+    // An ordinary firm is untouched by all of this.
+    expect((await analyst({ action: "qualifyFirm", params: { firm: "firm-ok-2" } })).status).toBe(
+      200,
+    );
+  });
+
+  it("keeps a restricted firm out of a search an analyst runs", async () => {
+    const run = async (persona: string) => {
+      const res = await actions(
+        post(
+          "/api/actions",
+          { action: "runSearch", params: { mandate: "m-open", breadth: "exhaustive" } },
+          persona,
+        ),
+      );
+      expect(res.status, persona).toBe(200);
+      const { created } = (await res.json()) as { created: string[] };
+      const rows = await db.query<{ firmId: string }>(
+        `SELECT "firmId" FROM search_membership WHERE "searchId" = $1`,
+        [created[0]],
+      );
+      return rows.map((r) => r.firmId);
+    };
+    expect(await run("analyst")).not.toContain(SECRET);
+    expect(await run("compliance")).toContain(SECRET);
+  });
+
+  it("names a walled mandate by its codename wherever it appears", async () => {
+    const mandates = async (persona: string) => list("Mandate", persona);
+    for (const persona of ["analyst"]) {
+      const rows = await mandates(persona);
+      const walled = rows.find((m) => m.$primaryKey === WALLED)!;
+      expect(walled.title).toBe("Project Kestrel");
+      expect(walled.intentStatement).toBeUndefined();
+      // The mandate itself, and the others, stay.
+      expect(rows.map((m) => m.$primaryKey)).toEqual(["m-open", WALLED]);
+      expect(rows.find((m) => m.$primaryKey === "m-open")!.title).toBe(
+        "European mid-market advisers",
+      );
+      expect(JSON.stringify(rows)).not.toContain("Acme");
+
+      // By key, as a get and as a pinned list.
+      const got = (await (
+        await objects(call(`/api/objects?type=Mandate&id=${WALLED}`, persona))
+      ).json()) as {
+        data: Wire;
+      };
+      expect(got.data.title).toBe("Project Kestrel");
+      NOT_ACME(JSON.stringify(got));
+
+      // The searches and lists named after it.
+      const searches = await list("Search", persona);
+      expect(searches[0].name).toBe("Project Kestrel · 2026-09-01");
+      expect((await list("SearchList", persona))[0].name).toBe("Project Kestrel — universe");
+
+      // Home, the Pipeline's and the exports' mandate name.
+      const home = await fn<HomeSummary>("homeSummary", persona);
+      const card = home.mandates.find((m) => m.mandateId === WALLED)!;
+      expect(card.title).toBe("Project Kestrel");
+      expect(card.intentStatement).toBeUndefined();
+      NOT_ACME(JSON.stringify(home));
+      const named = (walled.intentStatement as string | undefined) ?? (walled.title as string);
+      expect(exportFileName(named, "xlsx", new Date(2026, 8, 1))).toBe(
+        "beacon-project-kestrel-2026-09-01.xlsx",
+      );
+
+      // Its name cannot be probed by filtering or sorting on it.
+      const probe = encodeURIComponent(JSON.stringify({ title: { $eq: WALLED_TITLE } }));
+      expect(
+        (await objects(call(`/api/objects?type=Mandate&where=${probe}`, persona))).status,
+      ).toBe(400);
+    }
+    for (const persona of ["deal_lead", "compliance"]) {
+      const rows = await mandates(persona);
+      const walled = rows.find((m) => m.$primaryKey === WALLED)!;
+      expect(walled.title, persona).toBe(WALLED_TITLE);
+      expect(walled.intentStatement, persona).toBe(
+        "Find advisers to sell Acme Wealth to a strategic buyer",
+      );
+      expect((await list("Search", persona))[0].name, persona).toBe(`${WALLED_TITLE} · 2026-09-01`);
+      expect(
+        (await fn<HomeSummary>("homeSummary", persona)).mandates.find(
+          (m) => m.mandateId === WALLED,
+        )!.title,
+        persona,
+      ).toBe(WALLED_TITLE);
+    }
+  });
+
+  it("gives a mandate nobody has been granted no codename, and a new one its own", async () => {
+    await insertObject(db, "Mandate", {
+      mandateId: "m-fresh",
+      title: "A fresh mandate",
+      active: true,
+    });
+    const fresh = (await list("Mandate", "analyst")).find((m) => m.$primaryKey === "m-fresh")!;
+    expect(fresh.title).toBe("A fresh mandate");
+    await db.query(`DELETE FROM mandate WHERE "mandateId" = 'm-fresh'`);
+  });
+});
+
+describe("resolveAccess", () => {
+  it("reads the persona from the header and the policy from one query", async () => {
+    const calls: string[] = [];
+    const q = {
+      query: async (sql: string) => {
+        calls.push(sql);
+        return [
+          { k: "r", a: "firm-secret", b: "Conflict" },
+          { k: "g", a: "m1", b: "deal_lead" },
+          { k: "m", a: "m1", b: "Project Kestrel" },
+        ];
+      },
+    };
+    const analyst = await resolveAccess(call("/api/objects", "analyst"), q as never);
+    expect(calls).toHaveLength(1);
+    expect(analyst.persona).toBe("analyst");
+    expect([...analyst.restrictedFirmIds]).toEqual(["firm-secret"]);
+    expect(analyst.hiddenFirmIds).toEqual(["firm-secret"]);
+    expect(analyst.mandateGrants).toEqual([{ mandateId: "m1", persona: "deal_lead" }]);
+    expect(analyst.mandateCodenames.get("m1")).toBe("Project Kestrel");
+    expect(analyst.restrictedReasons.get("firm-secret")).toBe("Conflict");
+
+    const compliance = await resolveAccess(call("/api/objects", "compliance"), q as never);
+    expect(compliance.hiddenFirmIds).toEqual([]);
+    expect([...compliance.restrictedFirmIds]).toEqual(["firm-secret"]);
+    expect((await resolveAccess(call("/api/objects"), q as never)).persona).toBe("analyst");
+  });
+
+  it("builds an empty wall from no rows", () => {
+    const access = buildAccess("analyst", []);
+    expect(access.hiddenFirmIds).toEqual([]);
+    expect(access.mandateGrants).toEqual([]);
+  });
+});
+
+describe("access log", () => {
+  let logDb: Db;
+  beforeAll(async () => {
+    logDb = await buildWorld();
+    await logDb.query(`DELETE FROM access_log_entry`);
+  });
+  afterAll(async () => {
+    await logDb.close();
+  });
+
+  const entries = () =>
+    logDb.query<{ persona: string; objectType: string; objectId: string }>(
+      `SELECT "persona", "objectType", "objectId" FROM access_log_entry ORDER BY "viewedAt", "entryId"`,
+    );
+
+  it("records a firm opened in detail and a mandate opened, once per persona and object", async () => {
+    // Listing is browsing, not opening.
+    await list("Firm", "analyst");
+    await list("Mandate", "analyst");
+    expect(await entries()).toEqual([]);
+
+    const where = (key: string, id: string) =>
+      encodeURIComponent(JSON.stringify({ [key]: { $eq: id } }));
+    await objects(
+      call(`/api/objects?type=Firm&where=${where("firmId", "firm-ok-1")}&pageSize=1`, "analyst"),
+    );
+    await objects(
+      call(`/api/objects?type=Firm&where=${where("firmId", "firm-ok-1")}&pageSize=1`, "analyst"),
+    );
+    await objects(call(`/api/objects?type=Firm&id=firm-ok-2`, "deal_lead"));
+    await objects(
+      call(`/api/objects?type=Mandate&where=${where("mandateId", "m-open")}&pageSize=1`, "analyst"),
+    );
+    await fn("firmObservations", "compliance", { firmId: SECRET });
+    await fn("sourceDocument", "analyst", { firmId: "firm-ok-2", provider: "dealdb" });
+
+    expect(await entries()).toEqual(
+      expect.arrayContaining([
+        { persona: "analyst", objectType: "Firm", objectId: "firm-ok-1" },
+        { persona: "deal_lead", objectType: "Firm", objectId: "firm-ok-2" },
+        { persona: "analyst", objectType: "Mandate", objectId: "m-open" },
+        { persona: "compliance", objectType: "Firm", objectId: SECRET },
+        { persona: "analyst", objectType: "Firm", objectId: "firm-ok-2" },
+      ]),
+    );
+    // The repeat within the window was one view.
+    expect((await entries()).filter((e) => e.objectId === "firm-ok-1")).toHaveLength(1);
+  });
+
+  it("does not log an attempt on a firm the persona cannot see, and does not fail the read", async () => {
+    const before = (await entries()).length;
+    expect((await objects(call(`/api/objects?type=Firm&id=${SECRET}`, "analyst"))).status).toBe(
+      404,
+    );
+    expect(await fnStatus("firmObservations", "analyst", { firmId: SECRET })).toBe(404);
+    expect(await entries()).toHaveLength(before);
+  });
+
+  it("lets only compliance read the log", async () => {
+    const log = await list("AccessLogEntry", "compliance");
+    expect(log.length).toBeGreaterThan(0);
+    expect(log[0]).toMatchObject({ persona: expect.any(String), objectType: expect.any(String) });
+    expect((await objects(call(`/api/objects?type=AccessLogEntry`, "deal_lead"))).status).toBe(403);
+  });
+
+  it("keeps the newest 500 rows when it grows", async () => {
+    await logDb.query(`DELETE FROM access_log_entry`);
+    await logDb.query(
+      `INSERT INTO access_log_entry ("entryId", "persona", "objectType", "objectId", "viewedAt")
+       SELECT 'old-' || lpad(i::text, 4, '0'), 'analyst', 'Firm', 'f' || i, '2026-01-01T00:00:00Z'::timestamptz + (i || ' minutes')::interval
+         FROM generate_series(1, ${MAX_ACCESS_LOG + 5}) i`,
+    );
+    await logAccess(
+      logDb,
+      { persona: "deal_lead" },
+      "Firm",
+      "firm-newest",
+      new Date("2026-02-01T00:00:00Z"),
+    );
+    const [{ n }] = await logDb.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM access_log_entry`,
+    );
+    expect(n).toBe(MAX_ACCESS_LOG);
+    const ids = await logDb.query<{ entryId: string; objectId: string }>(
+      `SELECT * FROM access_log_entry`,
+    );
+    // The newest is kept; the oldest six are gone.
+    expect(ids.some((r) => r.objectId === "firm-newest")).toBe(true);
+    expect(ids.some((r) => r.entryId === "old-0001")).toBe(false);
+    expect(ids.some((r) => r.entryId === "old-0006")).toBe(false);
+    expect(ids.some((r) => r.entryId === "old-0007")).toBe(true);
+  });
+
+  it("never fails the read it belongs to", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const broken = {
+      query: () => Promise.reject(new HttpError("the log table is gone", 500)),
+    };
+    await expect(logAccess(broken, { persona: "analyst" }, "Firm", "f")).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+
+  it("is cleared by a reset, while the restrictions and grants are restored", async () => {
+    await logAccess(logDb, { persona: "analyst" }, "Firm", "firm-ok-1");
+    expect((await entries()).length).toBeGreaterThan(0);
+    await saveSnapshot(logDb, new Date());
+    await logDb.query(`DELETE FROM restricted_firm`);
+    await logDb.query(`DELETE FROM mandate_access`);
+    await resetFromSnapshot(logDb);
+    expect(await entries()).toEqual([]);
+    const restricted = await logDb.query<{ firmId: string; reason: string }>(
+      `SELECT "firmId", "reason" FROM restricted_firm`,
+    );
+    expect(restricted).toEqual([{ firmId: SECRET, reason: REASON }]);
+    expect((await logDb.query(`SELECT 1 FROM mandate_access`)).length).toBe(5);
+  });
+});

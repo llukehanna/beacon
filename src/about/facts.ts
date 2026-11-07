@@ -45,6 +45,11 @@ export const MANDATE_CEILING = 25;
 export const SEARCH_CEILING = 50;
 export const MAX_BODY_BYTES = 65_536;
 
+/** Pinned to server/seed/barriers.ts (RESTRICTED_FIRM_COUNT) and server/access.ts (the access log). */
+export const RESTRICTED_FIRM_COUNT = 3;
+export const ACCESS_LOG_CEILING = 500;
+export const ACCESS_LOG_DEBOUNCE_SECONDS = 30;
+
 /** Pinned to server/actions/rules.ts (MIN_CLUSTER). */
 export const MIN_FIRMS_PER_RULE = 4;
 

@@ -15,6 +15,8 @@ export function json(body: unknown, status = 200): Response {
     headers: {
       "content-type": "application/json",
       "cache-control": "no-store",
+      // The body depends on the demo persona header, so no cache may share it between personas.
+      vary: "X-Beacon-Persona",
       ...SECURITY_HEADERS,
     },
   });

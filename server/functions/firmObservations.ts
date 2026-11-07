@@ -11,6 +11,7 @@ import type {
   ProviderObservation,
 } from "../../shared/summaries.js";
 import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { type Access, NO_WALL, isHidden } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { getObject, listAll } from "../db/repo.js";
 import { HIGH_CONFIDENCE } from "../enrichment/reconcile.js";
@@ -112,13 +113,15 @@ export function observeFirm(
 export async function firmObservations(
   q: Queryable,
   params: Record<string, unknown>,
+  access: Access = NO_WALL,
 ): Promise<FirmObservations> {
   const { firmId } = params;
   if (typeof firmId !== "string" || firmId === "") {
     throw new HttpError("firmId is required", 400);
   }
   const firm = await getObject(q, "Firm", firmId);
-  if (firm === null) {
+  // A firm the persona may not see is as absent as one that does not exist.
+  if (firm === null || isHidden(access, "Firm", firm)) {
     throw new HttpError(`Firm ${firmId} not found`, 404);
   }
   const rows = await listAll(q, "Extraction", { where: { firmId: { $eq: firmId } } });
