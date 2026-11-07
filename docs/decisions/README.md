@@ -14,7 +14,7 @@ Status is one of **Accepted** (in the code), **Proposed** (written down, not ena
 | [0006](0006-append-only-history-in-application-code.md) | History that only grows, enforced by database triggers | Accepted (triggers for scores, decisions and findings; application code for the rest) |
 | [0007](0007-human-approval-before-rules-apply.md) | A person approves a rule before it screens anything | Accepted |
 | [0008](0008-workers-and-snapshot-reset.md) | Cloudflare Workers and a snapshot-based reset | Accepted |
-| [0009](0009-hyperdrive-connection-pooling.md) | Hyperdrive for the Worker's database connection | Proposed (not enabled) |
+| [0009](0009-hyperdrive-connection-pooling.md) | Hyperdrive for the Worker's database connection | Accepted |
 | [0010](0010-profile-fields-not-axes.md) | Profile fields are not axes | Accepted |
 
 See also [architecture.md](../architecture.md), [security.md](../security.md), [evals.md](../evals.md), the generated [ontology reference](../ontology.md) and the [Foundry port case study](../foundry-origins.md).
