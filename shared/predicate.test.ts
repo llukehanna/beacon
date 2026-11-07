@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { matchesPredicate, predicateField, ruleKey } from "./predicate.js";
+import {
+  matchesPredicate,
+  predicateField,
+  rubricGateFor,
+  ruleKey,
+  rulePatternKey,
+} from "./predicate.js";
 
 describe("matchesPredicate", () => {
   const firm = { firmType: "CF", employees: 6, coverageModel: "Generalist", geoScore: 1 };
@@ -44,5 +50,34 @@ describe("matchesPredicate", () => {
 
   it("builds a stable identity key", () => {
     expect(ruleKey("employees", "<", " 10 ", "Both")).toBe("employees|<|10|both");
+  });
+});
+
+describe("rulePatternKey", () => {
+  it("ignores threshold and model, case and spaces", () => {
+    expect(rulePatternKey(" Deal_Size_USD_m ", "<")).toBe(rulePatternKey("deal_size_usd_m", "< "));
+    expect(rulePatternKey("deal_size_usd_m", "<")).not.toBe(
+      rulePatternKey("deal_size_usd_m", "<="),
+    );
+  });
+});
+
+describe("rubricGateFor", () => {
+  it("names the rubric's hard-reject an equality repeats", () => {
+    const generalist = { axis: "coverage_model", operator: "==", threshold: "Generalist" };
+    expect(rubricGateFor({ ...generalist, model: "CF" })).toMatch(/Generalist coverage model/);
+    expect(rubricGateFor({ ...generalist, model: "both" })).toMatch(/Generalist coverage model/);
+    // The CS rubric does not reject on coverage.
+    expect(rubricGateFor({ ...generalist, model: "CS" })).toBeNull();
+  });
+
+  it("finds nothing in thresholds and other values", () => {
+    expect(rubricGateFor({ axis: "employees", operator: "<", threshold: "10" })).toBeNull();
+    expect(
+      rubricGateFor({ axis: "coverage_model", operator: "==", threshold: "Multi-sector" }),
+    ).toBeNull();
+    expect(
+      rubricGateFor({ axis: "coverage_model", operator: "!=", threshold: "Generalist" }),
+    ).toBeNull();
   });
 });
