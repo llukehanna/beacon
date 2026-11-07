@@ -35,6 +35,7 @@ import { MAX_LIST, MAX_LIST_ITEM, MAX_STRING } from "./actions/params";
 import { MIN_CLUSTER } from "./actions/rules";
 import { MAX_MANDATES, MAX_SEARCHES } from "./actions/search";
 import { CLAUDE_COOLDOWN_MS, CLAUDE_DAILY_MAX as SERVER_DAILY_MAX } from "./clustering/choose";
+import { APPEND_ONLY_TABLES, MUTABLE_COLUMNS } from "./db/history";
 import { SECURITY_HEADERS, MAX_BODY_BYTES as SERVER_BODY_BYTES } from "./http";
 import { MAX_RESULTS } from "./mcp/tools";
 import { MAX_ACTION_RUNS } from "./operations/record";
@@ -245,6 +246,36 @@ describe("the market signal figures in docs/architecture.md", () => {
     expect(doc).toContain(`from ${LOOKBACK_MS / DAY} days before the seed`);
     expect(doc).toContain(`to ${LOOKAHEAD_MS / HOUR} hours after it`);
     expect(doc).toContain(`at most ${MAX_SIGNALS_PER_RUN} per run`);
+  });
+});
+
+describe("the append-only triggers the docs name", () => {
+  const migration = read("server/db/migrations/0003_integrity.sql");
+
+  it("are the ones the migration creates, with the columns an update may still change", () => {
+    for (const table of APPEND_ONLY_TABLES) {
+      expect(migration, table).toContain(
+        `CREATE TRIGGER ${table}_append_only BEFORE UPDATE OR DELETE ON ${table}`,
+      );
+    }
+    const mutable = MUTABLE_COLUMNS.research_finding;
+    expect(migration).toContain(`ARRAY[${mutable.map((c) => `'${c}'`).join(", ")}]`);
+  });
+
+  it("are quoted by name, with those columns, in security.md, architecture.md and ADR 0006", () => {
+    for (const file of [
+      "docs/security.md",
+      "docs/architecture.md",
+      "docs/decisions/0006-append-only-history-in-application-code.md",
+    ]) {
+      const doc = read(file);
+      for (const table of APPEND_ONLY_TABLES) {
+        expect(doc, `${file} ${table}`).toContain(`${table}_append_only`);
+      }
+      for (const column of MUTABLE_COLUMNS.research_finding) {
+        expect(doc, `${file} ${column}`).toContain(`\`${column}\``);
+      }
+    }
   });
 });
 

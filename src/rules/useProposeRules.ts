@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { clusterRejectionsAction } from "@/data/ontology";
 
@@ -31,5 +32,10 @@ export function useProposeRules(): ProposeRules {
       .catch(() => undefined); // Surfaced through cluster.error.
   }, []);
 
-  return { run, isPending: cluster.isPending, note, error: cluster.error?.message };
+  return {
+    run,
+    isPending: cluster.isPending,
+    note,
+    error: cluster.error === undefined ? undefined : errorMessage(cluster.error),
+  };
 }

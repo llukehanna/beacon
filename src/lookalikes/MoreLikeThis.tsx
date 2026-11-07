@@ -2,7 +2,6 @@ import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm } from "@/data/ontology";
 import { Notice, Panel, Skeleton } from "@/ui";
-import type { FirmLike } from "../../shared/exportRows";
 import { moreLikeThis } from "../../shared/lookalikes";
 import { LookalikeList } from "./LookalikeList";
 import styles from "./MoreLikeThis.module.css";
@@ -23,7 +22,7 @@ export function MoreLikeThis({
     autoFetchMore: true,
   });
   const rows = React.useMemo(
-    () => (data === undefined ? [] : moreLikeThis(firmId, data as unknown as FirmLike[])),
+    () => (data === undefined ? [] : moreLikeThis(firmId, data)),
     [data, firmId],
   );
   const headingId = React.useId();
@@ -36,9 +35,7 @@ export function MoreLikeThis({
         More like this
       </h2>
       {error !== undefined && error !== null ? (
-        <Notice>
-          Couldn&apos;t load the firms to compare. Check your connection and try again.
-        </Notice>
+        <Notice>Couldn’t load the firms to compare. Check your connection and try again.</Notice>
       ) : isLoading ? (
         <Skeleton lines={3} />
       ) : rows.length === 0 ? (

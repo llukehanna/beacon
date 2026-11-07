@@ -13,6 +13,7 @@ import { GET as objects } from "../api/objects.js";
 import { codenameFor } from "../shared/accessPolicy.js";
 import { exportFileName, exportRows } from "../shared/exportRows.js";
 import { moreLikeThis } from "../shared/lookalikes.js";
+import type { ObjectOf, ObjectTypeName } from "../shared/schema.js";
 import type { AccuracySummary, HomeSummary, ShellCounts } from "../shared/summaries.js";
 import { MAX_ACCESS_LOG, buildAccess, logAccess, resolveAccess } from "./access.js";
 import { heuristicClusterer } from "./clustering/heuristic.js";
@@ -20,6 +21,7 @@ import type { Clusterer } from "./clustering/types.js";
 import { type Db, overrideDb } from "./db/client.js";
 import { insertObject, insertObjects } from "./db/repo.js";
 import { HttpError } from "./errors.js";
+import { prepareCall, runCall } from "./mcp/tools.js";
 import { resetFromSnapshot, saveSnapshot } from "./seed/snapshot.js";
 import { STRONG_CF, createTestDb, run, seedFirm } from "./testing.js";
 
@@ -60,6 +62,14 @@ async function list(type: string, persona?: string, query = ""): Promise<Wire[]>
     token = page.nextPageToken;
   } while (token !== null);
   return out;
+}
+
+/** `list`, typed: what the route sends is the wire shape of the type, which a `Wire` cannot say. */
+async function listRows<N extends ObjectTypeName>(
+  type: N,
+  persona?: string,
+): Promise<ObjectOf<N>[]> {
+  return (await list(type, persona)) as ObjectOf<N>[];
 }
 
 const fn = async <T>(
@@ -116,7 +126,12 @@ async function buildWorld(): Promise<Db> {
         retrievedAt: AT,
       },
     ]);
-    await insertObject(d, "QualificationScore", { scoreId: `score-${firmId}`, firmId, tier: "A" });
+    await insertObject(d, "QualificationScore", {
+      scoreId: `score-${firmId}`,
+      firmId,
+      tier: "A",
+      computedAt: AT,
+    });
     await insertObject(d, "ReviewDecision", {
       decisionId: `decision-${firmId}`,
       firmId,
@@ -130,7 +145,12 @@ async function buildWorld(): Promise<Db> {
       driftStatus: "open",
       detectedAt: AT,
     });
-    await insertObject(d, "MarketSignal", { signalId: `signal-${firmId}`, firmId, kind: "hire" });
+    await insertObject(d, "MarketSignal", {
+      signalId: `signal-${firmId}`,
+      firmId,
+      kind: "hire",
+      effectiveDate: AT,
+    });
   }
 
   await insertObject(d, "Mandate", {
@@ -158,7 +178,7 @@ async function buildWorld(): Promise<Db> {
   ]);
   await insertObject(d, "Search", {
     searchId: "s1",
-    name: `${WALLED_TITLE} · 2026-09-01`,
+    name: WALLED_TITLE,
     mandateId: WALLED,
     runAt: AT,
   });
@@ -166,6 +186,7 @@ async function buildWorld(): Promise<Db> {
     searchId: "L1",
     name: `${WALLED_TITLE} — universe`,
     mandateId: WALLED,
+    createdAt: AT,
   });
   await insertObjects(d, "SearchMembership", [
     { membershipId: "s1:ok", searchId: "s1", firmId: "firm-ok-1" },
@@ -196,7 +217,7 @@ describe("information barrier", () => {
       const idsOf = (rows: Wire[]) => rows.map((r) => r.$primaryKey);
 
       // Object lists, paged (a hidden row must not cost a page its size or break a cursor).
-      const firms = await list("Firm", persona);
+      const firms = await listRows("Firm", persona);
       expect(idsOf(firms), as).toEqual(["firm-ok-1", "firm-ok-2"]);
       expect(JSON.stringify(firms), as).not.toContain(SECRET_NAME);
       for (const type of [
@@ -286,8 +307,8 @@ describe("information barrier", () => {
       ).toEqual(["Alpha Advisors", "Beta Advisors"]);
 
       // Exports are built in the browser from these lists: nothing of the firm can reach them.
-      const findings = await list("ResearchFinding", persona);
-      const { rows, citations } = exportRows(firms as never, findings as never);
+      const findings = await listRows("ResearchFinding", persona);
+      const { rows, citations } = exportRows(firms, findings);
       expect(
         rows.map((r) => r.firmId),
         as,
@@ -297,10 +318,10 @@ describe("information barrier", () => {
 
       // Lookalikes: the restricted firm is the closest match to firm-ok-1 and still never comes back.
       expect(
-        moreLikeThis("firm-ok-1", firms as never).map((l) => l.firmId),
+        moreLikeThis("firm-ok-1", firms).map((l) => l.firmId),
         as,
       ).toEqual(["firm-ok-2"]);
-      expect(moreLikeThis(SECRET, firms as never), as).toEqual([]);
+      expect(moreLikeThis(SECRET, firms), as).toEqual([]);
 
       // The tear sheet loads its firm by key and builds only from what comes back: nothing.
       const sheetFirm = (await (
@@ -311,7 +332,7 @@ describe("information barrier", () => {
   });
 
   it("shows the restricted firm, with its reason, to compliance", async () => {
-    const firms = await list("Firm", "compliance");
+    const firms = await listRows("Firm", "compliance");
     expect(firms.map((f) => f.$primaryKey)).toEqual(["firm-ok-1", "firm-ok-2", SECRET]);
     expect((await objects(call(`/api/objects?type=Firm&id=${SECRET}`, "compliance"))).status).toBe(
       200,
@@ -338,12 +359,9 @@ describe("information barrier", () => {
     ).json()) as { data: Record<string, Wire[]> };
     expect(linked.data.s1.map((f) => f.$primaryKey)).toEqual(["firm-ok-1", SECRET]);
 
-    const { rows } = exportRows(
-      firms as never,
-      (await list("ResearchFinding", "compliance")) as never,
-    );
+    const { rows } = exportRows(firms, await listRows("ResearchFinding", "compliance"));
     expect(rows.map((r) => r.firmName)).toContain(SECRET_NAME);
-    expect(moreLikeThis("firm-ok-1", firms as never).map((l) => l.firmId)).toContain(SECRET);
+    expect(moreLikeThis("firm-ok-1", firms).map((l) => l.firmId)).toContain(SECRET);
 
     expect((await list("AccessLogEntry", "compliance")).length).toBeGreaterThanOrEqual(0);
     expect(await list("MandateAccess", "compliance")).toHaveLength(5);
@@ -430,7 +448,7 @@ describe("information barrier", () => {
 
       // The searches and lists named after it.
       const searches = await list("Search", persona);
-      expect(searches[0].name).toBe("Project Kestrel · 2026-09-01");
+      expect(searches[0].name).toBe("Project Kestrel");
       expect((await list("SearchList", persona))[0].name).toBe("Project Kestrel — universe");
 
       // Home, the Pipeline's and the exports' mandate name.
@@ -451,7 +469,7 @@ describe("information barrier", () => {
       ).toBe(400);
       const sortName = encodeURIComponent(JSON.stringify({ name: "asc" }));
       for (const [type, title] of [
-        ["Search", `${WALLED_TITLE} · 2026-09-01`],
+        ["Search", WALLED_TITLE],
         ["SearchList", `${WALLED_TITLE} — universe`],
       ]) {
         const byName = encodeURIComponent(JSON.stringify({ name: { $eq: title } }));
@@ -480,7 +498,7 @@ describe("information barrier", () => {
       expect(walled.intentStatement, persona).toBe(
         "Find advisers to sell Acme Wealth to a strategic buyer",
       );
-      expect((await list("Search", persona))[0].name, persona).toBe(`${WALLED_TITLE} · 2026-09-01`);
+      expect((await list("Search", persona))[0].name, persona).toBe(WALLED_TITLE);
       expect(
         (await fn<HomeSummary>("homeSummary", persona)).mandates.find(
           (m) => m.mandateId === WALLED,
@@ -729,11 +747,96 @@ describe("information barrier", () => {
     await db.query(`DELETE FROM proposed_rule WHERE "proposedRuleId" LIKE 'rule-%'`);
   });
 
+  it("ProposedRule filters on rationale or decision ids are refused for a walled persona", async () => {
+    // A rule that rests on a hidden firm's decision loses its rationale and its id list on the way
+    // out, so a filter or sort on them would show which guess was right: it is refused outright.
+    const refused = [
+      ["where rationaleClusterSummary", "where", { rationaleClusterSummary: { $eq: "Too small" } }],
+      [
+        "where supportingDecisionIds",
+        "where",
+        { supportingDecisionIds: { $eq: `["decision-${SECRET}"]` } },
+      ],
+      ["where mandateScope", "where", { mandateScope: { $eq: WALLED_TITLE } }],
+      ["where supportingFirmCount", "where", { supportingFirmCount: { $eq: 2 } }],
+      ["orderBy rationaleClusterSummary", "orderBy", { rationaleClusterSummary: "asc" }],
+      ["orderBy supportingFirmCount", "orderBy", { supportingFirmCount: "desc" }],
+      ["orderBy supportingDecisionIds", "orderBy", { supportingDecisionIds: "desc" }],
+    ] as const;
+    const ask = (persona: string | undefined, param: string, value: object) =>
+      objects(
+        call(
+          `/api/objects?type=ProposedRule&${param}=${encodeURIComponent(JSON.stringify(value))}`,
+          persona,
+        ),
+      );
+    for (const persona of ["analyst", "deal_lead", undefined, "not-a-persona"]) {
+      for (const [what, param, value] of refused) {
+        const res = await ask(persona, param, value);
+        expect(res.status, `${what} as ${persona ?? "(no header)"}`).toBe(400);
+      }
+      // Properties that carry nothing walled stay filterable.
+      expect(
+        (await ask(persona, "where", { ruleStatus: { $eq: "pending" } })).status,
+        persona ?? "(no header)",
+      ).toBe(200);
+    }
+    // Compliance sees every firm and every mandate, so there is nothing to probe.
+    for (const [what, param, value] of refused) {
+      expect((await ask("compliance", param, value)).status, `${what} as compliance`).toBe(200);
+    }
+  });
+
+  it("list_rules makes one query for hidden-firm decisions", async () => {
+    await insertObjects(db, "ProposedRule", [
+      {
+        proposedRuleId: "rule-mixed",
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "10",
+        ruleModel: "CF",
+        rationaleClusterSummary: "Too small to cover",
+        supportingFirmCount: 2,
+        supportingDecisionIds: JSON.stringify(["decision-firm-ok-1", `decision-${SECRET}`]),
+        projectedScreenCount: 3,
+        ruleStatus: "pending",
+        proposedAt: AT,
+        mandateScope: "All mandates",
+      },
+    ]);
+    // Three firms are hidden from the persona; the number of firms must not change the query count.
+    const access = buildAccess("analyst", [
+      { k: "r", a: SECRET, b: REASON },
+      { k: "r", a: "firm-hidden-2", b: REASON },
+      { k: "r", a: "firm-hidden-3", b: REASON },
+    ]);
+    expect(access.hiddenFirmIds).toHaveLength(3);
+    const seen: string[] = [];
+    const spy = {
+      query: <T>(sql: string, params?: unknown[]) => {
+        seen.push(sql);
+        return db.query<T>(sql, params);
+      },
+    };
+    const result = await runCall(spy, access, prepareCall("list_rules", {}));
+    expect(result.isError).toBeUndefined();
+    expect(seen.filter((sql) => /review_decision/.test(sql))).toHaveLength(1);
+    // The one query still finds the hidden firm's decision: the rule loses it.
+    const rules = (result.structuredContent as { rules: Array<Record<string, unknown>> }).rules;
+    expect(rules.find((r) => r.ruleId === "rule-mixed")).toMatchObject({
+      supportingFirmCount: 1,
+      rationale: null,
+      rationaleWithheld: true,
+    });
+    await db.query(`DELETE FROM proposed_rule WHERE "proposedRuleId" LIKE 'rule-%'`);
+  });
+
   it("gives a mandate nobody has been granted no codename, and a new one its own", async () => {
     await insertObject(db, "Mandate", {
       mandateId: "m-fresh",
       title: "A fresh mandate",
       active: true,
+      createdAt: AT,
     });
     const fresh = (await list("Mandate", "analyst")).find((m) => m.$primaryKey === "m-fresh")!;
     expect(fresh.title).toBe("A fresh mandate");
@@ -749,6 +852,7 @@ describe("a new mandate's codename", () => {
       mandateId: "m-taken",
       title: "Taken",
       codename: codenameFor(id),
+      createdAt: AT,
     });
     const made = await run(
       d,
@@ -863,6 +967,7 @@ describe("access log", () => {
   it("lets only compliance read the log", async () => {
     const log = await list("AccessLogEntry", "compliance");
     expect(log.length).toBeGreaterThan(0);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
     expect(log[0]).toMatchObject({ persona: expect.any(String), objectType: expect.any(String) });
     expect((await objects(call(`/api/objects?type=AccessLogEntry`, "deal_lead"))).status).toBe(403);
   });

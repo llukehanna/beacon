@@ -8,7 +8,11 @@
  * empty value and a citation made of nulls. The files print that as "no source", never as a blank
  * that could be read as a value, and never as the word "undefined".
  */
+import { buildAxisRows } from "./axisRows.js";
 import { type FindingLike as AxisFinding, classifyAxis, pickAuthoritative } from "./axisState.js";
+import { citationOf } from "./citation.js";
+import { conflictSides } from "./evidenceModel.js";
+import { displayFindingValue } from "./findingActions.js";
 import { bucketOf } from "./pipelineBuckets.js";
 import type { ObjectOf } from "./schema.js";
 import { MAX_POSSIBLE, mirrorScore } from "./scoreMirror.js";
@@ -89,6 +93,11 @@ export interface ExportRow {
 /** Where one axis value came from. All null when nothing is on file for the axis. */
 export interface Citation {
   axis: string;
+  /**
+   * Set on each side of an open conflict, where an axis has two citations: the value that side
+   * gave, as the Desk words it. Absent on an ordinary citation.
+   */
+  value?: string;
   provider: string | null;
   quote: string | null;
   model: string | null;
@@ -182,6 +191,36 @@ function findingsByFirmAxis(findings: readonly FindingLike[]): Map<string, AxisF
   return out;
 }
 
+/**
+ * The sides of each open conflict, per firm and axis, found by the Desk's own rule (grouped
+ * findings, one still proposed; the two most trusted sources). Only a firm with a grouped finding
+ * is looked at, so an export of firms without conflicts does no extra work.
+ */
+function openConflicts(findings: readonly FindingLike[]): Map<string, Map<string, AxisFinding[]>> {
+  const byFirm = new Map<string, AxisFinding[]>();
+  const withGroup = new Set<string>();
+  for (const f of findings) {
+    const firmId = text(f.firmId);
+    if (firmId !== null) {
+      byFirm.set(firmId, [...(byFirm.get(firmId) ?? []), forAxisState(f)]);
+      if (text(f.conflictGroupId) !== null) {
+        withGroup.add(firmId);
+      }
+    }
+  }
+  const out = new Map<string, Map<string, AxisFinding[]>>();
+  for (const firmId of withGroup) {
+    const axes = new Map<string, AxisFinding[]>();
+    for (const row of buildAxisRows(ENRICH_AXES, undefined, byFirm.get(firmId) ?? [])) {
+      if (row.state === "conflict") {
+        axes.set(row.axis, conflictSides(row));
+      }
+    }
+    out.set(firmId, axes);
+  }
+  return out;
+}
+
 const EMPTY_CITATION = (axis: string): Citation => ({
   axis,
   provider: null,
@@ -198,6 +237,7 @@ export function exportRows(
   findings: readonly FindingLike[],
 ): { rows: ExportRow[]; citations: Citation[][] } {
   const byFirmAxis = findingsByFirmAxis(findings);
+  const conflicts = openConflicts(findings);
   const rows: ExportRow[] = [];
   const citations: Citation[][] = [];
 
@@ -218,10 +258,16 @@ export function exportRows(
 
     const cites: Citation[] = [];
     for (const def of ENRICH_AXES) {
-      const own = axisValue(
-        def,
-        firm[def.firmField as keyof FirmLike] as string | number | boolean,
-      );
+      // An open conflict is shown as one, with both sides cited, as on the Desk: neither value is
+      // the firm's value until an analyst decides.
+      const sides = conflicts.get(firmId)?.get(def.axis);
+      if (sides !== undefined) {
+        const shown = sides.map((f) => displayFindingValue(def.axis, f.value));
+        row[def.axis] = `Conflict: ${shown.join(" vs ")}`;
+        sides.forEach((f, i) => cites.push({ axis: def.axis, value: shown[i], ...citationOf(f) }));
+        continue;
+      }
+      const own = axisValue(def, firm[def.firmField as keyof FirmLike]);
       const found = byFirmAxis.get(`${firmId}\u0000${def.axis}`);
       const auth = found === undefined ? undefined : pickAuthoritative(found);
       if (auth === undefined || classifyAxis(auth) === "abstained") {
@@ -321,7 +367,7 @@ export function targetsTable(rows: readonly ExportRow[]): Table {
   };
 }
 
-/** The workbook's Citations sheet: one line per firm and axis. */
+/** The workbook's Citations sheet: one line per firm and axis, two for an axis in open conflict. */
 export function citationsTable(
   rows: readonly ExportRow[],
   citations: readonly Citation[][],
@@ -331,7 +377,9 @@ export function citationsTable(
     for (const c of citations[i] ?? []) {
       out.push([
         r.firmName,
-        columnLabel(c.axis),
+        c.value === undefined
+          ? columnLabel(c.axis)
+          : `${columnLabel(c.axis)} (conflict: ${c.value})`,
         orNoSource(c.provider),
         orNoSource(c.quote),
         orNoSource(c.model),

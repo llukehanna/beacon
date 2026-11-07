@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { approveRuleAction, dismissRuleAction } from "@/data/ontology";
 import { type ScreenableFirm } from "@/desk/activeScreening";
@@ -54,12 +55,12 @@ export function ProposedRulePanel({
     if (busy) {
       return;
     }
-    void approve.applyAction({ proposedRule: rule } as never).catch(() => undefined);
+    void approve.applyAction({ proposedRule: rule.proposedRuleId }).catch(() => undefined);
   };
   const onDecline = (): void => {
     // The reason is cleared only on success, so a failure does not lose what was typed.
     void dismiss
-      .applyAction({ proposedRule: rule, reason: reason.trim() } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId, reason: reason.trim() })
       .then(() => {
         setReason("");
         setDeclineOpen(false);
@@ -129,9 +130,9 @@ export function ProposedRulePanel({
 
       {(approve.error !== undefined || dismiss.error !== undefined) && (
         <Notice>
-          {approve.error !== undefined && <div>Approve failed: {String(approve.error)}</div>}
+          {approve.error !== undefined && <div>Approve failed: {errorMessage(approve.error)}</div>}
           {dismiss.error !== undefined && (
-            <div>Decline failed: {String(dismiss.error)}. Your reason is preserved.</div>
+            <div>Decline failed: {errorMessage(dismiss.error)}. Your reason is preserved.</div>
           )}
         </Notice>
       )}

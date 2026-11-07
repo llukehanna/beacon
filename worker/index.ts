@@ -12,9 +12,10 @@ import * as mcp from "../api/mcp.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
 import { type Db, createPgDb, getDb, withRequestDb } from "../server/db/client.js";
-import { ensureSchema } from "../server/db/ddl.js";
+import { LATEST_MIGRATION, schemaVersion } from "../server/db/migrate.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
+import { rpcCodeForStatus, rpcFailureBody } from "../server/mcp/rpc.js";
 import { applyDueSignals } from "../server/signals/run.js";
 import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
@@ -55,23 +56,37 @@ const ROUTES: Record<string, Partial<Record<string, Handler>>> = {
   reset,
 };
 
-let schemaApplied = false;
+/** Set once this isolate has seen the database at (or past) the version this build needs. */
+let schemaCurrent = false;
 
 /** Hyperdrive when bound, otherwise the DATABASE_URL secret. */
 export function connectionStringFor(env: Env): string | undefined {
   return env.HYPERDRIVE?.connectionString ?? process.env.DATABASE_URL;
 }
 
-/** One Postgres pool per request; the idempotent DDL runs once per isolate. */
+/**
+ * One Postgres pool per request. The Worker never changes the schema: it reads the schema version
+ * once per isolate and refuses requests while the database is behind this build (run `npm run
+ * migrate`, or the Reseed workflow with mode migrate, then reload). A behind database is read again
+ * on the next request, so the Worker recovers as soon as the migration lands.
+ */
 async function openDb(env: Env): Promise<Db> {
   const url = connectionStringFor(env);
   if (!url) {
     throw new HttpError("The database is not configured", 503);
   }
   const db = createPgDb(url);
-  if (!schemaApplied) {
-    await ensureSchema(db);
-    schemaApplied = true;
+  if (!schemaCurrent) {
+    try {
+      schemaCurrent = (await schemaVersion(db)) >= LATEST_MIGRATION;
+    } catch (e) {
+      await db.close().catch(() => {});
+      throw e;
+    }
+    if (!schemaCurrent) {
+      await db.close().catch(() => {});
+      throw new HttpError("The database schema is behind this build", 503);
+    }
   }
   return db;
 }
@@ -132,7 +147,12 @@ export default {
         reset: env.RESET_LIMITER,
         mcp: env.MCP_LIMITER,
       }[m[1] as "actions" | "reset" | "mcp"];
-      const refused = await checkRate(limiter, request);
+      // A limited MCP call is answered as a JSON-RPC error, like every other refusal on that route.
+      const refused = await checkRate(
+        limiter,
+        request,
+        m[1] === "mcp" ? (message) => rpcFailureBody(rpcCodeForStatus(429), message) : undefined,
+      );
       if (refused) {
         return refused;
       }

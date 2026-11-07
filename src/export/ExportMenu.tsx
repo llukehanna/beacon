@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useDataAdapter } from "@/data/AdapterContext";
+import { errorMessage } from "@/data/adapter";
 import { MenuButton, type MenuItem } from "@/ui";
 import { CRM_FORMATS, type CrmName } from "../../shared/crmFormats";
 import {
@@ -32,6 +35,8 @@ export function ExportMenu({
   /** The findings the page already holds; fetched when the export is asked for if it has none. */
   findings?: readonly FindingLike[];
 }) {
+  const qc = useQueryClient();
+  const adapter = useDataAdapter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +44,10 @@ export function ExportMenu({
     setBusy(true);
     setError(null);
     try {
-      const { rows, citations } = exportRows(firms, findings ?? (await fetchAllFindings()));
+      const { rows, citations } = exportRows(
+        firms,
+        findings ?? (await fetchAllFindings(qc, adapter)),
+      );
       const now = new Date();
       if (kind === "xlsx") {
         const { buildWorkbook } = await import("./workbook");
@@ -50,7 +58,7 @@ export function ExportMenu({
         saveBlob(csvBlob(csv), exportFileName(name, "csv", now, fmt.label));
       }
     } catch (e) {
-      setError(`Export failed: ${e instanceof Error ? e.message : String(e)}`);
+      setError(`Export failed: ${errorMessage(e)}`);
     } finally {
       setBusy(false);
     }

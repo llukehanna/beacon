@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { FirmObservations, ProviderObservation } from "../../../shared/summaries";
-import { ENRICH_AXES, PROVIDER_TRUST } from "../../../shared/vocab";
-import { type FindingLike } from "../axisState";
 import {
   authoritativeFinding,
   buildAxisRows,
   openConflictFindings,
   summarizeRows,
   summaryText,
-} from "./axisRows";
+} from "./axisRows.js";
+import { type FindingLike } from "./axisState.js";
+import type { FirmObservations, ProviderObservation } from "./summaries.js";
+import { ENRICH_AXES, PROVIDER_TRUST } from "./vocab.js";
 
 const CF_AXES = ENRICH_AXES.filter((a) => a.models.includes("CF"));
 

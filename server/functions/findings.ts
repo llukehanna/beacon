@@ -6,6 +6,7 @@
 import type { FindingCell, RateCounts } from "../../shared/trustMetrics.js";
 import { ANALYST, MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Queryable } from "../db/client.js";
+import { notIn } from "../db/repo.js";
 
 /**
  * One row per finding with its class as booleans (the findings of a hidden firm, $1, are left out); provider and axis folded like cellsFromFindings.
@@ -27,7 +28,7 @@ const CLASSIFIED = `
                      AND lower(coalesce("findingStatus", '')) = 'verified')) AS agreed
         FROM research_finding
        WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
-         AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))
+         AND ${notIn('"firmId"', 1)}
     ) f`;
 
 const COUNTS = `

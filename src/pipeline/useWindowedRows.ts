@@ -179,7 +179,7 @@ export function useWindowedRows<E extends HTMLElement>({
   };
 
   const onFocus = (e: React.FocusEvent<HTMLElement>): void => {
-    const index = Number((e.target as HTMLElement).dataset.index);
+    const index = Number(e.target.dataset.index);
     if (Number.isInteger(index) && rows[index]) {
       const id = rows[index].firm.firmId ?? "";
       setActiveId(id);
@@ -188,7 +188,7 @@ export function useWindowedRows<E extends HTMLElement>({
   };
 
   const onBlur = (e: React.FocusEvent<HTMLElement>): void => {
-    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+    if (!e.currentTarget.contains(e.relatedTarget)) {
       setFocusedId(undefined);
     }
   };

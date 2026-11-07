@@ -1,20 +1,9 @@
-import type { ObjectTypeName } from "../../shared/schema.js";
+import { ACTION_PARAMS, type ParamSpec, type ResolvedParams } from "../../shared/actionParams.js";
+import type { ActionName, ObjectTypeName } from "../../shared/schema.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Queryable } from "../db/client.js";
 
-export type ParamType =
-  | "string"
-  | "integer"
-  | "double"
-  | "boolean"
-  | "timestamp"
-  | "string[]"
-  | { object: ObjectTypeName };
-
-export interface ParamDef {
-  type: ParamType;
-  nullable?: boolean;
-}
+export type { ParamDef, ParamType } from "../../shared/actionParams.js";
 
 export interface ActionContext {
   tx: Queryable;
@@ -37,7 +26,8 @@ export interface ActionResult {
 }
 
 export interface ActionDef<P, Prep = undefined> {
-  params: { [K in keyof P]-?: ParamDef };
+  /** The action's parameter spec, from shared/actionParams.ts (`defineAction` fills it in). */
+  params: ParamSpec;
   /**
    * Slow or network work (a Claude call) that must not hold a database
    * transaction open. applyAction runs it on the root connection before the
@@ -55,6 +45,13 @@ export interface ActionDef<P, Prep = undefined> {
   needsClusterer?: boolean;
 }
 
-export function defineAction<P, Prep = undefined>(def: ActionDef<P, Prep>): ActionDef<P, Prep> {
-  return def;
+/**
+ * Define the named action. Its parameter spec comes from shared/actionParams.ts, the one place the
+ * server's validation and the client's types both read, so `run` receives exactly the validated shape.
+ */
+export function defineAction<N extends ActionName, Prep = undefined>(
+  name: N,
+  def: Omit<ActionDef<ResolvedParams<N>, Prep>, "params">,
+): ActionDef<ResolvedParams<N>, Prep> {
+  return { params: ACTION_PARAMS[name], ...def };
 }

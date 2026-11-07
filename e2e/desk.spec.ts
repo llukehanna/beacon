@@ -360,6 +360,29 @@ test("verify a proposed value", async ({ page }) => {
   );
 });
 
+test("a failed pass says why in words and keeps the note", async ({ page }) => {
+  await openDesk(page);
+  // The server refuses the reject; nothing else on the page is touched.
+  await page.route("**/api/actions", (route) =>
+    route.request().postData()?.includes("rejectFirm") === true
+      ? route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "The database is unavailable." }),
+        })
+      : route.continue(),
+  );
+  const note = page.getByPlaceholder(/required to pass/);
+  await note.fill("Outside the mandate");
+  await page.getByRole("button", { name: /^Pass…/ }).click();
+
+  const alert = page.getByRole("alert").filter({ hasText: "Couldn’t save your decision." });
+  await expect(alert).toContainText("Pass: The database is unavailable.");
+  await expect(alert).not.toContainText("[object Object]");
+  await expect(alert).not.toContainText("Error:");
+  await expect(note).toHaveValue("Outside the mandate");
+});
+
 test("reject requires a note", async ({ page }) => {
   await openDesk(page);
   const queueCount = async (): Promise<number> => {

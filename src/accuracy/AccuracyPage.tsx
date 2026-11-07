@@ -1,11 +1,12 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { Term } from "@/components/Term";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkQuery } from "@/data/hooks";
 import { Chip, EmptyState, Metric, Notice, PageHeader, Panel, Skeleton } from "@/ui";
 import evalReportJson from "../../docs/evals.json";
 import type { EvalReport } from "../../shared/evalReport";
-import type { AccuracySummary, OperationsSummary } from "../../shared/summaries";
+import type { AccuracySummary } from "../../shared/summaries";
 import { INSUFFICIENT_THRESHOLD } from "../../shared/trustMetrics";
 import styles from "./AccuracyPage.module.css";
 import { BreakdownTable } from "./BreakdownTable";
@@ -15,6 +16,7 @@ import { OutcomesPanel } from "./OutcomesPanel";
 import { type AccuracyTab, tabFromParam, tabTarget } from "./evalsModel";
 
 /** Written by `npm run eval` and bundled at build time; `server/eval` checks it is current in CI. */
+// The JSON import widens the report's literal unions to string; the file is generated from EvalReport.
 const EVAL_REPORT = evalReportJson as unknown as EvalReport;
 
 const TABS: readonly { id: AccuracyTab; label: string }[] = [
@@ -133,15 +135,13 @@ function Overview({
  */
 export default function AccuracyPage(): React.ReactElement {
   // Aggregated on the server: a few kilobytes of rates instead of every finding and firm.
-  const { data, isLoading, error } = useOsdkQuery<AccuracySummary>("accuracySummary");
+  const { data, isLoading, error } = useOsdkQuery("accuracySummary");
   const [params, setParams] = useSearchParams();
   const tab = tabFromParam(params.get("tab"));
   // Fetched only while its tab is open: the overview should not wait on it, or the reverse.
-  const operations = useOsdkQuery<OperationsSummary>(
-    "operationsSummary",
-    {},
-    { enabled: tab === "operations" },
-  );
+  const operations = useOsdkQuery("operationsSummary", undefined, {
+    enabled: tab === "operations",
+  });
   const select = (next: AccuracyTab): void => {
     setParams(
       (prev) => {
@@ -204,7 +204,7 @@ export default function AccuracyPage(): React.ReactElement {
         ))}
       </div>
       {tab === "overview" && error !== undefined && error !== null && (
-        <Notice className={styles.error}>{String(error)}</Notice>
+        <Notice className={styles.error}>{errorMessage(error)}</Notice>
       )}
 
       <div

@@ -38,7 +38,7 @@ export function LoadFailed({ message }: { message: string }): React.ReactElement
     <div className={styles.center}>
       <div role="alert">
         <EmptyState
-          title="Couldn't load the Desk"
+          title="Couldn’t load the Desk"
           body={`${message.replace(/[.\s]+$/, "")}. Reload the page to try again.`}
         />
       </div>

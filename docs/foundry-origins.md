@@ -22,7 +22,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 ### Ontology becomes one schema file and generated tables
 
 - **Object types: 12 became 18.** The Foundry ontology had 12 object types: `DriftEvent`, `HardScreenConfig`, `LghFirm`, `Mandate`, `ProposedRule`, `QualificationScore`, `ResearchFinding`, `ReviewDecision`, `Search`, `SearchList`, `SearchMembership` and `TargetBrief`. The port carried 11 of them (`LghFirm` became `Firm`) and did not port `TargetBrief`. `Extraction`, `MarketSignal`, `ActionRun`, `ModelCall`, `MandateAccess`, `RestrictedFirm` and `AccessLogEntry` were added in this repository, which makes 18.
-- **Here.** `shared/schema.ts` declares every object type, its properties and types, the links the screens traverse and the action names. `server/db/ddl.ts` generates one Postgres table per object type from it, `server/db/repo.ts` reads and writes by type and checks every column name against it, and the typed hooks in `src/data/` are keyed by the same names. `npm run ontology:doc` writes [ontology.md](ontology.md) from it, and CI fails if that file is out of date.
+- **Here.** `shared/schema.ts` declares every object type, its properties and types, the links the screens traverse and the action names. The numbered migrations in `server/db/migrations/` create one Postgres table per object type from it (a test holds them to it), `server/db/repo.ts` reads and writes by type and checks every column name against it, and the typed hooks in `src/data/` are keyed by the same names. `npm run ontology:doc` writes [ontology.md](ontology.md) from it, and CI fails if that file is out of date.
 - **Kept.** Object types with typed properties and string primary keys, and the idea that the model is declared once and everything else derives from it.
 - **Not carried over.** Of the original 12 link types, only the two the screens traverse are declared. Foundry also provides managed object-type editing, permissions on object types and properties, and tools for browsing objects; none of that has an equivalent here.
 - **Gained.** The model is a TypeScript file: reviewed in a diff, checked by the compiler, tested, and generated into the database, the API validation, the hooks and the reference document.
@@ -65,7 +65,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### OSDK becomes the `src/data` seam
 
-- **Here.** `src/data/hooks.ts` keeps the OSDK hook names (`useOsdkObjects`, `useOsdkQuery`, `useOsdkAction`, `useLinks`) with the same return fields, backed by TanStack Query and `/api/*`. `src/data/ontology.ts` exports a token per object type and action. Screens import only these.
+- **Here.** `src/data/hooks.ts` keeps the OSDK hook names (`useOsdkObjects`, `useOsdkQuery`, `useOsdkAction`, `useLinks`) with the same return fields, backed by TanStack Query and a `DataAdapter` (`src/data/adapter.ts`, with the REST implementation as the default). `src/data/ontology.ts` exports a token per object type and action. Screens import only these.
 - **Kept.** The screens' data code, changed mostly in its import lines.
 - **Lost.** A client generated from the ontology: new types and actions need a token added by hand.
 - **Why.** The seam is what made the backend swap cheap, and it keeps a return path to Foundry short. See [0001](decisions/0001-osdk-shaped-data-seam.md).
@@ -76,9 +76,9 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Markings and sign-in become a single shared analyst, a demo information barrier and a list of limits
 
-- **Exists.** One analyst name stamped on every decision (`demo-analyst`); a same-origin check on writes; per-IP rate limits on the two write endpoints; parameter bounds; ceilings on mandates, searches and activity rows; a content security policy; a nightly reset; scores and decisions that are only ever inserted, enforced in application code. [security.md](security.md) states each claim with the file it comes from.
+- **Exists.** One analyst name stamped on every decision (`demo-analyst`); a same-origin check on writes; per-IP rate limits on the two write endpoints; parameter bounds; ceilings on mandates, searches and activity rows; a content security policy; a nightly reset; scores and decisions that are only ever inserted, refused by database triggers as well as by the actions. [security.md](security.md) states each claim with the file it comes from.
 - **A demonstration of Markings.** Three demo personas (analyst, deal-team lead, compliance) chosen in the sidebar and sent as a request header. A restricted firm is hidden from everyone but compliance, which is what a Marking on the object does in Foundry; a mandate's title is replaced by its codename for a persona without need-to-know, which is what mandate-level Markings or a restricted view do. The persona is not an identity: see "Information barriers (demo)" in [security.md](security.md).
-- **Does not exist.** Sign-in, accounts, real roles, per-user permissions, organization markings, tenant isolation, and database-enforced immutability of history.
+- **Does not exist.** Sign-in, accounts, real roles, per-user permissions, organization markings, tenant isolation, and a database role that cannot drop the history triggers or truncate history.
 - **Why.** A public demo has one shared analyst and no real data. The [production roadmap](production-roadmap.md) lists what a deployment with real data would need.
 
 ### Foundry hosting becomes Workers and Neon

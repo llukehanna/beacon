@@ -93,7 +93,10 @@ describe("demo row ceilings", () => {
   it("refuses new mandates once the demo is full", async () => {
     const db = await createTestDb();
     for (let i = 0; i < MAX_MANDATES; i++) {
-      await db.query(`INSERT INTO mandate ("mandateId", title) VALUES ($1, 'M')`, [`m${i}`]);
+      await db.query(
+        `INSERT INTO mandate ("mandateId", title, "createdAt") VALUES ($1, 'M', now())`,
+        [`m${i}`],
+      );
     }
     await expect(
       run(db, "runMandateSearch", { title: "One more", archetype: "CF" }),
@@ -119,7 +122,9 @@ describe("runSearch", () => {
       status: "complete",
       resultCount: 2,
       runBy: "demo-analyst",
+      name: "M",
     });
+    expect(s.runAt, "the run date is runAt, not part of the name").toBeDefined();
     const members = (await listLinked(db, "Search", "firms", [s.$primaryKey], []))[s.$primaryKey];
     expect(members.map((f) => f.$primaryKey).sort()).toEqual(["us_sw_a", "us_sw_b"]);
   });

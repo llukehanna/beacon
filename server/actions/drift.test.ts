@@ -43,6 +43,11 @@ describe("computeDriftForFirm", () => {
       new: "<$25m",
       source: "analyst",
     });
+    expect(
+      axes.every((a) => !("dated" in a)),
+      "when it happened is detectedAt, not a key in the axes",
+    ).toBe(true);
+    expect(drift!.detectedAt).toBeDefined();
   });
 
   it("is idempotent while a matching drift is open, and silent when the tier holds", async () => {

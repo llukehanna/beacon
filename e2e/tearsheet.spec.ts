@@ -153,22 +153,55 @@ test("an unknown firm says so", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Open the Pipeline" })).toBeVisible();
 });
 
-test("a firm nobody has researched says so instead of reporting a clean bill", async ({ page }) => {
-  const firms = await allObjects<{ firmId: string; firmName: string }>(page, "Firm");
-  const findings = await allObjects<{ firmId: string }>(page, "ResearchFinding");
-  const researched = new Set(findings.map((f) => f.firmId));
-  const bare = firms.find((f) => !researched.has(f.firmId));
-  expect(bare).toBeDefined();
+// The same firm for every persona: one the analyst can see is visible to the others too.
+for (const persona of ["analyst", "deal_lead", "compliance"]) {
+  test(`a firm nobody has researched says so instead of reporting a clean bill, as ${persona}`, async ({
+    page,
+  }) => {
+    const firms = await allObjects<{ firmId: string; firmName: string }>(page, "Firm");
+    const findings = await allObjects<{ firmId: string }>(page, "ResearchFinding");
+    const researched = new Set(findings.map((f) => f.firmId));
+    const bare = firms.find((f) => !researched.has(f.firmId));
+    expect(bare).toBeDefined();
 
-  await page.goto(tearSheetPath(bare!.firmId));
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText(bare!.firmName);
-  const evidence = page.getByRole("region", { name: "Key evidence" });
-  await expect(evidence).toContainText("No research has run on this firm yet");
-  const open = page.getByRole("region", { name: "Open conflicts and abstentions" });
-  await expect(open).toContainText("No research has run on this firm yet");
-  await expect(open).not.toContainText("No open conflicts");
-  // Nothing is cited, so the page does not claim its quotes were checked.
-  await expect(page.getByText("found verbatim")).toHaveCount(0);
+    await page.addInitScript((p) => window.localStorage.setItem("beacon.persona", p), persona);
+    await page.goto(tearSheetPath(bare!.firmId));
+    await expect(page.getByLabel("Viewing as")).toHaveValue(persona);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(bare!.firmName);
+    const evidence = page.getByRole("region", { name: "Key evidence" });
+    await expect(evidence).toContainText("No research has run on this firm yet");
+    const open = page.getByRole("region", { name: "Open conflicts and abstentions" });
+    await expect(open).toContainText("No research has run on this firm yet");
+    await expect(open).not.toContainText("No open conflicts");
+    // Nothing is cited, so the page does not claim its quotes were checked.
+    await expect(page.getByText("found verbatim")).toHaveCount(0);
+  });
+}
+
+test("tear sheet shows a retry on load failure", async ({ page }) => {
+  const { id, name } = await showcaseFirm(page);
+
+  // The firm cannot be loaded (the app retries once, so every request fails until it is healed).
+  let failing = true;
+  await page.route(
+    (url) => url.pathname === "/api/objects" && url.searchParams.get("type") === "Firm",
+    (route) =>
+      failing
+        ? route.fulfill({ status: 500, json: { error: "Internal error" } })
+        : route.continue(),
+  );
+  await page.goto(tearSheetPath(id));
+
+  const notice = page.getByRole("alert").filter({ hasText: "load this firm’s tear sheet" });
+  await expect(notice).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Tear sheet");
+  await expect(page.getByRole("button", { name: "Print / Save as PDF" })).toBeDisabled();
+
+  failing = false;
+  await notice.getByRole("button", { name: "Try again" }).click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
+  await expect(notice).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Score and tier" })).toBeVisible();
 });
 
 test("a passed firm shows the score it was passed at beside the live score", async ({ page }) => {

@@ -1,9 +1,9 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkQuery } from "@/data/hooks";
 import { type Command, useCommands } from "@/shell/commands";
 import { mandateSubtitle } from "@/shell/status";
-import type { HomeSummary } from "../../shared/summaries";
 import { ActivityFeed } from "./ActivityFeed";
 import { Headline } from "./Headline";
 import styles from "./HomePage.module.css";
@@ -26,7 +26,7 @@ const dayFormat = new Intl.DateTimeFormat("en-GB", {
  * these panels link to, so Home never promises work that a destination does not show.
  */
 export default function HomePage(): React.ReactElement {
-  const { data, isLoading, error } = useOsdkQuery<HomeSummary>("homeSummary");
+  const { data, isLoading, error } = useOsdkQuery("homeSummary");
   const navigate = useNavigate();
   // The clock behind relative ages and the date line, read again whenever the page renders.
   const now = Date.now();
@@ -76,7 +76,7 @@ export default function HomePage(): React.ReactElement {
         </div>
         {error !== undefined && error !== null && (
           <p className={styles.error} role="alert">
-            {String(error)}
+            {errorMessage(error)}
           </p>
         )}
         <div className={styles.metrics}>

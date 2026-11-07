@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { resolveConflictAction } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
@@ -20,12 +21,7 @@ import styles from "./EvidenceBody.module.css";
 import { SourceView } from "./SourceView";
 import { ValueEditor } from "./ValueEditor";
 import { type AxisRow, authoritativeFinding } from "./axisRows";
-import {
-  type EditMap,
-  formatActionError,
-  formatRetrievedShort,
-  stringifyOverride,
-} from "./deskModel";
+import { type EditMap, formatRetrievedShort, stringifyOverride } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
 import {
   conflictSides,
@@ -207,13 +203,11 @@ export function EvidenceBody({
   const accept = async (chosen: FindingLike, other: FindingLike): Promise<void> => {
     setResolveError(null);
     try {
-      // The action takes the finding objects themselves (FindingLike is a shape-only cast of
-      // the rows the query returned), never ids.
       await resolve.applyAction({
-        chosenFinding: chosen,
-        rejectedFinding: other,
+        chosenFinding: chosen.findingId,
+        rejectedFinding: other.findingId,
         chosenValue: chosen.value ?? "",
-      } as never);
+      });
       // Only once the ontology confirms the resolve is the choice staged on the axis.
       const key = FINDING_AXIS_TO_KEY[(chosen.axis ?? "").trim().toLowerCase()];
       const coerced = key === undefined ? undefined : coerceFindingValue(key, chosen.value);
@@ -221,7 +215,7 @@ export function EvidenceBody({
         applyEdit(key, coerced);
       }
     } catch (e) {
-      setResolveError(formatActionError(e));
+      setResolveError(errorMessage(e));
     }
   };
 
@@ -296,7 +290,7 @@ export function EvidenceBody({
   const excerpt = finding !== undefined && !finding.sourceDocumentId ? excerptText(finding) : null;
   const shownExcerpt = row.state === "abstained" ? null : excerpt;
   const earlier = row.findings.filter((f) => f !== finding && !sides.includes(f));
-  const errorText = resolve.error !== undefined ? formatActionError(resolve.error) : resolveError;
+  const errorText = resolve.error !== undefined ? errorMessage(resolve.error) : resolveError;
 
   return (
     <>

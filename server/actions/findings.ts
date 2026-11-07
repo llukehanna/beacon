@@ -1,4 +1,4 @@
-import type { ObjectOf, Props } from "../../shared/schema.js";
+import type { Props } from "../../shared/schema.js";
 import { axisPoints, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
 import {
   ANALYST,
@@ -17,8 +17,6 @@ import { planFirmAxes } from "../extraction/plan.js";
 import { type FirmObj, iso, logDecision, requireObject, snapshotScore } from "./common.js";
 import { computeDriftForFirm } from "./drift.js";
 import { type ActionContext, defineAction } from "./types.js";
-
-type FindingObj = ObjectOf<"ResearchFinding">;
 
 const moveToScreening = (firm: FirmObj): Props<"Firm"> =>
   normalizeLifecycle(firm.lifecycleState) === "Discovered"
@@ -62,8 +60,7 @@ const providerLabels = (provider: string): string =>
     .map((p) => PROVIDERS[p as Provider]?.label ?? p)
     .join(" + ");
 
-export const runAgentEnrichment = defineAction<{ firm: FirmObj }>({
-  params: { firm: { type: { object: "Firm" } } },
+export const runAgentEnrichment = defineAction("runAgentEnrichment", {
   async run(ctx, { firm }) {
     const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
@@ -112,16 +109,7 @@ export const runAgentEnrichment = defineAction<{ firm: FirmObj }>({
   },
 });
 
-export const verifyFinding = defineAction<{
-  finding: FindingObj;
-  overrideValue?: string;
-  overrideNormalizedScore?: number;
-}>({
-  params: {
-    finding: { type: { object: "ResearchFinding" } },
-    overrideValue: { type: "string", nullable: true },
-    overrideNormalizedScore: { type: "integer", nullable: true },
-  },
+export const verifyFinding = defineAction("verifyFinding", {
   async run(ctx, { finding, overrideValue, overrideNormalizedScore }) {
     const status = finding.findingStatus ?? "proposed";
     if (status !== "proposed" && status !== "abstained") {
@@ -176,16 +164,7 @@ export const verifyFinding = defineAction<{
   },
 });
 
-export const resolveConflict = defineAction<{
-  chosenFinding: FindingObj;
-  rejectedFinding: FindingObj;
-  chosenValue: string;
-}>({
-  params: {
-    chosenFinding: { type: { object: "ResearchFinding" } },
-    rejectedFinding: { type: { object: "ResearchFinding" } },
-    chosenValue: { type: "string" },
-  },
+export const resolveConflict = defineAction("resolveConflict", {
   async run(ctx, { chosenFinding: chosen, rejectedFinding: rejected, chosenValue }) {
     if (chosen.$primaryKey === rejected.$primaryKey) {
       throw new ActionError("Pick two different findings");
@@ -240,47 +219,10 @@ function parseKeyList(raw: string | undefined): Set<string> {
   );
 }
 
-type EnrichParams = {
-  firm: FirmObj;
-  servicesFit?: string;
-  mdPedigree?: string;
-  balanceSheetPrincipal?: string;
-  dealSizeMUsd?: number;
-  dealsPerMdL3y?: number;
-  firmAge?: number;
-  feeGeneratingCount?: number;
-  advisoryConflict?: boolean;
-  hasStOrBalanceSheet?: boolean;
-  webActivity?: boolean;
-  solvent?: boolean;
-  employees?: number;
-  coverageModel?: string;
-  fieldsEnteredManually?: string;
-  agentValuesOverridden?: string;
-};
-
-export const enrichFirm = defineAction<EnrichParams>({
-  params: {
-    firm: { type: { object: "Firm" } },
-    servicesFit: { type: "string", nullable: true },
-    mdPedigree: { type: "string", nullable: true },
-    balanceSheetPrincipal: { type: "string", nullable: true },
-    dealSizeMUsd: { type: "double", nullable: true },
-    dealsPerMdL3y: { type: "double", nullable: true },
-    firmAge: { type: "integer", nullable: true },
-    feeGeneratingCount: { type: "integer", nullable: true },
-    advisoryConflict: { type: "boolean", nullable: true },
-    hasStOrBalanceSheet: { type: "boolean", nullable: true },
-    webActivity: { type: "boolean", nullable: true },
-    solvent: { type: "boolean", nullable: true },
-    employees: { type: "integer", nullable: true },
-    coverageModel: { type: "string", nullable: true },
-    fieldsEnteredManually: { type: "string", nullable: true },
-    agentValuesOverridden: { type: "string", nullable: true },
-  },
+export const enrichFirm = defineAction("enrichFirm", {
   async run(ctx, p) {
     const { firm } = p;
-    const values = p as unknown as Record<string, unknown>;
+    const values: Record<string, unknown> = p;
     const patch: Record<string, unknown> = {};
     const written: AxisDef[] = [];
     for (const axis of ENRICH_AXES) {

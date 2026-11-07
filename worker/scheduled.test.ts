@@ -7,7 +7,10 @@ const resetPost = vi.fn(async () => Response.json({ firms: 700 }));
 
 vi.mock("../server/signals/run.js", () => ({ applyDueSignals }));
 vi.mock("../api/reset.js", () => ({ POST: resetPost }));
-vi.mock("../server/db/ddl.js", () => ({ ensureSchema: vi.fn(async () => {}) }));
+vi.mock("../server/db/migrate.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../server/db/migrate.js")>()),
+  schemaVersion: vi.fn(async () => Number.MAX_SAFE_INTEGER),
+}));
 vi.mock("../server/db/client.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../server/db/client.js")>()),
   createPgDb: vi.fn(() => ({ close: vi.fn(async () => {}) })),

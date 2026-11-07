@@ -6,44 +6,28 @@ import { ButtonLink, Chip, Panel } from "@/ui";
 import type { FirmLike } from "../../shared/exportRows";
 import { type MandateFirmCounts } from "../../shared/mandateFirms";
 import styles from "./MandateCard.module.css";
-import {
-  FIRM_COUNT_PAGE_SIZE,
-  type MandateLike,
-  type SearchListLike,
-  mandateHeadline,
-} from "./mandateModel";
+import { type MandateLike, type SearchListLike, mandateHeadline } from "./mandateModel";
 
 /**
  * One search list with its firm count. Membership comes from the searchLists↔firms link: the
- * SearchList.resultCount property is a stale snapshot from creation time, so only the ids of the
- * linked firms are fetched.
+ * SearchList.resultCount property is a stale snapshot from creation time, so the count is the
+ * number of linked firms.
  */
 export function SearchListRow({
-  searchInstance,
   searchId,
   displayName,
 }: {
-  // The WireObject from useOsdkObjects(SearchList): useLinks needs it (not a plain copy) to
-  // traverse the link and key the result by primary key.
-  searchInstance: unknown;
   searchId: string;
   displayName: string;
 }): React.ReactElement {
-  const { linkedObjectsBySourcePrimaryKey, hasMore, isLoading, error } = useLinks(
-    searchInstance as never,
+  const { linkedObjectsBySourcePrimaryKey, isLoading, error } = useLinks(
+    { $apiName: "SearchList", $primaryKey: searchId },
     "firms",
-    { pageSize: FIRM_COUNT_PAGE_SIZE, $select: ["firmId"] as never },
   );
   const firms = linkedObjectsBySourcePrimaryKey.get(searchId);
   const count = firms?.length ?? 0;
   const countLabel =
-    error !== undefined
-      ? "?"
-      : isLoading && firms === undefined
-        ? "…"
-        : hasMore
-          ? `${count}+`
-          : `${count}`;
+    error !== undefined ? "?" : isLoading && firms === undefined ? "…" : `${count}`;
 
   return (
     <li className={styles.list}>
@@ -128,7 +112,6 @@ export function MandateCard({
           {searches.map((s) => (
             <SearchListRow
               key={s.searchId}
-              searchInstance={s}
               searchId={s.searchId}
               displayName={s.name ?? s.searchId}
             />

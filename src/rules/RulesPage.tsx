@@ -1,20 +1,18 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, HardScreenConfig, ProposedRule, ReviewDecision } from "@/data/ontology";
-import { type ScreenableFirm } from "@/desk/activeScreening";
 import { type RejectionNote, buildRejectionNotes } from "@/desk/ruleEvidence";
 import { type Command, useCommands } from "@/shell/commands";
-import { EmptyState, Notice, PageHeader, Skeleton } from "@/ui";
+import { EmptyState, PageHeader, RetryNotice, Skeleton } from "@/ui";
 import { ActiveRules } from "./ActiveRules";
 import { DeclinedRules } from "./DeclinedRules";
 import { ProposeRulesButton } from "./ProposeRulesButton";
 import { ProposedRulePanel } from "./ProposedRulePanel";
 import styles from "./RulesPage.module.css";
 import {
-  type ConfigLike,
   type DecisionLike,
   NO_VERSIONS,
-  type RuleLike,
   groupRules,
   groupVersions,
   parseSupportingIds,
@@ -31,6 +29,7 @@ export default function RulesPage(): React.ReactElement {
     data: rulesData,
     isLoading,
     error,
+    refetch: refetchRules,
   } = useOsdkObjects(ProposedRule, {
     autoFetchMore: true,
   });
@@ -42,7 +41,16 @@ export default function RulesPage(): React.ReactElement {
   // Every config row, so an approved rule shows its current version, effective predicate and
   // history. Amending adds a row and deactivates the last; unapproving deactivates them all. Both
   // invalidate this query.
-  const { data: configsData } = useOsdkObjects(HardScreenConfig, { autoFetchMore: true });
+  const {
+    data: configsData,
+    error: configsError,
+    refetch: refetchConfigs,
+  } = useOsdkObjects(HardScreenConfig, { autoFetchMore: true });
+  const loadError = error ?? configsError;
+  const retryLoad = React.useCallback((): void => {
+    void refetchRules();
+    void refetchConfigs();
+  }, [refetchRules, refetchConfigs]);
 
   const propose = useProposeRules();
   const proposeCommands = React.useMemo<Command[]>(
@@ -58,15 +66,15 @@ export default function RulesPage(): React.ReactElement {
   );
   useCommands(proposeCommands);
 
-  const rules = React.useMemo(() => (rulesData ?? []) as unknown as RuleLike[], [rulesData]);
+  const rules = React.useMemo(() => rulesData ?? [], [rulesData]);
   // The same Firm query the desk runs, so a rule's screen count is over the identical population.
-  const firms = React.useMemo(() => (firmsData ?? []) as unknown as ScreenableFirm[], [firmsData]);
+  const firms = React.useMemo(() => firmsData ?? [], [firmsData]);
 
   // decisionId → decision and firmId → name, chained so a rule's supportingDecisionIds resolve to
   // the analysts' notes.
   const decisionById = React.useMemo(() => {
     const m = new Map<string, DecisionLike>();
-    for (const d of (decisionsData ?? []) as unknown as DecisionLike[]) {
+    for (const d of decisionsData ?? []) {
       m.set(d.decisionId, d);
     }
     return m;
@@ -80,10 +88,7 @@ export default function RulesPage(): React.ReactElement {
     }
     return m;
   }, [firmsData]);
-  const versionsByRule = React.useMemo(
-    () => groupVersions((configsData ?? []) as unknown as ConfigLike[]),
-    [configsData],
-  );
+  const versionsByRule = React.useMemo(() => groupVersions(configsData ?? []), [configsData]);
   const notesByRule = React.useMemo(() => {
     const m = new Map<string, RejectionNote[]>();
     for (const r of rules) {
@@ -117,13 +122,18 @@ export default function RulesPage(): React.ReactElement {
         }
         actions={<ProposeRulesButton propose={propose} />}
       />
-      {error !== undefined && error !== null && (
-        <Notice className={styles.error}>{String(error)}</Notice>
+      {loadError !== undefined && (
+        <RetryNotice
+          className={styles.error}
+          message={`Couldn’t load the rules: ${errorMessage(loadError)}`}
+          onRetry={retryLoad}
+        />
       )}
 
       <div className={styles.scroll}>
         {loading && <Skeleton lines={4} />}
-        {!isLoading && rules.length === 0 && (
+        {/* After a failed load, "not enough history" would read as a finding about the data. */}
+        {!isLoading && rules.length === 0 && loadError === undefined && (
           <EmptyState
             title="Not enough pass history yet"
             body="Proposed hard-screen rules appear once at least four different firms you’ve passed on share a reason. Beacon clusters the reasons and drafts a predicate for you to approve."

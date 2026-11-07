@@ -10,6 +10,27 @@ export const JSONRPC_INVALID_REQUEST = -32600;
 export const JSONRPC_METHOD_NOT_FOUND = -32601;
 export const JSONRPC_INVALID_PARAMS = -32602;
 export const JSONRPC_INTERNAL_ERROR = -32603;
+/** In the implementation-defined server-error range (-32000 to -32099): the caller is not allowed. */
+export const JSONRPC_FORBIDDEN = -32001;
+/** Also server-defined: the Worker's rate limiter refused the call (HTTP 429). */
+export const JSONRPC_RATE_LIMITED = -32002;
+
+/**
+ * The JSON-RPC code for a failure that carries an HTTP status, for the errors raised before a
+ * message is read (origin, content type, size, rate limit): a refused request is -32600, a
+ * forbidden one -32001, a rate-limited one -32002, anything else an internal error.
+ */
+export function rpcCodeForStatus(status: number): number {
+  if (status === 403) {
+    return JSONRPC_FORBIDDEN;
+  }
+  if (status === 429) {
+    return JSONRPC_RATE_LIMITED;
+  }
+  return status === 400 || status === 413 || status === 415
+    ? JSONRPC_INVALID_REQUEST
+    : JSONRPC_INTERNAL_ERROR;
+}
 
 /** Newest first: `initialize` answers with the client's version when it is here, else the first. */
 export const SUPPORTED_PROTOCOL_VERSIONS = [
@@ -60,10 +81,17 @@ export interface ToolHost {
 /** What to send back: an HTTP status and a JSON body, or no body at all (a notification). */
 export interface RpcReply {
   status: number;
-  body: unknown | null;
+  body: unknown;
 }
 
 type Id = string | number;
+
+/** A JSON-RPC error body with no request to answer: `id` is null, as the spec has it. */
+export const rpcFailureBody = (code: number, message: string): object => ({
+  jsonrpc: "2.0",
+  id: null,
+  error: { code, message },
+});
 
 const failure = (id: Id | null, code: number, message: string, status = 200): RpcReply => ({
   status,
@@ -149,8 +177,9 @@ export async function handleRpc(message: unknown, host: ToolHost): Promise<RpcRe
       return failure(id, e.code, e.message);
     }
     // A server-side failure the caller is meant to hear about, such as a database not configured.
+    // The request was understood and answered, so the transport says 200 and the error says why.
     if (e instanceof HttpError) {
-      return failure(id, JSONRPC_INTERNAL_ERROR, e.message, e.status);
+      return failure(id, JSONRPC_INTERNAL_ERROR, e.message);
     }
     // Operational signal for the server log: the caller only learns that something went wrong.
     // eslint-disable-next-line no-console

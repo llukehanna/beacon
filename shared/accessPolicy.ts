@@ -253,19 +253,14 @@ export function redactMandate<T extends MandateLike>(
   return { ...rest, title: mandate.codename ?? codenameFor(mandateId) } as T;
 }
 
-const RUN_DATE_SUFFIX = / · \d{4}-\d{2}-\d{2}$/;
 const UNIVERSE_SUFFIX = / — universe$/;
 
 /**
- * A search or a universe list is named after its mandate ("<title> · 2026-09-01", "<title> —
- * universe"). For a walled mandate the title part becomes the codename; the date and the suffix stay.
+ * A search is named after its mandate ("<title>") and a universe list adds a suffix ("<title> —
+ * universe"). For a walled mandate the title part becomes the codename; the suffix stays.
  */
 export function redactDerivedName(name: string | null | undefined, codename: string): string {
   const text = name ?? "";
-  const run = RUN_DATE_SUFFIX.exec(text);
-  if (run) {
-    return `${codename}${run[0]}`;
-  }
   return UNIVERSE_SUFFIX.test(text) ? `${codename} — universe` : codename;
 }
 
@@ -290,12 +285,7 @@ export function redactObject<T extends WireLike>(
     return object;
   }
   if (object.$apiName === "Mandate") {
-    return redactMandate(
-      persona,
-      object as MandateLike & T,
-      object.$primaryKey,
-      grants,
-    ) as unknown as T;
+    return redactMandate(persona, object as MandateLike & T, object.$primaryKey, grants);
   }
   if (object.$apiName === "Search" || object.$apiName === "SearchList") {
     const mandateId = typeof object.mandateId === "string" ? object.mandateId : "";
@@ -334,6 +324,19 @@ export interface RuleLike {
   supportingFirmCount?: number | null;
   mandateScope?: string | null;
 }
+
+/**
+ * The rule properties `redactRule` can rewrite or remove. A filter or sort on any of them would
+ * match the stored value while the persona is shown the redacted one, so the objects route refuses
+ * them for a persona that sees redacted rules. shared/accessPolicy.test.ts checks this list against
+ * what `redactRule` actually changes.
+ */
+export const REDACTED_RULE_PROPS = [
+  "supportingDecisionIds",
+  "rationaleClusterSummary",
+  "supportingFirmCount",
+  "mandateScope",
+] as const satisfies readonly (keyof RuleLike)[];
 
 /**
  * A screening rule as the persona may see it. A rule rests on pass decisions. When one of them is

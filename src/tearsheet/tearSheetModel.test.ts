@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { firmEvidence } from "../../server/mcp/evidence";
+import type { ObjectOf } from "../../shared/schema";
 import { type FindingLike } from "../desk/axisState";
 import { type FirmView } from "../desk/firmDesk/deskModel";
 import { type DecisionInput, buildTearSheet, localDay } from "./tearSheetModel";
@@ -293,6 +295,93 @@ describe("buildTearSheet", () => {
       rules: [],
     });
     expect(ran.researched).toBe(true);
+  });
+});
+
+/**
+ * A fixture as the database row the tool reads. The fixtures here are partial (every column the
+ * tool reads is optional), which the row type cannot say, so the one cast is made here.
+ */
+const asRow = <N extends "Firm" | "ResearchFinding">(fixture: object): ObjectOf<N> =>
+  fixture as ObjectOf<N>;
+
+describe("the tear sheet and the MCP's firm evidence", () => {
+  it("say the same thing about the same findings", () => {
+    const findings = [
+      finding({
+        findingId: "v",
+        axis: "firm_age",
+        value: "9",
+        findingStatus: "verified",
+        verifiedByHuman: true,
+        sourceQuote: "The firm has been operating for 9 years.",
+        extractionModel: "claude-haiku-4-5",
+        sourceDocumentId: "dealdb:acme_us",
+      }),
+      finding({ findingId: "p", axis: "fee_generating_count", value: "3", provider: "analyst" }),
+      finding({
+        findingId: "c1",
+        axis: "deal_size_usd_m",
+        value: "80",
+        provider: "dealdb",
+        sourceDocumentId: "dealdb:acme_us",
+        sourceQuote: "Average deal size is $80m across the period.",
+        conflictGroupId: "g1",
+      }),
+      finding({
+        findingId: "c2",
+        axis: "deal_size_usd_m",
+        value: "120",
+        provider: "filings",
+        sourceDocumentId: "filings:acme_us",
+        sourceQuote: "Deals average $120m in the latest filing.",
+        extractionModel: "claude-haiku-4-5",
+        conflictGroupId: "g1",
+      }),
+      finding({
+        findingId: "a",
+        axis: "md_pedigree",
+        value: "",
+        provider: "none",
+        findingStatus: "abstained",
+        confidenceTier: "abstain",
+      }),
+    ];
+    const sheet = buildTearSheet({ firm, findings, decisions: [], rules: [] });
+    const evidence = firmEvidence(
+      asRow<"Firm">({ ...firm, $apiName: "Firm", $primaryKey: "acme_us" }),
+      findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
+    );
+    const cite = (c: {
+      value?: unknown;
+      provider?: unknown;
+      quote?: unknown;
+      model?: unknown;
+    }) => ({
+      value: c.value,
+      provider: c.provider,
+      quote: c.quote,
+      model: c.model,
+    });
+    expect(
+      evidence.axes
+        .filter((a) => ["verified", "proposed", "signal"].includes(a.status))
+        .map((a) => ({ axis: a.label, status: a.status, ...cite(a) })),
+    ).toEqual(sheet.evidence.map((e) => ({ axis: e.axis, status: e.status, ...cite(e) })));
+    expect(
+      evidence.axes
+        .filter((a) => a.status === "conflict")
+        .map((a) => ({ axis: a.label, sides: a.sides.map(cite) })),
+    ).toEqual(sheet.conflicts.map((c) => ({ axis: c.axis, sides: c.sides.map(cite) })));
+    expect(evidence.axes.filter((a) => a.status === "abstained").map((a) => a.label)).toEqual(
+      sheet.abstentions.map((a) => a.axis),
+    );
+    // Not vacuous: each kind is present, and a conflict lists both sides.
+    expect(sheet.evidence.length).toBeGreaterThan(1);
+    expect(sheet.conflicts).toHaveLength(1);
+    expect(sheet.conflicts[0].sides).toHaveLength(2);
+    expect(sheet.abstentions).toHaveLength(1);
+    expect(evidence.score.total).toBe(sheet.score.total);
   });
 });
 

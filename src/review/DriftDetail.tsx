@@ -117,12 +117,9 @@ export function DriftDetail({
             {firstChange.axis ?? "unknown axis"}: {formatChangeValue(firstChange.old)} →{" "}
             {formatChangeValue(firstChange.new)}
           </p>
-          {(firstChange.source || firstChange.dated) && (
+          {firstChange.source && (
             <p className={styles.source}>
-              {firstChange.source && <span>{firstChange.source}</span>}
-              {firstChange.dated && (
-                <span>· {agoText(firstChange.dated, now) ?? firstChange.dated}</span>
-              )}
+              <span>{firstChange.source}</span>
             </p>
           )}
           {changed.length > 1 && (

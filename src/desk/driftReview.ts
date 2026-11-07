@@ -5,7 +5,7 @@
 
 // ─── Changed-axes parser ────────────────────────────────────────────────
 // DriftEvent.changedAxes is a JSON string. The SDK description says
-// [{axis, old, new, causing_finding_id, source, dated}] but the backend
+// [{axis, old, new, causing_finding_id, source}] but the backend
 // actually emits {oldValue, newValue} (or old_value / new_value) — read
 // all three shapes so the card renders real values regardless.
 
@@ -14,7 +14,6 @@ export interface ChangedAxis {
   old?: unknown;
   new?: unknown;
   source?: string;
-  dated?: string;
 }
 
 function normalizeChangedAxis(entry: Record<string, unknown>): ChangedAxis {
@@ -23,12 +22,6 @@ function normalizeChangedAxis(entry: Record<string, unknown>): ChangedAxis {
     old: entry.old ?? entry.oldValue ?? entry.old_value,
     new: entry.new ?? entry.newValue ?? entry.new_value,
     source: typeof entry.source === "string" ? entry.source : undefined,
-    dated:
-      typeof entry.dated === "string"
-        ? entry.dated
-        : typeof entry.date === "string"
-          ? entry.date
-          : undefined,
   };
 }
 

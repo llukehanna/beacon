@@ -15,8 +15,7 @@ import { defineAction } from "./types.js";
 
 const stateOf = (firm: FirmObj): LifecycleState => normalizeLifecycle(firm.lifecycleState);
 
-export const qualifyFirm = defineAction<{ firm: FirmObj }>({
-  params: { firm: { type: { object: "Firm" } } },
+export const qualifyFirm = defineAction("qualifyFirm", {
   async run(ctx, { firm }) {
     const state = stateOf(firm);
     if (isQualifiedOrLater(state) || state === PASSED) {
@@ -42,8 +41,7 @@ export const qualifyFirm = defineAction<{ firm: FirmObj }>({
   },
 });
 
-export const rejectFirm = defineAction<{ firm: FirmObj; rejectionRationale: string }>({
-  params: { firm: { type: { object: "Firm" } }, rejectionRationale: { type: "string" } },
+export const rejectFirm = defineAction("rejectFirm", {
   async run(ctx, { firm, rejectionRationale }) {
     const rationale = rejectionRationale.trim();
     if (rationale === "") {
@@ -72,8 +70,7 @@ export const rejectFirm = defineAction<{ firm: FirmObj; rejectionRationale: stri
   },
 });
 
-export const advanceStage = defineAction<{ firm: FirmObj; targetState: string }>({
-  params: { firm: { type: { object: "Firm" } }, targetState: { type: "string" } },
+export const advanceStage = defineAction("advanceStage", {
   async run(ctx, { firm, targetState }) {
     const current = stateOf(firm);
     if (current === PASSED) {

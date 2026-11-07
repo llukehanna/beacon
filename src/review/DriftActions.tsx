@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import {
   acknowledgeDriftAction,
@@ -18,6 +19,8 @@ import { type DriftItem } from "./driftModel";
  */
 export function DriftActions({ item }: { item: DriftItem }): React.ReactElement | null {
   const { drift, firm, kind, canPass, firmName } = item;
+  // Nothing is offered until the firm has loaded, so the handlers below never run without one.
+  const firmId = firm?.firmId ?? "";
   const reEngage = useOsdkAction(reEngageFirmAction);
   const keepPassed = useOsdkAction(keepPassedAction);
   const acknowledge = useOsdkAction(acknowledgeDriftAction);
@@ -46,20 +49,24 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
     if (anyPending) {
       return;
     }
-    void reEngage.applyAction({ firm, driftEvent: drift } as never).catch(() => undefined);
+    void reEngage
+      .applyAction({ firm: firmId, driftEvent: drift.driftEventId })
+      .catch(() => undefined);
   };
   const onAcknowledge = (): void => {
     if (anyPending) {
       return;
     }
-    void acknowledge.applyAction({ driftEvent: drift, note: null } as never).catch(() => undefined);
+    void acknowledge
+      .applyAction({ driftEvent: drift.driftEventId, note: null })
+      .catch(() => undefined);
   };
   const onKeepPassed = (): void => {
     if (anyPending) {
       return;
     }
     void keepPassed
-      .applyAction({ driftEvent: drift, rationale: note.trim() } as never)
+      .applyAction({ driftEvent: drift.driftEventId, rationale: note.trim() })
       .then(closeNotePanel)
       .catch(() => undefined);
   };
@@ -68,7 +75,7 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
       return;
     }
     void pass
-      .applyAction({ firm, rejectionRationale: note.trim() } as never)
+      .applyAction({ firm: firmId, rejectionRationale: note.trim() })
       .then(closeNotePanel)
       .catch(() => undefined);
   };
@@ -125,12 +132,16 @@ export function DriftActions({ item }: { item: DriftItem }): React.ReactElement 
   const canSubmitNote = note.trim().length > 0 && !noteSubmitting;
   const busy = reEngage.isPending || acknowledge.isPending || noteSubmitting;
   const failures: string[] = [
-    reEngage.error !== undefined ? `Re-engage failed: ${String(reEngage.error)}` : "",
-    acknowledge.error !== undefined ? `Keep in pipeline failed: ${String(acknowledge.error)}` : "",
-    keepPassed.error !== undefined
-      ? `Keep passed failed: ${String(keepPassed.error)}. Your note is preserved.`
+    reEngage.error !== undefined ? `Re-engage failed: ${errorMessage(reEngage.error)}` : "",
+    acknowledge.error !== undefined
+      ? `Keep in pipeline failed: ${errorMessage(acknowledge.error)}`
       : "",
-    pass.error !== undefined ? `Pass failed: ${String(pass.error)}. Your note is preserved.` : "",
+    keepPassed.error !== undefined
+      ? `Keep passed failed: ${errorMessage(keepPassed.error)}. Your note is preserved.`
+      : "",
+    pass.error !== undefined
+      ? `Pass failed: ${errorMessage(pass.error)}. Your note is preserved.`
+      : "",
   ].filter((m) => m !== "");
 
   return (

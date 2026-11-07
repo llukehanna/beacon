@@ -5,12 +5,12 @@
  * written here and nothing is built from input; a tool only calls the repository.
  */
 import { z } from "zod";
+import { toScoreInput } from "../../shared/deskModel.js";
 import { bucketOf } from "../../shared/pipelineBuckets.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { MAX_POSSIBLE, type Tier, mirrorScore } from "../../shared/scoreMirror.js";
 import { LIFECYCLE_STAGES, PASSED } from "../../shared/vocab.js";
-import { type FirmView, toScoreInput } from "../../src/desk/firmDesk/deskModel.js";
 import {
   type Access,
   assertReadable,
@@ -130,7 +130,7 @@ async function searchFirms(
       ) {
         continue;
       }
-      const mirror = mirrorScore(toScoreInput(firm as unknown as FirmView));
+      const mirror = mirrorScore(toScoreInput(firm));
       const stage = bucketOf(firm, mirror);
       if (
         (args.tier !== undefined && mirror.tier !== args.tier) ||

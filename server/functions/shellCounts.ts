@@ -8,6 +8,7 @@ import { mirrorScore } from "../../shared/scoreMirror.js";
 import type { ShellCounts } from "../../shared/summaries.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
+import { notIn } from "../db/repo.js";
 import { ACTIVE_MANDATE_WHERE, OPEN_DRIFT_WHERE } from "./homeSummary.js";
 
 interface FirmGroup {
@@ -33,7 +34,7 @@ async function openFirmCount(q: Queryable, hidden: readonly string[]): Promise<n
     `SELECT "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
             "servicesFit", "balanceSheetPrincipal", "advisoryConflict", count(*)::int AS n
        FROM firm
-      WHERE "firmId" <> ALL($1::text[])
+      WHERE ${notIn('"firmId"', 1)}
       GROUP BY "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
                "servicesFit", "balanceSheetPrincipal", "advisoryConflict"`,
     [hidden],
@@ -60,12 +61,9 @@ async function countWhere(
 export async function shellCounts(q: Queryable, access: Access): Promise<ShellCounts> {
   const [open, review, activeMandates] = await Promise.all([
     openFirmCount(q, access.hiddenFirmIds),
-    countWhere(
-      q,
-      "drift_event",
-      `${OPEN_DRIFT_WHERE} AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))`,
-      [access.hiddenFirmIds],
-    ),
+    countWhere(q, "drift_event", `${OPEN_DRIFT_WHERE} AND ${notIn('"firmId"', 1)}`, [
+      access.hiddenFirmIds,
+    ]),
     countWhere(q, "mandate", ACTIVE_MANDATE_WHERE),
   ]);
   return { open, review, activeMandates };

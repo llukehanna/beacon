@@ -57,7 +57,7 @@ describe("resetFromSnapshot", () => {
     await resetDemo(restored, takenAt, { newId: sequentialIds(), fixtures });
     await saveSnapshot(restored, takenAt);
     // Visitors change things before the next reset; the snapshot must not care.
-    await restored.query(`DELETE FROM review_decision`);
+    await restored.query(`DELETE FROM drift_event`);
     await restored.query(`UPDATE firm SET "lifecycleState" = 'Passed'`);
     expect(await resetFromSnapshot(restored, later)).toEqual({ firms: 700 });
 
@@ -65,21 +65,22 @@ describe("resetFromSnapshot", () => {
     await resetDemo(rebuilt, later, { newId: sequentialIds(), fixtures });
 
     const [a, b] = [await dump(restored), await dump(rebuilt)];
-    expect(
-      (b.extraction as unknown[]).length,
-      "the fixture produced Extraction rows",
-    ).toBeGreaterThan(0);
+    expect(b.extraction.length, "the fixture produced Extraction rows").toBeGreaterThan(0);
     for (const table of Object.keys(b)) {
       expect(a[table].length, table).toBe(b[table].length);
       expect(a[table], table).toEqual(b[table]);
     }
-    // A search's name ends with its run date; after the shift the date still follows runAt.
-    const searches = (b.search as { name: string; runAt: Date | string | null }[]).filter(
-      (s) => s.runAt !== null && / · \d{4}-\d{2}-\d{2}$/.test(s.name),
-    );
-    expect(searches.length, "searches with a dated name").toBeGreaterThan(0);
+    // No date lives inside text: a search is named by its mandate and a drift's axes carry no
+    // "dated" key, so the shift has nothing to rewrite there and both worlds still match.
+    const searches = b.search as { name: string }[];
+    expect(searches.length, "the seed runs searches").toBeGreaterThan(0);
     for (const s of searches) {
-      expect(s.name.slice(-10), s.name).toBe(new Date(s.runAt!).toISOString().slice(0, 10));
+      expect(s.name, s.name).not.toMatch(/ · \d{4}-\d{2}-\d{2}$/);
+    }
+    const drifts = b.drift_event as { changedAxes: string | null }[];
+    expect(drifts.length, "the seed opens drift events").toBeGreaterThan(0);
+    for (const d of drifts) {
+      expect(d.changedAxes ?? "", "changedAxes").not.toContain('"dated"');
     }
     expect(await getMeta(restored, "lastResetAt")).toBe(later.toISOString());
   }, 300_000);
@@ -97,22 +98,21 @@ describe("resetFromSnapshot", () => {
     expect(n).toBe(0);
   }, 300_000);
 
-  it("restores a snapshot taken before ProposedRule.proposedAt existed, leaving it empty", async () => {
+  it("refuses a snapshot taken before a column became required, and leaves the demo as it was", async () => {
     const takenAt = new Date("2026-09-22T12:00:00.000Z");
     const db = await createTestDb();
     await resetDemo(db, takenAt, { newId: sequentialIds() });
-    const [{ n: proposed }] = await db.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM proposed_rule WHERE "proposedAt" IS NOT NULL`,
-    );
-    expect(proposed, "the seed proposes rules with a time").toBeGreaterThan(0);
     await saveSnapshot(db, takenAt);
     await db.exec(`ALTER TABLE snapshot_proposed_rule DROP COLUMN "proposedAt"`);
-    await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
-    const [{ rules, stamped }] = await db.query<{ rules: number; stamped: number }>(
-      `SELECT count(*)::int AS rules, count("proposedAt")::int AS stamped FROM proposed_rule`,
-    );
-    expect(rules).toBeGreaterThan(0);
-    expect(stamped).toBe(0);
+    const [{ n: before }] = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`);
+    expect(before).toBe(700);
+    await expect(resetFromSnapshot(db, takenAt)).rejects.toMatchObject({
+      status: 503,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
+      message: expect.stringContaining("predates proposed_rule.proposedAt"),
+    });
+    const [{ n: after }] = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`);
+    expect(after, "nothing was cleared").toBe(700);
   }, 300_000);
 
   it("restores a snapshot taken before a table existed, leaving it empty", async () => {
@@ -121,7 +121,9 @@ describe("resetFromSnapshot", () => {
     await resetDemo(db, takenAt, { newId: sequentialIds() });
     await saveSnapshot(db, takenAt);
     await db.exec(`DROP TABLE snapshot_extraction`);
-    await db.query(`INSERT INTO extraction ("extractionId", "firmId") VALUES ('x', 'y')`);
+    await db.query(
+      `INSERT INTO extraction ("extractionId", "firmId", "extractedAt") VALUES ('x', (SELECT min("firmId") FROM firm), now())`,
+    );
     await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
     const [{ n }] = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM extraction`);
     expect(n).toBe(0);
