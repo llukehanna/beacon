@@ -1,6 +1,6 @@
-# 0006. History that only grows, enforced in application code
+# 0006. History that only grows, enforced by database triggers
 
-Status: Accepted. Database-level enforcement is not built.
+Status: Accepted. Scores, decisions and findings are append-only in the database through triggers (migration 0003); the limits on drift events, rules and configs are application code. The file name predates the triggers: it said "in application code" when that was all there was.
 
 ## Context
 

@@ -1,9 +1,19 @@
 -- Integrity: the database refuses what the application never writes. Four things, in this order.
 --
--- 0. Repair. A row that would break a constraint below is fixed or removed first, and each repair
---    is written to migration_repair (the whole row as JSON, so nothing is lost). A database that
---    never held such a row logs nothing. The snapshot_* copies the nightly reset restores are
---    repaired the same way: a violating row there would otherwise fail every reset.
+-- 0. Repair. A row that would break a constraint below is fixed first, and each repair is written
+--    to migration_repair (the whole row as JSON, so nothing is lost). A database that never held
+--    such a row logs nothing. The snapshot_* copies the nightly reset restores are repaired the same
+--    way: a violating row there would otherwise fail every reset.
+--      - A required timestamp that is empty is backfilled from a related row where one says when
+--        (a rule from the decisions that support it, a mandate from its searches, a finding from
+--        its verification or its firm's enrichment ...), else with the time of the migration (the
+--        snapshot's own time, in a snapshot copy). The row is kept. A snapshot copy saved before
+--        the column existed gets the column, backfilled the same way.
+--      - A reference that names nothing is cleared where the column may be empty
+--        (review_decision.firmId, firm.discoveredViaSearchId) and the row is removed where it may
+--        not. A required reference that is NULL removes the row, since nothing says what it was.
+--      - A group of proposed rules with one predicate keeps one rule (the approved one, else the
+--        pending one, else the oldest); the others' configs move to it.
 --
 -- 1. NOT NULL on the columns `required` lists in shared/schema.ts: the reference columns and the
 --    timestamps every writer sets (the primary key is already NOT NULL).
@@ -31,9 +41,11 @@
 --    say so if something starts to. TRUNCATE of a referenced table must name every table that
 --    references it, which the reset does (it truncates every demo table in one statement).
 --
--- 3. One proposed rule per predicate: UNIQUE NULLS NOT DISTINCT on the four columns that
---    ruleKey() in shared/predicate.ts is built from, so two clustering runs racing to propose the
---    same rule cannot both land.
+-- 3. One proposed rule per predicate: a unique index on the key ruleKey() in
+--    shared/predicate.ts builds (axis, operator, threshold and model, trimmed and lower-cased, an
+--    empty model meaning "both"), so two clustering runs racing to propose the same rule cannot both
+--    land, whatever the case or spacing they used. An expression index rather than UNIQUE NULLS NOT
+--    DISTINCT, so it needs no particular Postgres version.
 --
 -- 4. Append-only history. A BEFORE UPDATE OR DELETE trigger on each history table raises
 --    '<table> is append-only'.
@@ -132,6 +144,47 @@ BEGIN
 END
 $fn$;
 
+-- Fill the rows whose timestamp `col` is empty, in the live table and its snapshot copy. `expr` is
+-- evaluated per row (alias c); {p} stands for the table-name prefix ('' or 'snapshot_') and {fb} for
+-- the fallback time. A snapshot copy that lacks the column gets it first. If the snapshot lacks
+-- something `expr` reads, the fallback alone is used.
+CREATE FUNCTION beacon_backfill(tbl text, col text, expr text, keyexpr text) RETURNS void
+LANGUAGE plpgsql AS $fn$
+DECLARE
+  prefix text;
+  target text;
+  fb text;
+  filled text;
+BEGIN
+  FOREACH prefix IN ARRAY ARRAY['', 'snapshot_'] LOOP
+    target := prefix || tbl;
+    IF to_regclass(target) IS NULL THEN
+      CONTINUE;
+    END IF;
+    fb := CASE WHEN prefix = '' THEN 'now()'
+               ELSE $f$coalesce((SELECT value::timestamptz FROM meta WHERE key = 'snapshotAt'), now())$f$ END;
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = target AND column_name = col
+    ) THEN
+      EXECUTE format('ALTER TABLE %I ADD COLUMN %I timestamptz', target, col);
+      INSERT INTO migration_repair ("version", "tableName", "action", "reason")
+      VALUES (3, target, 'added', col || ' was missing from the snapshot copy; added and backfilled');
+    END IF;
+    EXECUTE format(
+      $q$INSERT INTO migration_repair ("version", "tableName", "rowKey", "action", "reason", "rowData")
+         SELECT 3, %L, %s, 'backfilled', %L, j FROM (SELECT to_jsonb(c) AS j FROM %I c WHERE c.%I IS NULL) s$q$,
+      target, keyexpr, col || ' is required and was empty', target, col);
+    filled := replace(replace(expr, '{p}', prefix), '{fb}', fb);
+    BEGIN
+      EXECUTE format('UPDATE %I c SET %I = %s WHERE c.%I IS NULL', target, col, filled, col);
+    EXCEPTION WHEN undefined_column OR undefined_table THEN
+      EXECUTE format('UPDATE %I c SET %I = %s WHERE c.%I IS NULL', target, col, fb, col);
+    END;
+  END LOOP;
+END
+$fn$;
+
 -- Keep one of each group of proposed rules that share a predicate: the approved one, else the
 -- pending one, else the oldest. The others are removed and their configs follow the survivor.
 CREATE FUNCTION beacon_repair_duplicate_rules() RETURNS void
@@ -160,7 +213,10 @@ BEGIN
              row_number() OVER w AS rn
         FROM %I
       WINDOW w AS (
-        PARTITION BY "predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel"
+        PARTITION BY lower(btrim(coalesce("predicateAxis", ''), E' \t\n\r\f\v')),
+                     lower(btrim(coalesce("ruleOperator", ''), E' \t\n\r\f\v')),
+                     lower(btrim(coalesce("ruleThreshold", ''), E' \t\n\r\f\v')),
+                     lower(btrim(coalesce(nullif("ruleModel", ''), 'both'), E' \t\n\r\f\v'))
         ORDER BY CASE "ruleStatus" WHEN 'approved' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END,
                  "proposedAt" NULLS LAST, "proposedRuleId")$q$, r);
     IF to_regclass(h) IS NOT NULL AND (SELECT count(*) FROM information_schema.columns
@@ -184,34 +240,56 @@ BEGIN
 END
 $fn$;
 
--- 0. Repair. Required columns first (a removed parent row orphans its children, which the reference
---    pass below then handles, parents before children).
-SELECT beacon_repair_nulls('mandate', 'createdAt', 'j->>''mandateId''');
+-- 0. Repair. A required reference that is NULL removes the row.
 SELECT beacon_repair_nulls('search', 'mandateId', 'j->>''searchId''');
-SELECT beacon_repair_nulls('search', 'runAt', 'j->>''searchId''');
 SELECT beacon_repair_nulls('search_list', 'mandateId', 'j->>''searchId''');
-SELECT beacon_repair_nulls('search_list', 'createdAt', 'j->>''searchId''');
 SELECT beacon_repair_nulls('search_membership', 'searchId', 'j->>''membershipId''');
 SELECT beacon_repair_nulls('search_membership', 'firmId', 'j->>''membershipId''');
 SELECT beacon_repair_nulls('research_finding', 'firmId', 'j->>''findingId''');
-SELECT beacon_repair_nulls('research_finding', 'retrievedAt', 'j->>''findingId''');
 SELECT beacon_repair_nulls('extraction', 'firmId', 'j->>''extractionId''');
-SELECT beacon_repair_nulls('extraction', 'extractedAt', 'j->>''extractionId''');
 SELECT beacon_repair_nulls('qualification_score', 'firmId', 'j->>''scoreId''');
-SELECT beacon_repair_nulls('qualification_score', 'computedAt', 'j->>''scoreId''');
-SELECT beacon_repair_nulls('review_decision', 'decidedAt', 'j->>''decisionId''');
 SELECT beacon_repair_nulls('drift_event', 'firmId', 'j->>''driftEventId''');
-SELECT beacon_repair_nulls('drift_event', 'detectedAt', 'j->>''driftEventId''');
-SELECT beacon_repair_nulls('proposed_rule', 'proposedAt', 'j->>''proposedRuleId''');
 SELECT beacon_repair_nulls('hard_screen_config', 'sourceProposedRuleId', 'j->>''configRuleId''');
-SELECT beacon_repair_nulls('hard_screen_config', 'configCreatedAt', 'j->>''configRuleId''');
 SELECT beacon_repair_nulls('market_signal', 'firmId', 'j->>''signalId''');
-SELECT beacon_repair_nulls('market_signal', 'effectiveDate', 'j->>''signalId''');
 SELECT beacon_repair_nulls('mandate_access', 'mandateId', 'j->>''accessId''');
-SELECT beacon_repair_nulls('restricted_firm', 'addedAt', 'j->>''firmId''');
-SELECT beacon_repair_nulls('access_log_entry', 'viewedAt', 'j->>''entryId''');
-SELECT beacon_repair_nulls('action_run', 'startedAt', 'j->>''actionRunId''');
-SELECT beacon_repair_nulls('model_call', 'calledAt', 'j->>''modelCallId''');
+
+-- A required timestamp that is empty is filled in, and the row kept. A mandate first (from its
+-- searches), then the searches and lists (from the mandate).
+SELECT beacon_backfill('mandate', 'createdAt',
+  $e$coalesce((SELECT min(s."runAt") FROM {p}search s WHERE s."mandateId" = c."mandateId"),
+              (SELECT min(l."createdAt") FROM {p}search_list l WHERE l."mandateId" = c."mandateId"), {fb})$e$,
+  'j->>''mandateId''');
+SELECT beacon_backfill('search', 'runAt',
+  $e$coalesce((SELECT m."createdAt" FROM {p}mandate m WHERE m."mandateId" = c."mandateId"), {fb})$e$,
+  'j->>''searchId''');
+SELECT beacon_backfill('search_list', 'createdAt',
+  $e$coalesce((SELECT m."createdAt" FROM {p}mandate m WHERE m."mandateId" = c."mandateId"), {fb})$e$,
+  'j->>''searchId''');
+SELECT beacon_backfill('research_finding', 'retrievedAt',
+  $e$coalesce(c."verifiedAt", (SELECT f."enrichedAt" FROM {p}firm f WHERE f."firmId" = c."firmId"), {fb})$e$,
+  'j->>''findingId''');
+SELECT beacon_backfill('extraction', 'extractedAt',
+  $e$coalesce((SELECT f."enrichedAt" FROM {p}firm f WHERE f."firmId" = c."firmId"), {fb})$e$,
+  'j->>''extractionId''');
+SELECT beacon_backfill('qualification_score', 'computedAt',
+  $e$coalesce((SELECT f."enrichedAt" FROM {p}firm f WHERE f."firmId" = c."firmId"), {fb})$e$,
+  'j->>''scoreId''');
+SELECT beacon_backfill('review_decision', 'decidedAt', '{fb}', 'j->>''decisionId''');
+SELECT beacon_backfill('drift_event', 'detectedAt', 'coalesce(c."resolvedAt", {fb})', 'j->>''driftEventId''');
+-- A rule was proposed when the last of the decisions that support it was made.
+SELECT beacon_backfill('proposed_rule', 'proposedAt',
+  $e$coalesce((SELECT max(d."decidedAt") FROM {p}review_decision d
+                WHERE position('"' || d."decisionId" || '"' in c."supportingDecisionIds") > 0),
+              c."ruleDecidedAt", {fb})$e$,
+  'j->>''proposedRuleId''');
+SELECT beacon_backfill('hard_screen_config', 'configCreatedAt',
+  $e$coalesce((SELECT r."ruleDecidedAt" FROM {p}proposed_rule r WHERE r."proposedRuleId" = c."sourceProposedRuleId"), {fb})$e$,
+  'j->>''configRuleId''');
+SELECT beacon_backfill('market_signal', 'effectiveDate', 'coalesce(c."appliedAt", {fb})', 'j->>''signalId''');
+SELECT beacon_backfill('restricted_firm', 'addedAt', '{fb}', 'j->>''firmId''');
+SELECT beacon_backfill('access_log_entry', 'viewedAt', '{fb}', 'j->>''entryId''');
+SELECT beacon_backfill('action_run', 'startedAt', '{fb}', 'j->>''actionRunId''');
+SELECT beacon_backfill('model_call', 'calledAt', '{fb}', 'j->>''modelCallId''');
 
 SELECT beacon_repair_duplicate_rules();
 
@@ -235,6 +313,7 @@ SELECT beacon_repair_orphans('market_signal', 'firmId', 'firm', 'firmId', false,
 SELECT beacon_repair_orphans('restricted_firm', 'firmId', 'firm', 'firmId', false, 'j->>''firmId''');
 
 DROP FUNCTION beacon_repair_nulls(text, text, text);
+DROP FUNCTION beacon_backfill(text, text, text, text);
 DROP FUNCTION beacon_repair_orphans(text, text, text, text, boolean, text);
 DROP FUNCTION beacon_repair_duplicate_rules();
 
@@ -275,9 +354,13 @@ ALTER TABLE market_signal ADD CONSTRAINT market_signal_firm_fkey FOREIGN KEY ("f
 ALTER TABLE restricted_firm ADD CONSTRAINT restricted_firm_firm_fkey FOREIGN KEY ("firmId") REFERENCES firm ("firmId") DEFERRABLE INITIALLY DEFERRED;
 ALTER TABLE hard_screen_config ADD CONSTRAINT hard_screen_config_source_rule_fkey FOREIGN KEY ("sourceProposedRuleId") REFERENCES proposed_rule ("proposedRuleId") DEFERRABLE INITIALLY DEFERRED;
 
--- 3. One proposed rule per predicate.
-ALTER TABLE proposed_rule ADD CONSTRAINT proposed_rule_predicate_key
-  UNIQUE NULLS NOT DISTINCT ("predicateAxis", "ruleOperator", "ruleThreshold", "ruleModel");
+-- 3. One proposed rule per predicate: exactly the key ruleKey() builds in shared/predicate.ts.
+CREATE UNIQUE INDEX proposed_rule_predicate_key ON proposed_rule (
+  (lower(btrim(coalesce("predicateAxis", ''), E' \t\n\r\f\v'))),
+  (lower(btrim(coalesce("ruleOperator", ''), E' \t\n\r\f\v'))),
+  (lower(btrim(coalesce("ruleThreshold", ''), E' \t\n\r\f\v'))),
+  (lower(btrim(coalesce(nullif("ruleModel", ''), 'both'), E' \t\n\r\f\v')))
+);
 
 -- 4. Append-only history.
 CREATE FUNCTION qualification_score_append_only() RETURNS trigger LANGUAGE plpgsql AS $fn$
