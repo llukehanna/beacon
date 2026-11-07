@@ -14,7 +14,7 @@ vi.mock("../server/db/client.js", async (importOriginal) => ({
 }));
 
 const { default: worker } = await import("./index.js");
-const { HOURLY_CRON } = await import("./crons.js");
+const { HOURLY_CRON, NIGHTLY_CRON } = await import("./crons.js");
 
 const env = { ASSETS: { fetch: vi.fn() }, HYPERDRIVE: { connectionString: "postgres://test" } };
 const waits: Promise<unknown>[] = [];
@@ -52,6 +52,16 @@ describe("worker scheduled", () => {
     expect(order).toEqual(["reset", "signals"]);
   });
 
+  it("the presenter's nightly-only trigger resets, then applies the signals that are due", async () => {
+    await worker.scheduled(
+      { cron: NIGHTLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") },
+      env,
+      ctx,
+    );
+    expect(resetPost).toHaveBeenCalledOnce();
+    expect(applyDueSignals).toHaveBeenCalledOnce();
+  });
+
   it("applies no signals and fails the run when the nightly reset is refused", async () => {
     resetPost.mockImplementation(async () => Response.json({ error: "too soon" }, { status: 429 }));
     await expect(
@@ -62,7 +72,7 @@ describe("worker scheduled", () => {
 
   it("never resets for a trigger it does not know: it only applies the signals that are due", async () => {
     await worker.scheduled(
-      { cron: "0 4 * * *", scheduledTime: at("2026-11-07T04:00:00Z") },
+      { cron: "30 4 * * *", scheduledTime: at("2026-11-07T04:30:00Z") },
       env,
       ctx,
     );
@@ -73,9 +83,9 @@ describe("worker scheduled", () => {
 });
 
 describe("the Cron Triggers in wrangler.jsonc", () => {
-  it("are one hourly trigger each on production and the presenter deployment (free plan: five per account)", () => {
+  it("are one per deployment (free plan: five per account): hourly on production, nightly on the presenter", () => {
     const config = readFileSync(resolve(__dirname, "../wrangler.jsonc"), "utf8");
     const lists = config.match(/"crons": \[[^\]]*\]/g) ?? [];
-    expect(lists).toEqual([`"crons": ["${HOURLY_CRON}"]`, `"crons": ["${HOURLY_CRON}"]`]);
+    expect(lists).toEqual([`"crons": ["${HOURLY_CRON}"]`, `"crons": ["${NIGHTLY_CRON}"]`]);
   });
 });

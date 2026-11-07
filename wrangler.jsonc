@@ -2,9 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   // Production: beacon.lukeghanna.com (custom domain added at DNS cutover).
   "name": "beacon",
-  "routes": [
-    { "pattern": "beacon.lukeghanna.com", "custom_domain": true }
-  ],
+  "routes": [{ "pattern": "beacon.lukeghanna.com", "custom_domain": true }],
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   // nodejs_compat: pg's sockets, node:crypto, node:async_hooks, and process.env from vars/secrets.
@@ -31,21 +29,26 @@
   // then paste the id it prints below and uncomment. The Worker uses this binding when present
   // and falls back to the DATABASE_URL secret otherwise. Repeat the block under env.presenter if wanted.
   // "hyperdrive": [{ "binding": "HYPERDRIVE", "id": "<hyperdrive-id>" }],
-  // Nightly demo reset at 04:00 UTC, then the synthetic market signals that have come due; the hourly
-  // trigger applies only those (worker/index.ts scheduled). Secret: DATABASE_URL.
+  // One hourly trigger: the 04:00 UTC run is the nightly demo reset, then the synthetic market signals
+  // that have come due; every other run applies only those (worker/index.ts scheduled). Secret: DATABASE_URL.
   "triggers": { "crons": ["0 * * * *"] },
   "observability": { "enabled": true },
   "env": {
     // Presenter deployment (beacon-presenter): same build on a workers.dev URL, pointed at its own
     // Neon branch via `wrangler secret put DATABASE_URL --env presenter`. Same nightly reset as production; no custom domain.
+    // Its trigger is nightly only (the free plan allows five per account): it resets, then applies due signals.
     // Bindings are not inherited by named environments, so the rate limits are repeated here.
     "presenter": {
       "name": "beacon-presenter",
       "workers_dev": true,
       "routes": [],
-      "triggers": { "crons": ["0 * * * *"] },
+      "triggers": { "crons": ["0 4 * * *"] },
       "ratelimits": [
-        { "name": "ACTIONS_LIMITER", "namespace_id": "1001", "simple": { "limit": 60, "period": 60 } },
+        {
+          "name": "ACTIONS_LIMITER",
+          "namespace_id": "1001",
+          "simple": { "limit": 60, "period": 60 },
+        },
         { "name": "RESET_LIMITER", "namespace_id": "1002", "simple": { "limit": 3, "period": 60 } },
         { "name": "MCP_LIMITER", "namespace_id": "1003", "simple": { "limit": 60, "period": 60 } },
       ],
