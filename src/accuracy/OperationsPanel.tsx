@@ -1,6 +1,7 @@
 import React from "react";
 import { ExternalLink } from "@/about/DocLayout";
 import { ARCHITECTURE_DOC_URL, RECORDED_RUN } from "@/about/facts";
+import { errorMessage } from "@/data/adapter";
 import { SectionHead } from "@/home/SectionHead";
 import { EmptyState, Notice, Panel, Skeleton } from "@/ui";
 import { P95_MIN_RUNS, usd, windowLabel } from "../../shared/operations";
@@ -128,7 +129,7 @@ export function OperationsPanel({
   error: Error | undefined;
 }): React.ReactElement {
   if (error !== undefined) {
-    return <Notice>{String(error)}</Notice>;
+    return <Notice>{errorMessage(error)}</Notice>;
   }
   if (data === undefined) {
     return isLoading ? (

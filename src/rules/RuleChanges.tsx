@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { amendRuleThresholdAction, unapproveRuleAction } from "@/data/ontology";
 import { Button, Input, Notice } from "@/ui";
@@ -74,7 +75,7 @@ export function AmendForm({
         the queue.
       </p>
       {amend.error !== undefined && (
-        <Notice>Amend failed: {String(amend.error)}. Your value is preserved.</Notice>
+        <Notice>Amend failed: {errorMessage(amend.error)}. Your value is preserved.</Notice>
       )}
     </div>
   );
@@ -111,7 +112,7 @@ export function UnapproveConfirm({
         </Button>
       </div>
       {unapprove.error !== undefined && (
-        <Notice>Unapprove failed: {String(unapprove.error)}</Notice>
+        <Notice>Unapprove failed: {errorMessage(unapprove.error)}</Notice>
       )}
     </div>
   );

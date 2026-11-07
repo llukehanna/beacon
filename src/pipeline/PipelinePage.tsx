@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search } from "@blueprintjs/icons";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
 import { useMediaQuery } from "@/desk/firmDesk/useMediaQuery";
@@ -261,7 +262,7 @@ export default function PipelinePage(): React.ReactElement {
       </header>
       {error !== undefined && error !== null && (
         <p className={styles.error} role="alert">
-          {String(error)}
+          {errorMessage(error)}
         </p>
       )}
       <div className={styles.layout} data-panel={wide && panelOpen ? "column" : undefined}>

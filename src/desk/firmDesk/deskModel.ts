@@ -1,5 +1,4 @@
 import type { ActionParams } from "../../../shared/actionParams";
-import { looseText } from "../../../shared/looseText";
 import { type FindingLike, retrievedMs } from "../axisState";
 import { HARD_GATE_EDIT_KEYS } from "../findingActions";
 import { type Model, type ScoreInput } from "../scoreMirror";
@@ -272,50 +271,6 @@ export function searchLabel(
   const ms = runAt === null || runAt === undefined ? NaN : new Date(runAt).getTime();
   const day = Number.isNaN(ms) ? "" : new Date(ms).toISOString().slice(0, 10);
   return [(name ?? "").trim(), day].filter((part) => part !== "").join(" · ");
-}
-
-// Render an action error as something an analyst can read and report.
-// String(err) on a server error object prints "[object Object]", which
-// hides the one thing the banner exists to show. Prefer the message,
-// fall back to a JSON dump, and truncate so a nested stack can't flood the
-// banner.
-export function formatActionError(err: unknown): string {
-  if (err === null || err === undefined) {
-    return "";
-  }
-  if (typeof err === "string") {
-    return err;
-  }
-  // The server error can be wrapped one level down (e.g. { unknown: {...} }),
-  // so check the object itself first, then each direct child.
-  const candidates: unknown[] = [err];
-  if (typeof err === "object") {
-    candidates.push(...Object.values(err as Record<string, unknown>));
-  }
-  for (const c of candidates) {
-    if (c === null || typeof c !== "object") {
-      continue;
-    }
-    const e = c as { message?: unknown; errorName?: unknown };
-    const parts: string[] = [];
-    if (typeof e.errorName === "string" && e.errorName !== "") {
-      parts.push(e.errorName);
-    }
-    if (typeof e.message === "string" && e.message !== "") {
-      parts.push(e.message);
-    }
-    if (parts.length > 0) {
-      const out = parts.join(": ");
-      return out.length > 400 ? `${out.slice(0, 400)}…` : out;
-    }
-  }
-  let out: string;
-  try {
-    out = JSON.stringify(err);
-  } catch {
-    out = looseText(err);
-  }
-  return out.length > 400 ? `${out.slice(0, 400)}…` : out;
 }
 
 // Human-readable value per axis. Never surface rubric-band expressions

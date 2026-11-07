@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { AccessLogEntry, Firm, Mandate, RestrictedFirm } from "@/data/ontology";
 import { usePersona } from "@/data/persona";
@@ -68,7 +69,7 @@ export default function CompliancePage(): React.ReactElement {
         ) : (
           <>
             {error !== undefined && (
-              <Notice>Could not load the barrier data: {error.message}</Notice>
+              <Notice>Could not load the barrier data: {errorMessage(error)}</Notice>
             )}
             <Panel className={styles.panel} aria-labelledby="restricted-title">
               <SectionHead

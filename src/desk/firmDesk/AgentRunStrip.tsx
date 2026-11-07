@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useOsdkAction } from "@/data/hooks";
 import { runAgentEnrichmentAction } from "@/data/ontology";
@@ -6,7 +7,7 @@ import { type Command, useCommands } from "@/shell/commands";
 import { Button, Skeleton } from "@/ui";
 import { AGENT, PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import styles from "./AgentRunStrip.module.css";
-import { type FirmView, formatActionError } from "./deskModel";
+import { type FirmView } from "./deskModel";
 import { agoText } from "./queueState";
 
 const RERUN_HINT = "Re-query sources and propose fresh findings for unresolved axes";
@@ -41,7 +42,8 @@ export function AgentRunStrip({
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
   const run = (): void => {
     if (!runAgent.isPending) {
-      void runAgent.applyAction({ firm: firmId });
+      // A failure is shown below through runAgent.error.
+      void runAgent.applyAction({ firm: firmId }).catch(() => undefined);
     }
   };
 
@@ -66,7 +68,7 @@ export function AgentRunStrip({
   const failure =
     runAgent.error === undefined ? null : (
       <div role="alert" className={styles.failure}>
-        Agent run failed: {formatActionError(runAgent.error)}
+        Agent run failed: {errorMessage(runAgent.error)}
       </div>
     );
 

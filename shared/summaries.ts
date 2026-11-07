@@ -163,3 +163,10 @@ export interface OperationsSummary {
   /** The ceiling on live Claude calls per UTC day (server/clustering/choose.ts). */
   dailyCallCap: number;
 }
+
+/** What the `sourceDocument` query function returns: one provider's mock record for a firm. */
+export interface SourceDocumentView {
+  providerLabel: string;
+  title: string;
+  body: string;
+}

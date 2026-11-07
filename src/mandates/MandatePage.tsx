@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, Search, SearchList, SearchMembership } from "@/data/ontology";
 import { type Command, useCommands } from "@/shell/commands";
@@ -13,7 +14,7 @@ import {
 import { MandateCard, SearchListRow } from "./MandateCard";
 import styles from "./MandatePage.module.css";
 import { NewMandateForm } from "./NewMandateForm";
-import { FIRM_COUNT_PAGE_SIZE, type SearchListLike } from "./mandateModel";
+import { type SearchListLike } from "./mandateModel";
 
 const NO_FIRMS: readonly ExportFirm[] = [];
 
@@ -51,10 +52,7 @@ export default function MandatePage(): React.ReactElement {
   // One batched traversal of SearchList↔firms for the mandate-level union, alongside the per-row
   // useLinks that renders each list's own count.
   const searchListInstances = React.useMemo(() => searchData ?? [], [searchData]);
-  const searchListLinks = useLinks(searchListInstances, "firms", {
-    pageSize: FIRM_COUNT_PAGE_SIZE,
-    $select: ["firmId"],
-  });
+  const searchListLinks = useLinks(searchListInstances, "firms");
 
   const idsByMandate = React.useMemo(
     () =>
@@ -135,7 +133,7 @@ export default function MandatePage(): React.ReactElement {
         sub="Leadership sets a mandate as a free-text intent; each mandate spawns one or more Searches that assemble the candidate universe."
       />
       {anyError !== undefined && anyError !== null && (
-        <Notice className={styles.error}>{String(anyError)}</Notice>
+        <Notice className={styles.error}>{errorMessage(anyError)}</Notice>
       )}
 
       <div className={styles.scroll}>

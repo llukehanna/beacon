@@ -1,7 +1,7 @@
 import React from "react";
 import { useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { ActionFailedError, resetDemo } from "@/data/api";
+import { HttpError, errorMessage, resetDemo } from "@/data/adapter";
 import { Button, Kbd } from "@/ui";
 import styles from "./StatusBar.module.css";
 import { type SyncSummary, summarizeSync, syncedAgo } from "./status";
@@ -10,10 +10,10 @@ import type { ShellCounts } from "./useShellData";
 const RATE_LIMITED_MESSAGE = "The demo was reset in the last few minutes — try again shortly.";
 
 function failureMessage(e: unknown): string {
-  if (e instanceof ActionFailedError && e.status === 429) {
+  if (e instanceof HttpError && e.status === 429) {
     return RATE_LIMITED_MESSAGE;
   }
-  return e instanceof Error ? e.message : String(e);
+  return errorMessage(e);
 }
 
 /** The whole query cache as one status; re-read whenever any query settles. */

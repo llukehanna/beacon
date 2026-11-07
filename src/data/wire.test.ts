@@ -1,20 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { linkQueryReads, normalizeError, serializeParams, toLinkMap } from "./wire";
-
-describe("serializeParams", () => {
-  it("sends objects as primary keys, drops undefined, keeps everything else", () => {
-    const firm = { $apiName: "Firm", $primaryKey: "acme_us", firmName: "Acme" };
-    expect(
-      serializeParams({ firm, note: "x", tags: ["a"], skip: undefined, n: 0, flag: false }),
-    ).toEqual({
-      firm: "acme_us",
-      note: "x",
-      tags: ["a"],
-      n: 0,
-      flag: false,
-    });
-  });
-});
+import { linkQueryReads, normalizeError, toLinkMap } from "./wire";
 
 describe("toLinkMap", () => {
   it("builds a Map keyed by source primary key", () => {

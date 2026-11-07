@@ -11,6 +11,7 @@ export { Notice } from "./Notice";
 export { PageHeader } from "./PageHeader";
 export { Panel } from "./Panel";
 export { Segmented, type SegmentedOption } from "./Segmented";
+export { RetryNotice } from "./RetryNotice";
 export { Skeleton } from "./Skeleton";
 export { SidePanel } from "./SidePanel";
 export { Sparkline } from "./Sparkline";

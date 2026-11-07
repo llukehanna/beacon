@@ -1,10 +1,12 @@
 import React from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { errorMessage } from "@/data/adapter";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
 import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
+import { RetryNotice } from "@/ui";
 import { AGENT } from "../../../shared/vocab";
 import { agentRunFirmIds, defaultDeskFirmId } from "../deskDefaults";
 import { deskPanelState } from "../deskPanelState";
@@ -22,7 +24,7 @@ import {
 import { EnrichmentPanel } from "./EnrichmentPanel";
 import { type QueueRun, QueueSidebar } from "./QueueSidebar";
 import { SearchFilterBar } from "./SearchFilterBar";
-import { type RediscoveryInfo, formatActionError, searchLabel } from "./deskModel";
+import { type RediscoveryInfo, searchLabel } from "./deskModel";
 import { type FindingCounts, findingCountsByFirm } from "./queueState";
 import { useQueueFilters } from "./useQueueFilters";
 import { useScreeningRules } from "./useScreeningRules";
@@ -32,7 +34,14 @@ function Desk(): React.ReactElement {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
-  const { screeningRules, rankingRules, configLoading, proposedRulesLoading } = useScreeningRules();
+  const {
+    screeningRules,
+    rankingRules,
+    configLoading,
+    proposedRulesLoading,
+    error: rulesError,
+    retry: retryRules,
+  } = useScreeningRules();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialFirmId = searchParams.get("firmId") ?? undefined;
   const [selectedId, setSelectedIdState] = React.useState<string | undefined>(initialFirmId);
@@ -115,13 +124,9 @@ function Desk(): React.ReactElement {
   const pinnedIntent =
     (pinnedMandate?.intentStatement ?? "").trim() || (pinnedMandate?.title ?? "").trim() || "—";
 
-  // Members via the Search↔firms M2M link. The API returns full linked
-  // objects — we only need firmId + discoveredViaSearchId, but there's
-  // no way to $select on useLinks without breaking the pinnedSearch
-  // instance shape, so we take the whole payload.
-  const membership = useLinks(pinnedSearchInstance, "firms", {
-    pageSize: 500,
-  });
+  // Members via the Search↔firms M2M link. The API returns the full linked objects, and only
+  // firmId and discoveredViaSearchId are read.
+  const membership = useLinks(pinnedSearchInstance, "firms");
   // Null while a pinned search's membership is unresolved. An empty Set would read as "this
   // search has no firms" and filter every firm out before the links arrive.
   const membershipLoading =
@@ -355,8 +360,15 @@ function Desk(): React.ReactElement {
       )}
       {loadError && panelState !== "error" && (
         <div role="alert" className={styles.error}>
-          {formatActionError(loadError)}
+          {errorMessage(loadError)}
         </div>
+      )}
+      {rulesError !== undefined && (
+        <RetryNotice
+          className={styles.rulesError}
+          message={`Couldn't load the screening rules (${errorMessage(rulesError).replace(/[.\s]+$/, "")}). Firms are ranked without them until they load.`}
+          onRetry={retryRules}
+        />
       )}
       <div className={styles.body}>
         {panelState === "firm" && selected !== undefined && (
@@ -377,7 +389,7 @@ function Desk(): React.ReactElement {
         )}
         {panelState === "not-in-search" && <FirmNotInSearch onClear={onClearSearchFilter} />}
         {panelState === "search-empty" && <SearchEmpty loading={memberFirmIds === null} />}
-        {panelState === "error" && <LoadFailed message={formatActionError(loadError)} />}
+        {panelState === "error" && <LoadFailed message={errorMessage(loadError)} />}
         {panelState === "queue-empty" && <EmptyQueue />}
         {panelState === "empty" && (resolvingDefault ? <FirmSkeleton /> : <PickAFirm />)}
       </div>

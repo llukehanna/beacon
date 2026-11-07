@@ -1,15 +1,9 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkQuery } from "@/data/hooks";
 import { Skeleton } from "@/ui";
 import { docLines } from "../sourceHighlight";
 import styles from "./SourceView.module.css";
-
-/** What the `sourceDocument` query function returns (the client-side view of it). */
-interface SourceDocumentView {
-  providerLabel: string;
-  title: string;
-  body: string;
-}
 
 /** A document id is `${provider}:${firmId}`. */
 function parseDocumentId(id: string): { provider: string; firmId: string } | null {
@@ -31,9 +25,7 @@ export function SourceView({
   quote: string | null;
 }): React.ReactElement {
   const ref = parseDocumentId(documentId);
-  const { data, isLoading, error } = useOsdkQuery<SourceDocumentView>("sourceDocument", ref ?? {}, {
-    enabled: ref !== null,
-  });
+  const { data, isLoading, error } = useOsdkQuery("sourceDocument", ref);
   const view = React.useMemo(
     () => (data === undefined ? null : docLines(data.body, quote)),
     [data, quote],
@@ -64,7 +56,7 @@ export function SourceView({
       )}
       {ref !== null && error !== undefined && (
         <p role="alert" className={styles.status}>
-          Could not load this document: {error.message}
+          Could not load this document: {errorMessage(error)}
         </p>
       )}
       {view !== null && (

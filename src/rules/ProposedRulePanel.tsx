@@ -1,4 +1,5 @@
 import React from "react";
+import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { approveRuleAction, dismissRuleAction } from "@/data/ontology";
 import { type ScreenableFirm } from "@/desk/activeScreening";
@@ -129,9 +130,9 @@ export function ProposedRulePanel({
 
       {(approve.error !== undefined || dismiss.error !== undefined) && (
         <Notice>
-          {approve.error !== undefined && <div>Approve failed: {String(approve.error)}</div>}
+          {approve.error !== undefined && <div>Approve failed: {errorMessage(approve.error)}</div>}
           {dismiss.error !== undefined && (
-            <div>Decline failed: {String(dismiss.error)}. Your reason is preserved.</div>
+            <div>Decline failed: {errorMessage(dismiss.error)}. Your reason is preserved.</div>
           )}
         </Notice>
       )}

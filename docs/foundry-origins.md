@@ -65,7 +65,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### OSDK becomes the `src/data` seam
 
-- **Here.** `src/data/hooks.ts` keeps the OSDK hook names (`useOsdkObjects`, `useOsdkQuery`, `useOsdkAction`, `useLinks`) with the same return fields, backed by TanStack Query and `/api/*`. `src/data/ontology.ts` exports a token per object type and action. Screens import only these.
+- **Here.** `src/data/hooks.ts` keeps the OSDK hook names (`useOsdkObjects`, `useOsdkQuery`, `useOsdkAction`, `useLinks`) with the same return fields, backed by TanStack Query and a `DataAdapter` (`src/data/adapter.ts`, with the REST implementation as the default). `src/data/ontology.ts` exports a token per object type and action. Screens import only these.
 - **Kept.** The screens' data code, changed mostly in its import lines.
 - **Lost.** A client generated from the ontology: new types and actions need a token added by hand.
 - **Why.** The seam is what made the backend swap cheap, and it keeps a return path to Foundry short. See [0001](decisions/0001-osdk-shaped-data-seam.md).
