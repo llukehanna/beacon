@@ -5,6 +5,7 @@
  * is one new implementation of `DataAdapter`. See README.md.
  */
 import type { ActionParams } from "../../shared/actionParams";
+import type { FunctionName } from "../../shared/functionNames";
 import { OBJECT_TYPES } from "../../shared/schema";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema";
 import type {
@@ -51,17 +52,20 @@ export interface ActionResponse {
 /** Parameters of a query function that takes none. */
 export type NoParams = Record<string, never>;
 
+/** Holds a signature table to the shared list of function names: a missing name fails to compile. */
+type EveryFunction<T extends Record<FunctionName, { params: object; result: unknown }>> = T;
+
 /** The query functions the client calls (server/functions/), with their parameters and results. */
-export interface FunctionSignatures {
+export type FunctionSignatures = EveryFunction<{
   homeSummary: { params: NoParams; result: HomeSummary };
   accuracySummary: { params: NoParams; result: AccuracySummary };
   operationsSummary: { params: NoParams; result: OperationsSummary };
   shellCounts: { params: NoParams; result: ShellCounts };
   firmObservations: { params: { firmId: string }; result: FirmObservations };
   sourceDocument: { params: { provider: string; firmId: string }; result: SourceDocumentView };
-}
+}>;
 
-export type FunctionName = keyof FunctionSignatures;
+export type { FunctionName };
 export type FunctionParams<F extends FunctionName> = FunctionSignatures[F]["params"];
 export type FunctionResult<F extends FunctionName> = FunctionSignatures[F]["result"];
 
