@@ -73,3 +73,23 @@ test("the tour's evidence stop encloses the source excerpt and the grounding che
   await expect(anchor.getByRole("figure", { name: "Source document" })).toBeVisible();
   await expect(anchor.getByRole("list", { name: "Grounding checks" })).toBeVisible();
 });
+
+test("requests the browser abandons do not raise the Vite error overlay", async ({ page }) => {
+  // Navigating away from a page that is still loading abandons its API requests. The dev server
+  // used to hand each one to Vite as an error, and Vite showed it as an overlay on whichever page
+  // was open when it arrived: that made the tests above fail at random.
+  await page.goto("/about");
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(async () => {
+    for (let i = 0; i < 150; i++) {
+      const abort = new AbortController();
+      const options = { signal: abort.signal };
+      void fetch(`/api/objects?type=Firm&pageSize=1000&n=${i}`, options).catch(() => undefined);
+      void fetch(`/api/functions?name=shellCounts&n=${i}`, options).catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, i % 4));
+      abort.abort();
+    }
+  });
+  await page.waitForTimeout(1500);
+  await expect(page.locator("vite-error-overlay")).toHaveCount(0);
+});

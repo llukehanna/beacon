@@ -46,7 +46,7 @@ import { ratesFromCounts, tallyOutcomeGroups } from "../../shared/trustMetrics.j
 import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
-import { toWire } from "../db/repo.js";
+import { notIn, toWire } from "../db/repo.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
 
@@ -65,7 +65,7 @@ type FirmRow = QueueFirm & ScreenableFirm;
 export async function loadLeanFirms(q: Queryable, hidden: readonly string[]): Promise<FirmRow[]> {
   const rows = await q.query(
     `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
-      WHERE "firmId" <> ALL($1::text[])`,
+      WHERE ${notIn('"firmId"', 1)}`,
     [hidden],
   );
   return rows.map((r) => toWire("Firm", r));
@@ -110,7 +110,7 @@ export async function needsYouAxes(
               (lower(coalesce("confidenceTier", '')) = 'abstain' OR lower(coalesce("findingStatus", '')) = 'abstained') AS abstained
          FROM research_finding
         WHERE coalesce("firmId", '') <> ''
-          AND "firmId" <> ALL($1::text[])
+          AND ${notIn('"firmId"', 1)}
           AND lower(coalesce("findingStatus", '')) <> 'superseded'
           AND coalesce("conflictGroupId", '') = ''
           AND lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
@@ -141,7 +141,7 @@ async function openDrifts(q: Queryable, hidden: readonly string[]) {
     `SELECT "driftEventId", "firmId", "driftReason", "priorTier", "priorScore", "newTier", "newScore",
             "detectedAt"
        FROM drift_event
-      WHERE ${OPEN_DRIFT_WHERE} AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))
+      WHERE ${OPEN_DRIFT_WHERE} AND ${notIn('"firmId"', 1)}
       ORDER BY "detectedAt" DESC NULLS LAST, "driftEventId" ASC`,
     [hidden],
   );
@@ -189,7 +189,7 @@ async function loadTimedFindings(
             left(btrim(coalesce("sourceQuote", '')), 1) AS "sourceQuote"
        FROM research_finding
       WHERE lower(btrim(coalesce("provider", ''))) <> '${MARKET_SIGNAL}'
-        AND ("firmId" IS NULL OR "firmId" <> ALL($1::text[]))`,
+        AND ${notIn('"firmId"', 1)}`,
     [hidden],
   );
   return rows.map((r) => ({
@@ -205,7 +205,7 @@ async function enrichmentTimes(
   hidden: readonly string[],
 ): Promise<Map<string, string>> {
   const rows = await q.query<{ firmId: string; enrichedAt: Date | string }>(
-    `SELECT "firmId", "enrichedAt" FROM firm WHERE "enrichedAt" IS NOT NULL AND "firmId" <> ALL($1::text[])`,
+    `SELECT "firmId", "enrichedAt" FROM firm WHERE "enrichedAt" IS NOT NULL AND ${notIn('"firmId"', 1)}`,
     [hidden],
   );
   const out = new Map<string, string>();
@@ -293,18 +293,18 @@ async function mandateCounts(
        SELECT ms.mid, btrim(m."firmId") AS fid FROM search_membership m
          JOIN ms ON ms.sid = btrim(coalesce(m."searchId", ''))
         WHERE btrim(coalesce(m."firmId", '')) <> ''
-          AND btrim(m."firmId") <> ALL($1::text[])
+          AND ${notIn('btrim(m."firmId")', 1)}
        UNION
        SELECT ms.mid, btrim(f."firmId") FROM firm f
          JOIN ms ON ms.sid = btrim(coalesce(f."discoveredViaSearchId", ''))
         WHERE btrim(coalesce(f."firmId", '')) <> ''
-          AND btrim(f."firmId") <> ALL($1::text[])
+          AND ${notIn('btrim(f."firmId")', 1)}
      ), from_lists AS (
        SELECT btrim(sl."mandateId") AS mid, btrim(f."firmId") AS fid FROM search_list sl
          JOIN search_list_firm lf ON lf."searchId" = sl."searchId"
          JOIN firm f ON f."firmId" = lf."firmId"
         WHERE btrim(coalesce(sl."mandateId", '')) <> '' AND btrim(coalesce(f."firmId", '')) <> ''
-          AND btrim(f."firmId") <> ALL($1::text[])
+          AND ${notIn('btrim(f."firmId")', 1)}
      ), scoped AS (
        SELECT mid, fid FROM from_searches UNION SELECT mid, fid FROM from_lists
      )

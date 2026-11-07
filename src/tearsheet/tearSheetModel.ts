@@ -5,13 +5,8 @@
  * something the Desk does not.
  */
 import { type FindingLike } from "@/desk/axisState";
-import { displayFindingValue } from "@/desk/findingActions";
 import { agentHasRun } from "@/desk/firmDesk/agentRun";
-import { type AxisRow, authoritativeFinding, buildAxisRows } from "@/desk/firmDesk/axisRows";
-import { type Citation, citationOf, nonEmpty } from "@/desk/firmDesk/citation";
 import { firmDecisionState } from "@/desk/firmDesk/decisionState";
-import { type FirmView, humanAxisValue, toScoreInput } from "@/desk/firmDesk/deskModel";
-import { conflictSides } from "@/desk/firmDesk/evidenceModel";
 import { type FirmDecision, firmDecisions } from "@/desk/firmDesk/firmDecisions";
 import { buildOnFile } from "@/desk/firmDesk/onFile";
 import { tierText } from "@/desk/firmDesk/tierMeter";
@@ -19,6 +14,11 @@ import { rejectDecisionByFirm } from "@/desk/pipelineRows";
 import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
 import { mirrorScore } from "@/desk/scoreMirror";
 import { firmFacts } from "@/pipeline/pipelineModel";
+import { type AxisRow, authoritativeFinding, buildAxisRows } from "../../shared/axisRows";
+import { type Citation, citationOf, nonEmpty } from "../../shared/citation";
+import { type FirmView, humanAxisValue, toScoreInput } from "../../shared/deskModel";
+import { conflictSides } from "../../shared/evidenceModel";
+import { displayFindingValue } from "../../shared/findingActions";
 import {
   SYNTHETIC_LABEL,
   type SignalLike,

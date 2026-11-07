@@ -6,6 +6,7 @@ Beacon exposes a small, read-only [Model Context Protocol](https://modelcontextp
 - **Transport:** Streamable HTTP, stateless. Each request is one JSON-RPC 2.0 message in a `POST`, answered with one `application/json` body. There is no session, no event stream and no `Mcp-Session-Id`; `GET` and `DELETE` return `405`. A JSON-RPC batch (an array of messages) is refused with `-32600`: send one message per request.
 - **Methods:** `initialize`, `ping`, `tools/list`, `tools/call`. A notification such as `notifications/initialized` gets `202` with no body. Anything else is JSON-RPC `-32601`.
 - **Protocol versions:** `2025-11-25`, `2025-06-18`, `2025-03-26` and `2024-11-05`. `initialize` echoes the client's version when it is one of these and otherwise answers with the newest.
+- **Errors:** every error is a JSON-RPC error object, `{ "jsonrpc": "2.0", "id": null, "error": { "code", "message" } }` when no message was read. A request refused before it is read keeps its HTTP status and says why in the body: another origin is `403` with `-32001`, a body over 64 KiB is `413` and a content type other than `application/json` is `415`, both with `-32600`. A failure inside a call (the database is not configured, say) is `200` with `-32603` and the message.
 - **Authentication:** none. Beacon is a public demo on synthetic data.
 
 ## The persona header
@@ -58,7 +59,7 @@ Reply: `{ firmId, firmName, score: { total, max, tier, model }, axes: [...] }`. 
 - `value`, `provider`, `quote` and `model` are the Desk's: the finding that speaks for the axis (a human-verified one first, else the latest), its value as shown, the source it is credited to (`Analyst` for a hand entry), the sentence it was read from, and the extraction model. They are null when there is nothing to cite.
 - For an open `conflict` the top-level fields are null and `sides` lists the two most trusted sides, each `{ value, provider, quote, model }`.
 
-This is the Desk's own code (`src/desk/firmDesk/axisRows.ts` and `citation.ts`), not a copy, and a test compares it with the tear sheet for a seeded firm. Opening a firm this way adds a row to the demo access log, as opening it in the app does.
+This is the Desk's own code (`shared/axisRows.ts` and `shared/citation.ts`), not a copy, and a test compares it with the tear sheet's model on fixed findings. Opening a firm this way adds a row to the demo access log, as opening it in the app does.
 
 ### `list_rules`
 

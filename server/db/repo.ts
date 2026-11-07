@@ -20,9 +20,13 @@ export interface ListOptions {
   exclude?: { column: string; values: readonly string[] };
 }
 
-/** `col` is null or none of the values bound at `$n`; true for an empty list. */
-const notIn = (column: string, n: number): string =>
-  `(${col(column)} IS NULL OR ${col(column)} <> ALL($${n}::text[]))`;
+/**
+ * SQL that keeps a row when `expr` (a quoted column or an expression over one) is null or none of
+ * the texts bound at `$n` as an array; true for an empty list. The one way the access policy's
+ * hidden firms are left out of a query, so a null firm column is never dropped by `<> ALL`.
+ */
+export const notIn = (expr: string, n: number): string =>
+  `(${expr} IS NULL OR ${expr} <> ALL($${n}::text[]))`;
 
 // Column names only ever come from the schema (checked below), never from input.
 const col = (name: string): string => `"${name}"`;
@@ -274,7 +278,7 @@ export async function listObjects<N extends ObjectTypeName>(
   if (opts.exclude !== undefined && opts.exclude.values.length > 0) {
     assertProps(type, [opts.exclude.column]);
     params.push([...opts.exclude.values]);
-    conditions.push(notIn(opts.exclude.column, params.length));
+    conditions.push(notIn(col(opts.exclude.column), params.length));
   }
   if (opts.pageToken !== undefined) {
     conditions.push(afterCursorSql(sortCols, decodeToken(opts.pageToken, sortCols.length), params));
@@ -341,7 +345,7 @@ export async function listLinked(
   const firmColumn = firmColumnOf(link.target);
   const hide =
     hiddenFirmIds.length > 0 && firmColumn !== null
-      ? ` AND (t.${col(firmColumn)} IS NULL OR t.${col(firmColumn)} <> ALL($2::text[]))`
+      ? ` AND ${notIn(`t.${col(firmColumn)}`, 2)}`
       : "";
   const rows = await q.query(
     `SELECT j.${col(link.sourceColumn)} AS "__source", t.* FROM ${link.joinTable} j

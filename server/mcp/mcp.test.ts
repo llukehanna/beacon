@@ -6,17 +6,30 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { POST as mcp } from "../../api/mcp.js";
+import { authoritativeFinding, buildAxisRows } from "../../shared/axisRows.js";
+import type { FindingLike } from "../../shared/axisState.js";
+import { citationOf } from "../../shared/citation.js";
+import { toScoreInput } from "../../shared/deskModel.js";
+import { conflictSides } from "../../shared/evidenceModel.js";
+import { displayFindingValue } from "../../shared/findingActions.js";
+import { mirrorScore } from "../../shared/scoreMirror.js";
+import { ENRICH_AXES } from "../../shared/vocab.js";
 import { type Db, overrideDb } from "../db/client.js";
 import { listAll } from "../db/repo.js";
+import { HttpError } from "../errors.js";
 import { MAX_BODY_BYTES } from "../http.js";
 import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
 import {
+  JSONRPC_FORBIDDEN,
+  JSONRPC_INTERNAL_ERROR,
   JSONRPC_INVALID_PARAMS,
   JSONRPC_INVALID_REQUEST,
   JSONRPC_METHOD_NOT_FOUND,
   JSONRPC_PARSE_ERROR,
   SUPPORTED_PROTOCOL_VERSIONS,
+  type ToolHost,
+  handleRpc,
 } from "./rpc.js";
 import { DEFAULT_RESULTS, MAX_RESULTS, clampLimit, listTools, scan } from "./tools.js";
 
@@ -227,6 +240,61 @@ describe("the JSON-RPC protocol", () => {
   });
 });
 
+describe("mcp errors are JSON-RPC envelopes", () => {
+  const envelope = (code: number) => ({
+    jsonrpc: "2.0",
+    id: null,
+    error: { code, message: expect.any(String) as string },
+  });
+  const ping = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" });
+
+  it("answers 403, 413 and 415 with {jsonrpc, id: null, error: {code, message}}", async () => {
+    const cross = await send(JSON.parse(ping), { headers: { origin: "https://evil.example" } });
+    expect(cross.status).toBe(403);
+    expect(cross.json).toEqual(envelope(JSONRPC_FORBIDDEN));
+    expect(cross.json.error.message).toContain("Cross-origin");
+
+    const plain = await send(ping, { headers: { "content-type": "text/plain" } });
+    expect(plain.status).toBe(415);
+    expect(plain.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+    expect(plain.json.error.message).toContain("application/json");
+
+    const big = await send(
+      JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping", pad: "x".repeat(MAX_BODY_BYTES) }),
+    );
+    expect(big.status).toBe(413);
+    expect(big.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+    const declared = await send(JSON.parse(ping), {
+      headers: { "content-length": String(MAX_BODY_BYTES + 1) },
+    });
+    expect(declared.status).toBe(413);
+    expect(declared.json).toEqual(envelope(JSONRPC_INVALID_REQUEST));
+
+    // Still JSON, still never cached.
+    expect(cross.headers.get("content-type")).toContain("application/json");
+    expect(cross.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("keeps HTTP 200 for an HttpError raised inside a call", async () => {
+    const failing = (status: number): ToolHost => ({
+      list: () => [],
+      call: () => Promise.reject(new HttpError("The database is not configured", status)),
+    });
+    for (const status of [400, 404, 500, 503]) {
+      const reply = await handleRpc(
+        { jsonrpc: "2.0", id: 7, method: "tools/call", params: { name: "search_firms" } },
+        failing(status),
+      );
+      expect(reply.status, `HttpError ${status}`).toBe(200);
+      expect(reply.body).toEqual({
+        jsonrpc: "2.0",
+        id: 7,
+        error: { code: JSONRPC_INTERNAL_ERROR, message: "The database is not configured" },
+      });
+    }
+  });
+});
+
 describe("tools", () => {
   it("lists exactly three read-only tools, with their schemas", async () => {
     const res = await rpc("tools/list");
@@ -383,27 +451,36 @@ describe("tools", () => {
 
 describe("get_firm_evidence", () => {
   it("returns the citations the Desk shows for the showcase firm", async () => {
-    // The Desk's own model for a firm (the tear sheet is built from the same axis rows the grid
-    // renders), loaded the way the browser loads it. It is imported by a computed path because the
-    // server's type check does not resolve the app's "@/" alias.
-    const modelPath = "../../src/tearsheet/tearSheetModel";
-    const { buildTearSheet } = (await import(/* @vite-ignore */ modelPath)) as {
-      buildTearSheet: (input: {
-        firm: unknown;
-        findings: unknown[];
-        decisions: unknown[];
-        rules: unknown[];
-      }) => {
-        evidence: Array<Record<string, unknown>>;
-        conflicts: Array<{ axis: string; sides: Array<Record<string, unknown>> }>;
-        abstentions: Array<{ axis: string }>;
-      };
-    };
+    // What the Desk shows for the firm, read off the Desk's own axis rows (shared/axisRows), the
+    // same rows the grid and the tear sheet render. The tear sheet's parity with the tool is
+    // checked on fixed findings in src/tearsheet/tearSheetModel.test.ts.
     const [firm] = await listAll(db, "Firm", { where: { firmId: { $eq: showcaseId } } });
     const findings = await listAll(db, "ResearchFinding", {
       where: { firmId: { $eq: showcaseId } },
     });
-    const sheet = buildTearSheet({ firm, findings, decisions: [], rules: [] });
+    const deskRows = buildAxisRows(
+      ENRICH_AXES.filter((a) => a.models.includes(mirrorScore(toScoreInput(firm)).model)),
+      undefined,
+      findings,
+    );
+    const cited = (f: FindingLike) => ({
+      value: displayFindingValue(f.axis, f.value),
+      ...citationOf(f),
+    });
+    const sheet = {
+      evidence: deskRows.flatMap((row) => {
+        const f = authoritativeFinding(row);
+        return ["verified", "proposed", "signal"].includes(row.state) && f !== undefined
+          ? [{ axis: row.label, status: row.state, ...cited(f) }]
+          : [];
+      }),
+      conflicts: deskRows
+        .filter((row) => row.state === "conflict")
+        .map((row) => ({ axis: row.label, sides: conflictSides(row).map(cited) })),
+      abstentions: deskRows
+        .filter((row) => row.state === "abstained")
+        .map((row) => ({ axis: row.label })),
+    };
 
     const res = await tool("get_firm_evidence", { firmId: showcaseId });
     expect(res.json.result.isError).toBeUndefined();
