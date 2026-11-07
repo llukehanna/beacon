@@ -1,8 +1,9 @@
 # Data layer
 
 Screens read and write data through the hooks in `hooks.ts`. The hooks call a `DataAdapter`
-(`adapter.ts`), and nothing else under `src/` calls `fetch`. The adapter in use comes from React
-context and defaults to `restAdapter`, which talks to this app's own backend under `/api`.
+(`adapter.ts`). The adapter in use comes from React context and defaults to `restAdapter`, which
+talks to this app's own backend under `/api` through `apiFetch` (`persona.ts`), the one place that
+adds the persona header.
 
 ## The hooks
 
@@ -38,7 +39,8 @@ interface DataAdapter {
 - `listObjects` returns one page and a `nextPageToken`, which is null on the last page. `where` takes
   equality filters only. `pageSize` is capped by the backend (1000 here).
 - `listLinked` takes several source keys at once and returns every linked object for each. It is not
-  paged. A source with no links maps to an empty list.
+  paged. A source with no links maps to an empty list. The REST endpoint takes at most 2000 source
+  keys per call (`api/links.ts`) and answers 400 beyond that.
 - `applyAction` resolves with what the action created and modified and the object types it wrote
   to. It rejects when the action is refused or fails.
 - Every call is made as the current persona. `restAdapter` sends it as the `X-Beacon-Persona`
@@ -94,13 +96,19 @@ version in use):
 
 What the adapter has to do beyond calling the SDK:
 
-- Reject with an `Error` whose `message` is readable. The Foundry error body has `errorName` and
-  `message`; use `message`, and put the `errorName` in front of it if the message alone would be
-  unclear.
+- Reject with an `Error` whose `message` is readable. Foundry errors carry an `errorCode`, an
+  `errorName` and `parameters`; build the message from those (check what the SDK exposes) rather
+  than passing the raw error on. `errorMessage` shows an `Error`'s message, or the `message` of a
+  plain object, cut to 400 characters.
 - Return objects with `$apiName` and `$primaryKey` set, as the REST adapter does.
 - Authenticate the user. The persona header is a demo mechanism and has no Foundry equivalent: a
   Foundry deployment gets the user from its own session, and access rules (markings, restricted
   views) apply on the Foundry side.
+
+Two things sit outside `DataAdapter` on purpose. `resetDemo` (exported from `adapter.ts`) posts to
+`/api/reset`, which restores the demo data; it is demo-only and has no Foundry equivalent, so the
+status bar keeps calling it over REST. The status bar also reads the REST `HttpError` for a 429
+(reset cooldown), which a different adapter does not produce.
 
 The OSDK object types, property names and action parameters are generated from the ontology, so an
 adapter can check them against `shared/schema.ts` and `shared/actionParams.ts` at build time. The

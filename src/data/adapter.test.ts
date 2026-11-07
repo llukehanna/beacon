@@ -1,8 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HttpError, NetworkError, errorMessage, restAdapter } from "./adapter";
+import { getPersona, setPersona } from "./persona";
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  setPersona("analyst");
 });
 
 describe("errorMessage", () => {
@@ -29,6 +31,21 @@ describe("errorMessage", () => {
     ],
     ["an Error says its message, not 'Error: ...'", new Error("boom"), "boom"],
     ["a string is itself", "already readable", "already readable"],
+    [
+      "a plain object's message (a cross-realm Error, a Foundry-shaped body)",
+      { message: "Action not permitted" },
+      "Action not permitted",
+    ],
+    [
+      "a response body's error wins over its message",
+      { error: "From the server", message: "From elsewhere" },
+      "From the server",
+    ],
+    ["an object whose message is not text", { message: 5 }, "Something went wrong. Try again."],
+    ["text over 400 characters is cut", "x".repeat(500), `${"x".repeat(400)}…`],
+    ["an Error's long message is cut too", new Error("y".repeat(401)), `${"y".repeat(400)}…`],
+    ["a plain object's long message is cut", { message: "z".repeat(900) }, `${"z".repeat(400)}…`],
+    ["400 characters exactly is kept whole", "w".repeat(400), "w".repeat(400)],
     ["an object with no text of its own", { code: 7 }, "Something went wrong. Try again."],
     ["an error with an empty message", new Error(""), "Something went wrong. Try again."],
     ["null", null, "Something went wrong. Try again."],
@@ -141,8 +158,15 @@ describe("restAdapter", () => {
   it("sends the persona header", async () => {
     const calls = stubFetch(() => json({ value: {} }));
     await restAdapter.runFunction("homeSummary", {});
-    const headers = new Headers(calls[0].init?.headers);
-    expect(headers.get("x-beacon-persona")).not.toBeNull();
+    expect(new Headers(calls[0].init?.headers).get("x-beacon-persona")).toBe(getPersona());
+
+    // The header follows the persona: it is read when the request is sent, not when the app loads.
+    setPersona("compliance");
+    await restAdapter.runFunction("homeSummary", {});
+    expect(new Headers(calls[1].init?.headers).get("x-beacon-persona")).toBe("compliance");
+    setPersona("deal_lead");
+    await restAdapter.getObject("Firm", "f1").catch(() => undefined);
+    expect(new Headers(calls[2].init?.headers).get("x-beacon-persona")).toBe("deal_lead");
   });
 
   it("turns an error response into an HttpError with the server's text", async () => {
@@ -168,5 +192,13 @@ describe("restAdapter", () => {
     expect(errorMessage(err)).toBe(
       "Could not reach the server. Check your connection and try again.",
     );
+  });
+
+  it("keeps what made the request fail as the NetworkError's cause", async () => {
+    const abort = new DOMException("The operation was aborted.", "AbortError");
+    vi.stubGlobal("fetch", () => Promise.reject(abort));
+    const err: unknown = await restAdapter.runFunction("homeSummary", {}).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(NetworkError);
+    expect((err as NetworkError).cause).toBe(abort);
   });
 });

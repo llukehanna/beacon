@@ -1,7 +1,8 @@
 /**
  * The data adapter: everything the screens ask of the backend, behind one interface. The hooks in
- * hooks.ts call it through React context and nothing else in `src/` touches `fetch`, so a different
- * backend (a Foundry/OSDK client, say) is one new implementation of `DataAdapter`. See README.md.
+ * hooks.ts call it through React context. The REST implementation reaches `/api` through `apiFetch`
+ * (persona.ts), which adds the persona header, so a different backend (a Foundry/OSDK client, say)
+ * is one new implementation of `DataAdapter`. See README.md.
  */
 import type { ActionParams } from "../../shared/actionParams";
 import { OBJECT_TYPES } from "../../shared/schema";
@@ -110,34 +111,56 @@ export class HttpError extends Error {
 
 /** The request never got an answer (offline, DNS, connection reset). */
 export class NetworkError extends Error {
-  constructor() {
+  /** What `fetch` rejected with: an AbortError or a connection failure, say. Set by hand, since the app's lib predates `Error` options. */
+  readonly cause?: unknown;
+
+  constructor(cause?: unknown) {
     super(NETWORK_MESSAGE);
     this.name = "NetworkError";
+    this.cause = cause;
   }
 }
 
 // What `fetch` rejects with when there is no connection, by browser.
 const FETCH_FAILURE = /failed to fetch|load failed|networkerror|network request failed/i;
 
+/** The longest error text shown: a long server message or a stack must not flood the screen. */
+const MAX_MESSAGE_LENGTH = 400;
+
+const clip = (text: string): string =>
+  text.length > MAX_MESSAGE_LENGTH ? `${text.slice(0, MAX_MESSAGE_LENGTH)}…` : text;
+
+/** A plain object's own text: its `error` (a response body) or else its `message`. */
+function textOf(error: object): string | undefined {
+  for (const key of ["error", "message"] as const) {
+    const text: unknown = key in error ? (error as Record<string, unknown>)[key] : undefined;
+    if (typeof text === "string" && text !== "") {
+      return text;
+    }
+  }
+  return undefined;
+}
+
 /**
  * Readable text for anything thrown: the server's `{ error }` text when there is one, a short
- * sentence for a network failure, an Error's message, a string as it is, and a generic sentence
- * for the rest. Never "[object Object]" and never an "Error: " prefix.
+ * sentence for a network failure, an Error's message, a string as it is, the `message` of a plain
+ * object, and a generic sentence for the rest. Text longer than 400 characters is cut. Never
+ * "[object Object]" and never an "Error: " prefix.
  */
 export function errorMessage(error: unknown): string {
   if (typeof error === "string") {
-    return error === "" ? GENERIC_MESSAGE : error;
+    return error === "" ? GENERIC_MESSAGE : clip(error);
   }
   if (error instanceof TypeError && FETCH_FAILURE.test(error.message)) {
     return NETWORK_MESSAGE;
   }
   if (error instanceof Error) {
-    return error.message === "" ? GENERIC_MESSAGE : error.message;
+    return error.message === "" ? GENERIC_MESSAGE : clip(error.message);
   }
-  if (typeof error === "object" && error !== null && "error" in error) {
-    const text = error.error;
-    if (typeof text === "string" && text !== "") {
-      return text;
+  if (typeof error === "object" && error !== null) {
+    const text = textOf(error);
+    if (text !== undefined) {
+      return clip(text);
     }
   }
   return GENERIC_MESSAGE;
@@ -148,8 +171,8 @@ export function errorMessage(error: unknown): string {
 async function request(path: string, init?: RequestInit): Promise<Response> {
   try {
     return await apiFetch(path, init);
-  } catch {
-    throw new NetworkError();
+  } catch (cause) {
+    throw new NetworkError(cause);
   }
 }
 

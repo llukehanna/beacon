@@ -76,6 +76,9 @@ export async function applyAction(
     }
   };
   try {
+    // `execute` takes the definition with loosely typed params, because `raw` is validated JSON at
+    // this boundary. ACTIONS[name] fits only through method-parameter bivariance, so `run` and
+    // `prepare` are not checked against this loose type here; they are checked where they are defined.
     const result = await execute(db, def, raw, opts);
     await noteRun(true);
     return result;

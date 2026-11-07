@@ -11,6 +11,10 @@ const FRESH_MS = 60_000;
  * Every ResearchFinding, page by page, through the query cache: a second export (or one right after
  * a page already fetched them) makes no request. The key starts with ["objects", "ResearchFinding"],
  * so any action that writes findings refreshes it. Used when an export is asked for, not on page load.
+ *
+ * One narrow gap: an export still fetching when an action lands finishes after the invalidation and
+ * marks the findings it read before the action as fresh, so they stay in use for up to FRESH_MS.
+ * Another visitor's writes on the shared demo are not seen for that long either; both are accepted.
  */
 export function fetchAllFindings(
   qc: QueryClient,
