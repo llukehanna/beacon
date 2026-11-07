@@ -6,7 +6,7 @@
 
 ## Cloudflare Workers
 
-Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Smart Placement runs the Worker near the database, and `POST /api/actions` (60 per minute), `POST /api/reset` (3 per minute) and `POST /api/mcp` (60 per minute) are rate limited per client IP. Each deployment has one Cron Trigger, because the free plan allows five per account: production runs hourly, and its 04:00 UTC run is the nightly reset; every other run applies the synthetic market signals that have come due. The presenter deployment runs only at 04:00 UTC.
+Beacon runs on Cloudflare Workers (free plan): the Vite build is served as static assets with an SPA fallback, and `/api/*` runs in `worker/index.ts`. Smart Placement runs the Worker near the database, and `POST /api/actions` (60 per minute), `POST /api/reset` (3 per minute) and `POST /api/mcp` (60 per minute) are rate limited per client IP. Each deployment has one Cron Trigger, because the free plan allows five per account: production runs hourly, and its 04:00 UTC run is the nightly reset; every other run applies the synthetic market signals that have come due. The presenter deployment has no trigger of its own: production's 04:00 UTC run resets it through a service binding to its `PresenterNightly` entrypoint, which only a binding can reach. Deploy the presenter before production when that entrypoint changes.
 
 CI boots the built Worker in `wrangler dev` with no database and checks that `/` serves and `/api/*` answers the Worker's own 503, which catches a bundle that fails to start in workerd (the unit tests run in plain Node).
 
@@ -35,7 +35,7 @@ To add a migration, write `server/db/migrations/NNNN_name.sql` (the next number,
 npx wrangler hyperdrive create beacon-db --connection-string='<neon connection string>'
 ```
 
-**Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and the same nightly reset (its signals are applied after that reset), so it can be edited live without touching production.
+**Presenter environment.** A second deployment, `beacon-presenter`, serves the same build on a `workers.dev` URL with its own database and the same nightly reset (triggered by production; its signals are applied after that reset), so it can be edited live without touching production.
 
 ```bash
 # 1. Create a Neon branch for it and copy its connection string.
