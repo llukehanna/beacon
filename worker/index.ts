@@ -1,9 +1,10 @@
 /**
  * Cloudflare Workers entry. Static assets (the Vite build) are served by the
  * platform with an SPA fallback; /api/* runs here through the handlers in
- * api/; the nightly Cron Trigger runs the demo reset, and an hourly one applies the synthetic
- * market signals that have come due.
+ * api/; the hourly Cron Trigger applies the synthetic market signals that have come due, and its
+ * 04:00 UTC run is the nightly demo reset (for the presenter deployment too, through a service binding).
  */
+import { WorkerEntrypoint } from "cloudflare:workers";
 import * as actions from "../api/actions.js";
 import * as functions from "../api/functions.js";
 import * as links from "../api/links.js";
@@ -26,6 +27,11 @@ interface Env {
   MCP_LIMITER?: RateLimit;
   /** Optional Hyperdrive binding; when present it replaces the direct DATABASE_URL. */
   HYPERDRIVE?: { connectionString: string };
+  /**
+   * Production only (wrangler.jsonc "services"): the presenter deployment's PresenterNightly
+   * entrypoint. The account's five Cron Triggers are in use, so production's nightly run resets it.
+   */
+  PRESENTER?: { run(): Promise<void> };
 }
 
 interface ExecutionContext {
@@ -99,6 +105,27 @@ async function withDb(
   }
 }
 
+/** The nightly reset: the same reset (and throttle) as the demo bar's button, then the due signals. */
+async function nightlyReset(env: Env, ctx: ExecutionContext): Promise<void> {
+  const res = await withDb(env, ctx, async () => {
+    const resetRes = await reset.POST();
+    return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
+  });
+  if (!res.ok) {
+    throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
+  }
+}
+
+/**
+ * The presenter deployment's nightly reset, called by production's 04:00 UTC run through a service
+ * binding. A named entrypoint is reachable only through a binding, never from the internet.
+ */
+export class PresenterNightly extends WorkerEntrypoint<Env> {
+  async run(): Promise<void> {
+    await nightlyReset(this.env, this.ctx);
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
@@ -139,13 +166,9 @@ export default {
       controller.cron === NIGHTLY_CRON ||
       (controller.cron === HOURLY_CRON && due.getUTCHours() === NIGHTLY_HOUR_UTC);
     if (nightly) {
-      const res = await withDb(env, ctx, async () => {
-        const resetRes = await reset.POST();
-        return resetRes.ok ? json(await applyDueSignals(await getDb())) : resetRes;
-      });
-      if (!res.ok) {
-        throw new Error(`Nightly reset failed: ${res.status} ${await res.text()}`);
-      }
+      await nightlyReset(env, ctx);
+      // The presenter's reset runs after this one and never blocks it; a failure still fails the run.
+      await env.PRESENTER?.run();
       return;
     }
     const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));

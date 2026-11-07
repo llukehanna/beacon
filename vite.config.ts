@@ -18,5 +18,9 @@ export default defineConfig({
     testTimeout: 30_000,
     hookTimeout: 30_000,
     exclude: [...configDefaults.exclude, "e2e/**"],
+    // workerd provides this module at runtime; tests use a stand-in.
+    alias: {
+      "cloudflare:workers": path.resolve(__dirname, "./worker/stubs/cloudflare-workers.ts"),
+    },
   },
 });
