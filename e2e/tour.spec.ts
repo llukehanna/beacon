@@ -9,7 +9,7 @@ const STOPS = [
   { route: "/mandate", anchor: "mandate" },
   { route: "/desk", anchor: "conflict-row" },
   { route: "/desk", anchor: "evidence" },
-  { route: "/desk", anchor: "pass-button" },
+  { route: "/desk", anchor: "pass-note" },
   { route: "/rules", anchor: "proposed-rule" },
   { route: "/review", anchor: "drift-list" },
 ];
@@ -82,6 +82,16 @@ async function walkTour(page: Page, narrow: boolean): Promise<void> {
     "/accuracy",
   );
   await expect(card.getByRole("link", { name: "About Beacon" })).toHaveAttribute("href", "/about");
+  // It ends with something to do, and where to read more.
+  await expect(card).toContainText("Try it: pass on a firm and watch its reason reach Rules.");
+  await expect(card.getByRole("link", { name: /GitHub repo/ })).toHaveAttribute(
+    "href",
+    "https://github.com/llukehanna/beacon",
+  );
+  await expect(card.getByRole("link", { name: /Case study/ })).toHaveAttribute(
+    "href",
+    "https://lukeghanna.com/work/beacon",
+  );
 }
 
 test("tour completes", async ({ page }) => {
@@ -221,4 +231,85 @@ test("intro stays dismissed after reload", async ({ page }) => {
   await page.reload();
   await expect(home.heading(page).first()).toBeVisible();
   await expect(intro).toHaveCount(0);
+});
+
+test("at 390px the pass stop shows the note, Qualify and Pass above the sheet", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/desk?tour=4");
+  const card = page.locator("[data-tour-card]");
+  await expect(card).toContainText("4 of 6");
+  const note = page.locator('[data-tour="pass-note"]');
+  const bar = page.locator('[data-tour="decision-bar"]');
+  await expect(note).toBeVisible();
+
+  // Settled: the whole decision bar is on screen, ends just above the sheet, and the spotlight
+  // is on the note box (not the button).
+  await expect
+    .poll(async () => {
+      const b = await rectOf(bar);
+      const c = await rectOf(card);
+      const gap = c.top - (b.top + b.height);
+      return b.top >= 0 && gap >= 0 && gap <= 60;
+    })
+    .toBe(true);
+  for (const name of [/^Qualify firm/, /^Pass/]) {
+    const button = page.locator('[data-tour="decision-bar"]').getByRole("button", { name });
+    const r = await rectOf(button);
+    const c = await rectOf(card);
+    expect(r.top).toBeGreaterThanOrEqual(0);
+    expect(r.top + r.height).toBeLessThanOrEqual(c.top);
+  }
+  await expect
+    .poll(async () => {
+      const a = await rectOf(note);
+      const s = await rectOf(page.locator("[data-tour-spotlight]"));
+      return [s.left - a.left, s.top - a.top, s.width - a.width, s.height - a.height].map(
+        Math.round,
+      );
+    })
+    .toEqual([-4, -4, 8, 8]);
+  // No empty band: the thing directly above the bar is page content, not the page background.
+  const above = await page.evaluate(() => {
+    const b = document.querySelector('[data-tour="decision-bar"]')!.getBoundingClientRect();
+    const el = document.elementFromPoint(b.left + 40, Math.max(0, b.top - 30));
+    return el?.textContent?.trim().length ?? 0;
+  });
+  expect(above).toBeGreaterThan(0);
+});
+
+test("a wide stop's card stays off the page content around its anchor", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/mandate?tour=1");
+  const card = page.locator("[data-tour-card]");
+  await expect(card).toContainText("1 of 6");
+  // The first stop has nowhere to go back to.
+  await expect(card.getByRole("button", { name: /Back/ })).toHaveCount(0);
+  const form = page.getByRole("button", { name: "Create mandate" });
+  await expect(form).toBeVisible();
+  await expect
+    .poll(async () => intersects(await rectOf(card), await rectOf(form)), {
+      message: "the card covers the New mandate form",
+    })
+    .toBe(false);
+
+  await page.goto("/rules?tour=5");
+  await expect(card).toContainText("5 of 6");
+  await expect(page.getByRole("button", { name: "Approve" }).first()).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const c = await rectOf(card);
+        const approves = page.getByRole("button", { name: "Approve" });
+        for (let i = 0; i < (await approves.count()); i++) {
+          if (intersects(c, await rectOf(approves.nth(i)))) {
+            return true;
+          }
+        }
+        return false;
+      },
+      { message: "the card covers a proposed rule" },
+    )
+    .toBe(false);
 });

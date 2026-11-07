@@ -14,7 +14,7 @@ import {
   withStepParams,
 } from "./tourModel";
 import { TOUR_STEPS } from "./tourSteps";
-import { useAnchor } from "./useAnchor";
+import { SHEET_RESERVE, useAnchor } from "./useAnchor";
 
 const NARROW_QUERY = "(max-width: 899px)";
 
@@ -157,6 +157,20 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [running]);
+
+  // A bottom sheet covers the foot of the screen, so scrollers that end in an anchor (the Desk's
+  // decision bar) get room to scroll it above the sheet.
+  const sheetUp = running && narrow;
+  React.useEffect(() => {
+    if (!sheetUp) {
+      return undefined;
+    }
+    const root = document.documentElement;
+    root.style.setProperty("--tour-sheet-space", `${SHEET_RESERVE}px`);
+    return () => {
+      root.style.removeProperty("--tour-sheet-space");
+    };
+  }, [sheetUp]);
 
   const controls = React.useMemo<TourControls>(() => ({ start }), [start]);
   const commands = React.useMemo<Command[]>(
