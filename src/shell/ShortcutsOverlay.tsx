@@ -23,7 +23,7 @@ const DESK_ROWS: Row[] = [
   { keys: ["P", "F"], label: "Pass or fail the selected gate" },
   { keys: ["V"], label: "Verify the proposed value" },
   { keys: ["R"], label: "Reject the proposed value and enter your own" },
-  { keys: ["⌘↵"], label: "Commit enrichment" },
+  { keys: ["⌘↵"], label: "Save verified values" },
   { keys: [FIRM_DECISION_KEYS.qualify.label], label: "Qualify the firm" },
   { keys: [FIRM_DECISION_KEYS.advance.label], label: "Advance the firm to its next stage" },
   { keys: [FIRM_DECISION_KEYS.pass.label], label: "Pass on the firm (a note is required)" },

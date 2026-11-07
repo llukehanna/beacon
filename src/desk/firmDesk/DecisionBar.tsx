@@ -16,6 +16,7 @@ import styles from "./DecisionBar.module.css";
 import { confirmItems, firmDecisionState } from "./decisionState";
 import { type EditMap, type FirmView } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
+import { type Projection } from "./projection";
 
 const NOTE_ID = "decision-note";
 const NOTE_ERROR_ID = "decision-note-error";
@@ -46,7 +47,7 @@ function ErrorList({
 
 /**
  * The Desk's "Your call": a bar pinned to the bottom of the main column. It lists what to confirm
- * before advancing and offers the firm-level decisions: Commit enrichment, Qualify or Advance, and
+ * before advancing and offers the firm-level decisions: Save verified values, Qualify or Advance, and
  * Pass (which needs a note). The decisions are Shift chords (⇧Q, ⇧A, ⇧R) so they never collide
  * with the plain letters that act on the selected axis; the same chords are in the `?` overlay.
  */
@@ -60,6 +61,7 @@ export function DecisionBar({
   enrichPending,
   enrichError,
   onPassed,
+  projection = null,
 }: {
   firm: FirmView;
   firmId: string;
@@ -72,6 +74,8 @@ export function DecisionBar({
   enrichError: unknown;
   /** Told once a pass has been saved, so the Desk can say so and move on to the next firm. */
   onPassed?: (firm: FirmView) => void;
+  /** The score the open proposals would give, so the screen line agrees with the score box. */
+  projection?: Projection | null;
 }): React.ReactElement {
   const qualify = useOsdkAction(qualifyFirmAction);
   const reject = useOsdkAction(rejectFirmAction);
@@ -169,7 +173,7 @@ export function DecisionBar({
     if (canCommit) {
       list.push({
         id: "desk:commit",
-        label: "Commit enrichment",
+        label: "Save verified values",
         group: "Actions",
         hint: "⌘↵",
         run: () => commitRef.current?.(),
@@ -206,7 +210,7 @@ export function DecisionBar({
   }, [canCommit, canQualify, canAdvance, canPass, nextState]);
   useCommands(commands);
 
-  const items = confirmItems(firm, mirror, edits);
+  const items = confirmItems(firm, mirror, edits, projection);
   const done = items.filter((i) => i.ok).length;
   const noteMissing = attemptedPass && note.trim() === "";
   const noteHint =
@@ -219,7 +223,7 @@ export function DecisionBar({
           : "Note captured as the pass rationale.";
 
   return (
-    <section className={styles.bar} aria-label="Your call">
+    <section className={styles.bar} aria-label="Your call" data-tour="decision-bar">
       <ErrorList
         errors={[
           { label: "Commit", error: enrichError },
@@ -259,7 +263,7 @@ export function DecisionBar({
           </ul>
         </div>
 
-        <div className={styles.noteBox}>
+        <div className={styles.noteBox} data-tour="pass-note">
           <label htmlFor={NOTE_ID} className={styles.sr}>
             Decision note
           </label>
@@ -294,7 +298,7 @@ export function DecisionBar({
             onClick={onCommit}
             title="Save verified state without moving the firm"
           >
-            {enrichPending ? "Saving…" : "Commit enrichment"} <Kbd>⌘↵</Kbd>
+            {enrichPending ? "Saving…" : "Save verified values"} <Kbd>⌘↵</Kbd>
           </Button>
           {terminalKind === null ? (
             <>
@@ -325,7 +329,6 @@ export function DecisionBar({
               )}
               <Button
                 className={styles.pass}
-                data-tour="pass-button"
                 disabled={!canPass}
                 onClick={onPass}
                 title="Pass on this firm. A decision note is required."

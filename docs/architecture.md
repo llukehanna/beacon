@@ -87,7 +87,7 @@ Each finding stores the record id, the exact quote, and the extraction model. On
 
 ## Scoring as shared code
 
-`shared/scoreMirror.ts` is the rubric: nine axes scored 0, 1, or 2 (18 points), separate tables for the corporate-finance and capital-solutions theses, hard rejects, and A/B/C tiers. The desk imports it to preview a firm's score as the analyst accepts findings. The server imports the same module when it writes a score snapshot. There is one implementation, so the preview and the record can't disagree.
+`shared/scoreMirror.ts` is the rubric: nine scored axes, each 0, 1, or 2 (18 points), recorded beside four pass or fail gates that earn no points (the desk lists six or seven scored axes with the gates, and scores the rest from the firm record), separate tables for the corporate-finance and capital-solutions theses, hard rejects, and A/B/C tiers. The desk imports it to preview a firm's score as the analyst accepts findings. The server imports the same module when it writes a score snapshot. There is one implementation, so the preview and the record can't disagree.
 
 ## Run agent → Accept → Commit
 

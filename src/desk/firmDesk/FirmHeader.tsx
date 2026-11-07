@@ -2,9 +2,10 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore } from "@/data/ontology";
+import { FROM_DESK } from "@/shell/origin";
 import { Chip, MonogramTile } from "@/ui";
 import { SYNTHETIC_LABEL } from "../../../shared/marketSignals";
-import { MAX_POSSIBLE } from "../../../shared/scoreMirror";
+import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../../../shared/scoreMirror";
 import { MARKET_SIGNAL, normalizeLifecycle } from "../../../shared/vocab";
 import { type ActiveConfigRule, computeHardScreen } from "../queue";
 import { formatScore } from "../scoreFormat";
@@ -15,7 +16,7 @@ import { TierMeterBar } from "./TierMeterBar";
 import { type FirmView, formatObservedDate } from "./deskModel";
 import { enrichmentDelta, priorScoreBefore } from "./priorScore";
 import { type Projection } from "./projection";
-import { tierText } from "./tierMeter";
+import { belowCGloss, tierText } from "./tierMeter";
 
 // Observed-outcome chip. Rendered on the firm header when Firm.outcome is
 // non-null. `acquired_by_competitor` renders in the divergence colour — that's
@@ -168,6 +169,7 @@ export function FirmHeader({
           {firm.firmId && (
             <Link
               to={`/firm/${encodeURIComponent(firm.firmId)}/tear-sheet`}
+              state={FROM_DESK}
               className={styles.sheetLink}
             >
               Tear sheet
@@ -192,7 +194,10 @@ export function FirmHeader({
           )}
           <span
             className={`${styles.tier} ${tier === "Rejected" ? styles.tierRejected : ""}`}
-            title={state.label}
+            title={
+              belowCGloss(tier, state.hard, TIER_THRESHOLDS[after.model].C, MAX_POSSIBLE) ??
+              state.label
+            }
           >
             {tierText(tier, state.hard)}
           </span>
@@ -204,22 +209,26 @@ export function FirmHeader({
           </div>
         )}
         <TierMeterBar score={score} model={after.model} prior={prior} hard={state.hard} />
-        {projection !== null && !state.hard && (
-          <div className={styles.projection} data-testid="projected-score">
-            <span>
-              If {projection.count} proposal{projection.count === 1 ? "" : "s"} verified
-            </span>
-            <span className={styles.projected}>
-              {projection.hardRejected ? (
-                "Hard-rejected"
-              ) : (
-                <>
-                  <b>{projection.score}</b> / {MAX_POSSIBLE} · {tierText(projection.tier, false)}
-                </>
-              )}
-            </span>
-          </div>
-        )}
+        {projection !== null &&
+          !state.hard &&
+          (projection.hardRejected ? (
+            <div className={styles.projection} data-testid="projected-score">
+              <span>
+                Would be hard-rejected if the {projection.count} proposal
+                {projection.count === 1 ? " is" : "s are"} verified
+                {projection.rejectReason === "" ? "" : `: ${projection.rejectReason}`}
+              </span>
+            </div>
+          ) : (
+            <div className={styles.projection} data-testid="projected-score">
+              <span>
+                If {projection.count} proposal{projection.count === 1 ? "" : "s"} verified
+              </span>
+              <span className={styles.projected}>
+                <b>{projection.score}</b> / {MAX_POSSIBLE} · {tierText(projection.tier, false)}
+              </span>
+            </div>
+          ))}
       </div>
     </div>
   );

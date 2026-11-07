@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   authoritativeFinding,
   buildAxisRows,
+  compositionText,
+  gridComposition,
   openConflictFindings,
   summarizeRows,
   summaryText,
@@ -280,5 +282,27 @@ describe("an axis a market signal alone has spoken for", () => {
     const [row] = buildAxisRows([def], undefined, [checked("2026-01-01T00:00:00Z"), signal]);
     expect(row.state).toBe("signal");
     expect(authoritativeFinding(row)?.value).toBe("3");
+  });
+});
+
+describe("gridComposition", () => {
+  const CS_AXES = ENRICH_AXES.filter((a) => a.models.includes("CS"));
+  const rowsOf = (axes: typeof CF_AXES) => buildAxisRows(axes, undefined, []);
+
+  it("splits the rows into scored axes and gates, so they add up to the rubric's nine", () => {
+    // CF: six scored axes in the grid plus the three the firm record scores alone.
+    expect(gridComposition(rowsOf(CF_AXES))).toEqual({ scored: 6, gates: 4, fromRecord: 3 });
+    // CS: seven in the grid, two from the record.
+    expect(gridComposition(rowsOf(CS_AXES))).toEqual({ scored: 7, gates: 4, fromRecord: 2 });
+    for (const axes of [CF_AXES, CS_AXES]) {
+      const c = gridComposition(rowsOf(axes));
+      expect(c.scored + c.fromRecord).toBe(9);
+    }
+  });
+
+  it("words the split for the grid", () => {
+    expect(compositionText(rowsOf(CS_AXES))).toBe(
+      "7 scored axes + 4 gates. 2 more of the 9 scored axes come from the firm record, below.",
+    );
   });
 });

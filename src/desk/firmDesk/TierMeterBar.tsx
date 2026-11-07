@@ -2,7 +2,7 @@ import React from "react";
 import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../scoreMirror";
 import type { Model } from "../scoreMirror";
 import styles from "./TierMeterBar.module.css";
-import { segmentLabel, tierMeter } from "./tierMeter";
+import { belowCGloss, segmentLabel, tierMeter } from "./tierMeter";
 
 const pct = (fraction: number): string => `${fraction * 100}%`;
 
@@ -51,6 +51,7 @@ export function TierMeterBar({
             key={s.tier}
             className={s.tier === meter.tier ? styles.scaleCurrent : undefined}
             style={{ left: pct(s.from) }}
+            title={belowCGloss(s.tier, hard, TIER_THRESHOLDS[model].C, MAX_POSSIBLE) ?? undefined}
           >
             {segmentLabel(s.tier, hard)}
           </span>

@@ -5,6 +5,7 @@ import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
 import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
+import { FROM_DESK } from "@/shell/origin";
 import { useSidebarSlot } from "@/shell/sidebarSlot";
 import { RetryNotice } from "@/ui";
 import { AGENT } from "../../../shared/vocab";
@@ -283,7 +284,10 @@ function Desk(): React.ReactElement {
               id: "desk:tear-sheet",
               label: `Tear sheet: ${selectedName}`,
               group: "Actions",
-              run: () => navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`),
+              run: () =>
+                navigate(`/firm/${encodeURIComponent(selectedFirmId)}/tear-sheet`, {
+                  state: FROM_DESK,
+                }),
             },
           ],
     [selectedFirmId, selectedName, navigate],

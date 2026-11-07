@@ -23,7 +23,8 @@
   flex-direction: column;
   gap: 16px;
   min-width: 0;
-  padding: 22px var(--gx) var(--gb);
+  /* While the tour's bottom sheet is up, room to scroll the last thing above it. */
+  padding: 22px var(--gx) calc(var(--gb) + var(--tour-sheet-space, 0px));
   overflow-y: auto;
 }
 

@@ -204,7 +204,12 @@ export function QueueSidebar({
     <div className={styles.queue}>
       <div className={styles.head}>
         <span className={styles.title}>Queue</span>
-        <span className={styles.order}>by expected gain</span>
+        <span
+          className={styles.order}
+          title="Sorted by the points a firm could still gain if its missing fields were filled: the +N beside each score. Ties go to the firm with fewer fields missing, then A to Z."
+        >
+          most points to gain first
+        </span>
       </div>
 
       <div className={styles.search}>
@@ -320,6 +325,12 @@ export function QueueSidebar({
                     }
                   >
                     {rejected ? "R" : r.currentScore}
+                    {!rejected && r.gain > 0 && (
+                      <span className={styles.gain} title={`Up to +${r.gain} points if enriched`}>
+                        {" "}
+                        +{r.gain}
+                      </span>
+                    )}
                   </span>
                   <span className={styles.bar} aria-hidden="true">
                     <i className={styles.ceiling} style={{ width: `${barCeiling * 100}%` }} />

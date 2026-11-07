@@ -3,7 +3,13 @@ import { ConfidenceBars, Skeleton, StatusPill } from "@/ui";
 import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import { formatAxisValue } from "../findingActions";
 import styles from "./AxisGrid.module.css";
-import { type AxisRow, type RowCounts, type RowState, summaryText } from "./axisRows";
+import {
+  type AxisRow,
+  type RowCounts,
+  type RowState,
+  compositionText,
+  summaryText,
+} from "./axisRows";
 import { type EditMap } from "./deskModel";
 import { rejectReasonText } from "./evidenceModel";
 import { type OnFile } from "./onFile";
@@ -130,6 +136,9 @@ export function AxisGrid({
         <h2 className={styles.title}>Axes by source</h2>
         <span className={styles.summary}>{summaryText(counts)}</span>
       </div>
+      <p className={styles.composition}>
+        {compositionText(rows)} A gate is pass or fail and earns no points.
+      </p>
       {noFindings && (
         <p className={styles.note} role="status">
           <strong>No findings yet.</strong> Run the agent from the strip above to query every
@@ -196,7 +205,16 @@ export function AxisGrid({
                       </span>
                     )}
                   </th>
-                  <td className={styles.w}>{row.weight}</td>
+                  <td
+                    className={styles.w}
+                    title={
+                      row.def.kind === "gate"
+                        ? "A gate: pass or fail, no points"
+                        : "A scored axis: 0 to 2 of the 18 points"
+                    }
+                  >
+                    {row.weight}
+                  </td>
                   {noSource ? (
                     <td colSpan={PROVIDER_TRUST.length} className={styles.abstainNote}>
                       No source had it. Beacon abstained instead of guessing.

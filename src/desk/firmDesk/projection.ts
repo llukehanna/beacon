@@ -11,6 +11,8 @@ export interface Projection {
   score: number;
   tier: Tier;
   hardRejected: boolean;
+  /** Why the rubric would hard-reject the firm on these values; empty when it would not. */
+  rejectReason: string;
   /** How many open proposals went into it. */
   count: number;
 }
@@ -49,6 +51,7 @@ export function projectProposals(
     score: result.weightedTotal,
     tier: result.tier,
     hardRejected: result.hardRejected,
+    rejectReason: result.rejectReason,
     count,
   };
 }
