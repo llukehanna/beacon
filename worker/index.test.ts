@@ -70,6 +70,19 @@ describe("rate limiting", () => {
     expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
   });
 
+  it("limits POST /api/mcp with its own limiter, and offers no GET", async () => {
+    const ACTIONS_LIMITER = limiter(true);
+    const MCP_LIMITER = limiter(false);
+    const { path, init } = post("/api/mcp");
+    const res = await get(path, init, { ...env, ACTIONS_LIMITER, MCP_LIMITER });
+    expect(res.status).toBe(429);
+    expect(MCP_LIMITER.limit).toHaveBeenCalledWith({ key: "203.0.113.7" });
+    expect(ACTIONS_LIMITER.limit).not.toHaveBeenCalled();
+    // No event stream is offered, so the Worker answers a GET 405 before it touches a database.
+    expect((await get("/api/mcp")).status).toBe(405);
+    expect((await get("/api/mcp", { method: "DELETE" })).status).toBe(405);
+  });
+
   it("does not limit reads", async () => {
     const ACTIONS_LIMITER = limiter(false);
     vi.stubEnv("DATABASE_URL", "");

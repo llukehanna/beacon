@@ -298,7 +298,7 @@ export async function listLinked(
   linkName: string,
   pks: readonly string[],
   /** Target rows whose firmId is one of these are left out (the access policy's hidden firms). */
-  hiddenFirmIds: readonly string[] = [],
+  hiddenFirmIds: readonly string[],
 ): Promise<Record<string, ObjectOf<ObjectTypeName>[]>> {
   const link = findLink(source, linkName);
   if (!link) {

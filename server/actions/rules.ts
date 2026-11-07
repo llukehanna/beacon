@@ -172,7 +172,7 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
   async prepare(db, _params, ctx) {
     // A firm hidden from the acting persona is not there: its decisions neither feed the clusterer
     // (and so its rationale cannot reach a rule's summary) nor appear among a rule's supporting ids.
-    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const hidden = new Set(ctx.hiddenFirmIds);
     const firms = new Map(
       (await listAll(db, "Firm"))
         .filter((f) => !hidden.has(f.$primaryKey))
@@ -213,7 +213,7 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
         ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
       ),
     );
-    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const hidden = new Set(ctx.hiddenFirmIds);
     const queue = firms.filter((f) => {
       if (hidden.has(f.$primaryKey)) {
         return false;

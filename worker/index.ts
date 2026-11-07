@@ -7,6 +7,7 @@
 import * as actions from "../api/actions.js";
 import * as functions from "../api/functions.js";
 import * as links from "../api/links.js";
+import * as mcp from "../api/mcp.js";
 import * as objects from "../api/objects.js";
 import * as reset from "../api/reset.js";
 import { type Db, createPgDb, getDb, withRequestDb } from "../server/db/client.js";
@@ -21,6 +22,7 @@ interface Env {
   /** Rate limit bindings (wrangler.jsonc "ratelimits"); absent in local dev and tests. */
   ACTIONS_LIMITER?: RateLimit;
   RESET_LIMITER?: RateLimit;
+  MCP_LIMITER?: RateLimit;
   /** Optional Hyperdrive binding; when present it replaces the direct DATABASE_URL. */
   HYPERDRIVE?: { connectionString: string };
 }
@@ -46,6 +48,7 @@ const ROUTES: Record<string, Partial<Record<string, Handler>>> = {
   actions,
   functions,
   links,
+  mcp,
   objects,
   reset,
 };
@@ -100,8 +103,12 @@ export default {
         : jsonError(new HttpError("Not found", 404));
     }
     if (request.method === "POST") {
-      const limiter =
-        m[1] === "actions" ? env.ACTIONS_LIMITER : m[1] === "reset" ? env.RESET_LIMITER : undefined;
+      // /api/mcp is a POST that only reads; it is limited like the write routes, since a model can loop.
+      const limiter = {
+        actions: env.ACTIONS_LIMITER,
+        reset: env.RESET_LIMITER,
+        mcp: env.MCP_LIMITER,
+      }[m[1] as "actions" | "reset" | "mcp"];
       const refused = await checkRate(limiter, request);
       if (refused) {
         return refused;

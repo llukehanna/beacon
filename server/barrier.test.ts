@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { POST as actions } from "../api/actions.js";
 import { GET as functions } from "../api/functions.js";
 import { POST as links } from "../api/links.js";
+import { POST as mcp } from "../api/mcp.js";
 import { GET as objects } from "../api/objects.js";
 import { codenameFor } from "../shared/accessPolicy.js";
 import { exportFileName, exportRows } from "../shared/exportRows.js";
@@ -487,6 +488,140 @@ describe("information barrier", () => {
         persona,
       ).toBe(WALLED_TITLE);
     }
+  });
+
+  it("hides the restricted firm from every MCP tool, and names a walled mandate by its codename", async () => {
+    await insertObjects(db, "ProposedRule", [
+      {
+        // Rests on a decision about the restricted firm and one about an ordinary firm.
+        proposedRuleId: "rule-mixed",
+        predicateAxis: "employees",
+        ruleOperator: "<",
+        ruleThreshold: "10",
+        ruleModel: "CF",
+        rationaleClusterSummary: "Too small to cover",
+        supportingFirmCount: 2,
+        supportingDecisionIds: JSON.stringify([`decision-firm-ok-1`, `decision-${SECRET}`]),
+        projectedScreenCount: 3,
+        ruleStatus: "pending",
+        proposedAt: AT,
+        mandateScope: "All mandates",
+      },
+      {
+        // Scoped to the walled mandate, by its real title.
+        proposedRuleId: "rule-walled",
+        predicateAxis: "firm_age",
+        ruleOperator: "<",
+        ruleThreshold: "3",
+        ruleModel: "CF",
+        rationaleClusterSummary: `Too young for ${WALLED_TITLE}`,
+        supportingFirmCount: 4,
+        supportingDecisionIds: "[]",
+        projectedScreenCount: 1,
+        ruleStatus: "pending",
+        proposedAt: "2026-09-02T12:00:00.000Z",
+        mandateScope: WALLED_TITLE,
+      },
+    ]);
+
+    interface ToolReply {
+      isError?: boolean;
+      content: Array<{ type: string; text: string }>;
+      structuredContent: {
+        firmName: string;
+        totalMatches: number;
+        firms: Array<{ firmId: string }>;
+        rules: Array<{ ruleId: string }>;
+      };
+    }
+    const callTool = async (
+      name: string,
+      args: object,
+      persona: string | undefined,
+    ): Promise<ToolReply> => {
+      const res = await mcp(
+        post(
+          "/api/mcp",
+          { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name, arguments: args } },
+          persona,
+        ),
+      );
+      expect(res.status, `${name} as ${persona}`).toBe(200);
+      return ((await res.json()) as { result: ToolReply }).result;
+    };
+
+    for (const persona of ["analyst", "deal_lead", undefined, "not-a-persona"]) {
+      const as = persona ?? "(no header)";
+
+      // search_firms: not in a plain listing, and not found by its own name.
+      const all = await callTool("search_firms", { limit: 25 }, persona);
+      expect(
+        all.structuredContent.firms.map((f: { firmId: string }) => f.firmId).sort(),
+        as,
+      ).toEqual(["firm-ok-1", "firm-ok-2"]);
+      expect(all.structuredContent.totalMatches, as).toBe(2);
+      const byName = await callTool("search_firms", { query: SECRET_NAME }, persona);
+      expect(byName.structuredContent.totalMatches, as).toBe(0);
+      expect(JSON.stringify([all, byName]), as).not.toContain(SECRET);
+      expect(JSON.stringify([all, byName]), as).not.toContain(SECRET_NAME);
+
+      // get_firm_evidence: the same "not found" as a firm that does not exist.
+      const hidden = await callTool("get_firm_evidence", { firmId: SECRET }, persona);
+      const missing = await callTool("get_firm_evidence", { firmId: "firm-nope" }, persona);
+      expect(hidden.isError, as).toBe(true);
+      expect(hidden.content[0].text.replace(SECRET, "X"), as).toBe(
+        missing.content[0].text.replace("firm-nope", "X"),
+      );
+      expect(JSON.stringify(hidden), as).not.toContain(SECRET_NAME);
+      const ok = await callTool("get_firm_evidence", { firmId: "firm-ok-1" }, persona);
+      expect(ok.isError, as).toBeUndefined();
+      expect(ok.structuredContent.firmName, as).toBe("Alpha Advisors");
+
+      // list_rules: the restricted firm's decision is not counted, and the rationale resting on it
+      // is withheld; a rule scoped to a walled mandate names its codename.
+      const rules = await callTool("list_rules", {}, persona);
+      const byId = new Map(rules.structuredContent.rules.map((r) => [r.ruleId, r] as const));
+      expect(byId.get("rule-mixed"), as).toMatchObject({
+        supportingFirmCount: 1,
+        rationale: null,
+        rationaleWithheld: true,
+      });
+      // The deal lead holds the walled mandate, so it reads the real title; the analyst does not.
+      const title = persona === "deal_lead" ? WALLED_TITLE : "Project Kestrel";
+      expect(byId.get("rule-walled"), as).toMatchObject({
+        scope: title,
+        rationale: `Too young for ${title}`,
+      });
+      if (persona !== "deal_lead") {
+        expect(JSON.stringify(rules), as).not.toContain("Acme");
+        expect(JSON.stringify(rules), as).not.toContain(WALLED_TITLE);
+      }
+    }
+
+    // Compliance sees the firm, its evidence and the whole rule; the deal lead holds the mandate.
+    const complianceSearch = await callTool("search_firms", { query: SECRET_NAME }, "compliance");
+    expect(
+      complianceSearch.structuredContent.firms.map((f: { firmId: string }) => f.firmId),
+    ).toEqual([SECRET]);
+    const evidence = await callTool("get_firm_evidence", { firmId: SECRET }, "compliance");
+    expect(evidence.isError).toBeUndefined();
+    expect(evidence.structuredContent.firmName).toBe(SECRET_NAME);
+    const complianceRules = await callTool("list_rules", {}, "compliance");
+    const mixed = complianceRules.structuredContent.rules.find(
+      (r: { ruleId: string }) => r.ruleId === "rule-mixed",
+    );
+    expect(mixed).toMatchObject({
+      supportingFirmCount: 2,
+      rationale: "Too small to cover",
+      rationaleWithheld: false,
+    });
+    // Opening a firm through MCP is viewing it: the access log says who.
+    const viewed = await db.query<{ persona: string }>(
+      `SELECT "persona" FROM access_log_entry WHERE "objectType" = 'Firm' AND "objectId" = $1`,
+      [SECRET],
+    );
+    expect(viewed.map((r) => r.persona)).toEqual(["compliance"]);
+    await db.query(`DELETE FROM proposed_rule WHERE "proposedRuleId" LIKE 'rule-%'`);
   });
 
   it("gives a mandate nobody has been granted no codename, and a new one its own", async () => {
