@@ -11,7 +11,7 @@ import type {
   ProviderObservation,
 } from "../../shared/summaries.js";
 import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
-import { type Access, NO_WALL, isHidden } from "../access.js";
+import { type Access, isHidden } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { getObject, listAll } from "../db/repo.js";
 import { HIGH_CONFIDENCE } from "../enrichment/reconcile.js";
@@ -113,7 +113,7 @@ export function observeFirm(
 export async function firmObservations(
   q: Queryable,
   params: Record<string, unknown>,
-  access: Access = NO_WALL,
+  access: Access,
 ): Promise<FirmObservations> {
   const { firmId } = params;
   if (typeof firmId !== "string" || firmId === "") {

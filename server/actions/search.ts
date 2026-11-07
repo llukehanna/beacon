@@ -1,4 +1,4 @@
-import { codenameFor } from "../../shared/accessPolicy.js";
+import { uniqueCodename } from "../../shared/accessPolicy.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
@@ -181,11 +181,17 @@ export const runMandateSearch = defineAction<{
 
     await assertRoom(ctx, "mandate", MAX_MANDATES, "mandates");
     const mandateId = ctx.newId("mandate");
+    // A codename names one mandate: skip any already in use.
+    const taken = new Set(
+      (await ctx.tx.query<{ codename: string | null }>(`SELECT "codename" FROM mandate`))
+        .map((m) => m.codename)
+        .filter((c): c is string => c !== null),
+    );
     await insertObject(ctx.tx, "Mandate", {
       mandateId,
       title,
       intentStatement: title,
-      codename: codenameFor(mandateId),
+      codename: uniqueCodename(mandateId, taken),
       archetype,
       priority: p.priority ?? "Medium",
       active: true,

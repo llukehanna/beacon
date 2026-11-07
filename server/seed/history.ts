@@ -9,6 +9,7 @@ import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { USER, axisByName } from "../../shared/vocab.js";
+import { NO_WALL } from "../access.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
@@ -91,8 +92,9 @@ export async function seedHistory(
       now: new Date(clock),
       clusterer,
       newId,
-      // The seeded history is demo data, not a measurement of the running app.
+      // The seeded history is demo data, not a measurement of the running app, and no persona builds it.
       recordRun: null,
+      access: NO_WALL,
     });
   };
   const at = () => new Date(clock).toISOString();

@@ -14,8 +14,16 @@ import { HttpError } from "../server/errors.js";
 import { json, jsonError, jsonParam } from "../server/http.js";
 import { OBJECT_TYPES, type ObjectTypeName, isObjectTypeName } from "../shared/schema.js";
 
-/** Mandate properties that carry the real name: filtering or sorting on them would unmask a codename. */
-const MANDATE_NAME_PROPS = ["title", "intentStatement"];
+/**
+ * Properties that carry a walled mandate's real name: a Mandate's title and intent, and the name of
+ * a Search or list, which is built from the title. Filtering or sorting on them would unmask a
+ * codename (a row coming back is a confirmed guess), so they are refused for a persona with walled mandates.
+ */
+const NAME_PROPS: Partial<Record<ObjectTypeName, readonly string[]>> = {
+  Mandate: ["title", "intentStatement"],
+  Search: ["name"],
+  SearchList: ["name"],
+};
 
 /** The one primary key a `where` pins, when that is all it does: a lookup by id made as a list. */
 function pinnedKey(type: ObjectTypeName, where: ListOptions["where"]): string | null {
@@ -27,9 +35,10 @@ function pinnedKey(type: ObjectTypeName, where: ListOptions["where"]): string | 
   return typeof v === "string" ? v : null;
 }
 
-function assertMandateNamesUnfiltered(access: Access, opts: ListOptions): void {
+function assertNamesUnfiltered(access: Access, type: ObjectTypeName, opts: ListOptions): void {
+  const names = NAME_PROPS[type] ?? [];
   const used = [...Object.keys(opts.where ?? {}), ...Object.keys(opts.orderBy ?? {})];
-  if (walledMandates(access).size > 0 && used.some((k) => MANDATE_NAME_PROPS.includes(k))) {
+  if (walledMandates(access).size > 0 && used.some((k) => names.includes(k))) {
     throw new HttpError("A mandate's name cannot be filtered or sorted without need-to-know", 400);
   }
 }
@@ -66,9 +75,7 @@ export async function GET(request: Request): Promise<Response> {
       pageToken,
       exclude: excludeFor(access, type),
     };
-    if (type === "Mandate") {
-      assertMandateNamesUnfiltered(access, opts);
-    }
+    assertNamesUnfiltered(access, type, opts);
     const page = await listObjects(db, type, opts);
     // Looking a firm or a mandate up by its key is opening it; the screens do that as a one-row list.
     const pinned = pinnedKey(type, opts.where);

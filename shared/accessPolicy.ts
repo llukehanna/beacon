@@ -197,13 +197,34 @@ const CODENAME_WORDS = [
   "Nightjar",
 ] as const;
 
-/** A stable "Project <Bird>" for a mandate id: the same id always gets the same codename. */
-export function codenameFor(mandateId: string): string {
+function codenameIndex(mandateId: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < mandateId.length; i += 1) {
     h = Math.imul(h ^ mandateId.charCodeAt(i), 0x01000193) >>> 0;
   }
-  return `Project ${CODENAME_WORDS[h % CODENAME_WORDS.length]}`;
+  return h % CODENAME_WORDS.length;
+}
+
+/** A stable "Project <Bird>" for a mandate id: the same id always gets the same codename. */
+export function codenameFor(mandateId: string): string {
+  return `Project ${CODENAME_WORDS[codenameIndex(mandateId)]}`;
+}
+
+/**
+ * The codename for a new mandate that no existing one already holds. It starts where `codenameFor`
+ * would and walks on to the next unused word; once every word is taken it numbers them
+ * ("Project Kestrel 2"). The same id and the same taken set always give the same name.
+ */
+export function uniqueCodename(mandateId: string, taken: ReadonlySet<string>): string {
+  const start = codenameIndex(mandateId);
+  const words = CODENAME_WORDS.length;
+  for (let n = 0; ; n += 1) {
+    const round = Math.floor(n / words);
+    const name = `Project ${CODENAME_WORDS[(start + n) % words]}${round === 0 ? "" : ` ${round + 1}`}`;
+    if (!taken.has(name)) {
+      return name;
+    }
+  }
 }
 
 export interface MandateLike {

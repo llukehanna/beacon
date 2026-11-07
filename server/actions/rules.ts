@@ -170,7 +170,14 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
   needsClusterer: true,
   // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
   async prepare(db, _params, ctx) {
-    const firms = new Map((await listAll(db, "Firm")).map((f) => [f.$primaryKey, f]));
+    // A firm hidden from the acting persona is not there: its decisions neither feed the clusterer
+    // (and so its rationale cannot reach a rule's summary) nor appear among a rule's supporting ids.
+    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const firms = new Map(
+      (await listAll(db, "Firm"))
+        .filter((f) => !hidden.has(f.$primaryKey))
+        .map((f) => [f.$primaryKey, f]),
+    );
     // Ordered here, not by the database: its text ordering (the primary-key tie-break) varies by
     // server, and the order is part of the input a recorded clustering reply is matched against.
     const decisions = sortedRows(
@@ -206,7 +213,11 @@ export const clusterRejections = defineAction<Record<string, never>, ClusterPrep
         ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
       ),
     );
+    const hidden = new Set(ctx.hiddenFirmIds ?? []);
     const queue = firms.filter((f) => {
+      if (hidden.has(f.$primaryKey)) {
+        return false;
+      }
       const state = normalizeLifecycle(f.lifecycleState);
       return state === "Discovered" || state === "Screening";
     });

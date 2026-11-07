@@ -1,6 +1,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { percentiles } from "../../shared/operations.js";
+import { NO_WALL } from "../access.js";
 import { applyAction } from "../actions/apply.js";
 import { createClaudeClusterer, modelCallOf } from "../clustering/claude.js";
 import { operationsSummary } from "../functions/operationsSummary.js";
@@ -19,7 +20,7 @@ const count = async (db: Awaited<ReturnType<typeof createTestDb>>, table: string
 describe("ActionRun recording", () => {
   it("records one run per action with its name, duration and outcome", async () => {
     const db = await createTestDb();
-    await applyAction(db, "clusterRejections", {}, { now: NOW });
+    await applyAction(db, "clusterRejections", {}, { now: NOW, access: NO_WALL });
     const rows = await db.query<{
       actionName: string;
       ok: boolean;
@@ -33,10 +34,14 @@ describe("ActionRun recording", () => {
 
   it("records a rejected action as an error, and an unknown action not at all", async () => {
     const db = await createTestDb();
-    await expect(applyAction(db, "rejectFirm", {}, { now: NOW })).rejects.toMatchObject({
+    await expect(
+      applyAction(db, "rejectFirm", {}, { now: NOW, access: NO_WALL }),
+    ).rejects.toMatchObject({
       status: 400,
     });
-    await expect(applyAction(db, "dropTables", {}, { now: NOW })).rejects.toMatchObject({
+    await expect(
+      applyAction(db, "dropTables", {}, { now: NOW, access: NO_WALL }),
+    ).rejects.toMatchObject({
       status: 404,
     });
     const rows = await db.query<{ actionName: string; ok: boolean; errorKind: string }>(
@@ -48,13 +53,19 @@ describe("ActionRun recording", () => {
   it("action succeeds when metric write fails", async () => {
     const db = await createTestDb();
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const withMetrics = await applyAction(db, "clusterRejections", {}, { now: NOW });
+    const withMetrics = await applyAction(
+      db,
+      "clusterRejections",
+      {},
+      { now: NOW, access: NO_WALL },
+    );
     const failing = await applyAction(
       db,
       "clusterRejections",
       {},
       {
         now: NOW,
+        access: NO_WALL,
         recordRun: () => Promise.reject(new Error("metrics store is down")),
       },
     );
@@ -68,6 +79,7 @@ describe("ActionRun recording", () => {
         {},
         {
           now: NOW,
+          access: NO_WALL,
           recordRun: () => {
             throw new Error("boom");
           },
@@ -84,7 +96,11 @@ describe("ActionRun recording", () => {
         db,
         "rejectFirm",
         {},
-        { now: NOW, recordRun: () => Promise.reject(new Error("metrics store is down")) },
+        {
+          now: NOW,
+          access: NO_WALL,
+          recordRun: () => Promise.reject(new Error("metrics store is down")),
+        },
       ),
     ).rejects.toMatchObject({ status: 400 });
   });
@@ -180,9 +196,11 @@ describe("operationsSummary", () => {
     // The seeded history is built through actions but is not a measurement of the running app.
     expect(await count(db, "action_run")).toBe(0);
 
-    await applyAction(db, "clusterRejections", {}, { now: NOW });
-    await applyAction(db, "clusterRejections", {}, { now: NOW });
-    await expect(applyAction(db, "rejectFirm", {}, { now: NOW })).rejects.toThrow();
+    await applyAction(db, "clusterRejections", {}, { now: NOW, access: NO_WALL });
+    await applyAction(db, "clusterRejections", {}, { now: NOW, access: NO_WALL });
+    await expect(
+      applyAction(db, "rejectFirm", {}, { now: NOW, access: NO_WALL }),
+    ).rejects.toThrow();
     for (const [calledAt, cost] of [
       ["2026-11-06T01:00:00Z", 0.25],
       ["2026-11-06T23:59:00Z", 0.5],
@@ -264,7 +282,7 @@ describe("operationsSummary", () => {
     const db = await createTestDb();
     await resetDemo(db, NOW);
     await saveSnapshot(db, NOW);
-    await applyAction(db, "clusterRejections", {}, { now: NOW });
+    await applyAction(db, "clusterRejections", {}, { now: NOW, access: NO_WALL });
     await recordModelCall(db, {
       purpose: "clustering",
       model: "claude-opus-5",

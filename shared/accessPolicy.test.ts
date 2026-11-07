@@ -15,6 +15,7 @@ import {
   redactDerivedName,
   redactMandate,
   redactObject,
+  uniqueCodename,
   visibilityOf,
   walledMandateIds,
 } from "./accessPolicy.js";
@@ -226,6 +227,23 @@ describe("redaction", () => {
     expect(out.title).toBe(codenameFor("m-walled"));
     expect(codenameFor("m-walled")).toBe(codenameFor("m-walled"));
     expect(codenameFor("m-walled")).toMatch(/^Project [A-Z][a-z]+$/);
+  });
+
+  it("gives a new mandate a codename no other mandate holds", () => {
+    const first = codenameFor("m-new");
+    expect(uniqueCodename("m-new", new Set())).toBe(first);
+    const second = uniqueCodename("m-new", new Set([first]));
+    expect(second).not.toBe(first);
+    expect(second).toMatch(/^Project [A-Z][a-z]+$/);
+    expect(uniqueCodename("m-new", new Set([first]))).toBe(second);
+    // Every word taken: numbered, still unique.
+    const all = new Set<string>();
+    for (let i = 0; i < 70; i += 1) {
+      const name = uniqueCodename("m-new", all);
+      expect(all.has(name)).toBe(false);
+      all.add(name);
+    }
+    expect([...all].some((n) => /\d$/.test(n))).toBe(true);
   });
 
   it("renames a search and a list of a walled mandate but keeps the date and the suffix", () => {

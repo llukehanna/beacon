@@ -9,15 +9,18 @@ import { POST as actions } from "../api/actions.js";
 import { GET as functions } from "../api/functions.js";
 import { POST as links } from "../api/links.js";
 import { GET as objects } from "../api/objects.js";
+import { codenameFor } from "../shared/accessPolicy.js";
 import { exportFileName, exportRows } from "../shared/exportRows.js";
 import { moreLikeThis } from "../shared/lookalikes.js";
 import type { AccuracySummary, HomeSummary, ShellCounts } from "../shared/summaries.js";
 import { MAX_ACCESS_LOG, buildAccess, logAccess, resolveAccess } from "./access.js";
+import { heuristicClusterer } from "./clustering/heuristic.js";
+import type { Clusterer } from "./clustering/types.js";
 import { type Db, overrideDb } from "./db/client.js";
 import { insertObject, insertObjects } from "./db/repo.js";
 import { HttpError } from "./errors.js";
 import { resetFromSnapshot, saveSnapshot } from "./seed/snapshot.js";
-import { STRONG_CF, createTestDb, seedFirm } from "./testing.js";
+import { STRONG_CF, createTestDb, run, seedFirm } from "./testing.js";
 
 const SECRET = "firm-secret";
 const SECRET_NAME = "Hush Partners";
@@ -58,7 +61,11 @@ async function list(type: string, persona?: string, query = ""): Promise<Wire[]>
   return out;
 }
 
-const fn = async <T>(name: string, persona: string, params: object = {}): Promise<T> => {
+const fn = async <T>(
+  name: string,
+  persona: string | undefined,
+  params: object = {},
+): Promise<T> => {
   const res = await functions(
     call(
       `/api/functions?name=${name}&params=${encodeURIComponent(JSON.stringify(params))}`,
@@ -69,7 +76,11 @@ const fn = async <T>(name: string, persona: string, params: object = {}): Promis
   return ((await res.json()) as { value: T }).value;
 };
 
-const fnStatus = async (name: string, persona: string, params: object): Promise<number> =>
+const fnStatus = async (
+  name: string,
+  persona: string | undefined,
+  params: object,
+): Promise<number> =>
   (
     await functions(
       call(
@@ -239,7 +250,7 @@ describe("information barrier", () => {
       }
 
       // Query functions, aggregates included.
-      const home = await fn<HomeSummary>("homeSummary", persona ?? "analyst");
+      const home = await fn<HomeSummary>("homeSummary", persona);
       expect(
         Object.values(home.funnel).reduce((a, b) => a + b, 0),
         as,
@@ -247,26 +258,20 @@ describe("information barrier", () => {
       expect(JSON.stringify(home), as).not.toContain(SECRET);
       expect(JSON.stringify(home), as).not.toContain(SECRET_NAME);
       expect(home.needsYouCounts.review, as).toBe(1);
-      const counts = await fn<ShellCounts>("shellCounts", persona ?? "analyst");
+      const counts = await fn<ShellCounts>("shellCounts", persona);
       expect(counts, as).toMatchObject({ open: 2, review: 1 });
-      const accuracy = await fn<AccuracySummary>("accuracySummary", persona ?? "analyst");
+      const accuracy = await fn<AccuracySummary>("accuracySummary", persona);
       expect(accuracy.overall.total, as).toBe(1);
-      expect(await fnStatus("firmObservations", persona ?? "analyst", { firmId: SECRET })).toBe(
-        404,
-      );
+      expect(await fnStatus("firmObservations", persona, { firmId: SECRET })).toBe(404);
       expect(
-        await fnStatus("sourceDocument", persona ?? "analyst", {
+        await fnStatus("sourceDocument", persona, {
           firmId: SECRET,
           provider: "dealdb",
         }),
       ).toBe(404);
-      expect(
-        await fnStatus("firmObservations", persona ?? "analyst", { firmId: "firm-ok-1" }),
-      ).toBe(200);
+      expect(await fnStatus("firmObservations", persona, { firmId: "firm-ok-1" })).toBe(200);
       // Operations metrics describe the app, not firms: the function runs and names none.
-      expect(JSON.stringify(await fn("operationsSummary", persona ?? "analyst"))).not.toContain(
-        SECRET,
-      );
+      expect(JSON.stringify(await fn("operationsSummary", persona))).not.toContain(SECRET);
 
       // Palette-shaped data: the firm list the ⌘K palette is built from (by name, every page).
       const palette = await list(
@@ -438,13 +443,36 @@ describe("information barrier", () => {
         "beacon-project-kestrel-2026-09-01.xlsx",
       );
 
-      // Its name cannot be probed by filtering or sorting on it.
+      // Its name cannot be probed by filtering or sorting on it, or on the names built from it.
       const probe = encodeURIComponent(JSON.stringify({ title: { $eq: WALLED_TITLE } }));
       expect(
         (await objects(call(`/api/objects?type=Mandate&where=${probe}`, persona))).status,
       ).toBe(400);
+      const sortName = encodeURIComponent(JSON.stringify({ name: "asc" }));
+      for (const [type, title] of [
+        ["Search", `${WALLED_TITLE} · 2026-09-01`],
+        ["SearchList", `${WALLED_TITLE} — universe`],
+      ]) {
+        const byName = encodeURIComponent(JSON.stringify({ name: { $eq: title } }));
+        expect(
+          (await objects(call(`/api/objects?type=${type}&where=${byName}`, persona))).status,
+          `${type} where name`,
+        ).toBe(400);
+        expect(
+          (await objects(call(`/api/objects?type=${type}&orderBy=${sortName}`, persona))).status,
+          `${type} orderBy name`,
+        ).toBe(400);
+      }
     }
     for (const persona of ["deal_lead", "compliance"]) {
+      // Holding need-to-know, a name filter is an ordinary query.
+      const byName = encodeURIComponent(
+        JSON.stringify({ name: { $eq: `${WALLED_TITLE} — universe` } }),
+      );
+      expect(
+        (await objects(call(`/api/objects?type=SearchList&where=${byName}`, persona))).status,
+        persona,
+      ).toBe(200);
       const rows = await mandates(persona);
       const walled = rows.find((m) => m.$primaryKey === WALLED)!;
       expect(walled.title, persona).toBe(WALLED_TITLE);
@@ -470,6 +498,32 @@ describe("information barrier", () => {
     const fresh = (await list("Mandate", "analyst")).find((m) => m.$primaryKey === "m-fresh")!;
     expect(fresh.title).toBe("A fresh mandate");
     await db.query(`DELETE FROM mandate WHERE "mandateId" = 'm-fresh'`);
+  });
+});
+
+describe("a new mandate's codename", () => {
+  it("is never one another mandate already holds", async () => {
+    const d = await createTestDb();
+    const id = "mandate-fixed";
+    await insertObject(d, "Mandate", {
+      mandateId: "m-taken",
+      title: "Taken",
+      codename: codenameFor(id),
+    });
+    const made = await run(
+      d,
+      "runMandateSearch",
+      { title: "Fresh", archetype: "CF" },
+      { newId: (p) => (p === "mandate" ? id : `${p}-x`) },
+    );
+    expect(made.created![0]).toBe(id);
+    const [row] = await d.query<{ codename: string }>(
+      `SELECT "codename" FROM mandate WHERE "mandateId" = $1`,
+      [id],
+    );
+    expect(row.codename).not.toBe(codenameFor(id));
+    expect(row.codename).toMatch(/^Project [A-Z][a-z]+$/);
+    await d.close();
   });
 });
 
@@ -624,5 +678,39 @@ describe("access log", () => {
     );
     expect(restricted).toEqual([{ firmId: SECRET, reason: REASON }]);
     expect((await logDb.query(`SELECT 1 FROM mandate_access`)).length).toBe(5);
+  });
+});
+
+describe("clusterRejections under the wall", () => {
+  it("ignores the decisions on firms hidden from the acting persona", async () => {
+    const d = await createTestDb();
+    const small = async (id: string) => {
+      await seedFirm(d, { firmId: id, employees: 4 });
+      await run(d, "rejectFirm", { firm: id, rejectionRationale: `Too small: ${id} has 4 staff.` });
+    };
+    for (const id of ["v1", "v2", "v3", SECRET]) {
+      await small(id);
+    }
+    const asked: string[][] = [];
+    const clusterer: Clusterer = (rows) => {
+      asked.push(rows.map((r) => r.firmId));
+      return heuristicClusterer(rows);
+    };
+    const analyst = buildAccess("analyst", [{ k: "r", a: SECRET, b: "Conflict" }]);
+    const compliance = buildAccess("compliance", [{ k: "r", a: SECRET, b: "Conflict" }]);
+
+    // Three visible firms are fewer than a pattern needs: no rule, and the restricted firm never reached the clusterer.
+    const refused = await run(d, "clusterRejections", {}, { clusterer, access: analyst });
+    expect(refused.created).toEqual([]);
+    expect(asked[0].sort()).toEqual(["v1", "v2", "v3"]);
+    expect(await d.query(`SELECT 1 FROM proposed_rule`)).toEqual([]);
+
+    // Compliance sees all four: the rule is proposed and cites the restricted firm's decision.
+    const proposed = await run(d, "clusterRejections", {}, { clusterer, access: compliance });
+    expect(proposed.created).toHaveLength(1);
+    expect(asked[1].sort()).toEqual([SECRET, "v1", "v2", "v3"]);
+    const [rule] = await d.query<{ supportingFirmCount: number }>(`SELECT * FROM proposed_rule`);
+    expect(rule.supportingFirmCount).toBe(4);
+    await d.close();
   });
 });
