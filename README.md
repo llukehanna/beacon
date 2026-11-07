@@ -58,7 +58,7 @@ Every figure is measured against the synthetic universe's hidden truth; none say
 | Planted rejection patterns recovered as rules                     | 4 of 4                                                                |
 | Cost of the recorded extraction run, all 700 firms                | $1.39                                                                 |
 | Ontology                                                          | 18 object tables, every write a named action in one transaction       |
-| Tests                                                             | over 1,000 unit and integration tests and 154 end-to-end tests, in CI |
+| Tests                                                             | over 1,100 unit and integration tests and 161 end-to-end tests, in CI, plus a daily check of the live demo |
 
 ## Why it is built this way
 
