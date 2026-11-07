@@ -6,7 +6,7 @@
 import { type ReasonLike, lookalikesFor, reasonText, resolutionLabel } from "@/desk/driftReview";
 import { latestRejection } from "@/desk/pipelineRows";
 import { type DriftReasonStyle, driftReasonPresentation, isOutcomeDivergence } from "@/desk/tokens";
-import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab";
+import { PASSED, firmIsGone, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab";
 import { relativeAge, toIsoTime } from "../home/age";
 import { direction, tierLabel } from "../home/needsRows";
 
@@ -67,6 +67,11 @@ export interface DriftItem {
   kind: DriftKind | null;
   /** A Closed firm is done: nothing left to pass on, only the drift to note. */
   canPass: boolean;
+  /**
+   * The market outcome says the firm is gone (acquired by a competitor): there is nothing left to
+   * re-engage, so a passed firm is offered recording the lesson instead.
+   */
+  firmGone: boolean;
   lookalikes: LookalikeSet;
   /** Why the firm was passed: its newest reject decision. Only read for outcome_diverged. */
   rejectionReason: string | null;
@@ -133,6 +138,7 @@ export function buildDriftItems(
       resolved,
       kind: kindFor(firm),
       canPass: normalizeLifecycle(firm?.lifecycleState) !== "Closed",
+      firmGone: firmIsGone(firm?.outcome),
       lookalikes,
       rejectionReason: resolved ? null : reasonText(rejections.get(firmId)) || null,
       observedOutcome: resolved || outcome === "" ? null : outcome,
@@ -189,7 +195,7 @@ export function driftRow(item: DriftItem, now: number): DriftRowModel {
     name: item.firmName,
     resolved: item.resolved,
     figure,
-    resolution: item.resolved ? resolutionLabel(d.resolution) : null,
+    resolution: item.resolved ? resolutionLabel(d.resolution, item.firmGone) : null,
     age: relativeAge(toIsoTime(d.detectedAt), now),
   };
   if (isOutcomeDivergence(d.driftReason)) {
@@ -197,7 +203,7 @@ export function driftRow(item: DriftItem, now: number): DriftRowModel {
       ...base,
       mark: "≠",
       tone: "divergence",
-      reason: "we passed, the market did not",
+      reason: "passed; later acquired by a competitor",
       figure: null,
     };
   }

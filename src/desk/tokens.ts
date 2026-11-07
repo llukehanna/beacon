@@ -61,7 +61,7 @@ export function outcomeLabel(raw: string | null | undefined): string {
 // without opening the card:
 //   tier_moved              → red     (score dropped past a tier boundary)
 //   pass_reason_invalidated → amber   (an axis behind the pass changed)
-//   outcome_diverged        → violet  (we passed, market didn't)
+//   outcome_diverged        → violet  (passed, later acquired by a competitor)
 // Colors deliberately don't overlap the amber/red pair — a fourth trigger
 // would need its own hue rather than reusing one of the existing three.
 // Shared by /review and the Home "needs you" card so the violet reads as
@@ -94,7 +94,7 @@ export const DRIFT_REASON_STYLE: Record<string, DriftReasonStyle> = {
     border: "color-mix(in srgb, #f0b955 32%, transparent)",
   },
   outcome_diverged: {
-    label: "Outcome diverged — we passed, market didn't",
+    label: "Passed, later acquired by a competitor",
     fg: DIVERGENCE_FG,
     bg: DIVERGENCE_BG,
     border: DIVERGENCE_BORDER,

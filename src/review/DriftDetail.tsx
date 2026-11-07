@@ -66,7 +66,11 @@ export function DriftDetail({
             {reason.label}
           </span>
           {detected !== null && <span className={styles.when}>Detected {detected}</span>}
-          {resolved && <span className={styles.resolved}>{resolutionLabel(drift.resolution)}</span>}
+          {resolved && (
+            <span className={styles.resolved}>
+              {resolutionLabel(drift.resolution, item.firmGone)}
+            </span>
+          )}
         </div>
       </div>
 
@@ -104,7 +108,7 @@ export function DriftDetail({
             </p>
           </div>
           <div>
-            <h3 className={styles.kicker}>Market observed</h3>
+            <h3 className={styles.kicker}>{item.firmGone ? "Later" : "Market observed"}</h3>
             <p className={styles.observed}>{outcomeLabel(item.observedOutcome)}</p>
             {firstChange?.source && <p className={styles.source}>{firstChange.source}</p>}
           </div>
