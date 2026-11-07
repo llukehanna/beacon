@@ -12,8 +12,11 @@ export function StageChip({ stage }: { stage: Lifecycle }) {
   );
 }
 
-/** The tier letter, coloured by tier: green A, amber B, red C, grey for below C. */
-export function TierTag({ tier }: { tier: string }) {
+/**
+ * The tier letter, coloured by tier: green A, amber B, red C, grey for below C. A table cell has
+ * room only for "R"; where there is room (`spell`), it reads "Rejected".
+ */
+export function TierTag({ tier, spell = false }: { tier: string; spell?: boolean }) {
   const color = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
   return (
     <span
@@ -21,7 +24,7 @@ export function TierTag({ tier }: { tier: string }) {
       style={{ "--tier": color } as CSSProperties}
       title={TIER_LABEL[tier] ?? tier}
     >
-      {tier === "Rejected" ? "R" : tier}
+      {tier === "Rejected" ? (spell ? "Rejected" : "R") : tier}
     </span>
   );
 }

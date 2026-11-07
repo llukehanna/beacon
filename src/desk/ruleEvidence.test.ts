@@ -59,7 +59,7 @@ describe("GLOSSARY", () => {
       "CF",
       "CS",
       "Model: both",
-      "S&T / balance sheet",
+      "Sales & trading / balance sheet",
       "Coverage",
       "Hard gate",
       "Drift",

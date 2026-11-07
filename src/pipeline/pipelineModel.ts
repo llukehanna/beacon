@@ -11,6 +11,7 @@ import {
 } from "@/desk/pipelineRows";
 import { shownScore } from "@/desk/scoreFormat";
 import { type MirrorResult, type ScoreInput, mirrorScore } from "@/desk/scoreMirror";
+import { axisLabel } from "../../shared/axisLabels";
 import {
   LIFECYCLE_BUCKETS,
   type Lifecycle,
@@ -287,24 +288,24 @@ export function firmFacts(firm: FirmView): Array<{ label: string; value: string 
   };
   add("Coverage", firm.coverageModel);
   add(
-    "Employees",
+    axisLabel("employees"),
     firm.employees === null || firm.employees === undefined ? null : String(firm.employees),
   );
   add("Revenue", firm.revenueBand);
   add("Ownership", firm.ownership);
   add("Succession risk", firm.successionRisk);
   add(
-    "Deals / MD (L3Y)",
+    axisLabel("deals_per_md_l3y"),
     firm.dealsPerMdL3y === null || firm.dealsPerMdL3y === undefined
       ? null
       : String(firm.dealsPerMdL3y),
   );
   add(
-    "Avg deal size",
+    axisLabel("deal_size_usd_m"),
     firm.dealSizeMUsd === null || firm.dealSizeMUsd === undefined ? null : `$${firm.dealSizeMUsd}m`,
   );
   add(
-    "Firm age",
+    axisLabel("firm_age"),
     firm.firmAge === null || firm.firmAge === undefined ? null : `${firm.firmAge} yrs`,
   );
   add("Geography", firm.geographicFootprint);

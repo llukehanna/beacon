@@ -70,7 +70,7 @@ describe("buildActivity", () => {
     expect(items.find((i) => i.kind === "enriched")?.detail).toMatch(/· 2 conflicts$/);
     const conflict = items.filter((i) => i.kind === "conflict");
     expect(conflict).toHaveLength(1);
-    expect(conflict[0].detail).toBe("Employees: Deal DB 20 vs Filings 35");
+    expect(conflict[0].detail).toBe("Headcount: Deal DB 20 vs Filings 35");
   });
 
   it("names the axes an agent abstained on, unless something later settled them", () => {
@@ -89,7 +89,7 @@ describe("buildActivity", () => {
     };
     const abstained = buildActivity(input).filter((i) => i.kind === "abstained");
     expect(abstained).toHaveLength(1);
-    expect(abstained[0].detail).toBe("No source had Employees, Firm age");
+    expect(abstained[0].detail).toBe("No source had Firm age, Headcount");
   });
 
   it("describes rule proposals and drift events", () => {

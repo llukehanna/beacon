@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { deskHref, evalCount, evalPct, tabFromParam, tabTarget } from "./evalsModel";
+import type { EvalReport } from "../../shared/evalReport";
+import {
+  deskHref,
+  evalCount,
+  evalPct,
+  exampleFirmName,
+  tabFromParam,
+  tabTarget,
+  tierFraming,
+} from "./evalsModel";
 
 describe("evalsModel", () => {
   it("prints a rate to one decimal and a missing rate as a dash", () => {
@@ -33,5 +42,29 @@ describe("evalsModel", () => {
     expect(tabTarget("Home", 2, 3)).toBe(0);
     expect(tabTarget("End", 0, 3)).toBe(2);
     expect(tabTarget("Tab", 0, 3)).toBeNull();
+  });
+});
+
+describe("tierFraming", () => {
+  it("names the abstentions, conflicts and wrong values behind a low tier agreement", () => {
+    const failures = [
+      { kind: "wrong-source-wins", count: 329, examples: [] },
+      { kind: "conflict-surfaced", count: 141, examples: [] },
+      { kind: "abstained-correctly", count: 2100, examples: [] },
+      { kind: "abstained-wrongly", count: 4, examples: [] },
+    ] as EvalReport["failures"];
+    const text = tierFraming({ failures } as EvalReport);
+    expect(text).toContain("before any analyst input");
+    expect(text).toContain("2,104 are abstentions, 141 are conflicts");
+    expect(text).toContain("329 are wrong settled values");
+  });
+});
+
+describe("exampleFirmName", () => {
+  it("shows a name, never an id", () => {
+    const names = new Map([["ivesco_unitedstates", "Ives & Co."]]);
+    expect(exampleFirmName("ivesco_unitedstates", names)).toBe("Ives & Co.");
+    expect(exampleFirmName("unknown_firm", names)).toBe("A firm outside this view");
+    expect(exampleFirmName("ivesco_unitedstates", undefined)).toBe("…");
   });
 });

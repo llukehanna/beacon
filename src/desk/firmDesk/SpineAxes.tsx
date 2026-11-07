@@ -1,4 +1,5 @@
 import React from "react";
+import { axisLabel } from "../../../shared/axisLabels";
 import { type MirrorResult } from "../scoreMirror";
 import styles from "./SpineAxes.module.css";
 import { type FirmView, humanAxisValue } from "./deskModel";
@@ -23,7 +24,7 @@ export function SpineAxes({
       <span className={styles.lead}>Scored from the firm record</span>
       {axes.map((a) => (
         <span key={a.axis} className={styles.item}>
-          <span className={styles.name}>{a.axis}</span>
+          <span className={styles.name}>{axisLabel(a.axis)}</span>
           <span className={styles.value}>{a.known ? humanAxisValue(a.axis, firm) : "—"}</span>
           <span className={styles.score} title="Points on this axis, out of 2">
             {a.known ? `${a.score} / 2` : "unknown"}

@@ -2,13 +2,15 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ExternalLink } from "@/about/DocLayout";
 import { ERROR_ANALYSIS_DOC_URL, EVALS_DOC_URL } from "@/about/facts";
+import { useOsdkObjects } from "@/data/hooks";
+import { Firm } from "@/data/ontology";
 import { SectionHead } from "@/home/SectionHead";
 import { Chip, Metric, Panel } from "@/ui";
+import { axisLabel } from "../../shared/axisLabels";
 import { type EvalReport, FAILURE_TEXT } from "../../shared/evalReport";
-import { axisLabel } from "../../shared/trustMetrics";
 import { providerLabel } from "../../shared/vocab";
 import styles from "./EvalsPanel.module.css";
-import { deskHref, evalCount, evalPct } from "./evalsModel";
+import { deskHref, evalCount, evalPct, exampleFirmName, tierFraming } from "./evalsModel";
 
 const GROUND_TRUTH = "Against synthetic ground truth";
 
@@ -91,6 +93,15 @@ function ProviderTable({ report }: { report: EvalReport }): React.ReactElement {
 
 function Taxonomy({ report }: { report: EvalReport }): React.ReactElement {
   const { slots, failures } = report;
+  // The examples carry firm ids; the firms are read to show their names, and each links to its Desk.
+  const firms = useOsdkObjects(Firm, { autoFetchMore: true });
+  const names = React.useMemo(
+    () =>
+      firms.data === undefined
+        ? undefined
+        : new Map(firms.data.map((f) => [f.firmId ?? "", f.firmName ?? ""] as const)),
+    [firms.data],
+  );
   return (
     <Panel className={styles.panel} aria-label="Failure taxonomy">
       <SectionHead title="Failure taxonomy" />
@@ -119,7 +130,7 @@ function Taxonomy({ report }: { report: EvalReport }): React.ReactElement {
                   <li key={`${e.firmId}:${e.axis}`}>
                     <Link className={styles.example} to={deskHref(e.firmId)}>
                       <span className={styles.exampleAxis}>{axisLabel(e.axis)}</span>
-                      <span className={styles.exampleFirm}>{e.firmId}</span>
+                      <span className={styles.exampleFirm}>{exampleFirmName(e.firmId, names)}</span>
                     </Link>
                   </li>
                 ))}
@@ -145,6 +156,7 @@ export function EvalsPanel({ report }: { report: EvalReport }): React.ReactEleme
         firms.
       </p>
       <Headline report={report} />
+      <p className={styles.framing}>{tierFraming(report)}</p>
       <div className={styles.grid}>
         <ProviderTable report={report} />
         <Taxonomy report={report} />
