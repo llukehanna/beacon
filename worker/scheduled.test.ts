@@ -13,7 +13,7 @@ vi.mock("../server/db/client.js", async (importOriginal) => ({
   createPgDb: vi.fn(() => ({ close: vi.fn(async () => {}) })),
 }));
 
-const { default: worker } = await import("./index.js");
+const { default: worker, PresenterNightly } = await import("./index.js");
 const { HOURLY_CRON, NIGHTLY_CRON } = await import("./crons.js");
 
 const env = { ASSETS: { fetch: vi.fn() }, HYPERDRIVE: { connectionString: "postgres://test" } };
@@ -62,6 +62,34 @@ describe("worker scheduled", () => {
     expect(applyDueSignals).toHaveBeenCalledOnce();
   });
 
+  it("the 04:00 run resets the presenter deployment after its own reset", async () => {
+    const order: string[] = [];
+    resetPost.mockImplementation(async () => (order.push("reset"), Response.json({ firms: 700 })));
+    const PRESENTER = { run: vi.fn(async () => void order.push("presenter")) };
+    await worker.scheduled(
+      { cron: HOURLY_CRON, scheduledTime: at("2026-11-07T04:00:00Z") },
+      { ...env, PRESENTER },
+      ctx,
+    );
+    expect(order).toEqual(["reset", "presenter"]);
+  });
+
+  it("other hourly runs leave the presenter alone", async () => {
+    const PRESENTER = { run: vi.fn(async () => {}) };
+    await worker.scheduled(
+      { cron: HOURLY_CRON, scheduledTime: at("2026-11-07T09:00:00Z") },
+      { ...env, PRESENTER },
+      ctx,
+    );
+    expect(PRESENTER.run).not.toHaveBeenCalled();
+  });
+
+  it("the presenter's entrypoint resets, then applies the signals that are due", async () => {
+    await new PresenterNightly(ctx, env).run();
+    expect(resetPost).toHaveBeenCalledOnce();
+    expect(applyDueSignals).toHaveBeenCalledOnce();
+  });
+
   it("applies no signals and fails the run when the nightly reset is refused", async () => {
     resetPost.mockImplementation(async () => Response.json({ error: "too soon" }, { status: 429 }));
     await expect(
@@ -83,9 +111,10 @@ describe("worker scheduled", () => {
 });
 
 describe("the Cron Triggers in wrangler.jsonc", () => {
-  it("are one per deployment (free plan: five per account): hourly on production, nightly on the presenter", () => {
+  it("are hourly on production and none on the presenter (free plan: five per account)", () => {
     const config = readFileSync(resolve(__dirname, "../wrangler.jsonc"), "utf8");
     const lists = config.match(/"crons": \[[^\]]*\]/g) ?? [];
-    expect(lists).toEqual([`"crons": ["${HOURLY_CRON}"]`, `"crons": ["${NIGHTLY_CRON}"]`]);
+    expect(lists).toEqual([`"crons": ["${HOURLY_CRON}"]`, `"crons": []`]);
+    expect(config).toContain(`"entrypoint": "PresenterNightly"`);
   });
 });
