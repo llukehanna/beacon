@@ -17,4 +17,10 @@ describe("searchLabel", () => {
     expect(searchLabel(null, undefined)).toBe("");
     expect(searchLabel(undefined, "2026-09-01T00:00:00Z")).toBe("2026-09-01");
   });
+
+  it("does not repeat a day the name already ends with (a name written before migration 0002)", () => {
+    expect(searchLabel("Sell-side of Acme · 2026-09-01", "2026-09-01T12:00:00Z")).toBe(
+      "Sell-side of Acme · 2026-09-01",
+    );
+  });
 });
