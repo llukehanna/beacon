@@ -80,7 +80,7 @@ export const runSearch = defineAction<{
 
     await assertRoom(ctx, "search", MAX_SEARCHES, "searches");
     const searchId = ctx.newId("search");
-    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const hidden = new Set(ctx.hiddenFirmIds);
     const all = (await listAll(ctx.tx, "Firm")).filter((f) => !hidden.has(f.$primaryKey));
     const seeds: FirmObj[] = [];
     for (const name of p.seedFirms ?? []) {
@@ -201,7 +201,7 @@ export const runMandateSearch = defineAction<{
       products: [],
       sizeMaxUsdM: p.sizeMaxUsdM,
     });
-    const hidden = new Set(ctx.hiddenFirmIds ?? []);
+    const hidden = new Set(ctx.hiddenFirmIds);
     const firms = (await listAll(ctx.tx, "Firm")).filter(
       (f) =>
         !hidden.has(f.$primaryKey) &&

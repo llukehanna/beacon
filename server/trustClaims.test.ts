@@ -17,6 +17,7 @@ import {
   FIRM_COUNT,
   MANDATE_CEILING,
   MAX_BODY_BYTES,
+  MCP_PER_MINUTE,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OBJECT_TYPE_COUNT,
@@ -70,6 +71,7 @@ describe("figures on the About and Trust pages", () => {
   it("match the Cloudflare config", () => {
     expect(limiter("ACTIONS_LIMITER")).toEqual({ limit: ACTIONS_PER_MINUTE, period: 60 });
     expect(limiter("RESET_LIMITER")).toEqual({ limit: RESETS_PER_MINUTE, period: 60 });
+    expect(limiter("MCP_LIMITER")).toEqual({ limit: MCP_PER_MINUTE, period: 60 });
     // The nightly reset, and the hourly run that applies synthetic market signals as they come due.
     expect(read("wrangler.jsonc")).toContain('"crons": ["0 4 * * *", "0 * * * *"]');
     expect(NIGHTLY_RESET_UTC).toBe("04:00");
@@ -221,6 +223,7 @@ describe("docs/security.md", () => {
     expect(doc).toContain(`${FIRM_COUNT} firms`);
     expect(doc).toContain(`${ACTIONS_PER_MINUTE} requests per minute`);
     expect(doc).toContain(`${RESETS_PER_MINUTE} per minute`);
+    expect(doc).toContain(`${MCP_PER_MINUTE} requests per minute per client IP`);
     expect(doc).toContain(`${CLAUDE_COOLDOWN_MINUTES} minutes and ${CLAUDE_DAILY_MAX} per UTC day`);
     expect(doc).toContain(`${NIGHTLY_RESET_UTC} UTC`);
     expect(doc).toContain(`${RESET_COOLDOWN_MINUTES} minutes`);

@@ -34,6 +34,7 @@ export const CLAUDE_DAILY_MAX = 24;
 /** Pinned to wrangler.jsonc ("ratelimits": limit and period, per client IP). */
 export const ACTIONS_PER_MINUTE = 60;
 export const RESETS_PER_MINUTE = 3;
+export const MCP_PER_MINUTE = 60;
 
 /** Pinned to api/reset.ts (COOLDOWN_MS) and wrangler.jsonc ("crons"). */
 export const RESET_COOLDOWN_MINUTES = 5;

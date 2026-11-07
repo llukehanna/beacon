@@ -59,7 +59,13 @@ async function write(
     if (plan.skipped !== null) {
       continue;
     }
-    const ctx: ActionContext = { tx, now: new Date(plan.at), user: SIGNAL_USER, newId };
+    const ctx: ActionContext = {
+      tx,
+      now: new Date(plan.at),
+      user: SIGNAL_USER,
+      newId,
+      hiddenFirmIds: [],
+    };
     if (plan.firmPatch !== null) {
       await updateObject(tx, "Firm", plan.firmId, plan.firmPatch);
     }

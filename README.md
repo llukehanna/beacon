@@ -28,6 +28,7 @@ Full-quality video: [golden-path.mp4](docs/media/golden-path.mp4).
 ## More
 
 - [Decision records](docs/decisions/README.md): ten short records of why it is built this way, with a status for each.
+- [MCP server](docs/mcp.md): a read-only Model Context Protocol endpoint for firm evidence and screening rules, with client configuration.
 - [Ontology reference](docs/ontology.md): every object type, link and action, generated from the schema.
 - [Development history](docs/development-history.md): how the project got here, with dates.
 - [Production roadmap](docs/production-roadmap.md): what a production deployment would need that the demo does not have.

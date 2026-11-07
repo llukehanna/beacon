@@ -64,7 +64,7 @@ describe("runMandateSearch", () => {
       geographies: ["Americas"],
     });
     const [list] = await listAll(db, "SearchList");
-    const members = (await listLinked(db, "SearchList", "firms", [list.$primaryKey]))[
+    const members = (await listLinked(db, "SearchList", "firms", [list.$primaryKey], []))[
       list.$primaryKey
     ];
     expect(members.map((f) => f.$primaryKey).sort()).toEqual(["us_retail", "us_sw_a", "us_sw_b"]);
@@ -120,7 +120,7 @@ describe("runSearch", () => {
       resultCount: 2,
       runBy: "demo-analyst",
     });
-    const members = (await listLinked(db, "Search", "firms", [s.$primaryKey]))[s.$primaryKey];
+    const members = (await listLinked(db, "Search", "firms", [s.$primaryKey], []))[s.$primaryKey];
     expect(members.map((f) => f.$primaryKey).sort()).toEqual(["us_sw_a", "us_sw_b"]);
   });
 
@@ -137,7 +137,7 @@ describe("runSearch", () => {
     });
     const [s] = await listAll(db, "Search");
     const ids = (
-      (await listLinked(db, "Search", "firms", [s.$primaryKey]))[
+      (await listLinked(db, "Search", "firms", [s.$primaryKey], []))[
         s.$primaryKey
       ] as ObjectOf<"Firm">[]
     ).map((f) => f.firmName);
@@ -174,7 +174,7 @@ describe("runSearch", () => {
     });
     const [s] = await listAll(db, "Search");
     const members = (
-      (await listLinked(db, "Search", "firms", [s.$primaryKey]))[
+      (await listLinked(db, "Search", "firms", [s.$primaryKey], []))[
         s.$primaryKey
       ] as ObjectOf<"Firm">[]
     ).filter((f) => f.source === "search_discovery");

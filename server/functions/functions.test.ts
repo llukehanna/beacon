@@ -228,6 +228,7 @@ async function clientHome(d: Db) {
     "SearchList",
     "firms",
     lists.map((l) => l.searchId!),
+    [],
   );
   const counts = mandateFirmCounts({
     searches: searches as SearchLike[],

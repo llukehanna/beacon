@@ -66,7 +66,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - The firm record itself is current state and is updated in place. <!-- source: server/actions/firms.ts, server/actions/findings.ts -->
 - **How this is enforced: in application code only.** Every write goes through a named action in the registry, and no action updates or deletes those history rows beyond the fields above. <!-- source: server/actions/registry.ts, shared/schema.ts -->
 - The database does not enforce it. There are no triggers and no revoked privileges, and the Worker connects with one connection string that has full rights. A database-level guarantee (write-once tables, or a role without UPDATE and DELETE) is not built. <!-- source: server/db/ddl.ts, worker/index.ts -->
-- The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`) and the link lookup (`/api/links`) change nothing but the demo access log; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/actions.ts, api/reset.ts -->
+- The API has no generic write endpoint. Reads (`/api/objects`, `/api/functions`), the link lookup (`/api/links`) and the read-only MCP endpoint (`/api/mcp`) change nothing but the demo access log; the only write routes are `/api/actions` and `/api/reset`. <!-- source: api/objects.ts, api/functions.ts, api/links.ts, api/mcp.ts, api/actions.ts, api/reset.ts -->
 - The nightly reset truncates the history, so the trail covers one demo day, not a permanent record. <!-- source: server/seed/snapshot.ts -->
 
 ## Information barriers (demo)
@@ -83,6 +83,15 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - The log keeps the newest 500 rows, a repeat view within 30 seconds counts once, and only the compliance persona can read it, together with the restricted list and the grants. <!-- source: server/access.ts, api/objects.ts -->
 - **How this maps to Foundry.** A restricted firm becomes a Marking on the object, which hides it from everyone who does not hold the Marking, in search, object sets and links. Need-to-know becomes mandate-level Markings on a mandate's objects, or a restricted view that shows the codename to everyone and the real title to the holders. The persona becomes the signed-in user and their groups. <!-- source: docs/foundry-origins.md, shared/accessPolicy.ts -->
 - **A real deployment would derive the persona from single sign-on, never from a header**, and would enforce the same rules in the data layer (Markings, or row-level security in the database), not only in the API. <!-- source: server/access.ts, docs/production-roadmap.md -->
+
+## MCP server (read-only)
+
+- Beacon offers a Model Context Protocol endpoint, `POST /api/mcp`, with three tools: `search_firms`, `get_firm_evidence` and `list_rules`. [mcp.md](mcp.md) documents it. <!-- source: api/mcp.ts, server/mcp/tools.ts, docs/mcp.md -->
+- **Read-only.** The tools call only the repository's read helpers and build no SQL from input; the one write is the demo access log row that opening a firm adds, as in the app. Every tool is annotated read-only, and a test compares every table before and after a call. <!-- source: server/mcp/tools.ts, server/mcp/mcp.test.ts -->
+- **Bounded.** A list returns at most 25 rows (a larger `limit` is clamped), a search reads at most three pages of firms, arguments are validated against each tool's schema with unknown ones refused, and the request body is capped like every other route. <!-- source: server/mcp/tools.ts, server/http.ts -->
+- **Persona-respecting.** The endpoint reads the persona from the same `X-Beacon-Persona` header and applies the same wall. A restricted firm is left out of searches, a lookup of it is the same not-found as an unknown id, and a rule's firm count and rationale leave out decisions on firms the persona cannot see. A walled mandate named in a rule appears by its codename. The stored projected-impact count of a rule is the one counted when it was proposed, so a rule proposed by compliance can still include a restricted firm in that count. <!-- source: api/mcp.ts, server/mcp/tools.ts, server/barrier.test.ts -->
+- **The identity is the demo's.** There is no authentication on the endpoint, and the persona is a header anyone can set. An assistant connected to it receives what that persona may see, and what the assistant's provider does with it is governed by that provider's terms. <!-- source: server/access.ts, api/mcp.ts -->
+- The endpoint is stateless: no session, no event stream, and `GET` is refused with 405. <!-- source: server/mcp/rpc.ts, worker/index.ts -->
 
 ## Security headers and rate limits
 
@@ -103,6 +112,7 @@ form-action 'self'
 - The policy allows inline styles (`'unsafe-inline'` under `style-src`) and the Cloudflare analytics script and endpoint. Whether analytics is switched on is a setting in the Cloudflare dashboard, not in this repository. <!-- source: public/_headers -->
 - Static assets also carry `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`. API responses carry the same three headers and `Cache-Control: no-store`. <!-- source: public/_headers, server/http.ts -->
 - `POST /api/actions` is limited to 60 requests per minute and `POST /api/reset` to 3 per minute, each per client IP. <!-- source: wrangler.jsonc, worker/rateLimit.ts -->
+- `POST /api/mcp` is limited to 60 requests per minute per client IP. <!-- source: wrangler.jsonc, worker/rateLimit.ts, worker/index.ts -->
 - A POST whose `Origin` header names another host is refused, and a request body must be JSON of at most 65,536 bytes. <!-- source: server/http.ts -->
 - Action parameters are validated against each action's spec: strings up to 2,000 characters, lists up to 50 items of up to 200 characters. <!-- source: server/actions/params.ts -->
 - The shared demo is capped at 25 mandates, 50 searches and 10,000 activity rows until the next reset. <!-- source: server/actions/search.ts, server/actions/apply.ts -->

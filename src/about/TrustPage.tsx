@@ -14,6 +14,7 @@ import {
   FIRM_COUNT,
   MANDATE_CEILING,
   MAX_BODY_BYTES,
+  MCP_PER_MINUTE,
   MIN_FIRMS_PER_RULE,
   NIGHTLY_RESET_UTC,
   OTHER_HEADERS,
@@ -109,6 +110,12 @@ export default function TrustPage(): React.ReactElement {
             Opening a firm in detail or a mandate adds a row to an access log that compliance can
             read. It keeps the newest {n(ACCESS_LOG_CEILING)} rows, counts a repeat view within{" "}
             {ACCESS_LOG_DEBOUNCE_SECONDS} seconds once, and is cleared by every reset.
+          </li>
+          <li>
+            An AI assistant can read the demo through a read-only MCP endpoint. It gets the same
+            view as the persona it names in the header, can change nothing, and receives at most 25
+            rows from any list. What the assistant&rsquo;s provider does with that data is governed
+            by that provider&rsquo;s terms.
           </li>
           <li>
             In Foundry a restricted firm is a Marking on the object, and need-to-know is a
@@ -242,8 +249,8 @@ export default function TrustPage(): React.ReactElement {
         </p>
         <ul>
           <li>
-            Per client IP: {ACTIONS_PER_MINUTE} action requests and {RESETS_PER_MINUTE} resets per
-            minute.
+            Per client IP: {ACTIONS_PER_MINUTE} action requests, {RESETS_PER_MINUTE} resets and{" "}
+            {MCP_PER_MINUTE} MCP requests per minute.
           </li>
           <li>
             A POST naming another origin is refused, and a body must be JSON of at most{" "}

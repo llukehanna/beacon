@@ -8,9 +8,10 @@ import { type FindingLike } from "@/desk/axisState";
 import { displayFindingValue } from "@/desk/findingActions";
 import { agentHasRun } from "@/desk/firmDesk/agentRun";
 import { type AxisRow, authoritativeFinding, buildAxisRows } from "@/desk/firmDesk/axisRows";
+import { type Citation, citationOf, nonEmpty } from "@/desk/firmDesk/citation";
 import { firmDecisionState } from "@/desk/firmDesk/decisionState";
 import { type FirmView, humanAxisValue, toScoreInput } from "@/desk/firmDesk/deskModel";
-import { conflictSides, providerOf } from "@/desk/firmDesk/evidenceModel";
+import { conflictSides } from "@/desk/firmDesk/evidenceModel";
 import { type FirmDecision, firmDecisions } from "@/desk/firmDesk/firmDecisions";
 import { buildOnFile } from "@/desk/firmDesk/onFile";
 import { tierText } from "@/desk/firmDesk/tierMeter";
@@ -26,7 +27,7 @@ import {
   kindLabel,
 } from "../../shared/marketSignals";
 import { MAX_POSSIBLE } from "../../shared/scoreMirror";
-import { ENRICH_AXES, MARKET_SIGNAL, providerLabel } from "../../shared/vocab";
+import { ENRICH_AXES, MARKET_SIGNAL } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
 export interface DecisionInput {
@@ -71,15 +72,7 @@ export interface AxisLine {
   points: number | null;
 }
 
-/** Where a value came from: enough to look the sentence up again. */
-export interface Citation {
-  /** The provider's name, "Analyst" for an analyst's own entry. */
-  provider: string;
-  /** The sentence the value was read from; null when the entry cites none. */
-  quote: string | null;
-  /** The extraction model that read it; null when no model was involved. */
-  model: string | null;
-}
+export type { Citation };
 
 export interface EvidenceItem extends Citation {
   axis: string;
@@ -135,34 +128,6 @@ export interface TearSheet {
   decisions: FirmDecision[];
   /** Applied market signals, newest first. */
   signals: SignalLine[];
-}
-
-const nonEmpty = (s: string | null | undefined): string | null => {
-  const t = (s ?? "").trim();
-  return t === "" ? null : t;
-};
-
-/**
- * Where a finding's value came from. Only a finding read from a source document has a source
- * sentence, and it is credited to the provider that document belongs to (a corroborated finding
- * carries the lead source's sentence and model, not both providers'). A finding with no document
- * is an analyst's entry: its `sourceExcerpt` holds a note, not a quotation, so it is never cited.
- */
-function citationOf(f: FindingLike): Citation {
-  // A market signal is invented news with no document: it is credited as such, never as an analyst.
-  if ((f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL) {
-    return { provider: SYNTHETIC_LABEL, quote: null, model: null };
-  }
-  const documentProvider = providerOf(f.sourceDocumentId);
-  if (nonEmpty(f.sourceDocumentId) === null) {
-    return { provider: "Analyst", quote: null, model: null };
-  }
-  const provider = documentProvider ?? nonEmpty(f.provider);
-  return {
-    provider: provider === null ? "Source document" : providerLabel(provider),
-    quote: nonEmpty(f.sourceQuote),
-    model: nonEmpty(f.extractionModel),
-  };
 }
 
 const pad = (n: number): string => String(n).padStart(2, "0");
