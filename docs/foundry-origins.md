@@ -83,7 +83,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Foundry hosting becomes Workers and Neon
 
-- **Here.** The Vite build is served as static assets and `/api/*` runs in one Worker over Neon Postgres. A saved snapshot restores the demo every night. A Hyperdrive binding is written down but not enabled.
+- **Here.** The Vite build is served as static assets and `/api/*` runs in one Worker over Neon Postgres. A saved snapshot restores the demo every night. Hyperdrive pools the Worker's connections to Neon.
 - **Why.** See [0008](decisions/0008-workers-and-snapshot-reset.md) and [0009](decisions/0009-hyperdrive-connection-pooling.md).
 
 ## What carried over unchanged

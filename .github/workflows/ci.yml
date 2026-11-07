@@ -28,13 +28,14 @@ jobs:
       - run: npm run ontology:doc -- --check
       # Boots the built Worker in workerd with no database: catches a bundle that fails to start, which
       # the unit tests (plain Node) cannot. The static shell must serve, and the API must answer with the
-      # Worker's own 503 rather than crash.
+      # Worker's own 503 rather than crash. It runs the presenter environment: the same bundle without
+      # production's Hyperdrive binding, which `wrangler dev` will not start without a local Postgres.
       - name: Smoke-test the Worker
         env:
           WRANGLER_SEND_METRICS: "false"
         run: |
           log="$RUNNER_TEMP/wrangler-dev.log"
-          ./node_modules/.bin/wrangler dev --env="" --port 8787 > "$log" 2>&1 &
+          ./node_modules/.bin/wrangler dev --env presenter --port 8787 > "$log" 2>&1 &
           pid=$!
           trap 'kill "$pid" 2>/dev/null || true' EXIT
           for _ in $(seq 1 60); do

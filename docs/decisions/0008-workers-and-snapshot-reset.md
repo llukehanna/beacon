@@ -17,7 +17,7 @@ The public demo is shared and writable, so it has to return to a known state on 
 
 - A reset fits the Worker's budget, and the demo is ephemeral by design: anything a visitor enters is deleted by the next reset.
 - A snapshot taken before a property was added restores that column empty until the next `npm run seed` (the "Reseed" workflow runs it against production or the presenter database). The schema is changed only by numbered migrations (`server/db/migrations/`, applied by `npm run migrate` or the Reseed workflow's `migrate` mode before a deploy); the Worker never runs DDL, and answers `/api/*` with 503 while the database is behind the build.
-- Every request opens a fresh Postgres connection from the Worker, which is where most of the latency is (see [0009](0009-hyperdrive-connection-pooling.md)).
+- Every request opened a fresh Postgres connection from the Worker, which was where most of the latency was; Hyperdrive now pools it (see [0009](0009-hyperdrive-connection-pooling.md)).
 - The Worker needs `nodejs_compat` for `pg` and `node:crypto`, and the PGlite module is aliased out of the bundle.
 
 ## Code
