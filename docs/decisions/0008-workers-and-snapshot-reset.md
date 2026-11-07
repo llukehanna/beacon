@@ -10,7 +10,7 @@ The public demo is shared and writable, so it has to return to a known state on 
 
 - **Hosting.** The Vite build is served as static assets with a single-page-app fallback, and `/api/*` runs in one Worker (`worker/index.ts`) over Neon Postgres. Locally the same SQL runs on PGlite.
 - **Snapshot.** `npm run seed` builds the world once and copies every demo table to `snapshot_*` tables. A reset restores them in one transaction (truncate, then insert from the snapshot), moving every timestamp, and the dates embedded in search names and drift details, forward by the time since the snapshot. Visitors see the old world or the new one, never a half-built mix, and the result matches a full rebuild at that moment.
-- **Triggers.** A Cron Trigger runs the reset at 04:00 UTC, and the demo bar's Reset button runs the same code. Both share one atomic throttle of one reset per five minutes.
+- **Triggers.** An hourly Cron Trigger runs the reset at 04:00 UTC (its other runs apply due market signals), and the demo bar's Reset button runs the same code. Both share one atomic throttle of one reset per five minutes.
 - **Operations metrics** (`ActionRun`, `ModelCall`) are not part of the snapshot and are cleared by every reset.
 
 ## Consequences
