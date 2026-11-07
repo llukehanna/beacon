@@ -6,7 +6,8 @@
 
 export type Model = "CF" | "CS";
 
-export interface ScoreInput {
+// A type alias, not an interface: an alias is assignable to the index-signature shapes (ScreenableFirm).
+export type ScoreInput = {
   firmType?: string | null;
   coverageModel?: string | null;
   servicesFit?: string | null;
@@ -20,7 +21,7 @@ export interface ScoreInput {
   feeGeneratingCount?: number | null;
   geographicFootprint?: string | null;
   advisoryConflict?: boolean | null;
-}
+};
 
 export interface AxisScore {
   axis: string;

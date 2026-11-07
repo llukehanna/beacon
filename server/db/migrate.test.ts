@@ -83,7 +83,7 @@ describe("migrate", () => {
     for (const c of cols) {
       byTable.set(
         c.table_name,
-        (byTable.get(c.table_name) ?? new Map()).set(c.column_name, c.data_type),
+        (byTable.get(c.table_name) ?? new Map<string, string>()).set(c.column_name, c.data_type),
       );
       nullable.set(`${c.table_name}.${c.column_name}`, c.is_nullable === "YES");
     }

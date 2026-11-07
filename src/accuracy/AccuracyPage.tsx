@@ -15,6 +15,7 @@ import { OutcomesPanel } from "./OutcomesPanel";
 import { type AccuracyTab, tabFromParam, tabTarget } from "./evalsModel";
 
 /** Written by `npm run eval` and bundled at build time; `server/eval` checks it is current in CI. */
+// The JSON import widens the report's literal unions to string; the file is generated from EvalReport.
 const EVAL_REPORT = evalReportJson as unknown as EvalReport;
 
 const TABS: readonly { id: AccuracyTab; label: string }[] = [

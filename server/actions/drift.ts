@@ -162,16 +162,7 @@ export async function openOutcomeDivergence(
   return driftEventId;
 }
 
-export const setFirmOutcome = defineAction<{
-  firm: FirmObj;
-  outcome: string;
-  outcomeObservedAt: string;
-}>({
-  params: {
-    firm: { type: { object: "Firm" } },
-    outcome: { type: "string" },
-    outcomeObservedAt: { type: "timestamp" },
-  },
+export const setFirmOutcome = defineAction("setFirmOutcome", {
   async run(ctx, { firm, outcome, outcomeObservedAt }) {
     if (!(OUTCOMES as readonly string[]).includes(outcome)) {
       throw new ActionError(`Unknown outcome "${outcome}"; expected one of ${OUTCOMES.join(", ")}`);
@@ -233,8 +224,7 @@ export async function resolveOpenDriftOnPass(
   return open.map((r) => r.driftEventId);
 }
 
-export const reEngageFirm = defineAction<{ firm: FirmObj; driftEvent: DriftObj }>({
-  params: { firm: { type: { object: "Firm" } }, driftEvent: { type: { object: "DriftEvent" } } },
+export const reEngageFirm = defineAction("reEngageFirm", {
   async run(ctx, { firm, driftEvent }) {
     if (driftEvent.firmId !== firm.$primaryKey) {
       throw new ActionError("Drift event belongs to a different firm");
@@ -259,8 +249,7 @@ export const reEngageFirm = defineAction<{ firm: FirmObj; driftEvent: DriftObj }
   },
 });
 
-export const keepPassed = defineAction<{ driftEvent: DriftObj; rationale: string }>({
-  params: { driftEvent: { type: { object: "DriftEvent" } }, rationale: { type: "string" } },
+export const keepPassed = defineAction("keepPassed", {
   async run(ctx, { driftEvent, rationale }) {
     const why = rationale.trim();
     if (why === "") {
@@ -278,11 +267,7 @@ export const keepPassed = defineAction<{ driftEvent: DriftObj; rationale: string
   },
 });
 
-export const acknowledgeDrift = defineAction<{ driftEvent: DriftObj; note: string | null }>({
-  params: {
-    driftEvent: { type: { object: "DriftEvent" } },
-    note: { type: "string", nullable: true },
-  },
+export const acknowledgeDrift = defineAction("acknowledgeDrift", {
   async run(ctx, { driftEvent, note }) {
     const firm = await requireObject(ctx, "Firm", driftEvent.firmId ?? "");
     if (normalizeLifecycle(firm.lifecycleState) === PASSED) {

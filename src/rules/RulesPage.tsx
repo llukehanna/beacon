@@ -1,7 +1,6 @@
 import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, HardScreenConfig, ProposedRule, ReviewDecision } from "@/data/ontology";
-import { type ScreenableFirm } from "@/desk/activeScreening";
 import { type RejectionNote, buildRejectionNotes } from "@/desk/ruleEvidence";
 import { type Command, useCommands } from "@/shell/commands";
 import { EmptyState, Notice, PageHeader, Skeleton } from "@/ui";
@@ -11,10 +10,8 @@ import { ProposeRulesButton } from "./ProposeRulesButton";
 import { ProposedRulePanel } from "./ProposedRulePanel";
 import styles from "./RulesPage.module.css";
 import {
-  type ConfigLike,
   type DecisionLike,
   NO_VERSIONS,
-  type RuleLike,
   groupRules,
   groupVersions,
   parseSupportingIds,
@@ -58,15 +55,15 @@ export default function RulesPage(): React.ReactElement {
   );
   useCommands(proposeCommands);
 
-  const rules = React.useMemo(() => (rulesData ?? []) as unknown as RuleLike[], [rulesData]);
+  const rules = React.useMemo(() => rulesData ?? [], [rulesData]);
   // The same Firm query the desk runs, so a rule's screen count is over the identical population.
-  const firms = React.useMemo(() => (firmsData ?? []) as unknown as ScreenableFirm[], [firmsData]);
+  const firms = React.useMemo(() => firmsData ?? [], [firmsData]);
 
   // decisionId → decision and firmId → name, chained so a rule's supportingDecisionIds resolve to
   // the analysts' notes.
   const decisionById = React.useMemo(() => {
     const m = new Map<string, DecisionLike>();
-    for (const d of (decisionsData ?? []) as unknown as DecisionLike[]) {
+    for (const d of decisionsData ?? []) {
       m.set(d.decisionId, d);
     }
     return m;
@@ -80,10 +77,7 @@ export default function RulesPage(): React.ReactElement {
     }
     return m;
   }, [firmsData]);
-  const versionsByRule = React.useMemo(
-    () => groupVersions((configsData ?? []) as unknown as ConfigLike[]),
-    [configsData],
-  );
+  const versionsByRule = React.useMemo(() => groupVersions(configsData ?? []), [configsData]);
   const notesByRule = React.useMemo(() => {
     const m = new Map<string, RejectionNote[]>();
     for (const r of rules) {

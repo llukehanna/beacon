@@ -60,8 +60,7 @@ function requireStatus(rule: RuleObj, allowed: readonly string[], verb: string):
   }
 }
 
-export const approveRule = defineAction<{ proposedRule: RuleObj }>({
-  params: { proposedRule: { type: { object: "ProposedRule" } } },
+export const approveRule = defineAction("approveRule", {
   async run(ctx, { proposedRule: rule }) {
     requireStatus(rule, ["pending"], "approve");
     const configId = await writeConfig(
@@ -83,8 +82,7 @@ export const approveRule = defineAction<{ proposedRule: RuleObj }>({
   },
 });
 
-export const dismissRule = defineAction<{ proposedRule: RuleObj; reason: string }>({
-  params: { proposedRule: { type: { object: "ProposedRule" } }, reason: { type: "string" } },
+export const dismissRule = defineAction("dismissRule", {
   async run(ctx, { proposedRule: rule, reason }) {
     const why = reason.trim();
     if (why === "") {
@@ -106,8 +104,7 @@ export const dismissRule = defineAction<{ proposedRule: RuleObj; reason: string 
   },
 });
 
-export const unapproveRule = defineAction<{ proposedRule: RuleObj }>({
-  params: { proposedRule: { type: { object: "ProposedRule" } } },
+export const unapproveRule = defineAction("unapproveRule", {
   async run(ctx, { proposedRule: rule }) {
     requireStatus(rule, ["approved"], "unapprove");
     await deactivateConfigs(ctx, rule.$primaryKey);
@@ -124,16 +121,7 @@ export const unapproveRule = defineAction<{ proposedRule: RuleObj }>({
   },
 });
 
-export const amendRuleThreshold = defineAction<{
-  proposedRule: RuleObj;
-  newThreshold: string;
-  newOperator?: string;
-}>({
-  params: {
-    proposedRule: { type: { object: "ProposedRule" } },
-    newThreshold: { type: "string" },
-    newOperator: { type: "string", nullable: true },
-  },
+export const amendRuleThreshold = defineAction("amendRuleThreshold", {
   async run(ctx, { proposedRule: rule, newThreshold, newOperator }) {
     requireStatus(rule, ["approved"], "amend");
     const threshold = newThreshold.trim();
@@ -193,127 +181,129 @@ interface ClusterPrep {
   clustered: Awaited<ReturnType<Clusterer>> | null;
 }
 
-export const clusterRejections = defineAction<Record<string, never>, ClusterPrep>({
-  params: {},
-  needsClusterer: true,
-  // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
-  async prepare(db, _params, ctx) {
-    // A firm hidden from the acting persona is not there: its decisions neither feed the clusterer
-    // (and so its rationale cannot reach a rule's summary) nor appear among a rule's supporting ids.
-    const hidden = new Set(ctx.hiddenFirmIds);
-    const firms = new Map(
-      (await listAll(db, "Firm"))
-        .filter((f) => !hidden.has(f.$primaryKey))
-        .map((f) => [f.$primaryKey, f]),
-    );
-    // Ordered here, not by the database: its text ordering (the primary-key tie-break) varies by
-    // server, and the order is part of the input a recorded clustering reply is matched against.
-    const decisions = sortedRows(
-      "ReviewDecision",
-      await listAll(db, "ReviewDecision", { where: { decisionType: { $eq: DECISION.reject } } }),
-      ["decidedAt"],
-    );
-    const rows: RejectionRow[] = decisions
-      .filter((d) => normalizeLifecycle(firms.get(d.firmId ?? "")?.lifecycleState) === PASSED)
-      .map((d) => ({
-        decisionId: d.$primaryKey,
-        firmId: d.firmId!,
-        rationale: d.rejectionRationale ?? "",
-        firm: firms.get(d.firmId!)!,
-      }));
-    if (rows.length === 0) {
-      return { rows, clustered: null };
-    }
-    return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows) };
-  },
-  // Writes only. The queue and the existing-proposal set are read here, inside the transaction, so
-  // a rule that was already committed is not proposed again. A rule another request commits after
-  // that read is caught by the unique index on the rule key (see the insert below).
-  async run(ctx, _params, { rows, clustered }) {
-    if (clustered === null) {
-      return { created: [], note: "No rejections to learn from yet." };
-    }
-    const { proposals, source } = clustered;
-    const firms = await listAll(ctx.tx, "Firm");
-    const byId = new Map(rows.map((r) => [r.decisionId, r]));
-    // Never re-propose a rule that already exists in any status (incl. dismissed).
-    const seen = new Set(
-      (await listAll(ctx.tx, "ProposedRule")).map((r) =>
-        ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
-      ),
-    );
-    const hidden = new Set(ctx.hiddenFirmIds);
-    const queue = firms.filter((f) => {
-      if (hidden.has(f.$primaryKey)) {
-        return false;
+export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
+  "clusterRejections",
+  {
+    needsClusterer: true,
+    // Reads the rejections and calls the clusterer (possibly Claude) before any transaction opens.
+    async prepare(db, _params, ctx) {
+      // A firm hidden from the acting persona is not there: its decisions neither feed the clusterer
+      // (and so its rationale cannot reach a rule's summary) nor appear among a rule's supporting ids.
+      const hidden = new Set(ctx.hiddenFirmIds);
+      const firms = new Map(
+        (await listAll(db, "Firm"))
+          .filter((f) => !hidden.has(f.$primaryKey))
+          .map((f) => [f.$primaryKey, f]),
+      );
+      // Ordered here, not by the database: its text ordering (the primary-key tie-break) varies by
+      // server, and the order is part of the input a recorded clustering reply is matched against.
+      const decisions = sortedRows(
+        "ReviewDecision",
+        await listAll(db, "ReviewDecision", { where: { decisionType: { $eq: DECISION.reject } } }),
+        ["decidedAt"],
+      );
+      const rows: RejectionRow[] = decisions
+        .filter((d) => normalizeLifecycle(firms.get(d.firmId ?? "")?.lifecycleState) === PASSED)
+        .map((d) => ({
+          decisionId: d.$primaryKey,
+          firmId: d.firmId!,
+          rationale: d.rejectionRationale ?? "",
+          firm: firms.get(d.firmId!)!,
+        }));
+      if (rows.length === 0) {
+        return { rows, clustered: null };
       }
-      const state = normalizeLifecycle(f.lifecycleState);
-      return state === "Discovered" || state === "Screening";
-    });
+      return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows) };
+    },
+    // Writes only. The queue and the existing-proposal set are read here, inside the transaction, so
+    // a rule that was already committed is not proposed again. A rule another request commits after
+    // that read is caught by the unique index on the rule key (see the insert below).
+    async run(ctx, _params, { rows, clustered }) {
+      if (clustered === null) {
+        return { created: [], note: "No rejections to learn from yet." };
+      }
+      const { proposals, source } = clustered;
+      const firms = await listAll(ctx.tx, "Firm");
+      const byId = new Map(rows.map((r) => [r.decisionId, r]));
+      // Never re-propose a rule that already exists in any status (incl. dismissed).
+      const seen = new Set(
+        (await listAll(ctx.tx, "ProposedRule")).map((r) =>
+          ruleKey(r.predicateAxis, r.ruleOperator, r.ruleThreshold, r.ruleModel),
+        ),
+      );
+      const hidden = new Set(ctx.hiddenFirmIds);
+      const queue = firms.filter((f) => {
+        if (hidden.has(f.$primaryKey)) {
+          return false;
+        }
+        const state = normalizeLifecycle(f.lifecycleState);
+        return state === "Discovered" || state === "Screening";
+      });
 
-    const created: string[] = [];
-    const alreadyProposed: string[] = [];
-    for (const p of proposals) {
-      const pred = {
-        axis: p.predicateAxis.trim(),
-        operator: p.ruleOperator.trim(),
-        threshold: p.ruleThreshold.trim(),
-        model: p.ruleModel,
+      const created: string[] = [];
+      const alreadyProposed: string[] = [];
+      for (const p of proposals) {
+        const pred = {
+          axis: p.predicateAxis.trim(),
+          operator: p.ruleOperator.trim(),
+          threshold: p.ruleThreshold.trim(),
+          model: p.ruleModel,
+        };
+        if (
+          predicateField(pred.axis) === null ||
+          !(OPERATORS as readonly string[]).includes(pred.operator) ||
+          pred.threshold === ""
+        ) {
+          continue;
+        }
+        // Ground every proposal: support counts only if the firm truly satisfies the predicate.
+        const support = [...new Set(p.supportingDecisionIds)].filter((id) => {
+          const r = byId.get(id);
+          return r !== undefined && matchesPredicate(r.firm, pred);
+        });
+        // A pattern needs MIN_CLUSTER distinct firms: a firm rejected twice counts once.
+        const supportingFirms = new Set(support.map((id) => byId.get(id)!.firmId)).size;
+        if (supportingFirms < MIN_CLUSTER) {
+          continue;
+        }
+        const key = ruleKey(pred.axis, pred.operator, pred.threshold, pred.model);
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        const proposedRuleId = ctx.newId("rule");
+        // `seen` was read at the start of this transaction. A run on another connection can land the
+        // same rule after that read; the unique constraint on the predicate turns this insert into a
+        // no-op then, and the rule that is there is the one to report.
+        const inserted = await insertObjectIfAbsent(ctx.tx, "ProposedRule", {
+          proposedRuleId,
+          predicateAxis: pred.axis,
+          ruleOperator: pred.operator,
+          ruleThreshold: pred.threshold,
+          ruleModel: pred.model,
+          rationaleClusterSummary: p.summary.trim().slice(0, 280),
+          supportingFirmCount: supportingFirms,
+          supportingDecisionIds: JSON.stringify(support),
+          projectedScreenCount: queue.filter((f) => matchesPredicate(f, pred)).length,
+          ruleStatus: "pending",
+          proposedAt: iso(ctx.now),
+          mandateScope: "All mandates",
+        });
+        if (!inserted) {
+          alreadyProposed.push(await existingRuleId(ctx, pred));
+          continue;
+        }
+        created.push(proposedRuleId);
+      }
+      const by = source === "claude" ? "Claude" : "the keyword heuristic";
+      const lost =
+        alreadyProposed.length === 0
+          ? ""
+          : ` A run at the same moment had already proposed: ${alreadyProposed.join(", ")}.`;
+      return {
+        created,
+        note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.${lost}`,
       };
-      if (
-        predicateField(pred.axis) === null ||
-        !(OPERATORS as readonly string[]).includes(pred.operator) ||
-        pred.threshold === ""
-      ) {
-        continue;
-      }
-      // Ground every proposal: support counts only if the firm truly satisfies the predicate.
-      const support = [...new Set(p.supportingDecisionIds)].filter((id) => {
-        const r = byId.get(id);
-        return r !== undefined && matchesPredicate(r.firm, pred);
-      });
-      // A pattern needs MIN_CLUSTER distinct firms: a firm rejected twice counts once.
-      const supportingFirms = new Set(support.map((id) => byId.get(id)!.firmId)).size;
-      if (supportingFirms < MIN_CLUSTER) {
-        continue;
-      }
-      const key = ruleKey(pred.axis, pred.operator, pred.threshold, pred.model);
-      if (seen.has(key)) {
-        continue;
-      }
-      seen.add(key);
-      const proposedRuleId = ctx.newId("rule");
-      // `seen` was read at the start of this transaction. A run on another connection can land the
-      // same rule after that read; the unique constraint on the predicate turns this insert into a
-      // no-op then, and the rule that is there is the one to report.
-      const inserted = await insertObjectIfAbsent(ctx.tx, "ProposedRule", {
-        proposedRuleId,
-        predicateAxis: pred.axis,
-        ruleOperator: pred.operator,
-        ruleThreshold: pred.threshold,
-        ruleModel: pred.model,
-        rationaleClusterSummary: p.summary.trim().slice(0, 280),
-        supportingFirmCount: supportingFirms,
-        supportingDecisionIds: JSON.stringify(support),
-        projectedScreenCount: queue.filter((f) => matchesPredicate(f, pred)).length,
-        ruleStatus: "pending",
-        proposedAt: iso(ctx.now),
-        mandateScope: "All mandates",
-      });
-      if (!inserted) {
-        alreadyProposed.push(await existingRuleId(ctx, pred));
-        continue;
-      }
-      created.push(proposedRuleId);
-    }
-    const by = source === "claude" ? "Claude" : "the keyword heuristic";
-    const lost =
-      alreadyProposed.length === 0
-        ? ""
-        : ` A run at the same moment had already proposed: ${alreadyProposed.join(", ")}.`;
-    return {
-      created,
-      note: `${created.length} rule${created.length === 1 ? "" : "s"} proposed by ${by}.${lost}`,
-    };
+    },
   },
-});
+);

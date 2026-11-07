@@ -1,5 +1,4 @@
 import { uniqueCodename } from "../../shared/accessPolicy.js";
-import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
 import { PASSED, firmIdFor, normalizeLifecycle } from "../../shared/vocab.js";
@@ -7,8 +6,6 @@ import { getObject, insertObject, insertObjects, listAll } from "../db/repo.js";
 import { ActionError } from "../errors.js";
 import { type FirmObj, iso, requireObject } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
-
-type MandateObj = ObjectOf<"Mandate">;
 
 const BREADTH_CAP: Readonly<Record<string, number>> = {
   narrow: 20,
@@ -48,22 +45,7 @@ function selectionOrThrow(values: readonly string[]): Selection {
   return sel;
 }
 
-export const runSearch = defineAction<{
-  mandate: MandateObj;
-  geographies?: string[];
-  industries?: string[];
-  seedFirms?: string[];
-  exclusions?: string[];
-  breadth?: string;
-}>({
-  params: {
-    mandate: { type: { object: "Mandate" } },
-    geographies: { type: "string[]", nullable: true },
-    industries: { type: "string[]", nullable: true },
-    seedFirms: { type: "string[]", nullable: true },
-    exclusions: { type: "string[]", nullable: true },
-    breadth: { type: "string", nullable: true },
-  },
+export const runSearch = defineAction("runSearch", {
   async run(ctx, p) {
     const breadth = p.breadth ?? "standard";
     const cap = BREADTH_CAP[breadth];
@@ -153,20 +135,7 @@ export const runSearch = defineAction<{
   },
 });
 
-export const runMandateSearch = defineAction<{
-  title: string;
-  archetype: string;
-  geographies?: string[];
-  priority?: string;
-  sizeMaxUsdM?: number;
-}>({
-  params: {
-    title: { type: "string" },
-    archetype: { type: "string" },
-    geographies: { type: "string[]", nullable: true },
-    priority: { type: "string", nullable: true },
-    sizeMaxUsdM: { type: "integer", nullable: true },
-  },
+export const runMandateSearch = defineAction("runMandateSearch", {
   async run(ctx, p) {
     const title = p.title.trim();
     if (title === "") {

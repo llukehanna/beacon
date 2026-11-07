@@ -19,20 +19,16 @@ import {
  * linked firms are fetched.
  */
 export function SearchListRow({
-  searchInstance,
   searchId,
   displayName,
 }: {
-  // The WireObject from useOsdkObjects(SearchList): useLinks needs it (not a plain copy) to
-  // traverse the link and key the result by primary key.
-  searchInstance: unknown;
   searchId: string;
   displayName: string;
 }): React.ReactElement {
   const { linkedObjectsBySourcePrimaryKey, hasMore, isLoading, error } = useLinks(
-    searchInstance as never,
+    { $apiName: "SearchList", $primaryKey: searchId },
     "firms",
-    { pageSize: FIRM_COUNT_PAGE_SIZE, $select: ["firmId"] as never },
+    { pageSize: FIRM_COUNT_PAGE_SIZE, $select: ["firmId"] },
   );
   const firms = linkedObjectsBySourcePrimaryKey.get(searchId);
   const count = firms?.length ?? 0;
@@ -128,7 +124,6 @@ export function MandateCard({
           {searches.map((s) => (
             <SearchListRow
               key={s.searchId}
-              searchInstance={s}
               searchId={s.searchId}
               displayName={s.name ?? s.searchId}
             />

@@ -110,9 +110,9 @@ async function presentAll<N extends ObjectTypeName>(
     return shown;
   }
   const wall = await ruleWallFor(db, access);
-  return (shown as ObjectOf<"ProposedRule">[]).map(
-    (r) => presentRule(wall, r).rule,
-  ) as unknown as ObjectOf<N>[];
+  // `type` is "ProposedRule" here, but a check on a generic N does not narrow the objects.
+  const rules = shown as unknown as ObjectOf<"ProposedRule">[];
+  return rules.map((r) => presentRule(wall, r).rule) as unknown as ObjectOf<N>[];
 }
 
 async function logOpen(

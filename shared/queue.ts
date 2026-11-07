@@ -19,10 +19,11 @@
  *   • terminal (Qualified or later, or Passed) → above hard-screened
  *   • workable → gain desc, fewer-missing tiebreak
  */
+import { looseText } from "./looseText.js";
 import { type Model, type ScoreInput, mirrorScore } from "./scoreMirror.js";
 import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "./vocab.js";
 
-export interface QueueFirm extends ScoreInput {
+export type QueueFirm = ScoreInput & {
   firmId: string;
   firmName?: string | null;
   // Lifecycle carried through so the ranker can push Qualified-or-later / Passed
@@ -35,7 +36,7 @@ export interface QueueFirm extends ScoreInput {
   // the client can't reconstruct. Reading disposition lets us honour the
   // server's decision even when the mirror sees the firm as workable.
   disposition?: string | null;
-}
+};
 
 export interface RankedFirm {
   firm: QueueFirm;
@@ -159,8 +160,8 @@ export function toQueueFirm(firm: object): QueueFirm & Record<string, unknown> {
   for (const k of QUEUE_FIELDS) {
     out[k] = f[k];
   }
-  out.firmId = (f.firmId as string | undefined) ?? "";
-  out.disposition = (f.disposition as string | null | undefined) ?? null;
+  out.firmId = f.firmId ?? "";
+  out.disposition = f.disposition ?? null;
   return out as QueueFirm & Record<string, unknown>;
 }
 
@@ -221,7 +222,7 @@ function ruleMatches(firmValue: unknown, operator: string, threshold: string): b
     }
   }
 
-  const sV = String(firmValue).trim().toLowerCase();
+  const sV = looseText(firmValue).trim().toLowerCase();
   const sT = t.toLowerCase();
   switch (op) {
     case "=":
@@ -293,7 +294,7 @@ export function computeHardScreen(
       // than false-positive the firm.
       continue;
     }
-    const value = (firm as unknown as Record<string, unknown>)[field];
+    const value: unknown = Reflect.get(firm, field);
     if (ruleMatches(value, rule.operator, rule.threshold)) {
       return {
         hardScreened: true,

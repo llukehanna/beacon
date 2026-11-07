@@ -44,7 +44,7 @@ export async function recordClustering(): Promise<void> {
         },
       },
     },
-  } as unknown as Anthropic;
+  } as unknown as Anthropic; // a recording stand-in for the one method the clusterer calls
 
   const claude = createClaudeClusterer(client);
   const clusterer: Clusterer = async (rows) => {

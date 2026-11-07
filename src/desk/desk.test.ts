@@ -517,11 +517,7 @@ describe("findingActions — Accept / Verify decision", () => {
   });
 
   it("Verify with a different analyst-set value → conflict (no silent overwrite)", () => {
-    const current = effectiveAxisValue(
-      { webActivity: false } as unknown as Record<string, unknown>,
-      {},
-      "webActivity",
-    );
+    const current = effectiveAxisValue({ webActivity: false }, {}, "webActivity");
     const decision = decideVerify({ axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("conflict");
   });

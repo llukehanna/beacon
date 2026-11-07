@@ -46,12 +46,59 @@ afterAll(async () => {
   await db.close();
 });
 
+/** A search hit or a listed rule: the fields these tests read. */
+interface Row {
+  firmId: string;
+  firmName: string;
+  score: number;
+  tier: string;
+  status: string;
+  predicate: string;
+}
+
+type Axis = {
+  axis: string;
+  label: string;
+  status: string;
+  sides: Array<Record<string, unknown>>;
+};
+
+/** What a tool returns as structured content, as one shape: each tool fills in its own fields. */
+interface Structured {
+  firms: Row[];
+  rules: Row[];
+  axes: Axis[];
+  firmId: string;
+  limit: number;
+  returned: number;
+  totalMatches: number;
+  partial: boolean;
+}
+
+interface ToolEntry {
+  name: string;
+  annotations: { readOnlyHint: boolean; destructiveHint: boolean };
+  inputSchema: { type: string; additionalProperties: boolean };
+}
+
+/** A JSON-RPC reply. Each test reads the fields its method answers with, so all are declared. */
+interface Rpc {
+  id: number | string | null;
+  error: { code: number; message: string };
+  result: {
+    protocolVersion: string;
+    capabilities: Record<string, unknown>;
+    tools: ToolEntry[];
+    isError?: boolean;
+    content: Array<{ type: string; text: string }>;
+    structuredContent: Structured;
+  };
+}
+
 interface Reply {
   status: number;
   headers: Headers;
-  // The reply is checked field by field; a typed shape per method would only restate the protocol.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  json: any;
+  json: Rpc;
 }
 
 const send = async (
@@ -70,7 +117,12 @@ const send = async (
     }),
   );
   const text = await res.text();
-  return { status: res.status, headers: res.headers, json: text === "" ? null : JSON.parse(text) };
+  // The reply is JSON of the shape under test; a notification has no body.
+  return {
+    status: res.status,
+    headers: res.headers,
+    json: (text === "" ? null : JSON.parse(text)) as Rpc,
+  };
 };
 
 let nextId = 1;
@@ -268,21 +320,22 @@ describe("tools", () => {
 
   it("searches by name and filters, best score first", async () => {
     const all = (await tool("search_firms", { limit: 25 })).json.result.structuredContent;
-    const scores = all.firms.map((f: { score: number }) => f.score);
-    expect(scores).toEqual([...scores].sort((a: number, b: number) => b - a));
+    const scores = all.firms.map((f) => f.score);
+    expect(scores).toEqual([...scores].sort((a, b) => b - a));
     const first = all.firms[0];
-    expect(first).toMatchObject({ maxScore: 18, tier: expect.stringMatching(/^[ABC]|Rejected$/) });
+    expect(first).toMatchObject({ maxScore: 18 });
+    expect(first.tier).toMatch(/^[ABC]|Rejected$/);
 
     const word = first.firmName.split(" ")[0].toLowerCase();
     const byName = (await tool("search_firms", { query: word.toUpperCase(), limit: 25 })).json
       .result.structuredContent;
-    expect(byName.firms.map((f: { firmId: string }) => f.firmId)).toContain(first.firmId);
+    expect(byName.firms.map((f) => f.firmId)).toContain(first.firmId);
     for (const f of byName.firms) {
       expect(f.firmName.toLowerCase()).toContain(word);
     }
     const tierA = (await tool("search_firms", { tier: first.tier, limit: 25 })).json.result
       .structuredContent;
-    expect(tierA.firms.every((f: { tier: string }) => f.tier === first.tier)).toBe(true);
+    expect(tierA.firms.every((f) => f.tier === first.tier)).toBe(true);
     const none = (await tool("search_firms", { query: "zzz-no-such-firm" })).json.result
       .structuredContent;
     expect(none).toMatchObject({ firms: [], totalMatches: 0, returned: 0 });
@@ -297,7 +350,7 @@ describe("tools", () => {
     }
     const approved = (await tool("list_rules", { status: "approved" })).json.result
       .structuredContent;
-    expect(approved.rules.every((r: { status: string }) => r.status === "approved")).toBe(true);
+    expect(approved.rules.every((r) => r.status === "approved")).toBe(true);
     const stored = await listAll(db, "ProposedRule");
     const pending = stored.filter((r) => (r.ruleStatus ?? "pending") === "pending").length;
     const got = (await tool("list_rules", { status: "pending", limit: 25 })).json.result
@@ -335,12 +388,12 @@ describe("get_firm_evidence", () => {
     // server's type check does not resolve the app's "@/" alias.
     const modelPath = "../../src/tearsheet/tearSheetModel";
     const { buildTearSheet } = (await import(/* @vite-ignore */ modelPath)) as {
-      buildTearSheet(input: {
+      buildTearSheet: (input: {
         firm: unknown;
         findings: unknown[];
         decisions: unknown[];
         rules: unknown[];
-      }): {
+      }) => {
         evidence: Array<Record<string, unknown>>;
         conflicts: Array<{ axis: string; sides: Array<Record<string, unknown>> }>;
         abstentions: Array<{ axis: string }>;
@@ -359,13 +412,7 @@ describe("get_firm_evidence", () => {
     // The text content is the same JSON as the structured content.
     expect(JSON.parse(res.json.result.content[0].text)).toEqual(evidence);
 
-    type Axis = {
-      axis: string;
-      label: string;
-      status: string;
-      sides: Array<Record<string, unknown>>;
-    };
-    const axes: Axis[] = evidence.axes;
+    const axes = evidence.axes;
     const cite = (a: Record<string, unknown>) => ({
       value: a.value,
       provider: a.provider,
@@ -374,7 +421,7 @@ describe("get_firm_evidence", () => {
     });
     const settled = axes
       .filter((a) => ["verified", "proposed", "signal"].includes(a.status))
-      .map((a) => ({ axis: a.label, status: a.status, ...cite(a as never) }));
+      .map((a) => ({ axis: a.label, status: a.status, ...cite(a) }));
     expect(settled).toEqual(
       sheet.evidence.map((e) => ({ axis: e.axis, status: e.status, ...cite(e) })),
     );
@@ -394,7 +441,7 @@ describe("get_firm_evidence", () => {
     expect(sheet.abstentions.length).toBeGreaterThan(0);
     // An axis with no value carries no citation.
     for (const a of axes.filter((x) => x.status === "abstained" || x.status === "empty")) {
-      expect(cite(a as never)).toEqual({ value: null, provider: null, quote: null, model: null });
+      expect(cite(a)).toEqual({ value: null, provider: null, quote: null, model: null });
     }
   });
 
@@ -426,7 +473,7 @@ describe("a round trip through the handler", () => {
     expect((await send({ jsonrpc: "2.0", method: "notifications/initialized" })).status).toBe(202);
 
     const listed = await send({ jsonrpc: "2.0", id: 2, method: "tools/list" });
-    const names = listed.json.result.tools.map((t: { name: string }) => t.name);
+    const names = listed.json.result.tools.map((t) => t.name);
     expect(names).toEqual(["search_firms", "get_firm_evidence", "list_rules"]);
 
     const found = await send(

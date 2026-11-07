@@ -92,7 +92,7 @@ export function QueueSidebar({
   const screenByFirmId = React.useMemo(() => {
     const m = new Map<string, ScreeningRule>();
     for (const r of queue) {
-      const res = screenFirm(r.firm as never, screeningRules);
+      const res = screenFirm(r.firm, screeningRules);
       if (res.screened && res.rule !== null) {
         m.set(r.firm.firmId, res.rule);
       }
@@ -135,7 +135,7 @@ export function QueueSidebar({
         : queue.filter((r) =>
             // Same predicate the header counts, so the list length and the
             // "N in live queue" figure above it can never disagree.
-            isLiveQueueFirm(r.firm as never, screeningRules, openByFirmId.has(r.firm.firmId)),
+            isLiveQueueFirm(r.firm, screeningRules, openByFirmId.has(r.firm.firmId)),
           );
     if (!searching) {
       return base;

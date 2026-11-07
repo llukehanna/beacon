@@ -19,7 +19,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import type { ObjectOf, ObjectTypeName } from "../../shared/schema";
+import type { ActionParams } from "../../shared/actionParams";
+import type { ActionName, ObjectTypeName } from "../../shared/schema";
 import {
   type ActionResponse,
   type ObjectQuery,
@@ -30,7 +31,7 @@ import {
 } from "./api";
 import type { ActionToken, ObjectTypeToken } from "./ontology";
 import { usePersona } from "./persona";
-import { type WireObject, linkQueryReads, normalizeError, toLinkMap } from "./wire";
+import { linkQueryReads, normalizeError, toLinkMap } from "./wire";
 
 export interface ObjectsOptions extends ObjectQuery {
   /** Rows per request (the server caps it at 1000). */
@@ -72,8 +73,7 @@ export function useOsdkObjects<N extends ObjectTypeName>(
   // complete list until the new one has arrived.
   const settled = !autoFetchMore || !more;
   const data = React.useMemo(
-    () =>
-      settled ? (q.data?.pages.flatMap((p) => p.data) as ObjectOf<N>[] | undefined) : undefined,
+    () => (settled ? q.data?.pages.flatMap((p) => p.data) : undefined),
     [settled, q.data],
   );
   const fetchMore = React.useCallback(async (): Promise<void> => {
@@ -124,35 +124,41 @@ export function invalidateAfterAction(qc: QueryClient, res: ActionResponse): Pro
   ]);
 }
 
-export function useOsdkAction(action: ActionToken) {
+/** An action, with the parameters its server definition validates (shared/actionParams.ts). */
+export function useOsdkAction<N extends ActionName>(action: ActionToken<N>) {
   const qc = useQueryClient();
   const m = useMutation({
-    mutationFn: (params: Record<string, unknown>) => postAction(action.apiName, params),
+    mutationFn: (params: ActionParams<N>) => postAction(action.apiName, params),
     // Returning the promise makes applyAction resolve only after the
     // refetch lands, so `.then(refresh)` callers see fresh data.
     onSuccess: (res) => invalidateAfterAction(qc, res),
   });
   return {
-    applyAction: (params: Record<string, unknown>): Promise<ActionResponse> =>
-      m.mutateAsync(params),
+    applyAction: (params: ActionParams<N>): Promise<ActionResponse> => m.mutateAsync(params),
     isPending: m.isPending,
     error: normalizeError(m.error),
   };
 }
 
+/** What traversing a link needs of its source: the object's type and key. */
+export interface LinkSource {
+  readonly $apiName: string;
+  readonly $primaryKey: string;
+}
+
 export function useLinks(
-  source: WireObject | readonly WireObject[] | null | undefined,
+  source: LinkSource | readonly LinkSource[] | null | undefined,
   linkName: string,
   _opts?: { pageSize?: number; $select?: unknown },
 ) {
-  const sources: readonly WireObject[] =
-    source == null ? [] : Array.isArray(source) ? source : [source as WireObject];
+  const sources: readonly LinkSource[] =
+    source == null ? [] : "$primaryKey" in source ? [source] : source;
   const type = sources[0]?.$apiName;
   const pks = sources.map((s) => s.$primaryKey);
   const persona = usePersona();
   const q = useQuery({
     queryKey: ["links", type ?? null, linkName, pks, persona],
-    queryFn: () => fetchLinks(type as string, linkName, pks),
+    queryFn: () => fetchLinks(type, linkName, pks),
     enabled: type !== undefined && pks.length > 0,
   });
   const linkedObjectsBySourcePrimaryKey = React.useMemo(() => toLinkMap(q.data), [q.data]);
@@ -168,7 +174,7 @@ export function useObservableClient() {
   const qc = useQueryClient();
   return React.useMemo(
     () => ({
-      invalidateObjects: (_obj?: unknown) =>
+      invalidateObjects: () =>
         Promise.all([
           qc.invalidateQueries({ queryKey: ["objects"] }),
           qc.invalidateQueries({ queryKey: ["functions"] }),

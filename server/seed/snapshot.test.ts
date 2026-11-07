@@ -65,10 +65,7 @@ describe("resetFromSnapshot", () => {
     await resetDemo(rebuilt, later, { newId: sequentialIds(), fixtures });
 
     const [a, b] = [await dump(restored), await dump(rebuilt)];
-    expect(
-      (b.extraction as unknown[]).length,
-      "the fixture produced Extraction rows",
-    ).toBeGreaterThan(0);
+    expect(b.extraction.length, "the fixture produced Extraction rows").toBeGreaterThan(0);
     for (const table of Object.keys(b)) {
       expect(a[table].length, table).toBe(b[table].length);
       expect(a[table], table).toEqual(b[table]);
@@ -111,6 +108,7 @@ describe("resetFromSnapshot", () => {
     expect(before).toBe(700);
     await expect(resetFromSnapshot(db, takenAt)).rejects.toMatchObject({
       status: 503,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       message: expect.stringContaining("predates proposed_rule.proposedAt"),
     });
     const [{ n: after }] = await db.query<{ n: number }>(`SELECT count(*)::int AS n FROM firm`);

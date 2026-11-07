@@ -10,11 +10,10 @@
 import type { ObjectOf } from "../../shared/schema.js";
 import { MAX_POSSIBLE, mirrorScore } from "../../shared/scoreMirror.js";
 import { ENRICH_AXES } from "../../shared/vocab.js";
-import { type FindingLike } from "../../src/desk/axisState.js";
 import { displayFindingValue } from "../../src/desk/findingActions.js";
 import { authoritativeFinding, buildAxisRows } from "../../src/desk/firmDesk/axisRows.js";
 import { type Citation, citationOf } from "../../src/desk/firmDesk/citation.js";
-import { type FirmView, toScoreInput } from "../../src/desk/firmDesk/deskModel.js";
+import { toScoreInput } from "../../src/desk/firmDesk/deskModel.js";
 import { conflictSides } from "../../src/desk/firmDesk/evidenceModel.js";
 
 /** One side of an open conflict: a value one source gave, and where it came from. */
@@ -57,12 +56,12 @@ export function firmEvidence(
   firm: ObjectOf<"Firm">,
   findings: readonly ObjectOf<"ResearchFinding">[],
 ): FirmEvidence {
-  const view = firm as unknown as FirmView;
+  const view = firm;
   const mirror = mirrorScore(toScoreInput(view));
   const rows = buildAxisRows(
     ENRICH_AXES.filter((a) => a.models.includes(mirror.model)),
     undefined,
-    findings as unknown as FindingLike[],
+    findings,
   );
   const axes = rows.map((row): AxisEvidence => {
     const base = {

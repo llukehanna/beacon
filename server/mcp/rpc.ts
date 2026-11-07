@@ -60,7 +60,7 @@ export interface ToolHost {
 /** What to send back: an HTTP status and a JSON body, or no body at all (a notification). */
 export interface RpcReply {
   status: number;
-  body: unknown | null;
+  body: unknown;
 }
 
 type Id = string | number;

@@ -24,11 +24,11 @@ const plural = (n: number, one: string, many: string): string => `${n} ${n === 1
  */
 export function AgentRunStrip({
   firm,
-  actionFirm,
+  firmId,
   agentRan,
 }: {
   firm: FirmView;
-  actionFirm: unknown;
+  firmId: string;
   agentRan: boolean | undefined;
 }): React.ReactElement {
   const enrichedAt = firm.enrichedAt ?? null;
@@ -41,7 +41,7 @@ export function AgentRunStrip({
   const runAgent = useOsdkAction(runAgentEnrichmentAction);
   const run = (): void => {
     if (!runAgent.isPending) {
-      void runAgent.applyAction({ firm: actionFirm } as never);
+      void runAgent.applyAction({ firm: firmId });
     }
   };
 

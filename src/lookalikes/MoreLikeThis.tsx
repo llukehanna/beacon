@@ -2,7 +2,6 @@ import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm } from "@/data/ontology";
 import { Notice, Panel, Skeleton } from "@/ui";
-import type { FirmLike } from "../../shared/exportRows";
 import { moreLikeThis } from "../../shared/lookalikes";
 import { LookalikeList } from "./LookalikeList";
 import styles from "./MoreLikeThis.module.css";
@@ -23,7 +22,7 @@ export function MoreLikeThis({
     autoFetchMore: true,
   });
   const rows = React.useMemo(
-    () => (data === undefined ? [] : moreLikeThis(firmId, data as unknown as FirmLike[])),
+    () => (data === undefined ? [] : moreLikeThis(firmId, data)),
     [data, firmId],
   );
   const headingId = React.useId();

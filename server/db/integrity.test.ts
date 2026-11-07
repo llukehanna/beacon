@@ -395,13 +395,13 @@ function blindToRules(real: Db): Db {
       real.transaction((tx) =>
         fn({
           ...tx,
-          query: ((sql: string, params?: unknown[]) => {
+          query: (sql: string, params?: unknown[]) => {
             if (stale && /^\s*SELECT[\s\S]*FROM proposed_rule\b/i.test(sql)) {
               stale = false; // only the first read, the one that lists what exists
               return Promise.resolve([]);
             }
             return tx.query(sql, params);
-          }) as Tx["query"],
+          },
         }),
       ),
   };
@@ -812,7 +812,7 @@ describe("migration 0003 on a database that already holds rows", () => {
         await db.query<{ id: string; at: Date }>(
           `SELECT "proposedRuleId" AS id, "proposedAt" AS at FROM ${table} ORDER BY 1`,
         )
-      ).map((r) => [r.id, r.at.toISOString()]);
+      ).map((r): [string, string] => [r.id, r.at.toISOString()]);
     for (const table of ["proposed_rule", "snapshot_proposed_rule"]) {
       const rows = Object.fromEntries(await at(table));
       expect(Object.keys(rows), table).toEqual(["r-bare", "r-decided", "r-supported"]);
@@ -841,9 +841,9 @@ describe("migration 0003 on a database that already holds rows", () => {
     );
     // One entry per rule filled in, and the column added to the snapshot copy; no deletions.
     expect(log.map((r) => `${r.tableName} ${r.action}`)).toEqual([
-      ...Array(3).fill("proposed_rule backfilled"),
+      ...Array<string>(3).fill("proposed_rule backfilled"),
       "snapshot_proposed_rule added",
-      ...Array(3).fill("snapshot_proposed_rule backfilled"),
+      ...Array<string>(3).fill("snapshot_proposed_rule backfilled"),
     ]);
     // And the reset can restore from the older snapshot.
     await expect(resetFromSnapshot(db, new Date("2026-09-10T00:00:00Z"))).resolves.toEqual({

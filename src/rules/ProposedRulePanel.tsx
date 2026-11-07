@@ -54,12 +54,12 @@ export function ProposedRulePanel({
     if (busy) {
       return;
     }
-    void approve.applyAction({ proposedRule: rule } as never).catch(() => undefined);
+    void approve.applyAction({ proposedRule: rule.proposedRuleId }).catch(() => undefined);
   };
   const onDecline = (): void => {
     // The reason is cleared only on success, so a failure does not lose what was typed.
     void dismiss
-      .applyAction({ proposedRule: rule, reason: reason.trim() } as never)
+      .applyAction({ proposedRule: rule.proposedRuleId, reason: reason.trim() })
       .then(() => {
         setReason("");
         setDeclineOpen(false);

@@ -27,7 +27,7 @@ export function NewMandateForm({
     // (the only free-text create param); the cards read `intentStatement ?? title`. Geography and
     // max-size are deprecated on the mandate and are not written.
     void run
-      .applyAction({ title: intent.trim(), archetype, priority } as never)
+      .applyAction({ title: intent.trim(), archetype, priority })
       .then(() => setIntent(""))
       .catch(() => undefined);
   };

@@ -46,7 +46,7 @@ import {
 export interface SignalRow {
   signalId: string;
   firmId: string;
-  kind: string;
+  kind?: string | null;
   effectiveDate: string;
   headline?: string | null;
   axis?: string | null;

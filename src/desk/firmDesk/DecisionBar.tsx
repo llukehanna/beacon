@@ -51,7 +51,7 @@ function ErrorList({
  */
 export function DecisionBar({
   firm,
-  actionFirm,
+  firmId,
   mirror,
   edits,
   onCommit,
@@ -60,7 +60,7 @@ export function DecisionBar({
   enrichError,
 }: {
   firm: FirmView;
-  actionFirm: unknown;
+  firmId: string;
   /** The score mirror with staged edits applied. */
   mirror: MirrorResult;
   edits: EditMap;
@@ -89,8 +89,8 @@ export function DecisionBar({
   // stale lifecycle and this bar offering a transition the server has already completed.
   // Invalidate the firm explicitly after every successful decision.
   const refreshFirm = React.useCallback((): void => {
-    void observable.invalidateObjects(actionFirm as never);
-  }, [observable, actionFirm]);
+    void observable.invalidateObjects();
+  }, [observable]);
 
   const { stageLabel, terminalKind, qualified, nextState } = firmDecisionState(firm);
   const canQualify = terminalKind === null && !qualified && !qualify.isPending;
@@ -98,15 +98,13 @@ export function DecisionBar({
   const canPass = terminalKind === null && !reject.isPending;
 
   const onQualify = (): void => {
-    void qualify.applyAction({ firm: actionFirm } as never).then(refreshFirm);
+    void qualify.applyAction({ firm: firmId }).then(refreshFirm);
   };
   const onAdvance = (): void => {
     if (nextState === null) {
       return;
     }
-    void advance
-      .applyAction({ firm: actionFirm, targetState: nextState } as never)
-      .then(refreshFirm);
+    void advance.applyAction({ firm: firmId, targetState: nextState }).then(refreshFirm);
   };
   const onPass = (): void => {
     if (note.trim().length === 0) {
@@ -115,13 +113,11 @@ export function DecisionBar({
       return;
     }
     // Note preserved if the pass fails (only cleared on success).
-    void reject
-      .applyAction({ firm: actionFirm, rejectionRationale: note.trim() } as never)
-      .then(() => {
-        setNote("");
-        setAttemptedPass(false);
-        refreshFirm();
-      });
+    void reject.applyAction({ firm: firmId, rejectionRationale: note.trim() }).then(() => {
+      setNote("");
+      setAttemptedPass(false);
+      refreshFirm();
+    });
   };
 
   // One place that says what each shortcut does right now; the key listener and the palette

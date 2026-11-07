@@ -1,3 +1,4 @@
+import type { ResolvedParams } from "../../shared/actionParams.js";
 import type { ActionName } from "../../shared/schema.js";
 import { acknowledgeDrift, keepPassed, reEngageFirm, setFirmOutcome } from "./drift.js";
 import { enrichFirm, resolveConflict, runAgentEnrichment, verifyFinding } from "./findings.js";
@@ -12,9 +13,10 @@ import {
 import { runMandateSearch, runSearch } from "./search.js";
 import type { ActionDef } from "./types.js";
 
-// Each action module registers here; registry.test.ts asserts every name in ACTION_NAMES is implemented.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export const ACTIONS: Partial<Record<ActionName, ActionDef<any, any>>> = {
+/** Every action's definition, typed by its own validated params. A missing name fails to compile. */
+export type ActionRegistry = { readonly [N in ActionName]: ActionDef<ResolvedParams<N>, unknown> };
+
+export const ACTIONS: ActionRegistry = {
   qualifyFirm,
   rejectFirm,
   advanceStage,

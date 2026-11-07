@@ -183,6 +183,7 @@ describe("applyDueSignals", () => {
     expect(drifts).toHaveLength(1);
     expect(await getObject(db, "DriftEvent", drifts[0])).toMatchObject({
       driftReason: "pass_reason_invalidated",
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       newTier: expect.stringMatching(/^[ABC]$/),
     });
   });

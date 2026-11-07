@@ -8,19 +8,6 @@ import { NAV_ITEMS } from "./keys";
 /** Where the firm list stands: not asked for yet, on its way, failed, or available. */
 export type FirmStatus = "idle" | "loading" | "error" | "ready";
 
-interface MandateRow {
-  mandateId: string;
-  title?: string | null;
-  intentStatement?: string | null;
-  active?: boolean | null;
-}
-
-interface FirmRow {
-  firmId: string;
-  firmName?: string | null;
-  hqCountry?: string | null;
-}
-
 /**
  * Every command the palette can offer: routes, active mandates, shell actions, the actions screens
  * register, and the firm list. Firms and mandates are only fetched once `loadFirms` is true (the
@@ -52,7 +39,7 @@ export function useShellCommands({
 
   const firms = React.useMemo<Command[]>(
     () =>
-      ((firmData ?? []) as unknown as FirmRow[])
+      (firmData ?? [])
         .filter((f) => (f.firmName ?? "").trim() !== "")
         .map((f) => ({
           id: `firm:${f.firmId}`,
@@ -66,7 +53,7 @@ export function useShellCommands({
 
   const mandates = React.useMemo<Command[]>(
     () =>
-      ((mandateData ?? []) as unknown as MandateRow[])
+      (mandateData ?? [])
         // active === false retires a mandate; null predates the flag and still counts.
         .filter((m) => m.active !== false)
         .map((m) => ({

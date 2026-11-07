@@ -380,9 +380,16 @@ export type Props<N extends ObjectTypeName> = {
   -readonly [K in keyof PropsOf<N>]?: TsOf<PropsOf<N>[K]> | null;
 };
 
+/** The properties every row has: the primary key and the `required` columns the database holds NOT NULL. */
+type PresentKeys<N extends ObjectTypeName> =
+  | (typeof OBJECT_TYPES)[N]["primaryKey"]
+  | ((typeof OBJECT_TYPES)[N] extends { readonly required: readonly (infer R)[] } ? R : never);
+
 /** Read shape as it crosses the wire: absent means null, plus identity fields. */
 export type ObjectOf<N extends ObjectTypeName> = {
-  -readonly [K in keyof PropsOf<N>]?: TsOf<PropsOf<N>[K]>;
+  -readonly [K in Extract<keyof PropsOf<N>, PresentKeys<N>>]: TsOf<PropsOf<N>[K]>;
+} & {
+  -readonly [K in Exclude<keyof PropsOf<N>, PresentKeys<N>>]?: TsOf<PropsOf<N>[K]>;
 } & { $apiName: N; $primaryKey: string };
 
 /**

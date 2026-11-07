@@ -45,7 +45,7 @@ describe("the generated ontology reference", () => {
   it("lists every action with each parameter, its type and whether it is required", () => {
     for (const name of ACTION_NAMES) {
       expect(doc, name).toContain(`### ${name}\n`);
-      for (const [param, def] of Object.entries(ACTIONS[name]!.params)) {
+      for (const [param, def] of Object.entries(ACTIONS[name].params)) {
         const type = typeof def.type === "object" ? `${def.type.object} (primary key)` : def.type;
         expect(doc, `${name}.${param}`).toContain(
           `| \`${param}\` | ${type} | ${def.nullable === true ? "no" : "yes"} |`,

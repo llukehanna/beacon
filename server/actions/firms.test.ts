@@ -87,6 +87,7 @@ describe("advanceStage", () => {
       const firm = await seedFirm(db, { lifecycleState, currentStage: lifecycleState });
       await expect(
         run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" }),
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       ).rejects.toMatchObject({ status: 409, message: expect.stringMatching(/qualif/i) });
     }
   });

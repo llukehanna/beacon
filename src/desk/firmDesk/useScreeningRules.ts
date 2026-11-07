@@ -24,16 +24,7 @@ export function useScreeningRules(): {
   });
   const activeConfigs = React.useMemo<ActiveConfigRule[]>(() => {
     return (
-      (
-        (configData ?? []) as unknown as Array<{
-          configRuleId: string;
-          configActive?: boolean;
-          configAxis?: string;
-          configOperator?: string;
-          configThreshold?: string;
-          configModel?: string;
-        }>
-      )
+      (configData ?? [])
         .filter((r) => r.configActive === true)
         .map((r) => ({
           ruleId: r.configRuleId,
@@ -57,11 +48,7 @@ export function useScreeningRules(): {
     autoFetchMore: true,
   });
   const screeningRules = React.useMemo<ScreeningRule[]>(
-    () =>
-      toScreeningRules(
-        (proposedRuleData ?? []) as unknown as Parameters<typeof toScreeningRules>[0],
-        (configData ?? []) as unknown as Parameters<typeof toScreeningRules>[1],
-      ),
+    () => toScreeningRules(proposedRuleData ?? [], configData ?? []),
     [proposedRuleData, configData],
   );
 

@@ -876,6 +876,7 @@ describe("access log", () => {
   it("lets only compliance read the log", async () => {
     const log = await list("AccessLogEntry", "compliance");
     expect(log.length).toBeGreaterThan(0);
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
     expect(log[0]).toMatchObject({ persona: expect.any(String), objectType: expect.any(String) });
     expect((await objects(call(`/api/objects?type=AccessLogEntry`, "deal_lead"))).status).toBe(403);
   });
