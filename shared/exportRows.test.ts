@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { buildAxisRows } from "./axisRows.js";
+import type { FindingLike as AxisFinding } from "./axisState.js";
+import { citationOf } from "./citation.js";
 import { CRM_FORMATS } from "./crmFormats.js";
+import { conflictSides } from "./evidenceModel.js";
 import {
   type FindingLike,
   type FirmLike,
@@ -11,6 +15,7 @@ import {
   targetsTable,
   toCsv,
 } from "./exportRows.js";
+import { displayFindingValue } from "./findingActions.js";
 import { ENRICH_AXES } from "./vocab.js";
 
 const firm = (over: Partial<FirmLike> = {}): FirmLike => ({
@@ -199,6 +204,108 @@ describe("exportRows", () => {
     expect(rows[0].firm_age).toBe(30);
     expect(rows[0].deal_size_usd_m).toBeNull();
     expect(rows[0].advisory_conflict).toBe("No");
+  });
+
+  it("export marks an open conflict", () => {
+    const sides = [
+      {
+        findingId: "c1",
+        firmId: "f1",
+        axis: "fee_generating_count",
+        value: "5",
+        provider: "filings",
+        sourceDocumentId: "filings:f1",
+        sourceQuote: "Five fee-earning managing directors.",
+        extractionModel: "claude-haiku-4-5",
+        findingStatus: "proposed",
+        conflictGroupId: "g1",
+        retrievedAt: "2026-01-01T00:00:00Z",
+      },
+      {
+        findingId: "c2",
+        firmId: "f1",
+        axis: "fee_generating_count",
+        value: "3",
+        provider: "dealdb",
+        sourceDocumentId: "dealdb:f1",
+        sourceQuote: "Three MDs led deals in the period.",
+        extractionModel: null,
+        findingStatus: "proposed",
+        conflictGroupId: "g1",
+        retrievedAt: "2026-01-01T00:00:00Z",
+      },
+    ] satisfies (AxisFinding & FindingLike)[];
+    const all = [...sides, finding()];
+    const { rows, citations } = exportRows([firm()], all);
+    // The cell says so, the two most trusted sources first (Deal DB before Filings), as the Desk lists them.
+    expect(rows[0].fee_generating_count).toBe("Conflict: 3 vs 5");
+    // Both sides are cited, and every other axis still has its one citation.
+    const cited = citations[0].filter((c) => c.axis === "fee_generating_count");
+    expect(cited).toEqual([
+      {
+        axis: "fee_generating_count",
+        value: "3",
+        provider: "Deal DB",
+        quote: "Three MDs led deals in the period.",
+        model: null,
+      },
+      {
+        axis: "fee_generating_count",
+        value: "5",
+        provider: "Filings",
+        quote: "Five fee-earning managing directors.",
+        model: "claude-haiku-4-5",
+      },
+    ]);
+    expect(citations[0]).toHaveLength(ENRICH_AXES.length + 1);
+
+    // The Desk reads the same sides, with the same citations, from the same findings.
+    const desk = buildAxisRows(ENRICH_AXES, undefined, sides).find(
+      (r) => r.axis === "fee_generating_count",
+    )!;
+    expect(desk.state).toBe("conflict");
+    expect(
+      conflictSides(desk).map((f) => {
+        const c = citationOf(f);
+        return { value: displayFindingValue(desk.axis, f.value), ...c };
+      }),
+    ).toEqual(cited.map(({ axis: _axis, ...side }) => side));
+
+    // The files print it: in the Targets cell, and on two Citations lines.
+    const targets = targetsTable(rows);
+    expect(targets.rows[0]).toContain("Conflict: 3 vs 5");
+    expect(toCsv(targets.headers, targets.rows)).toContain("Conflict: 3 vs 5");
+    const lines = citationsTable(rows, citations).rows.filter((r) =>
+      String(r[1]).includes("(conflict"),
+    );
+    expect(lines.map((r) => [r[1], r[2]])).toEqual([
+      ["Fee-earning heads (conflict: 3)", "Deal DB"],
+      ["Fee-earning heads (conflict: 5)", "Filings"],
+    ]);
+  });
+
+  it("does not mark a conflict nobody can still decide", () => {
+    // Every side already decided: the group is history, not an open conflict.
+    const decided = [
+      finding({
+        findingId: "c1",
+        axis: "firm_age",
+        value: "12",
+        conflictGroupId: "g1",
+        findingStatus: "verified",
+        verifiedByHuman: true,
+      }),
+      finding({
+        findingId: "c2",
+        axis: "firm_age",
+        value: "30",
+        conflictGroupId: "g1",
+        findingStatus: "superseded",
+      }),
+    ];
+    const { rows, citations } = exportRows([firm()], decided);
+    expect(String(rows[0].firm_age ?? "")).not.toContain("Conflict");
+    expect(citations[0]).toHaveLength(ENRICH_AXES.length);
   });
 
   it("falls back to the value already on the firm, without a citation", () => {
