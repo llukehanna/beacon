@@ -23,7 +23,11 @@ beforeEach(async () => {
   db = await createTestDb();
   overrideDb(db);
   await seedFirm(db, { firmId: "f1", firmName: "Alpha", ...STRONG_CF });
-  await db.query(`INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'f1')`);
+  await db.exec(
+    `INSERT INTO mandate ("mandateId", "createdAt") VALUES ('M1', now());
+     INSERT INTO search_list ("searchId", "mandateId", "createdAt") VALUES ('L1', 'M1', now());
+     INSERT INTO search_list_firm ("searchId", "firmId") VALUES ('L1', 'f1')`,
+  );
 });
 
 describe("/api/objects", () => {

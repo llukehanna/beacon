@@ -1,20 +1,25 @@
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { OBJECT_TYPES } from "../../shared/schema.js";
+import { OBJECT_TYPES, type ObjectTypeDef } from "../../shared/schema.js";
 import { resetDemo } from "../seed/reset.js";
 import { type Db, createPgliteDb } from "./client.js";
 import { SQL_TYPE, ddl } from "./ddl.js";
 import { LEGACY_SCHEMA_SQL } from "./legacySchema.fixture.js";
 import { LATEST_MIGRATION, MIGRATIONS, migrate, schemaVersion } from "./migrate.js";
 
-type Column = { table_name: string; column_name: string; data_type: string };
+type Column = {
+  table_name: string;
+  column_name: string;
+  data_type: string;
+  is_nullable: string;
+};
 
 /** Every column of the tables this app owns, as Postgres reports it. */
 const columnsOf = async (db: Db): Promise<Column[]> =>
   db.query<Column>(
-    `SELECT table_name, column_name, data_type FROM information_schema.columns
-     WHERE table_schema = current_schema() AND table_name NOT LIKE 'snapshot\\_%' AND table_name <> 'schema_migrations'
+    `SELECT table_name, column_name, data_type, is_nullable FROM information_schema.columns
+     WHERE table_schema = current_schema() AND table_name NOT LIKE 'snapshot\\_%' AND table_name NOT IN ('schema_migrations', 'migration_repair')
      ORDER BY table_name, column_name`,
   );
 
@@ -74,11 +79,13 @@ describe("migrate", () => {
     await migrate(db);
     const cols = await columnsOf(db);
     const byTable = new Map<string, Map<string, string>>();
+    const nullable = new Map<string, boolean>();
     for (const c of cols) {
       byTable.set(
         c.table_name,
         (byTable.get(c.table_name) ?? new Map()).set(c.column_name, c.data_type),
       );
+      nullable.set(`${c.table_name}.${c.column_name}`, c.is_nullable === "YES");
     }
     for (const t of Object.values(OBJECT_TYPES)) {
       const have = byTable.get(t.table);
@@ -86,6 +93,13 @@ describe("migrate", () => {
       expect([...have!.keys()].sort(), t.table).toEqual(Object.keys(t.properties).sort());
       for (const [name, type] of Object.entries(t.properties)) {
         expect(have!.get(name), `${t.table}.${name}`).toBe(DATA_TYPE[SQL_TYPE[type]]);
+        // Only the primary key and the columns the type lists as required refuse null.
+        const required =
+          name === t.primaryKey || ((t as ObjectTypeDef).required ?? []).includes(name);
+        expect(nullable.get(`${t.table}.${name}`), `${t.table}.${name} nullable`).toBe(!required);
+      }
+      for (const name of (t as ObjectTypeDef).required ?? []) {
+        expect(Object.keys(t.properties), `${t.table}.${name} is a property`).toContain(name);
       }
     }
     // Beyond the object tables there is only the join table and meta.
@@ -102,9 +116,10 @@ describe("migrate", () => {
     const migrated = await createPgliteDb();
     await migrate(migrated);
     expect(await columnsOf(migrated)).toEqual(await columnsOf(generated));
+    // The unique constraint on a rule's predicate (0003) is not in the schema; integrity.test.ts covers it.
     const indexes = (db: Db) =>
       db.query<{ indexname: string }>(
-        `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename <> 'schema_migrations' ORDER BY indexname`,
+        `SELECT indexname, indexdef FROM pg_indexes WHERE schemaname = current_schema() AND tablename NOT IN ('schema_migrations', 'migration_repair') AND indexname <> 'proposed_rule_predicate_key' ORDER BY indexname`,
       );
     expect(await indexes(migrated)).toEqual(await indexes(generated));
   });
@@ -114,12 +129,12 @@ describe("migrate", () => {
     await db.exec(LEGACY_SCHEMA_SQL);
     // A database created before some columns existed, with rows in it.
     await db.exec(`ALTER TABLE firm DROP COLUMN "revenueBand", DROP COLUMN "ownership"`);
-    await db.exec(`ALTER TABLE proposed_rule DROP COLUMN "proposedAt"`);
+    await db.exec(`ALTER TABLE proposed_rule DROP COLUMN "mandateScope"`);
     await db.exec(
       `INSERT INTO firm ("firmId", "firmName", "successionRisk") VALUES ('f1', 'Alpha Advisors', 'high')`,
     );
     await db.exec(
-      `INSERT INTO proposed_rule ("proposedRuleId", "ruleStatus") VALUES ('r1', 'pending')`,
+      `INSERT INTO proposed_rule ("proposedRuleId", "ruleStatus", "proposedAt") VALUES ('r1', 'pending', '2026-09-01T00:00:00Z')`,
     );
     await db.exec(
       `INSERT INTO meta (key, value) VALUES ('lastResetAt', '2026-09-01T00:00:00.000Z')`,
@@ -143,8 +158,8 @@ describe("migrate", () => {
         ownership: null,
       },
     ]);
-    expect(await db.query(`SELECT "ruleStatus", "proposedAt" FROM proposed_rule`)).toEqual([
-      { ruleStatus: "pending", proposedAt: null },
+    expect(await db.query(`SELECT "ruleStatus", "mandateScope" FROM proposed_rule`)).toEqual([
+      { ruleStatus: "pending", mandateScope: null },
     ]);
     expect(await db.query(`SELECT value FROM meta WHERE key = 'lastResetAt'`)).toEqual([
       { value: "2026-09-01T00:00:00.000Z" },
@@ -160,14 +175,16 @@ describe("migrate", () => {
     const db = await createPgliteDb();
     await db.exec(LEGACY_SCHEMA_SQL);
     await db.exec(`
-      INSERT INTO search ("searchId", name) VALUES
-        ('s1', 'Sell-side of Acme · 2026-09-01'),
-        ('s2', 'No date in this one'),
-        ('s3', 'Mid · dot · 2026-09-02');
-      INSERT INTO drift_event ("driftEventId", "changedAxes") VALUES
-        ('d1', '[{"axis":"Deal Size","old":"a","new":"b","source":"rescore","dated":"2026-09-01T10:00:00.000Z"},{"axis":"Age","old":null,"new":"c","source":"rescore","dated":"2026-09-01T10:00:00.000Z"}]'),
-        ('d2', '[]'),
-        ('d3', NULL);
+      INSERT INTO firm ("firmId", "firmName") VALUES ('f1', 'One');
+      INSERT INTO mandate ("mandateId", title, "createdAt") VALUES ('m1', 'M', '2026-09-01T00:00:00Z');
+      INSERT INTO search ("searchId", name, "mandateId", "runAt") VALUES
+        ('s1', 'Sell-side of Acme · 2026-09-01', 'm1', '2026-09-01T00:00:00Z'),
+        ('s2', 'No date in this one', 'm1', '2026-09-01T00:00:00Z'),
+        ('s3', 'Mid · dot · 2026-09-02', 'm1', '2026-09-01T00:00:00Z');
+      INSERT INTO drift_event ("driftEventId", "firmId", "detectedAt", "changedAxes") VALUES
+        ('d1', 'f1', now(), '[{"axis":"Deal Size","old":"a","new":"b","source":"rescore","dated":"2026-09-01T10:00:00.000Z"},{"axis":"Age","old":null,"new":"c","source":"rescore","dated":"2026-09-01T10:00:00.000Z"}]'),
+        ('d2', 'f1', now(), '[]'),
+        ('d3', 'f1', now(), NULL);
       CREATE TABLE snapshot_search AS TABLE search;
       CREATE TABLE snapshot_drift_event AS TABLE drift_event;
     `);

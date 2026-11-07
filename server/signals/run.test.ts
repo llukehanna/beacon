@@ -356,6 +356,9 @@ describe("applyDueSignals", () => {
 
   it("marks a signal for a missing firm applied and writes nothing for it", async () => {
     const db = await createTestDb();
+    // The database no longer lets a signal name a firm that is not there; the run still copes with
+    // one that does (a database from before the constraint, or one restored without it).
+    await db.exec(`ALTER TABLE market_signal DROP CONSTRAINT market_signal_firm_fkey`);
     await addSignal(db, { signalId: "ghost", firmId: "nobody", effectiveDate: hoursAgo(1) });
     expect((await applyDueSignals(db, NOW)).applied).toEqual(["ghost"]);
     expect(await listAll(db, "ResearchFinding")).toHaveLength(0);

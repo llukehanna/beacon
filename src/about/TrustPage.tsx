@@ -217,10 +217,11 @@ export default function TrustPage(): React.ReactElement {
             change only their status fields, and a human override creates a new finding.
           </li>
           <li>
-            <b>This is enforced in application code, not in the database.</b> Every write goes
-            through a named action, and none updates those rows beyond the fields above. The
-            database has no triggers or revoked privileges, and the Worker connects with full
-            rights.
+            <b>Scores, decisions and findings are append-only in the database.</b> A trigger on each
+            of those tables refuses an update or delete (a finding may change only its status and
+            verification stamp). Drift events and rules are updated in place by actions, so for them
+            the limit is application code. The Worker connects as the tables&rsquo; owner, who could
+            drop a trigger or truncate.
           </li>
           <li>The nightly reset clears the history, so the trail covers one demo day.</li>
         </ul>
@@ -272,7 +273,7 @@ export default function TrustPage(): React.ReactElement {
             barrier&rsquo;s personas are a demo.
           </li>
           <li>Tenant isolation.</li>
-          <li>Database-enforced immutability of the audit trail.</li>
+          <li>A database role that cannot drop the audit triggers or truncate history.</li>
           <li>Any compliance certification. None is claimed.</li>
         </ul>
         <p>

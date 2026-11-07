@@ -18,6 +18,18 @@ try {
       ? `Schema already at version ${LATEST_MIGRATION}; nothing to apply.`
       : `Schema migrated from version ${before} to ${LATEST_MIGRATION} (applied ${applied.join(", ")}).`,
   );
+  if (applied.length > 0 && (await db.query(`SELECT to_regclass('migration_repair') AS t`))[0].t) {
+    // 0003 repairs rows that would break its constraints and logs each one.
+    const [{ n }] = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM migration_repair WHERE "version" = ANY($1::int[])`,
+      [applied],
+    );
+    if (n > 0) {
+      console.log(
+        `${n} row${n === 1 ? " was" : "s were"} repaired to fit the new constraints. Review them: SELECT * FROM migration_repair ORDER BY "repairId";`,
+      );
+    }
+  }
 } finally {
   await db.close();
 }

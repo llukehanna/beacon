@@ -63,6 +63,7 @@ export async function resetDemo(
     }
   }
   await db.transaction(async (tx) => {
+    // One statement naming every table: a foreign key's target can only be truncated with the tables that point at it.
     await tx.query(`TRUNCATE ${[...OBJECT_TABLES, "search_list_firm"].join(", ")}`);
     await insertObjects(tx, "Firm", universe);
     await insertObjects(tx, "Extraction", [...extractions.values()]);

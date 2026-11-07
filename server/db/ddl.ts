@@ -1,4 +1,4 @@
-import { OBJECT_TYPES, type PropType } from "../../shared/schema.js";
+import { OBJECT_TYPES, type ObjectTypeDef, type PropType } from "../../shared/schema.js";
 
 export const SQL_TYPE: Readonly<Record<PropType, string>> = {
   string: "text",
@@ -11,16 +11,18 @@ export const SQL_TYPE: Readonly<Record<PropType, string>> = {
 
 /**
  * The schema `shared/schema.ts` describes, as SQL: one table per object type (camelCase columns,
- * quoted), plus join and meta tables. Nothing runs it. The database is changed only by the numbered
+ * quoted, NOT NULL where the type lists the column as required), plus join and meta tables. It has
+ * no foreign keys, unique constraints or triggers: those are in migration 0003. Nothing runs it. The database is changed only by the numbered
  * migrations in `server/db/migrations/`; a test applies this output to an empty database and checks
  * that the migrated schema has the same tables, columns and types, so a property added to the schema
  * without a migration fails there.
  */
 export function ddl(): string {
   const tables = Object.values(OBJECT_TYPES).map((t) => {
+    const required = new Set<string>((t as ObjectTypeDef).required ?? []);
     const cols = Object.entries(t.properties).map(
       ([name, type]) =>
-        `  "${name}" ${SQL_TYPE[type]}${name === t.primaryKey ? " PRIMARY KEY" : ""}`,
+        `  "${name}" ${SQL_TYPE[type]}${name === t.primaryKey ? " PRIMARY KEY" : required.has(name) ? " NOT NULL" : ""}`,
     );
     return `CREATE TABLE IF NOT EXISTS ${t.table} (\n${cols.join(",\n")}\n);`;
   });
