@@ -366,7 +366,7 @@ function Desk(): React.ReactElement {
       {rulesError !== undefined && (
         <RetryNotice
           className={styles.rulesError}
-          message={`Couldn't load the screening rules (${errorMessage(rulesError).replace(/[.\s]+$/, "")}). Firms are ranked without them until they load.`}
+          message={`Couldn’t load the screening rules (${errorMessage(rulesError).replace(/[.\s]+$/, "")}). Firms are ranked without them until they load.`}
           onRetry={retryRules}
         />
       )}

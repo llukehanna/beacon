@@ -459,7 +459,7 @@ describe("findingActions — Accept / Verify decision", () => {
   // NOT silently no-op — it has to surface the conflict so the analyst
   // picks Keep-mine vs Take-agent's.
   it("Accept on a hard gate the analyst set to No + agent proposes Yes → conflict, not no-op", () => {
-    const firm = { webActivity: false } as unknown as Record<string, unknown>;
+    const firm = { webActivity: false };
     const edits: Record<string, string | number | boolean> = {};
     const current = effectiveAxisValue(firm, edits, "webActivity");
     expect(current).toBe(false);
@@ -483,7 +483,7 @@ describe("findingActions — Accept / Verify decision", () => {
   });
 
   it("Accept when analyst hasn't set the axis → apply cleanly", () => {
-    const firm = { webActivity: null } as unknown as Record<string, unknown>;
+    const firm = { webActivity: null };
     const current = effectiveAxisValue(firm, {}, "webActivity");
     const decision = decideAccept({ axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("apply");
@@ -526,7 +526,7 @@ describe("findingActions — Accept / Verify decision", () => {
     // Firm on file says Yes; analyst just clicked No in the segmented
     // control. Agent then proposes Yes. Effective value must be the
     // analyst's local edit, not the stale firm field.
-    const firm = { webActivity: true } as unknown as Record<string, unknown>;
+    const firm = { webActivity: true };
     const current = effectiveAxisValue(firm, { webActivity: false }, "webActivity");
     expect(current).toBe(false);
     const decision = decideAccept({ axis: "web_activity", value: "Yes" }, current);
@@ -1588,7 +1588,7 @@ describe("verifiedBaselineEdits", () => {
   });
 
   it("persisted firm values and in-session edits both win over the baseline", () => {
-    const firm = { firmAge: 6 } as unknown as Record<string, unknown>;
+    const firm = { firmAge: 6 };
     const edits = { dealsPerMdL3y: 3 };
     const staged = verifiedBaselineEdits(
       [verified("f1", "firm_age", "9"), verified("f2", "deals_per_md", "2")],

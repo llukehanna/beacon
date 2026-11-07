@@ -125,14 +125,15 @@ export default function RulesPage(): React.ReactElement {
       {loadError !== undefined && (
         <RetryNotice
           className={styles.error}
-          message={`Couldn't load the rules: ${errorMessage(loadError)}`}
+          message={`Couldn’t load the rules: ${errorMessage(loadError)}`}
           onRetry={retryLoad}
         />
       )}
 
       <div className={styles.scroll}>
         {loading && <Skeleton lines={4} />}
-        {!isLoading && rules.length === 0 && (
+        {/* After a failed load, "not enough history" would read as a finding about the data. */}
+        {!isLoading && rules.length === 0 && loadError === undefined && (
           <EmptyState
             title="Not enough pass history yet"
             body="Proposed hard-screen rules appear once at least four different firms you’ve passed on share a reason. Beacon clusters the reasons and drafts a predicate for you to approve."

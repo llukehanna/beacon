@@ -128,7 +128,15 @@ export default tseslint.config(
   {
     // Plain JavaScript outside both TypeScript projects: the config and the Node scripts.
     files: ["eslint.config.mjs", "scripts/**/*.mjs"],
-    extends: [eslint.configs.recommended, tseslint.configs.disableTypeChecked],
+    // The same rules as the code above, minus the ones that need type information.
+    extends: [
+      eslint.configs.recommended,
+      ...tseslint.configs.recommended,
+      tseslint.configs.disableTypeChecked,
+    ],
     languageOptions: { globals: { ...globals.node } },
+    plugins: { "import": importPlugin },
+    // Node scripts print on purpose (see the scripts block above, which this block would undo).
+    rules: { ...sharedRules, "no-console": "off" },
   },
 );

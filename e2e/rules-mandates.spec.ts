@@ -432,9 +432,11 @@ async function breakRulesQuery(page: Page): Promise<() => void> {
 test("a failed rules load on Rules says why and retries", async ({ page }) => {
   const heal = await breakRulesQuery(page);
   await page.goto("/rules");
-  const notice = page.getByRole("alert").filter({ hasText: "Couldn't load the rules" });
+  const notice = page.getByRole("alert").filter({ hasText: "Couldn’t load the rules" });
   await expect(notice).toContainText("The rules service is unavailable.");
   await expect(notice).not.toContainText("Error:");
+  // The failure is not read as "no pass history": that empty state waits for a load that worked.
+  await expect(page.getByText("Not enough pass history yet")).toHaveCount(0);
 
   heal();
   await notice.getByRole("button", { name: "Retry" }).click();
@@ -445,7 +447,7 @@ test("a failed rules load on Rules says why and retries", async ({ page }) => {
 test("a failed rules load on the Desk says why and retries", async ({ page }) => {
   const heal = await breakRulesQuery(page);
   await page.goto("/desk");
-  const notice = page.getByRole("alert").filter({ hasText: "Couldn't load the screening rules" });
+  const notice = page.getByRole("alert").filter({ hasText: "Couldn’t load the screening rules" });
   await expect(notice).toContainText("The rules service is unavailable");
 
   heal();
