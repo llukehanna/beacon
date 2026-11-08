@@ -372,7 +372,7 @@ test("a failed pass says why in words and keeps the note", async ({ page }) => {
         })
       : route.continue(),
   );
-  const note = page.getByPlaceholder(/required to pass/);
+  const note = page.getByRole("textbox", { name: "Decision note" });
   await note.fill("Outside the mandate");
   await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
 
@@ -404,7 +404,7 @@ test("reject requires a note", async ({ page }) => {
       res.url().endsWith("/api/actions") &&
       res.request().postData()?.includes("rejectFirm") === true,
   );
-  await page.getByPlaceholder(/required to pass/).fill("Outside the mandate");
+  await page.getByRole("textbox", { name: "Decision note" }).fill("Outside the mandate");
   await pass.click();
   expect((await rejected).status()).toBe(200);
 
@@ -424,7 +424,7 @@ test("passing says so, points at the rule review and moves to the next firm", as
   await expect(region).toHaveAttribute("role", "status");
   await expect(region).toBeEmpty();
 
-  await page.getByPlaceholder(/required to pass/).fill("Outside the mandate");
+  await page.getByRole("textbox", { name: "Decision note" }).fill("Outside the mandate");
   await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
 
   const toast = page.getByRole("status").filter({ hasText: `Passed ${name}.` });
