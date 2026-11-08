@@ -102,10 +102,18 @@ async function main(): Promise<void> {
     await page.mouse.move(700, 450);
     await sleep(2500);
 
-    // Desk on the showcase firm.
+    // The desk, then the tour's firm found through the queue's search.
     await glideClick(page, 'a[href="/desk"]');
     await page.waitForURL(/\/desk\?firmId=/);
     await page.locator("tr[data-state]").first().waitFor();
+    await page.waitForLoadState("networkidle");
+    await sleep(800);
+    await glideClick(page, 'input[aria-label="Search firms"]');
+    await page.keyboard.type("Mallowick", { delay: 90 });
+    await sleep(500);
+    await glideClick(page, 'button[data-row="mallowickpartners_unitedstates"]');
+    await page.waitForURL(/firmId=mallowickpartners_unitedstates/);
+    await page.locator('tr[data-state="conflict"]').first().waitFor();
     await page.waitForLoadState("networkidle");
     await sleep(2000);
 

@@ -10,7 +10,7 @@ Built as a Palantir Foundry project, then ported to an open stack (Postgres, Typ
 
 **[Try it](https://beacon.lukeghanna.com)** (synthetic data, resets daily) · **[Take the 60-second tour](https://beacon.lukeghanna.com/?tour=1)** · **[Read the case study](docs/foundry-origins.md)**
 
-[![A 22-second walk through Home, the desk with a source conflict and its cited evidence, Rules and Review](docs/media/golden-path.gif)](docs/media/golden-path.mp4)
+[![A 25-second walk through Home, a firm found from the desk queue, its source conflict and cited evidence, Rules and Review](docs/media/golden-path.gif)](docs/media/golden-path.mp4)
 
 ## The problem
 
