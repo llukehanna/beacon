@@ -278,7 +278,7 @@ export function DecisionBar({
             aria-describedby={NOTE_ERROR_ID}
             placeholder={
               terminalKind === null
-                ? "Decision note. Optional for advance and qualify · required to pass…"
+                ? "Why this decision? Required to pass."
                 : "No further actions on this firm. Notes here won't be attached to a decision."
             }
           />
