@@ -15,3 +15,15 @@ describe("claude-opus-5 pricing", () => {
     expect(usd(cost)).toBe("$0.0452");
   });
 });
+
+describe("claude-opus-5-5 pricing", () => {
+  it("prices 3,465 input and 1,117 output tokens at $0.0362", () => {
+    // 3,465 in at $4 and 1,117 out at $20 per million tokens: $0.01386 + $0.02234 = $0.0362.
+    const cost = costFromUsage(
+      "claude-opus-5-5",
+      { inputTokens: 3465, outputTokens: 1117, cacheReadTokens: 0, cacheWriteTokens: 0 },
+      false,
+    );
+    expect(cost).toBeCloseTo(0.0362, 10);
+  });
+});

@@ -8,7 +8,7 @@ import { costFromUsage, hasPrice } from "../extraction/pricing.js";
 import type { ModelCallInput } from "../operations/record.js";
 import type { Clusterer, RejectionRow, RuleProposal } from "./types.js";
 
-export const CLUSTER_MODEL = "claude-opus-5";
+export const CLUSTER_MODEL = "claude-opus-5-5";
 
 export const CLUSTER_SYSTEM = `You help a corporate development team learn from its own decisions.
 
@@ -169,7 +169,11 @@ export function createClaudeClusterer(
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       thinking: { type: "adaptive" },
-      output_config: { format: { type: "json_schema", schema: clusterOutputSchema(rubric) } },
+      // Opus 5.5 defaults to medium effort; clustering keeps the high effort it ran at on Opus 5.
+      output_config: {
+        effort: "high",
+        format: { type: "json_schema", schema: clusterOutputSchema(rubric) },
+      },
       system: CLUSTER_SYSTEM,
       messages: [{ role: "user", content: renderRejections(rows, rubric) }],
     });
