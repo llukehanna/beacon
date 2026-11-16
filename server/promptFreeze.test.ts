@@ -1,8 +1,9 @@
 /**
  * Moving the agent paths onto the trait catalog must not change a byte of what Claude is sent or
  * of the mock documents the committed extraction fixtures were recorded against. These digests
- * were taken from the code before that move (plan H, task 5); a change here means a fixture or a
- * prompt version must change too.
+ * were taken from the code before that move (plan H, task 5), then re-taken from main's own code
+ * when main re-recorded its mock documents and pass notes (the user messages, documents and
+ * rejections digests); a change here means a fixture or a prompt version must change too.
  */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
@@ -30,20 +31,20 @@ describe("what the agent paths send", () => {
       .map((f) => buildUserMessage(firmDocuments(f), f.firmType === "CS" ? "CS" : "CF"))
       .join("\n---\n");
     expect(digest(messages)).toBe(
-      "7a0b11a1db0b146039e4c3ecd41d0c32c1c9a5e1c34f652e29341daf50e6508b",
+      "9b1915f5e225e1a063167cb72a265723469c61564dea15f631b2c3e6b04ef81f",
     );
   });
 
   it("keeps the mock documents", () => {
     expect(digest(sample.map((f) => documentsHash(firmDocuments(f))).join(","))).toBe(
-      "4393e4d4bd6a04bb6d1f10dcff6bd38230417805cf7fd2eaaeff70c08d3358fd",
+      "0096751c0e2b709065c13bd92881724a8fc3afa9eaa49cc2fa5724925746c821",
     );
   });
 
   it("keeps the clustering prompt and tool", async () => {
     const { rows } = await plantRejections(universe.map(asFirmObject));
     expect(digest(renderRejections(rows))).toBe(
-      "f5a1de09961b455dcbaadaecf2158e3e62b67492ea7fcbc2f0a984ca1fe7cea1",
+      "9c2096eb04f9f9075c7c5f502d366320a780b476ac68e2b425a6a806c6314faa",
     );
     // Re-pinned once in task 5: the axis enum now follows catalog order (the same seven axes).
     expect(digest(CLUSTER_SYSTEM + JSON.stringify(clusterOutputSchema(TEST_RUBRIC)))).toBe(

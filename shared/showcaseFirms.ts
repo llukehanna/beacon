@@ -5,9 +5,9 @@
  * and the seed test checks that each still fits. The guided tour opens the first on the Desk.
  */
 export const STRONG_SHOWCASE_FIRM_IDS = [
-  "mallowickpartners_unitedstates",
-  "northcottogilvie_unitedstates",
-  "dunmoreadvisors_unitedstates",
+  "archdalepollardadvisors_unitedstates",
+  "beatriceeverlypartners_unitedstates",
+  "augustaverhoevencompany_unitedstates",
 ] as const;
 
 /** The firm the tour's Desk stops open on. */

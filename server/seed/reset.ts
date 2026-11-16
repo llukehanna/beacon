@@ -88,5 +88,7 @@ export async function resetDemo(
     await seedBarriers(joined(tx, db), now);
   });
   await setMeta(db, "lastResetAt", now.toISOString());
+  // A reseed is a good reset: any earlier failure (api/reset.ts) no longer describes the demo.
+  await db.query(`DELETE FROM meta WHERE key = 'lastResetError'`);
   return { firms: universe.length };
 }

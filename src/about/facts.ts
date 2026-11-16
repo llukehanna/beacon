@@ -66,16 +66,16 @@ export const MIN_FIRMS_PER_RULE = 4;
  */
 export const RECORDED_RUN = {
   firms: 700,
-  valuesExtracted: 6_472,
-  valuesGrounded: 6_455,
-  extractionCost: "$1.39",
+  valuesExtracted: 6_523,
+  valuesGrounded: 6_228,
+  extractionCost: "$1.49",
   clusteringCost: "$0.04",
   model: "Claude Haiku 4.5",
 } as const;
 
 /**
  * How the Desk says what its agent run is: the README's wording for the run ("the recorded
- * extraction run", Claude Haiku 4.5, all 700 firms, $1.39). Pressing Run agent replays it.
+ * extraction run", Claude Haiku 4.5, all 700 firms, $1.49). Pressing Run agent replays it.
  */
 export const RECORDED_RUN_NOTE = `Replayed from the recorded ${RECORDED_RUN.model} extraction run (${RECORDED_RUN.firms} firms, ${RECORDED_RUN.extractionCost}). No model is called to enrich a firm.`;
 

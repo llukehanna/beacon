@@ -15,7 +15,7 @@ const sample = generateUniverse(40).map(asFirmObject);
 
 const base: EvalReport = {
   version: 1,
-  generatedFrom: { documents: "doc-v1", prompt: "extract-v1", fixtures: "rule-based" },
+  generatedFrom: { documents: "doc-v2", prompt: "extract-v1", fixtures: "rule-based" },
   firms: 10,
   slots: { total: 100, correct: 70 },
   recordedRun: { values: 100, grounded: 99 },
@@ -41,7 +41,7 @@ describe("buildReport", () => {
     expect(a.version).toBe(1);
     expect(a.firms).toBe(40);
     expect(a.generatedFrom).toEqual({
-      documents: "doc-v1",
+      documents: "doc-v2",
       prompt: "extract-v1",
       fixtures: "rule-based",
     });
