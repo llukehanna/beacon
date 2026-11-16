@@ -36,14 +36,14 @@ Find firms by name, sector, headquarters country, scoring model, tier or pipelin
 | `query`     | string  | Part of the firm's name, case-insensitive                             |
 | `sector`    | string  | Sector, case-insensitive exact match                                  |
 | `hqCountry` | string  | Headquarters country, case-insensitive exact match                    |
-| `firmType`  | string  | `CF` or `CS`                                                          |
+| `thesis`    | string  | The rubric thesis the firm is scored under: `CF` or `CS`              |
 | `tier`      | string  | `A`, `B`, `C` or `Rejected`: the live rubric tier the Desk shows      |
 | `stage`     | string  | `Discovered`, `Screening`, `Qualified`, `Outreach`, `NDA`, `IOI`, `LOI`, `Closed` or `Passed` |
 | `limit`     | integer | 1 or more; default 10                                                 |
 
 **Results are capped at 25.** A larger `limit` is clamped to 25, not refused; the reply's `limit` says what was applied and `totalMatches` how many firms matched. A `limit` below 1 or not an integer is `-32602`.
 
-Reply: `{ firms: [{ firmId, firmName, firmType, sector, hqCountry, employees, stage, tier, score, maxScore }], returned, totalMatches, limit, partial }`. `partial` is true when there are more firms than the search read (it reads the first three pages of 1,000 firms, in name order); `totalMatches` and the order then cover only the firms read, so narrow the query (a name, sector, country or stage) and search again. A list of exactly that size is not partial.
+Reply: `{ firms: [{ firmId, firmName, thesis, sector, hqCountry, employees, stage, tier, score, maxScore }], returned, totalMatches, limit, partial }`. `partial` is true when there are more firms than the search read (it reads the first three pages of 1,000 firms, in name order); `totalMatches` and the order then cover only the firms read, so narrow the query (a name, sector, country or stage) and search again. A list of exactly that size is not partial.
 
 ### `get_firm_evidence`
 

@@ -20,7 +20,7 @@ const rows: RejectionRow[] = [
     decisionId: "d1",
     firmId: "f1",
     rationale: "Too small — 6 staff.",
-    firm: { firmType: "CF", employees: 6 },
+    firm: { thesis: "CF", traits: { employees: 6, revenue_band: "<$10M" } },
   },
 ];
 
@@ -44,10 +44,12 @@ const goodJson = JSON.stringify({
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Claude clusterer", () => {
-  it("renders rejections with their decision ids and firm facts", () => {
-    const text = renderRejections(rows);
+  it("renders rejections with their decision ids and the facts a predicate can use, by axis", () => {
+    const text = renderRejections(rows, TEST_RUBRIC);
     expect(text).toContain('"decisionId":"d1"');
-    expect(text).toContain('"employees":6');
+    // The thesis and the predicate axes only: a profile trait is never a rule's axis.
+    expect(text).toContain('"facts":{"thesis":"CF","employees":6}');
+    expect(text).not.toContain("revenue_band");
   });
 
   it("parses structured output and refuses anything else", () => {
@@ -125,7 +127,7 @@ describe("chooseClusterer", () => {
 
 describe("fixtureClusterer", () => {
   const fixture: ClusteringFixture = {
-    inputHash: hashRejections(rows),
+    inputHash: hashRejections(rows, TEST_RUBRIC),
     model: "claude-opus-5",
     proposals: (JSON.parse(goodJson) as { rules: ClusteringFixture["proposals"] }).rules,
     createdAt: "2026-11-04T00:00:00.000Z",
@@ -148,8 +150,10 @@ describe("fixtureClusterer", () => {
   });
 
   it("hashes the rendered rejections, so a different decision id does not match", () => {
-    expect(hashRejections(rows)).toBe(hashRejections([...rows]));
-    expect(hashRejections([{ ...rows[0], decisionId: "d2" }])).not.toBe(hashRejections(rows));
+    expect(hashRejections(rows, TEST_RUBRIC)).toBe(hashRejections([...rows], TEST_RUBRIC));
+    expect(hashRejections([{ ...rows[0], decisionId: "d2" }], TEST_RUBRIC)).not.toBe(
+      hashRejections(rows, TEST_RUBRIC),
+    );
   });
 
   it("reads a fixture file and rejects a malformed one", () => {

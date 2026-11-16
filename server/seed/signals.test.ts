@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { pickAuthoritative } from "../../shared/axisState.js";
 import { SIGNAL_KINDS } from "../../shared/marketSignals.js";
+import { withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric.js";
 import { traitFor } from "../../shared/rubric/catalog.js";
 import { traitsOf } from "../../shared/rubric/firm.js";
 import { parseTraitValue } from "../../shared/rubric/traitValue.js";
@@ -27,18 +28,21 @@ function population(): { firms: ObjectOf<"Firm">[]; decidedAt: Map<string, numbe
   const firms: ObjectOf<"Firm">[] = [];
   const decidedAt = new Map<string, number>();
   const add = (id: string, state: string, over: Record<string, unknown>): void => {
-    firms.push({
-      $apiName: "Firm",
-      $primaryKey: id,
-      firmId: id,
-      firmName: `Firm ${id}`,
-      firmType: "CF",
-      coverageModel: "Single-sector focus",
-      geoScore: 2,
-      lifecycleState: state,
-      enrichedAt: new Date(ANCHOR.getTime() - 20 * HOUR).toISOString(),
-      ...over,
-    });
+    // Written with today's column names; withTraits gives each firm its traits from them.
+    firms.push(
+      withTraits({
+        $apiName: "Firm",
+        $primaryKey: id,
+        firmId: id,
+        firmName: `Firm ${id}`,
+        thesis: "CF",
+        coverageModel: "Single-sector focus",
+        geoScore: 2,
+        lifecycleState: state,
+        enrichedAt: new Date(ANCHOR.getTime() - 20 * HOUR).toISOString(),
+        ...over,
+      }),
+    );
   };
   for (let i = 0; i < 60; i++) {
     add(`screen-${String(i).padStart(2, "0")}`, "Screening", {
@@ -147,12 +151,15 @@ describe("generateSignals", () => {
   it("never fills an axis the firm has no value for", () => {
     const { firms, decidedAt } = population();
     // Half the screening firms have no fee-earner count, a third no deal size, a quarter no pace.
-    const sparse = firms.map((f, i) => ({
-      ...f,
-      ...(i % 2 === 0 ? { feeGeneratingCount: undefined } : {}),
-      ...(i % 3 === 0 ? { dealSizeMUsd: undefined } : {}),
-      ...(i % 4 === 0 ? { dealsPerMdL3y: undefined } : {}),
-    })) as typeof firms;
+    const sparse = firms.map((f, i) =>
+      withTraits({
+        ...f,
+        traits: undefined,
+        ...(i % 2 === 0 ? { feeGeneratingCount: undefined } : {}),
+        ...(i % 3 === 0 ? { dealSizeMUsd: undefined } : {}),
+        ...(i % 4 === 0 ? { dealsPerMdL3y: undefined } : {}),
+      }),
+    ) as typeof firms;
     const byId = new Map(sparse.map((f) => [f.$primaryKey, f as Record<string, unknown>]));
     const field: Record<string, string> = {
       fee_generating_count: "feeGeneratingCount",
@@ -205,12 +212,15 @@ describe("generateSignals", () => {
       generateSignals({
         firms: firms
           .filter((f) => f.lifecycleState === "Screening")
-          .map((f) => ({
-            ...f,
-            feeGeneratingCount: undefined,
-            dealSizeMUsd: undefined,
-            dealsPerMdL3y: undefined,
-          })),
+          .map((f) =>
+            withTraits({
+              ...f,
+              traits: undefined,
+              feeGeneratingCount: undefined,
+              dealSizeMUsd: undefined,
+              dealsPerMdL3y: undefined,
+            }),
+          ),
         decidedAt: new Map(),
         openDriftFirms: new Set(),
         anchor: ANCHOR,

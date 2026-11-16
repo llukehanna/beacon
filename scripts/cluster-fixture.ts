@@ -52,7 +52,7 @@ export async function recordClustering(): Promise<void> {
       throw new Error("Clustering ran twice; it is meant to be one call.");
     }
     const out = await claude(rows, rubric);
-    state.recorded = { inputHash: hashRejections(rows), proposals: out.proposals };
+    state.recorded = { inputHash: hashRejections(rows, rubric), proposals: out.proposals };
     return out;
   };
 

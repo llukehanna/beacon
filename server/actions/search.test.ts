@@ -36,7 +36,7 @@ async function universe(db: Db) {
     firmName: "Foxtrot",
     hqCountry: "United States",
     sector: "Software",
-    firmType: "CS",
+    thesis: "CS",
   });
   await seedFirm(db, {
     firmId: "us_rej",

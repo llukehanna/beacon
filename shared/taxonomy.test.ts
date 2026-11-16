@@ -31,11 +31,7 @@ describe("taxonomy", () => {
   it("matches on every non-empty dimension", () => {
     const sel = expandSelections(DEF, ["United States", "Software"]);
     expect(
-      matchesSelection(
-        DEF,
-        { hqCountry: "United States", sector: "Software", firmType: "CF" },
-        sel,
-      ),
+      matchesSelection(DEF, { hqCountry: "United States", sector: "Software", thesis: "CF" }, sel),
     ).toBe(true);
     expect(matchesSelection(DEF, { hqCountry: "Canada", sector: "Software" }, sel)).toBe(false);
     expect(matchesSelection(DEF, { hqCountry: "United States", sector: "Retail" }, sel)).toBe(

@@ -5,7 +5,7 @@ import { type RankedFirm } from "../queue";
 import { visibleQueue } from "./visibleQueue";
 
 const row = (firmId: string, firmName: string, employees = 50): RankedFirm =>
-  ({ firm: { firmId, firmName, employees, firmType: "CF" } }) as unknown as RankedFirm;
+  ({ firm: { firmId, firmName, employees, thesis: "CF" } }) as unknown as RankedFirm;
 
 const queue = [
   row("a", "Alder Partners"),

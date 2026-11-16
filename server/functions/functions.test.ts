@@ -20,10 +20,9 @@ import {
 import { NO_WALL } from "../access.js";
 import { type Db } from "../db/client.js";
 import { insertObjects, listAll, listLinked } from "../db/repo.js";
-import { traitColumns } from "../db/traits.js";
 import { type SourceDocument, sourceDocument } from "../extraction/documents.js";
 import { resetDemo } from "../seed/reset.js";
-import { TEST_RUBRIC, createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb, insertTestFirms } from "../testing.js";
 import { findingCells } from "./findings.js";
 import {
   VISIBLE_ROWS,
@@ -43,7 +42,7 @@ let db: Db;
 
 /** A CF firm in Screening that the base rules leave alone. */
 const BASE = {
-  firmType: "CF",
+  thesis: "CF",
   coverageModel: "Single-sector focus",
   geoScore: 2,
   lifecycleState: "Screening",
@@ -407,8 +406,8 @@ describe("homeSummary", () => {
     expect(sql.get(edgeFirm)).toBe(seededAxes + 4);
   });
 
-  it("selects only real Firm columns: the queue's own, and the ones traits are read from", () => {
-    for (const column of [...QUEUE_FIELDS, ...traitColumns()]) {
+  it("selects only real Firm columns for the queue (traits come from trait values)", () => {
+    for (const column of QUEUE_FIELDS) {
       expect(Object.keys(OBJECT_TYPES.Firm.properties), column).toContain(column);
     }
   });
@@ -495,7 +494,7 @@ describe("runFunction", () => {
 describe("homeSummary on a small world where rule rows are on screen", () => {
   it("shows drift and rule rows with the content Home renders", async () => {
     const d = await createTestDb();
-    await insertObjects(d, "Firm", [
+    await insertTestFirms(d, [
       { firmId: "a", firmName: "Alpha", employees: 5, ...BASE },
       { firmId: "b", firmName: "Beta", employees: 50, ...BASE },
       { firmId: "c", firmName: "Gamma", employees: 8, ...BASE },
@@ -581,7 +580,7 @@ describe("homeSummary on a small world where rule rows are on screen", () => {
 describe("homeSummary and a hard-screen rule on a gate axis", () => {
   it("screens the same firms as the UI's queue input", async () => {
     const d = await createTestDb();
-    await insertObjects(d, "Firm", [
+    await insertTestFirms(d, [
       { firmId: "insolvent", firmName: "Insolvent", solvent: false, ...BASE },
       { firmId: "sound", firmName: "Sound", solvent: true, ...BASE },
     ]);

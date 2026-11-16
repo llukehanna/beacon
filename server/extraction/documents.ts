@@ -109,7 +109,7 @@ const CS_DEALS = [
 const ROLES = ["Sell-side adviser", "Buy-side adviser", "Financial adviser", "Lead adviser"];
 const CS_ROLES = ["Placement agent", "Debt adviser", "Capital adviser", "Arranger"];
 
-const isCs = (f: FirmRef): boolean => (f.firmType ?? "").toLowerCase() === "cs";
+const isCs = (f: FirmRef): boolean => (f.thesis ?? "").toLowerCase() === "cs";
 
 interface Style {
   /** Sentence templates per axis this provider reports. */

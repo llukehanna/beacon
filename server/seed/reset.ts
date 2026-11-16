@@ -9,6 +9,7 @@ import { insertObjects } from "../db/repo.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { seedWorkspace } from "../rubric/seedWorkspace.js";
 import { seedBarriers } from "./barriers.js";
+import { insertFirms } from "./firms.js";
 import { seedHistory } from "./history.js";
 import { seedSignals } from "./signals.js";
 import { latestTimestampMs, shiftLiveTimestamps } from "./snapshot.js";
@@ -68,7 +69,7 @@ export async function resetDemo(
     // One statement naming every table: a foreign key's target can only be truncated with the tables that point at it.
     await tx.query(`TRUNCATE ${[...OBJECT_TABLES, "search_list_firm"].join(", ")}`);
     await seedWorkspace(tx, ADVISORY_ACQUISITIONS, historyStart.toISOString());
-    await insertObjects(tx, "Firm", universe);
+    await insertFirms(tx, universe, { setBy: "seed", setAt: historyStart.toISOString() });
     await insertObjects(tx, "Extraction", [...extractions.values()]);
     await seedHistory(joined(tx, db), historyStart, opts);
     // The history's clock advances by minutes per action, so it ends days before `now`.

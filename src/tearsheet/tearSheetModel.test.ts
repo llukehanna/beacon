@@ -10,7 +10,7 @@ import { type DecisionInput, buildTearSheet, localDay } from "./tearSheetModel";
 const COLUMNS = {
   firmId: "acme_us",
   firmName: "Acme Advisors",
-  firmType: "CF",
+  thesis: "CF",
   sector: "Industrials",
   hqCountry: "United States",
   coverageModel: "Single-sector",

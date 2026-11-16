@@ -143,9 +143,9 @@ const prepared = new Map(
     const docs = firmDocuments(firm);
     const user = buildUserMessage(
       docs,
-      resolveThesis(ADVISORY_ACQUISITIONS.rubric, firm.firmType).key,
+      resolveThesis(ADVISORY_ACQUISITIONS.rubric, firm.thesis).key,
     );
-    return [firm.firmId!, { firm, docs, hash: documentsHash(docs), user }] as const;
+    return [firm.firmId, { firm, docs, hash: documentsHash(docs), user }] as const;
   }),
 );
 

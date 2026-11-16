@@ -48,7 +48,7 @@ import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { notIn, toWire } from "../db/repo.js";
-import { traitColumns } from "../db/traits.js";
+import { traitsSql } from "../db/traits.js";
 import { loadRubricContext } from "../rubric/load.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
@@ -67,8 +67,9 @@ type FirmRow = QueueFirm & ScreenableFirm;
 /** The firms with the columns the queue and the funnel read; `hidden` firms are not among them. */
 export async function loadLeanFirms(q: Queryable, hidden: readonly string[]): Promise<FirmRow[]> {
   const rows = await q.query(
-    `SELECT ${[...QUEUE_FIELDS, ...traitColumns()].map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
-      WHERE ${notIn('"firmId"', 1)}`,
+    `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")}, ${traitsSql("f")}
+       FROM ${OBJECT_TYPES.Firm.table} f
+      WHERE ${notIn('f."firmId"', 1)}`,
     [hidden],
   );
   return rows.map((r) => toWire("Firm", r));

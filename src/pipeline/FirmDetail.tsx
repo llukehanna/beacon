@@ -79,7 +79,7 @@ export function FirmDetail({
         )}
         <div className={styles.meta}>
           <StageChip stage={bucket} />
-          {firm.firmType && <Chip>{firm.firmType}</Chip>}
+          {firm.thesis && <Chip>{firm.thesis}</Chip>}
           {firm.sector && <Chip>{firm.sector}</Chip>}
           {firm.hqCountry && <span className={styles.hq}>{firm.hqCountry}</span>}
         </div>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { getObject, listAll, updateObject } from "../db/repo.js";
+import { withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric.js";
+import { getObject, listAll } from "../db/repo.js";
+import { appendTraitValues } from "../db/traits.js";
 import { STRONG_CF, T0, createTestDb, run, seedFirm } from "../testing.js";
 import { computeDriftForFirm } from "./drift.js";
 import type { ActionContext } from "./types.js";
@@ -17,11 +19,12 @@ describe("computeDriftForFirm", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, STRONG_CF);
     await run(db, "qualifyFirm", { firm: firm.$primaryKey });
-    await updateObject(db, "Firm", firm.$primaryKey, {
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
-    });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     const id = await db.transaction((tx) =>
       computeDriftForFirm(ctxFor(tx), firm.$primaryKey, { source: "analyst" }),
     );
@@ -57,11 +60,12 @@ describe("computeDriftForFirm", () => {
     expect(
       await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey)),
     ).toBeNull();
-    await updateObject(db, "Firm", firm.$primaryKey, {
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
-    });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     expect(
       await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey)),
@@ -72,7 +76,10 @@ describe("computeDriftForFirm", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
     await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
-    await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
+    await appendTraitValues(db, firm.$primaryKey, withTraits(STRONG_CF).traits, {
+      setBy: "test",
+      setAt: T0.toISOString(),
+    });
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     expect((await getObject(db, "DriftEvent", id!))?.driftReason).toBe("pass_reason_invalidated");
   });
@@ -84,7 +91,12 @@ describe("computeDriftForFirm", () => {
     expect(
       await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey)),
     ).toBeNull();
-    await updateObject(db, "Firm", firm.$primaryKey, { employees: 6, dealSizeMUsd: 10 });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { employees: 6, deal_size_usd_m: 10 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     expect(
       await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey)),
     ).toBeNull();
@@ -117,7 +129,10 @@ describe("outcomes and resolution", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
     await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
-    await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
+    await appendTraitValues(db, firm.$primaryKey, withTraits(STRONG_CF).traits, {
+      setBy: "test",
+      setAt: T0.toISOString(),
+    });
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     await run(db, "reEngageFirm", { firm: firm.$primaryKey, driftEvent: id });
     expect((await getObject(db, "Firm", firm.$primaryKey))?.lifecycleState).toBe("Screening");
@@ -135,11 +150,12 @@ describe("outcomes and resolution", () => {
     const firm = await seedFirm(db, STRONG_CF);
     await run(db, "qualifyFirm", { firm: firm.$primaryKey });
     await run(db, "advanceStage", { firm: firm.$primaryKey, targetState: "Outreach" });
-    await updateObject(db, "Firm", firm.$primaryKey, {
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
-    });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     await expect(
       run(db, "reEngageFirm", { firm: firm.$primaryKey, driftEvent: id }),
@@ -152,7 +168,10 @@ describe("outcomes and resolution", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
     await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
-    await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
+    await appendTraitValues(db, firm.$primaryKey, withTraits(STRONG_CF).traits, {
+      setBy: "test",
+      setAt: T0.toISOString(),
+    });
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     await expect(run(db, "keepPassed", { driftEvent: id, rationale: "" })).rejects.toThrow(
       /rationale/,
@@ -171,11 +190,12 @@ describe("acknowledgeDrift", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, STRONG_CF);
     await run(db, "qualifyFirm", { firm: firm.$primaryKey });
-    await updateObject(db, "Firm", firm.$primaryKey, {
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
-    });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     return { db, firm, id: id! };
   }
@@ -204,7 +224,10 @@ describe("acknowledgeDrift", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { employees: 6 });
     await run(db, "rejectFirm", { firm: firm.$primaryKey, rejectionRationale: "Too small" });
-    await updateObject(db, "Firm", firm.$primaryKey, STRONG_CF);
+    await appendTraitValues(db, firm.$primaryKey, withTraits(STRONG_CF).traits, {
+      setBy: "test",
+      setAt: T0.toISOString(),
+    });
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     await expect(run(db, "acknowledgeDrift", { driftEvent: id, note: null })).rejects.toMatchObject(
       { status: 409 },
@@ -232,11 +255,12 @@ describe("rejectFirm and open drift", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, STRONG_CF);
     await run(db, "qualifyFirm", { firm: firm.$primaryKey });
-    await updateObject(db, "Firm", firm.$primaryKey, {
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
-    });
+    await appendTraitValues(
+      db,
+      firm.$primaryKey,
+      { deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 },
+      { setBy: "test", setAt: T0.toISOString() },
+    );
     const id = await db.transaction((tx) => computeDriftForFirm(ctxFor(tx), firm.$primaryKey));
     const result = await run(db, "rejectFirm", {
       firm: firm.$primaryKey,

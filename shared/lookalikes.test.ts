@@ -18,7 +18,7 @@ const firm = (id: string, over: Over = {}): FirmLike =>
   withTraits({
     firmId: id,
     firmName: `Firm ${id}`,
-    firmType: "CF",
+    thesis: "CF",
     sector: "Healthcare Services",
     coverageModel: "Single-sector focus",
     hqCountry: "United Kingdom",
@@ -34,7 +34,7 @@ const firm = (id: string, over: Over = {}): FirmLike =>
 /** A firm that shares no profile field with `firm()` (and has no deal numbers within 10%). */
 const unlike = (id: string, over: Over = {}): FirmLike =>
   firm(id, {
-    firmType: "CS",
+    thesis: "CS",
     sector: "Software",
     coverageModel: "Generalist",
     hqCountry: "Japan",
@@ -162,7 +162,7 @@ describe("lookalikes", () => {
     // Three fields is enough.
     const out = lookalikes(
       ADVISORY,
-      sparse({ sector: "Healthcare Services", ownership: "Partnership", firmType: "CF" }),
+      sparse({ sector: "Healthcare Services", ownership: "Partnership", thesis: "CF" }),
       universe,
     );
     expect(out.map((l) => l.firmId)).toEqual(["a", "b"]);

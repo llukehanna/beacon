@@ -3,6 +3,7 @@
  * the analyst gives, and the values it records. Pure, so the seed and the evaluation plant the
  * same patterns from the same definitions.
  */
+import { traitsOf } from "../../shared/rubric/firm.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { normalizeLifecycle } from "../../shared/vocab.js";
 import { sortedRows } from "../db/ordering.js";
@@ -100,7 +101,7 @@ export interface RejectionEffects {
   /** The analyst enters a value they found on the firm, before rejecting it for it. */
   record(
     firm: FirmObj,
-    facts: { dealSizeMUsd: number } | { dealsPerMdL3y: number },
+    facts: { deal_size_usd_m: number } | { deals_per_md_l3y: number },
   ): Promise<void> | void;
   reject(firm: FirmObj, rationale: string): Promise<void> | void;
   /**
@@ -110,7 +111,15 @@ export interface RejectionEffects {
   draw: Rng;
 }
 
-const generalist = (f: FirmObj): boolean => /generalist/i.test(f.coverageModel ?? "");
+const fact = (f: FirmObj, key: string): unknown => traitsOf(f)[key];
+const num = (f: FirmObj, key: string): number | undefined => {
+  const v = fact(f, key);
+  return typeof v === "number" ? v : undefined;
+};
+const generalist = (f: FirmObj): boolean => {
+  const coverage = fact(f, "coverage_model");
+  return typeof coverage === "string" && /generalist/i.test(coverage);
+};
 
 /**
  * The seed's rejections, chosen by the seed's rules: the first firms by name that are still being
@@ -129,7 +138,7 @@ export async function planRejections(
       (f) =>
         !taken.has(f.$primaryKey) &&
         ["Discovered", "Screening"].includes(normalizeLifecycle(f.lifecycleState)) &&
-        (f.firmType ?? "CF") === "CF",
+        (f.thesis ?? "CF") === "CF",
     );
   const reject = async (firm: FirmObj, why: string): Promise<void> => {
     taken.add(firm.$primaryKey);
@@ -138,10 +147,10 @@ export async function planRejections(
   const patterns: { key: string; firmIds: string[] }[] = [];
 
   const small = (await pool())
-    .filter((f) => (f.employees ?? 99) < 10)
+    .filter((f) => (num(f, "employees") ?? 99) < 10)
     .slice(0, REJECTION_COUNTS.small);
   for (const [i, f] of small.entries()) {
-    await reject(f, smallFirmRationale(f.employees, i));
+    await reject(f, smallFirmRationale(num(f, "employees"), i));
   }
   patterns.push({ key: "small", firmIds: small.map((f) => f.$primaryKey) });
 
@@ -152,26 +161,36 @@ export async function planRejections(
   patterns.push({ key: "generalist", firmIds: generalists.map((f) => f.$primaryKey) });
 
   const smallDeals = (await pool())
-    .filter((f) => f.dealSizeMUsd === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
+    .filter(
+      (f) =>
+        fact(f, "deal_size_usd_m") === undefined &&
+        (num(f, "employees") ?? 0) >= 10 &&
+        !generalist(f),
+    )
     .slice(0, REJECTION_COUNTS.dealSize);
   for (const [i, f] of smallDeals.entries()) {
     const size = plantedDealSize(fx.draw);
-    await fx.record(f, { dealSizeMUsd: size });
+    await fx.record(f, { deal_size_usd_m: size });
     await reject(f, dealSizeRationale(size, i));
   }
   patterns.push({ key: "dealSize", firmIds: smallDeals.map((f) => f.$primaryKey) });
 
   const lowVolume = (await pool())
-    .filter((f) => f.dealsPerMdL3y === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
+    .filter(
+      (f) =>
+        fact(f, "deals_per_md_l3y") === undefined &&
+        (num(f, "employees") ?? 0) >= 10 &&
+        !generalist(f),
+    )
     .slice(0, REJECTION_COUNTS.dealVolume);
   for (const [i, f] of lowVolume.entries()) {
-    await fx.record(f, { dealsPerMdL3y: plantedDealVolume(fx.draw) });
+    await fx.record(f, { deals_per_md_l3y: plantedDealVolume(fx.draw) });
     await reject(f, dealVolumeRationale(i));
   }
   patterns.push({ key: "dealVolume", firmIds: lowVolume.map((f) => f.$primaryKey) });
 
   const noise = (await pool())
-    .filter((f) => (f.employees ?? 0) >= 10 && !generalist(f))
+    .filter((f) => (num(f, "employees") ?? 0) >= 10 && !generalist(f))
     .slice(0, REJECTION_COUNTS.misc);
   for (const [i, f] of noise.entries()) {
     await reject(f, miscRationale(i));

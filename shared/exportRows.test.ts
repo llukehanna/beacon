@@ -29,7 +29,7 @@ const firm = (over: Over = {}): FirmLike =>
   withTraits({
     firmId: "f1",
     firmName: "Harbour Partners",
-    firmType: "CF",
+    thesis: "CF",
     hqCountry: "United Kingdom",
     sector: "Industrials",
     employees: 40,

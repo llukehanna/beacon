@@ -36,7 +36,7 @@ describe("firmDecisionState", () => {
 });
 
 describe("confirmItems", () => {
-  const firm: FirmView = withTraits({ firmType: "CS", solvent: true, advisoryConflict: false });
+  const firm: FirmView = withTraits({ thesis: "CS", solvent: true, advisoryConflict: false });
   const mirror = previewScore(ADVISORY, firm);
 
   it("counts gates answered on the record and by staged edits", () => {
@@ -59,7 +59,7 @@ describe("confirmItems", () => {
   });
 
   it("says a firm that is not scored is hard-rejected, not '0 of 0'", () => {
-    const rejected = previewScore(ADVISORY, withTraits({ firmType: "CS", advisoryConflict: true }));
+    const rejected = previewScore(ADVISORY, withTraits({ thesis: "CS", advisoryConflict: true }));
     const axes = confirmItems(ADVISORY, firm, rejected, {}).find((i) => i.id === "axes");
     expect(axes?.detail).toBe("not scored: the firm is hard-rejected");
   });

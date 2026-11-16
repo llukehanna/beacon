@@ -6,7 +6,7 @@ import { type EditMap, type FirmView, previewScore } from "./deskModel";
 import { projectProposals } from "./projection";
 
 const base: FirmView = withTraits({
-  firmType: "CF",
+  thesis: "CF",
   coverageModel: "Single-sector focus",
   geoScore: 2,
 });

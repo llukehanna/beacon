@@ -9,7 +9,7 @@ import type { ShellCounts } from "../../shared/summaries.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { notIn } from "../db/repo.js";
-import { withTraits } from "../db/traits.js";
+import { traitsSql, withTraits } from "../db/traits.js";
 import { loadActiveRubric } from "../rubric/load.js";
 import { ACTIVE_MANDATE_WHERE, OPEN_DRIFT_WHERE } from "./homeSummary.js";
 
@@ -17,37 +17,36 @@ interface FirmGroup {
   lifecycleState: string | null;
   currentStage: string | null;
   disposition: string | null;
-  firmType: string | null;
-  coverageModel: string | null;
-  servicesFit: string | null;
-  balanceSheetPrincipal: string | null;
-  advisoryConflict: boolean | null;
+  thesis: string | null;
+  traits: unknown;
   n: number;
 }
 
 /**
  * Open firms by the funnel's own bucket rule. A firm's bucket depends on its lifecycle columns
- * and on the hard-reject verdict (which reads a handful of score inputs), so the firms are
- * grouped by exactly those columns in SQL and the shared rule runs once per distinct group,
+ * and on the hard-reject verdict (which reads only the traits the rubric's hard rejects name), so
+ * the firms are grouped by exactly those in SQL and the shared rule runs once per distinct group,
  * weighted by its size, instead of once per firm.
  */
 async function openFirmCount(q: Queryable, hidden: readonly string[]): Promise<number> {
+  const { definition } = await loadActiveRubric(q);
+  const rejectTraits = [
+    ...new Set(definition.theses.flatMap((t) => t.hardRejects.map((r) => r.traitKey))),
+  ];
   const groups = await q.query<FirmGroup>(
-    `SELECT "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
-            "servicesFit", "balanceSheetPrincipal", "advisoryConflict", count(*)::int AS n
-       FROM firm
-      WHERE ${notIn('"firmId"', 1)}
-      GROUP BY "lifecycleState", "currentStage", "disposition", "firmType", "coverageModel",
-               "servicesFit", "balanceSheetPrincipal", "advisoryConflict"`,
-    [hidden],
+    `SELECT "lifecycleState", "currentStage", "disposition", "thesis", traits, count(*)::int AS n
+       FROM (SELECT f."lifecycleState", f."currentStage", f."disposition", f."thesis",
+                    ${traitsSql("f", "$2")}
+               FROM firm f
+              WHERE ${notIn('f."firmId"', 1)}) g
+      GROUP BY "lifecycleState", "currentStage", "disposition", "thesis", traits`,
+    [hidden, rejectTraits],
   );
   // Only the hard-reject inputs vary per group, which is all the open buckets read from a score.
-  const { definition } = await loadActiveRubric(q);
-  return groups.reduce(
-    (sum, g) =>
-      isOpenBucket(bucketOf(g, scoreFirm(definition, withTraits({ ...g })))) ? sum + g.n : sum,
-    0,
-  );
+  return groups.reduce((sum, g) => {
+    const firm = withTraits({ ...g });
+    return isOpenBucket(bucketOf(firm, scoreFirm(definition, firm))) ? sum + g.n : sum;
+  }, 0);
 }
 
 async function countWhere(

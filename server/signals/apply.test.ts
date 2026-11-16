@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
-import { withTraits } from "../db/traits.js";
 import { STRONG_CF } from "../testing.js";
 import { type FirmState, type SignalRow, dueSignals, planSignals } from "./apply.js";
 
@@ -20,7 +20,7 @@ const FOURTEEN: FirmState = {
   feeGeneratingCount: 4, // 2 points
 };
 
-const firms = (f: FirmState = FOURTEEN) => new Map([["f1", f]]);
+const firms = (f: FirmState = FOURTEEN) => new Map([["f1", withTraits(f)]]);
 
 const signal = (over: Partial<SignalRow> & { signalId: string }): SignalRow => ({
   firmId: "f1",
@@ -48,7 +48,7 @@ describe("planSignals", () => {
       at,
     );
     expect(plan.skipped).toBeNull();
-    expect(plan.firmPatch).toEqual({ feeGeneratingCount: 3 });
+    expect(plan.traitPatch).toEqual({ fee_generating_count: 3 });
     expect(plan.before).toEqual({ total: 14, tier: "A" });
     expect(plan.after).toEqual({ total: 13, tier: "B" });
     expect(plan.checkTier).toBe(true);
@@ -76,7 +76,7 @@ describe("planSignals", () => {
       firms(),
       at,
     );
-    expect(raised.firmPatch).toEqual({ feeGeneratingCount: 6 });
+    expect(raised.traitPatch).toEqual({ fee_generating_count: 6 });
   });
 
   it("a deal announcement moves deal size or pace to the announced figure", () => {
@@ -93,7 +93,7 @@ describe("planSignals", () => {
       firms(),
       at,
     );
-    expect(size.firmPatch).toEqual({ dealSizeMUsd: 20 });
+    expect(size.traitPatch).toEqual({ deal_size_usd_m: 20 });
     expect(size.after.total).toBe(size.before.total - 2);
     const [pace] = planSignals(
       ADVISORY_ACQUISITIONS.rubric,
@@ -108,7 +108,7 @@ describe("planSignals", () => {
       firms(),
       at,
     );
-    expect(pace.firmPatch).toEqual({ dealsPerMdL3y: 4.5 });
+    expect(pace.traitPatch).toEqual({ deals_per_md_l3y: 4.5 });
     expect(pace.after.total).toBe(pace.before.total + 1);
   });
 
@@ -174,9 +174,9 @@ describe("planSignals", () => {
       firms(),
       at,
     );
-    expect(plans.map((p) => p.firmPatch)).toEqual([
-      { feeGeneratingCount: 3 },
-      { feeGeneratingCount: 1 },
+    expect(plans.map((p) => p.traitPatch)).toEqual([
+      { fee_generating_count: 3 },
+      { fee_generating_count: 1 },
     ]);
     expect(plans[1].before.total).toBe(13);
     expect(plans[1].after.total).toBe(12);

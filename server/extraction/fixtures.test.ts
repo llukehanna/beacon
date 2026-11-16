@@ -31,7 +31,7 @@ const NOW = new Date("2026-11-04T12:00:00.000Z");
 
 function record(overrides: Partial<FixtureRecord> = {}): FixtureRecord {
   return {
-    firmId: firm.firmId!,
+    firmId: firm.firmId,
     model: MODEL,
     promptVersion: EXTRACTION_PROMPT_VERSION,
     documentsHash: documentsHash(docs),
@@ -180,7 +180,7 @@ describe("fixtureStatus and summarizeFixtures", () => {
     expect(fixtureStatus(record({ output: null }), firm)).toBe("unusable");
     const counts = summarizeFixtures(
       [record(), record({ documentsHash: "old" }), record({ output: null })],
-      new Map([[firm.firmId!, firm]]),
+      new Map([[firm.firmId, firm]]),
     );
     expect(counts).toEqual({ current: 1, stale: 1, unusable: 1 });
   });
@@ -190,7 +190,7 @@ describe("firmsMissingCurrent", () => {
   const firms = generateUniverse(3);
   const forFirm = (f: (typeof firms)[number], over: Partial<FixtureRecord> = {}): FixtureRecord =>
     record({
-      firmId: f.firmId!,
+      firmId: f.firmId,
       documentsHash: documentsHash(firmDocuments(f)),
       output: ruleBasedExtraction(firmDocuments(f)),
       ...over,

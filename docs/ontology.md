@@ -429,19 +429,6 @@ Every write is one of these named actions, run in one transaction. Parameters ar
 | Parameter | Type | Required |
 | --- | --- | --- |
 | `firm` | Firm (primary key) | yes |
-| `servicesFit` | string | no |
-| `mdPedigree` | string | no |
-| `balanceSheetPrincipal` | string | no |
-| `dealSizeMUsd` | double | no |
-| `dealsPerMdL3y` | double | no |
-| `firmAge` | integer | no |
-| `feeGeneratingCount` | integer | no |
-| `advisoryConflict` | boolean | no |
-| `hasStOrBalanceSheet` | boolean | no |
-| `webActivity` | boolean | no |
-| `solvent` | boolean | no |
-| `employees` | integer | no |
-| `coverageModel` | string | no |
 | `traitValues` | string | no |
 | `fieldsEnteredManually` | string | no |
 | `agentValuesOverridden` | string | no |

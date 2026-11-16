@@ -28,8 +28,8 @@ import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "./vocab.js";
 export interface QueueFirm {
   firmId: string;
   firmName?: string | null;
-  /** The thesis the firm is scored under (today's column is firmType). */
-  firmType?: string | null;
+  /** The thesis the firm is scored under (today's column is thesis). */
+  thesis?: string | null;
   /** The firm's trait values by trait key. */
   traits?: Record<string, TraitValue>;
   // Lifecycle carried through so the ranker can push Qualified-or-later / Passed
@@ -80,7 +80,7 @@ export interface ActiveConfigRule {
 export const QUEUE_FIELDS: readonly string[] = [
   "firmId",
   "firmName",
-  "firmType",
+  "thesis",
   "lifecycleState",
   "currentStage",
   "disposition",

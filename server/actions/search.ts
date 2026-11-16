@@ -87,7 +87,7 @@ export const runSearch = defineAction("runSearch", {
         firmId,
         firmName: name.trim(),
         source: "search_discovery",
-        firmType: archetype,
+        thesis: archetype,
         lifecycleState: "Discovered",
         currentStage: "Discovered",
         discoveredViaSearchId: searchId,

@@ -11,7 +11,7 @@ function view(firm: FirmView, edits: EditMap = {}) {
 
 describe("buildOnFile", () => {
   const firm: FirmView = withTraits({
-    firmType: "CS",
+    thesis: "CS",
     servicesFit: "Full private-capital suite",
     dealSizeMUsd: 40,
     solvent: true,
