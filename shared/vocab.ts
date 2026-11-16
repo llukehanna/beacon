@@ -255,6 +255,7 @@ export function firmIsGone(outcome: string | null | undefined): boolean {
 }
 
 export const OPERATORS = ["<", "<=", ">", ">=", "==", "!="] as const;
+export type Operator = (typeof OPERATORS)[number];
 
 /** Firm primary key, same recipe as the original pipeline: name_country, lowercased, alphanumerics only. */
 export function firmIdFor(name: string, country: string): string {
