@@ -10,6 +10,7 @@ import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.j
 import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
 import { ENRICH_AXES, USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { NO_WALL } from "../access.js";
 import { type ApplyOptions, applyAction } from "../actions/apply.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
@@ -17,12 +18,16 @@ import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
 import { getObject, listAll } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { planFirmAxes } from "../extraction/plan.js";
 import { planRejections } from "./rejections.js";
 import { pickShowcaseFirms } from "./showcase.js";
+
+/** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
+const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
 
 type FirmObj = ObjectOf<"Firm">;
 
@@ -189,7 +194,7 @@ export async function seedHistory(
     const fields: Record<string, unknown> = {};
     const overridden: string[] = [];
     for (const f of scored) {
-      const live = scoreFirm({ ...firm, ...fields });
+      const live = scoreFirm(RUBRIC, withTraits({ ...firm, ...fields }));
       if (!live.hardRejected && (live.tier === "A" || live.tier === "B")) {
         break;
       }
@@ -250,7 +255,7 @@ export async function seedHistory(
   // 3. Qualify the strongest; move a few through the pipeline.
   const ranked = (await all(db, "Firm"))
     .filter((f) => f.enrichedBy === USER)
-    .map((f) => ({ f, s: scoreFirm(f) }))
+    .map((f) => ({ f, s: scoreFirm(RUBRIC, withTraits(f)) }))
     .sort((a, b) => b.s.weightedTotal - a.s.weightedTotal);
   const qualified = ranked
     .filter((x) => !x.s.hardRejected && (x.s.tier === "A" || x.s.tier === "B"))

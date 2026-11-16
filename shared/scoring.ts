@@ -1,8 +1,8 @@
-import { type MirrorResult, type ScoreInput, mirrorScore } from "./scoreMirror.js";
+import { scoreTraits } from "./rubric/engine.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import type { RubricDefinition, ScoreResult } from "./rubric/types.js";
+import { type ScoreInput, mirrorScore } from "./scoreMirror.js";
 import type { AxisDef } from "./vocab.js";
-
-export const RUBRIC_VERSION = "rubric-v1";
-export const THESIS_VERSION = "thesis-v1";
 
 type FirmLike = Readonly<Record<string, unknown>>;
 
@@ -32,8 +32,9 @@ export function scoreInputFromFirm(firm: FirmLike): ScoreInput {
   };
 }
 
-export function scoreFirm(firm: FirmLike): MirrorResult {
-  return mirrorScore(scoreInputFromFirm(firm));
+/** Score a firm (its thesis and its traits map) under a rubric definition. */
+export function scoreFirm(def: RubricDefinition, firm: FirmLike): ScoreResult {
+  return scoreTraits(def, thesisOf(firm), traitsOf(firm));
 }
 
 /** Parse a finding's string value into the firm field's type. */

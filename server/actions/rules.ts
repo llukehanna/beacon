@@ -1,7 +1,7 @@
 import {
   matchesPredicate,
   overlappingPatternKeys,
-  predicateField,
+  predicateAxes,
   rubricGateFor,
   ruleKey,
   rulePatternKey,
@@ -14,6 +14,7 @@ import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { sortedRows } from "../db/ordering.js";
 import { insertObject, insertObjectIfAbsent, listAll, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
+import { loadActiveRubric, loadTraits } from "../rubric/load.js";
 import { iso, logDecision } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
 
@@ -289,6 +290,8 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       /** Supported patterns the rubric already hard-rejects on. */
       const enforced = new Set<string>();
       let answered = 0;
+      const axes = new Set(predicateAxes(await loadTraits(ctx.tx)));
+      const { definition } = await loadActiveRubric(ctx.tx);
       for (const p of proposals) {
         const pred = {
           axis: p.predicateAxis.trim(),
@@ -297,7 +300,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
           model: p.ruleModel,
         };
         if (
-          predicateField(pred.axis) === null ||
+          !axes.has(pred.axis.toLowerCase()) ||
           !(OPERATORS as readonly string[]).includes(pred.operator) ||
           pred.threshold === ""
         ) {
@@ -315,7 +318,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         }
         // A rule that repeats one of the rubric's hard-rejects would screen nobody the rubric does
         // not already reject.
-        if (rubricGateFor(pred) !== null) {
+        if (rubricGateFor(definition, pred) !== null) {
           enforced.add(describePredicate(pred.axis, pred.operator, pred.threshold));
           continue;
         }

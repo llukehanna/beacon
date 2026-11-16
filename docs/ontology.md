@@ -423,6 +423,7 @@ Every write is one of these named actions, run in one transaction. Parameters ar
 | `solvent` | boolean | no |
 | `employees` | integer | no |
 | `coverageModel` | string | no |
+| `traitValues` | string | no |
 | `fieldsEnteredManually` | string | no |
 | `agentValuesOverridden` | string | no |
 

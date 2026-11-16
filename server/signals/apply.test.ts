@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { scoreFirm } from "../../shared/scoring.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import { withTraits } from "../db/traits.js";
 import { STRONG_CF } from "../testing.js";
 import { type FirmState, type SignalRow, dueSignals, planSignals } from "./apply.js";
 
@@ -32,11 +34,19 @@ const signal = (over: Partial<SignalRow> & { signalId: string }): SignalRow => (
 
 describe("planSignals", () => {
   it("starts from a firm at the tier A floor", () => {
-    expect(scoreFirm(FOURTEEN)).toMatchObject({ weightedTotal: 14, tier: "A" });
+    expect(scoreFirm(ADVISORY_ACQUISITIONS.rubric, withTraits(FOURTEEN))).toMatchObject({
+      weightedTotal: 14,
+      tier: "A",
+    });
   });
 
   it("a departure lowers the fee-earner count and can move the tier", () => {
-    const [plan] = planSignals([signal({ signalId: "s1" })], firms(), at);
+    const [plan] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s1" })],
+      firms(),
+      at,
+    );
     expect(plan.skipped).toBeNull();
     expect(plan.firmPatch).toEqual({ feeGeneratingCount: 3 });
     expect(plan.before).toEqual({ total: 14, tier: "A" });
@@ -45,16 +55,23 @@ describe("planSignals", () => {
   });
 
   it("a departure never raises the count, and a hire never lowers it", () => {
-    const [departure] = planSignals([signal({ signalId: "s1", newValue: "9" })], firms(), at);
+    const [departure] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s1", newValue: "9" })],
+      firms(),
+      at,
+    );
     expect(departure.firmPatch).toBeNull();
     expect(departure.checkTier).toBe(false);
     const [hire] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [signal({ signalId: "s2", kind: "senior_hire", newValue: "1" })],
       firms(),
       at,
     );
     expect(hire.firmPatch).toBeNull();
     const [raised] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [signal({ signalId: "s3", kind: "senior_hire", newValue: "6" })],
       firms(),
       at,
@@ -64,6 +81,7 @@ describe("planSignals", () => {
 
   it("a deal announcement moves deal size or pace to the announced figure", () => {
     const [size] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [
         signal({
           signalId: "s1",
@@ -78,6 +96,7 @@ describe("planSignals", () => {
     expect(size.firmPatch).toEqual({ dealSizeMUsd: 20 });
     expect(size.after.total).toBe(size.before.total - 2);
     const [pace] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [
         signal({
           signalId: "s2",
@@ -94,7 +113,12 @@ describe("planSignals", () => {
   });
 
   it("writes a finding that no export or tear sheet can cite as a quotation", () => {
-    const [plan] = planSignals([signal({ signalId: "s1" })], firms(), at);
+    const [plan] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s1" })],
+      firms(),
+      at,
+    );
     expect(plan.finding).toMatchObject({
       firmId: "f1",
       axis: "fee_generating_count",
@@ -123,6 +147,7 @@ describe("planSignals", () => {
       newValue: null,
     });
     const [passed] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [acquisition],
       firms({ ...FOURTEEN, lifecycleState: "Passed" }),
       at,
@@ -134,13 +159,14 @@ describe("planSignals", () => {
       outcomeSource: "market_signal",
     });
     expect(passed.finding).toBeNull();
-    const [pipeline] = planSignals([acquisition], firms(), at);
+    const [pipeline] = planSignals(ADVISORY_ACQUISITIONS.rubric, [acquisition], firms(), at);
     expect(pipeline.openOutcomeDrift).toBe(false);
     expect(pipeline.firmPatch).toMatchObject({ outcome: "acquired_by_competitor" });
   });
 
   it("signals on one firm see each other, so two departures take two people off the bench", () => {
     const plans = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [
         signal({ signalId: "s1", newValue: "3" }),
         signal({ signalId: "s2", newValue: "1", effectiveDate: "2026-08-31T00:00:00.000Z" }),
@@ -158,6 +184,7 @@ describe("planSignals", () => {
 
   it("never fills an axis with no value on file", () => {
     const [plan] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [signal({ signalId: "s1", kind: "senior_hire", newValue: "5" })],
       firms({ ...FOURTEEN, feeGeneratingCount: null }),
       at,
@@ -168,7 +195,13 @@ describe("planSignals", () => {
 
   it("lets an analyst's later check outrank older news, but not an earlier one", () => {
     const sigDate = Date.parse("2026-08-30T00:00:00.000Z");
-    const later = planSignals([signal({ signalId: "s1" })], firms(), at, () => sigDate + 1);
+    const later = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s1" })],
+      firms(),
+      at,
+      () => sigDate + 1,
+    );
     expect(later[0]).toMatchObject({
       skipped: "analyst_newer",
       effect: "unchanged",
@@ -176,27 +209,46 @@ describe("planSignals", () => {
     });
     expect(later[0].finding).toBeNull();
     expect(later[0].checkTier).toBe(false);
-    const earlier = planSignals([signal({ signalId: "s2" })], firms(), at, () => sigDate - 1);
+    const earlier = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s2" })],
+      firms(),
+      at,
+      () => sigDate - 1,
+    );
     expect(earlier[0]).toMatchObject({ skipped: null, effect: "moved" });
-    const other = planSignals([signal({ signalId: "s3" })], firms(), at, (_f, axis) =>
-      axis === "firm_age" ? sigDate + 1 : null,
+    const other = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s3" })],
+      firms(),
+      at,
+      (_f, axis) => (axis === "firm_age" ? sigDate + 1 : null),
     );
     expect(other[0].effect).toBe("moved");
   });
 
   it("writes no finding for a move clamped to the value already on file", () => {
-    const [plan] = planSignals([signal({ signalId: "s1", newValue: "9" })], firms(), at);
+    const [plan] = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
+      [signal({ signalId: "s1", newValue: "9" })],
+      firms(),
+      at,
+    );
     expect(plan).toMatchObject({ skipped: null, effect: "unchanged", firmPatch: null });
     expect(plan.finding).toBeNull();
     expect(plan.checkTier).toBe(false);
   });
 
   it("reports an axis move as moved", () => {
-    expect(planSignals([signal({ signalId: "s1" })], firms(), at)[0].effect).toBe("moved");
+    expect(
+      planSignals(ADVISORY_ACQUISITIONS.rubric, [signal({ signalId: "s1" })], firms(), at)[0]
+        .effect,
+    ).toBe("moved");
   });
 
   it("skips what it cannot apply, and anything already applied", () => {
     const reasons = planSignals(
+      ADVISORY_ACQUISITIONS.rubric,
       [
         signal({ signalId: "applied", appliedAt: AT }),
         signal({ signalId: "ghost", firmId: "nobody" }),
@@ -217,10 +269,12 @@ describe("planSignals", () => {
       "bad_value",
     ]);
     expect(
-      planSignals([signal({ signalId: "x", kind: "rumour" })], firms(), at).map((p) => [
-        p.effect,
-        p.finding,
-      ]),
+      planSignals(
+        ADVISORY_ACQUISITIONS.rubric,
+        [signal({ signalId: "x", kind: "rumour" })],
+        firms(),
+        at,
+      ).map((p) => [p.effect, p.finding]),
     ).toEqual([["unchanged", null]]);
   });
 });

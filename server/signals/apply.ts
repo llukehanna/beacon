@@ -32,6 +32,7 @@
  */
 import { signalOutranksCheck } from "../../shared/axisState.js";
 import { SIGNAL_AXES, isApplied, isSignalKind } from "../../shared/marketSignals.js";
+import type { RubricDefinition } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
 import { axisPoints, formatAxisValue, scoreFirm } from "../../shared/scoring.js";
 import {
@@ -41,6 +42,7 @@ import {
   axisByName,
   normalizeLifecycle,
 } from "../../shared/vocab.js";
+import { withTraits } from "../db/traits.js";
 
 /** A MarketSignal as the apply step reads it (timestamps as ISO strings). */
 export interface SignalRow {
@@ -149,6 +151,7 @@ function axisMove(signal: SignalRow, firm: FirmState): AxisMove | SkipReason {
  * marked applied is skipped, which is what makes running the apply step twice change nothing.
  */
 export function planSignals(
+  rubric: RubricDefinition,
   signals: readonly SignalRow[],
   firms: ReadonlyMap<string, FirmState>,
   at: (signal: SignalRow) => string,
@@ -179,7 +182,7 @@ export function planSignals(
     if (!isSignalKind(signal.kind)) {
       return skip("unknown_kind");
     }
-    const beforeScore = scoreFirm(firm);
+    const beforeScore = scoreFirm(rubric, withTraits(firm));
     const before = { total: beforeScore.weightedTotal, tier: beforeScore.tier };
 
     if (signal.kind === "acquisition") {
@@ -234,7 +237,7 @@ export function planSignals(
     const def = axisByName(move.axis)!;
     const patch = { [move.field]: move.next } as Props<"Firm">;
     const moved = { ...firm, ...patch };
-    const afterScore = scoreFirm(moved);
+    const afterScore = scoreFirm(rubric, withTraits(moved));
     working.set(signal.firmId, moved);
     return {
       ...base,

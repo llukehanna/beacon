@@ -22,11 +22,16 @@ import type { ObjectOf, Props } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
 import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
 import { insertObjects, listAll } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { type Rng, pick, rng } from "../enrichment/random.js";
 import { applyDueSignals } from "../signals/run.js";
+
+/** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
+const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -46,7 +51,8 @@ const FUTURE_ACQUISITIONS = 1;
 const FUTURE_BACKGROUND = 3;
 
 const TIER_RANK: Readonly<Record<string, number>> = { Rejected: 0, C: 1, B: 2, A: 3 };
-const tierRank = (firm: Props<"Firm">): number => TIER_RANK[scoreFirm(firm).tier] ?? 0;
+const tierRank = (firm: Props<"Firm">): number =>
+  TIER_RANK[scoreFirm(RUBRIC, withTraits(firm)).tier] ?? 0;
 
 type FirmObj = ObjectOf<"Firm">;
 
@@ -134,7 +140,7 @@ const applyStep = (f: FirmObj, s: Step): FirmObj =>
  */
 function raisingChain(firm: FirmObj, maxSteps = 4): Step[] | null {
   const start = tierRank(firm);
-  if (scoreFirm(firm).hardRejected) {
+  if (scoreFirm(RUBRIC, withTraits(firm)).hardRejected) {
     return null;
   }
   const steps: Step[] = [];
@@ -147,7 +153,8 @@ function raisingChain(firm: FirmObj, maxSteps = 4): Step[] | null {
       return null;
     }
     const gain = (s: Step): number =>
-      scoreFirm(applyStep(cur, s)).weightedTotal - scoreFirm(cur).weightedTotal;
+      scoreFirm(RUBRIC, withTraits(applyStep(cur, s))).weightedTotal -
+      scoreFirm(RUBRIC, withTraits(cur)).weightedTotal;
     const best = options.reduce((a, b) => (gain(b) > gain(a) ? b : a));
     steps.push(best);
     cur = applyStep(cur, best);

@@ -336,4 +336,46 @@ describe("enrichFirm", () => {
     });
     expect(drifts.map((d) => d.driftReason)).toEqual(["tier_moved"]);
   });
+
+  it("takes values keyed by trait, records manual ones by trait key, and stamps the rubric", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, { ...STRONG_CF, lifecycleState: "Discovered" });
+    await run(db, "enrichFirm", {
+      firm: firm.$primaryKey,
+      traitValues: JSON.stringify({ deal_size_usd_m: 10, has_st_or_balance_sheet: false }),
+      fieldsEnteredManually: JSON.stringify(["deal_size_usd_m"]),
+    });
+    const after = await getObject(db, "Firm", firm.$primaryKey);
+    expect(after?.traits).toMatchObject({ deal_size_usd_m: 10, has_st_or_balance_sheet: false });
+    const analyst = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.provider === "analyst",
+    );
+    expect(analyst.map((f) => [f.axis, f.value])).toEqual([["deal_size_usd_m", "10"]]);
+    const [score] = await listAll(db, "QualificationScore", {
+      where: { firmId: { $eq: firm.$primaryKey } },
+    });
+    expect([score.weightedTotal, score.rubricVersion, score.thesisVersion]).toEqual([
+      16,
+      "advisory-acquisitions@1",
+      "advisory-acquisitions@1",
+    ]);
+  });
+
+  it("refuses an unknown trait or a value of the wrong kind, and writes nothing", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    for (const [traitValues, message] of [
+      ['{"nope": 1}', /nope/],
+      ['{"deal_size_usd_m": "abc"}', /deal_size_usd_m/],
+      ['{"advisory_conflict": "yes"}', /advisory_conflict/],
+      ["[1, 2]", /traitValues/],
+    ] as const) {
+      await expect(run(db, "enrichFirm", { firm: firm.$primaryKey, traitValues })).rejects.toThrow(
+        message,
+      );
+    }
+    for (const type of ["QualificationScore", "ReviewDecision"] as const) {
+      expect(await listAll(db, type, { where: { firmId: { $eq: firm.$primaryKey } } })).toEqual([]);
+    }
+  });
 });
