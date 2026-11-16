@@ -22,7 +22,16 @@ export interface ModelPrice {
 }
 
 export const PRICES: Record<string, ModelPrice> = {
-  // The clustering model (server/clustering/claude.ts): $5 in / $25 out per the claude-api skill's table, read 2026-11-06.
+  // The clustering model (server/clustering/claude.ts): $4 in / $20 out, cache reads $0.20, per the
+  // claude-api skill's table, read 2026-11-16.
+  "claude-opus-5-5": {
+    inputPerMTok: 4,
+    outputPerMTok: 20,
+    cacheReadPerMTok: 0.2,
+    cacheWritePerMTok: 5,
+    minCacheableTokens: 4096,
+  },
+  // The earlier clustering model (server/clustering/claude.ts): $5 in / $25 out per the claude-api skill's table, read 2026-11-06.
   "claude-opus-5": {
     inputPerMTok: 5,
     outputPerMTok: 25,

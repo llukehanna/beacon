@@ -107,9 +107,9 @@ function SpendTable({ data }: { data: OperationsSummary }): React.ReactElement {
       <p className={styles.caption}>
         Live Claude calls only: token counts come from the API response and cost from this
         repository&rsquo;s price table; a call answered by a model with no listed price is priced at
-        claude-opus-5 rates, so its cost is then an estimate. The cap is {data.dailyCallCap} calls
-        per UTC day. Claude clustering is off unless it is switched on, so an empty table is the
-        normal state of the public demo.
+        the clustering model&rsquo;s rates, so its cost is then an estimate. The cap is{" "}
+        {data.dailyCallCap} calls per UTC day. Claude clustering is off unless it is switched on, so
+        an empty table is the normal state of the public demo.
       </p>
     </Panel>
   );

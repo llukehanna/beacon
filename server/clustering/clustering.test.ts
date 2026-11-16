@@ -59,15 +59,18 @@ describe("Claude clusterer", () => {
     expect(() => parseClusterResponse(reply(JSON.stringify({ rules: [{ nope: 1 }] })))).toThrow();
   });
 
-  it("calls claude-opus-5 with a JSON schema and refusal fallbacks", async () => {
+  it("calls claude-opus-5-5 at high effort with a JSON schema and refusal fallbacks", async () => {
     const create = vi.fn(async (_req: unknown) => reply(goodJson));
     const client = { beta: { messages: { create } } } as unknown as Anthropic;
     const out = await createClaudeClusterer(client)(rows, TEST_RUBRIC);
     expect(out.source).toBe("claude");
     const req = create.mock.calls[0][0] as Record<string, unknown>;
-    expect(req.model).toBe("claude-opus-5");
+    expect(req.model).toBe("claude-opus-5-5");
     expect(req.fallbacks).toBe("default");
-    expect((req.output_config as { format: { type: string } }).format.type).toBe("json_schema");
+    const config = req.output_config as { effort: string; format: { type: string } };
+    // Opus 5.5 defaults to medium; the clustering keeps the high effort it ran at on Opus 5.
+    expect(config.effort).toBe("high");
+    expect(config.format.type).toBe("json_schema");
   });
 });
 
