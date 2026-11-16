@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "react-router-dom";
 import { Search } from "@blueprintjs/icons";
+import { useRubric } from "@/data/rubricContext";
 import { AGENT } from "../../../shared/vocab";
 import { type ScreeningRule, screenFirm } from "../activeScreening";
 import { isOpenFirm } from "../pipelineBuckets";
@@ -85,6 +86,7 @@ export function QueueSidebar({
   runByFirmId: ReadonlyMap<string, QueueRun>;
   countsByFirmId: ReadonlyMap<string, FindingCounts>;
 }): React.ReactElement {
+  const rubric = useRubric();
   const searching = query.trim() !== "";
 
   // Per-firm screening verdict, computed once for the whole queue and reused
@@ -93,13 +95,13 @@ export function QueueSidebar({
   const screenByFirmId = React.useMemo(() => {
     const m = new Map<string, ScreeningRule>();
     for (const r of queue) {
-      const res = screenFirm(r.firm, screeningRules);
+      const res = screenFirm(rubric, r.firm, screeningRules);
       if (res.screened && res.rule !== null) {
         m.set(r.firm.firmId, res.rule);
       }
     }
     return m;
-  }, [queue, screeningRules]);
+  }, [rubric, queue, screeningRules]);
 
   // Open per the funnel — isOpenFirm, the same derivation /pipeline and
   // Home's strip use — so "N open" here equals Discovered + Screening there.
@@ -128,14 +130,14 @@ export function QueueSidebar({
 
   const filtered = React.useMemo(
     () =>
-      visibleQueue(queue, {
+      visibleQueue(rubric, queue, {
         query,
         showAll,
         membershipPinned,
         screeningRules,
         openIds: openByFirmId,
       }),
-    [queue, query, showAll, membershipPinned, screeningRules, openByFirmId],
+    [rubric, queue, query, showAll, membershipPinned, screeningRules, openByFirmId],
   );
 
   // Roving tabindex: one row is in the tab order (the open firm, else the one last focused, else
@@ -281,8 +283,8 @@ export function QueueSidebar({
             const selected = id === selectedId;
             // A firm an approved rule screened out reads R; every other firm shows its score.
             const rejected = r.hardScreened;
-            const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore);
-            const barCeiling = r.hardScreened ? 0 : scoreFraction(r.ceiling);
+            const barFill = r.hardScreened ? 0 : scoreFraction(r.currentScore, r.maxPossible);
+            const barCeiling = r.hardScreened ? 0 : scoreFraction(r.ceiling, r.maxPossible);
             // An approved rule took this firm off the live queue. Named, not
             // just dimmed — "why is this firm greyed out" should be readable
             // from the row without opening it.
@@ -311,7 +313,7 @@ export function QueueSidebar({
                     title={
                       rejected
                         ? "Screened out"
-                        : `${formatScore(r.currentScore)} known → ${formatScore(r.ceiling)} reachable if the remaining fields were filled · ${r.missingCount} rubric axes with no value yet`
+                        : `${formatScore(r.currentScore, r.maxPossible)} known → ${formatScore(r.ceiling, r.maxPossible)} reachable if the remaining fields were filled · ${r.missingCount} rubric axes with no value yet`
                     }
                   >
                     {rejected ? "R" : r.currentScore}

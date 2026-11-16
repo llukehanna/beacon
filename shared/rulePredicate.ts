@@ -1,4 +1,6 @@
-import { axisLabel } from "./axisLabels.js";
+import { axisLabel, traitOfAnyAxis } from "./axisLabels.js";
+import { showTraitValue } from "./rubric/traitValue.js";
+import type { RubricContext } from "./rubric/types.js";
 
 /**
  * Hard-screen predicate rendering.
@@ -38,11 +40,12 @@ const OPERATOR_WORDS: Readonly<Record<string, string>> = {
 
 /**
  * A predicate in words, for a sentence a person reads: "Avg deal size below $20m",
- * "Sector coverage is Generalist Focus". The axis reads as everywhere else (`axisLabels`), the
- * operator as a word, and a deal size carries its unit. `summarizePredicate` stays the exact form
+ * "Sector coverage is Generalist". The axis reads as everywhere else (`axisLabels`), the
+ * operator as a word, and a number carries its trait's unit. `summarizePredicate` stays the exact form
  * the rule cards show. An unusable predicate reads as "a rule with no condition".
  */
 export function describePredicate(
+  rubric: RubricContext,
   axis: string | undefined,
   operator: string | undefined,
   threshold: string | undefined,
@@ -53,7 +56,11 @@ export function describePredicate(
   if (a === "" || o === "" || t === "") {
     return "a rule with no condition";
   }
-  const isDealSize = a.toLowerCase() === "deal_size_usd_m";
-  const value = isDealSize && /^-?\d+(\.\d+)?$/.test(t) ? `$${t}m` : t;
-  return `${axisLabel(a)} ${OPERATOR_WORDS[o] ?? o} ${value}`;
+  const trait = traitOfAnyAxis(rubric, a);
+  const numeric = /^-?\d+(\.\d+)?$/.test(t);
+  const value =
+    trait?.kind === "number" && numeric
+      ? showTraitValue(trait, Number(t), { units: "currency" })
+      : t;
+  return `${axisLabel(rubric, a)} ${OPERATOR_WORDS[o] ?? o} ${value}`;
 }

@@ -45,7 +45,7 @@ export function resolveThesis(
   return fallback;
 }
 
-function criterionMax(c: Criterion): number {
+export function criterionMax(c: Criterion): number {
   const s = c.scoring;
   if (s.type === "direct") {
     return s.max;

@@ -1,11 +1,11 @@
 /**
- * The score a firm would have if its open proposals were verified. Uses the same rubric mirror
+ * The score a firm would have if its open proposals were verified. Uses the same preview score
  * the header uses for staged edits, so the two cannot disagree.
  */
-import { FINDING_AXIS_TO_KEY, coerceFindingValue } from "../findingActions";
-import { type ScoreInput, type Tier, mirrorScore } from "../scoreMirror";
+import type { RubricContext, Tier } from "../../../shared/rubric/types";
+import { coerceFindingValue, traitOfAxis } from "../findingActions";
 import { type AxisRow, authoritativeFinding } from "./axisRows";
-import { type EditMap, buildMerged } from "./deskModel";
+import { type EditMap, type FirmView, previewScore } from "./deskModel";
 
 export interface Projection {
   score: number;
@@ -23,7 +23,8 @@ export interface Projection {
  * out: they have no single value to project.
  */
 export function projectProposals(
-  base: ScoreInput,
+  rubric: RubricContext,
+  base: FirmView,
   edits: EditMap,
   rows: readonly AxisRow[],
 ): Projection | null {
@@ -33,11 +34,11 @@ export function projectProposals(
       continue;
     }
     const f = authoritativeFinding(row);
-    const key = FINDING_AXIS_TO_KEY[(f?.axis ?? "").trim().toLowerCase()];
+    const key = traitOfAxis(rubric, f?.axis)?.traitKey;
     if (f === undefined || key === undefined || edits[key] !== undefined) {
       continue;
     }
-    const value = coerceFindingValue(key, f.value);
+    const value = coerceFindingValue(rubric, key, f.value);
     if (value !== undefined) {
       proposed[key] = value;
     }
@@ -46,7 +47,7 @@ export function projectProposals(
   if (count === 0) {
     return null;
   }
-  const result = mirrorScore(buildMerged(base, { ...edits, ...proposed }));
+  const result = previewScore(rubric, base, { ...edits, ...proposed });
   return {
     score: result.weightedTotal,
     tier: result.tier,

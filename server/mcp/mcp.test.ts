@@ -9,17 +9,15 @@ import { POST as mcp } from "../../api/mcp.js";
 import { authoritativeFinding, buildAxisRows } from "../../shared/axisRows.js";
 import type { FindingLike } from "../../shared/axisState.js";
 import { citationOf } from "../../shared/citation.js";
-import { toScoreInput } from "../../shared/deskModel.js";
 import { conflictSides } from "../../shared/evidenceModel.js";
 import { displayFindingValue } from "../../shared/findingActions.js";
-import { mirrorScore } from "../../shared/scoreMirror.js";
-import { ENRICH_AXES } from "../../shared/vocab.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import { type Db, overrideDb } from "../db/client.js";
 import { listAll } from "../db/repo.js";
 import { HttpError } from "../errors.js";
 import { MAX_BODY_BYTES } from "../http.js";
 import { resetDemo } from "../seed/reset.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { firmEvidence } from "./evidence.js";
 import {
   JSONRPC_FORBIDDEN,
@@ -460,12 +458,13 @@ describe("get_firm_evidence", () => {
       where: { firmId: { $eq: showcaseId } },
     });
     const deskRows = buildAxisRows(
-      ENRICH_AXES.filter((a) => a.models.includes(mirrorScore(toScoreInput(firm)).model)),
+      TEST_RUBRIC,
+      scoreFirm(TEST_RUBRIC.definition, firm).model,
       undefined,
       findings,
     );
     const cited = (f: FindingLike) => ({
-      value: displayFindingValue(f.axis, f.value, { units: false }),
+      value: displayFindingValue(TEST_RUBRIC, f.axis, f.value, { units: false }),
       ...citationOf(f),
     });
     const sheet = {
@@ -525,7 +524,7 @@ describe("get_firm_evidence", () => {
 
   it("returns a deal size as the bare number, not the $m the screen shows", () => {
     const [firm] = [{ $primaryKey: "f1", firmName: "Harbour", firmType: "CF" }];
-    const evidence = firmEvidence(firm as never, [
+    const evidence = firmEvidence(TEST_RUBRIC, firm as never, [
       {
         findingId: "r1",
         firmId: "f1",
@@ -542,7 +541,7 @@ describe("get_firm_evidence", () => {
     ]);
     const axis = evidence.axes.find((a) => a.axis === "deal_size_usd_m");
     expect(axis).toMatchObject({ status: "proposed", value: "40" });
-    expect(displayFindingValue("deal_size_usd_m", "40")).toBe("$40m");
+    expect(displayFindingValue(TEST_RUBRIC, "deal_size_usd_m", "40")).toBe("$40m");
   });
 
   it("is a not-found result, not a protocol error, for an unknown firm", async () => {

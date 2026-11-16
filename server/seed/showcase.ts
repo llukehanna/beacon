@@ -10,20 +10,28 @@ import {
   buildAxisRows,
   summarizeRows,
 } from "../../shared/axisRows.js";
-import { type EditMap, buildMerged } from "../../shared/deskModel.js";
-import {
-  FINDING_AXIS_TO_KEY,
-  HARD_GATE_PASS_WHEN,
-  coerceFindingValue,
-} from "../../shared/findingActions.js";
+import { type EditMap, previewScore } from "../../shared/deskModel.js";
+import { coerceFindingValue, traitOfAxis } from "../../shared/findingActions.js";
 import { computeHardScreen, toQueueFirm } from "../../shared/queue.js";
+import { thesisOf, traitsOf } from "../../shared/rubric/firm.js";
+import type { RubricContext, ScoreResult } from "../../shared/rubric/types.js";
+import { legacyTraits } from "../../shared/rubric/workspace.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { type MirrorResult, mirrorScore } from "../../shared/scoreMirror.js";
-import { scoreInputFromFirm } from "../../shared/scoring.js";
-import { ENRICH_AXES, normalizeLifecycle } from "../../shared/vocab.js";
+import { normalizeLifecycle } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 
 type FirmObj = ObjectOf<"Firm">;
+
+/** The seed's workspace, as the desk reads it. */
+const RUBRIC: RubricContext = {
+  definition: ADVISORY_ACQUISITIONS.rubric,
+  traits: ADVISORY_ACQUISITIONS.traits,
+};
+
+/** A firm with its traits: a generated firm has only columns until the repo derives them. */
+const withTraits = (firm: FirmObj): FirmObj =>
+  firm.traits !== undefined ? firm : { ...firm, traits: legacyTraits(ADVISORY_ACQUISITIONS, firm) };
 
 export const SHOWCASE_COUNT = 12;
 /** At least this many CS firms are included when that many are eligible. */
@@ -72,7 +80,7 @@ export function pickShowcaseFirms(
       (f) =>
         normalizeLifecycle(f.lifecycleState) === "Discovered" &&
         f.enrichedBy == null &&
-        (f.employees ?? 0) >= MIN_EMPLOYEES &&
+        Number(traitsOf(withTraits(f)).employees ?? 0) >= MIN_EMPLOYEES &&
         !isScreened(f, rules),
     )
     .flatMap((f) => rank(f, plansFor(f)) ?? [])
@@ -97,8 +105,10 @@ export function pickShowcaseFirms(
 
 /** The desk's verdicts: the queue's hard-screen (base rules and approved rules) and its sidebar screen. */
 export function isScreened(firm: FirmObj, rules: readonly ScreeningRule[]): boolean {
+  const f = withTraits(firm);
   return (
-    computeHardScreen(toQueueFirm(firm), rules).hardScreened || screenFirm(firm, rules).screened
+    computeHardScreen(RUBRIC, toQueueFirm(f), rules).hardScreened ||
+    screenFirm(RUBRIC, f, rules).screened
   );
 }
 
@@ -112,11 +122,11 @@ const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
 export function runProfile(
   firm: FirmObj,
   findings: readonly ObjectOf<"ResearchFinding">[],
-): RowCounts & { projected: MirrorResult; failingGates: string[] } {
-  const base = scoreInputFromFirm(firm);
-  const model = mirrorScore(base).model;
+): RowCounts & { projected: ScoreResult; failingGates: string[] } {
+  const f0 = withTraits(firm);
   const rows = buildAxisRows(
-    ENRICH_AXES.filter((a) => a.models.includes(model)),
+    RUBRIC,
+    thesisOf(f0),
     undefined,
     findings.filter((f) => f.firmId === firm.$primaryKey),
   );
@@ -124,20 +134,22 @@ export function runProfile(
   const failingGates: string[] = [];
   for (const row of rows) {
     const f = row.state === "proposed" ? authoritativeFinding(row) : undefined;
-    const key = FINDING_AXIS_TO_KEY[row.axis];
+    const trait = traitOfAxis(RUBRIC, row.axis);
     const value =
-      f === undefined || key === undefined ? undefined : coerceFindingValue(key, f.value);
-    if (value === undefined) {
+      f === undefined || trait === undefined
+        ? undefined
+        : coerceFindingValue(RUBRIC, trait.traitKey, f.value);
+    if (trait === undefined || value === undefined) {
       continue;
     }
-    proposed[key] = value;
-    if (key in HARD_GATE_PASS_WHEN && HARD_GATE_PASS_WHEN[key] !== value) {
+    proposed[trait.traitKey] = value;
+    if (trait.kind === "yesno" && trait.passWhen !== null && trait.passWhen !== value) {
       failingGates.push(row.axis);
     }
   }
   return {
     ...summarizeRows(rows),
-    projected: mirrorScore(buildMerged(base, proposed)),
+    projected: previewScore(RUBRIC, f0, proposed),
     failingGates,
   };
 }

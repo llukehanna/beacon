@@ -308,7 +308,7 @@ describe("information barrier", () => {
 
       // Exports are built in the browser from these lists: nothing of the firm can reach them.
       const findings = await listRows("ResearchFinding", persona);
-      const { rows, citations } = exportRows(firms, findings);
+      const { rows, citations } = exportRows(TEST_RUBRIC, firms, findings);
       expect(
         rows.map((r) => r.firmId),
         as,
@@ -318,10 +318,10 @@ describe("information barrier", () => {
 
       // Lookalikes: the restricted firm is the closest match to firm-ok-1 and still never comes back.
       expect(
-        moreLikeThis("firm-ok-1", firms).map((l) => l.firmId),
+        moreLikeThis(TEST_RUBRIC, "firm-ok-1", firms).map((l) => l.firmId),
         as,
       ).toEqual(["firm-ok-2"]);
-      expect(moreLikeThis(SECRET, firms), as).toEqual([]);
+      expect(moreLikeThis(TEST_RUBRIC, SECRET, firms), as).toEqual([]);
 
       // The tear sheet loads its firm by key and builds only from what comes back: nothing.
       const sheetFirm = (await (
@@ -359,9 +359,13 @@ describe("information barrier", () => {
     ).json()) as { data: Record<string, Wire[]> };
     expect(linked.data.s1.map((f) => f.$primaryKey)).toEqual(["firm-ok-1", SECRET]);
 
-    const { rows } = exportRows(firms, await listRows("ResearchFinding", "compliance"));
+    const { rows } = exportRows(
+      TEST_RUBRIC,
+      firms,
+      await listRows("ResearchFinding", "compliance"),
+    );
     expect(rows.map((r) => r.firmName)).toContain(SECRET_NAME);
-    expect(moreLikeThis("firm-ok-1", firms).map((l) => l.firmId)).toContain(SECRET);
+    expect(moreLikeThis(TEST_RUBRIC, "firm-ok-1", firms).map((l) => l.firmId)).toContain(SECRET);
 
     expect((await list("AccessLogEntry", "compliance")).length).toBeGreaterThanOrEqual(0);
     expect(await list("MandateAccess", "compliance")).toHaveLength(5);

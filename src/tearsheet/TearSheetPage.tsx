@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, MarketSignal, ResearchFinding, ReviewDecision } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { useScreeningRules } from "@/desk/firmDesk/useScreeningRules";
 import { formatScore } from "@/desk/scoreFormat";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
@@ -246,8 +247,9 @@ function Sheet({
         )}
         {sheet.atDecision !== null && (
           <p className={styles.plain}>
-            Score when passed: {formatScore(sheet.atDecision.total, sheet.atDecision.tier)}. The
-            score above is the live one.
+            Score when passed:{" "}
+            {formatScore(sheet.atDecision.total, sheet.score.max, sheet.atDecision.tier)}. The score
+            above is the live one.
           </p>
         )}
         {sheet.axes.length === 0 ? (
@@ -323,7 +325,9 @@ function Sheet({
                   <span className={styles.axis}>{d.label}</span>
                   <span className={styles.value}>{localDay(d.at)}</span>
                   {d.score !== null && (
-                    <span className={styles.tag}>Score then {formatScore(d.score)}</span>
+                    <span className={styles.tag}>
+                      Score then {formatScore(d.score, sheet.score.max)}
+                    </span>
                   )}
                 </p>
                 {d.rationale !== null && <p className={styles.plain}>{d.rationale}</p>}
@@ -347,6 +351,7 @@ function Sheet({
 
 /** One printable page per firm: profile, score, cited evidence, open questions and decisions. */
 export default function TearSheetPage(): React.ReactElement {
+  const rubric = useRubric();
   usePrintMode();
   const { firmId = "" } = useParams();
   const firmQuery = useOsdkObjects(Firm, {
@@ -389,13 +394,22 @@ export default function TearSheetPage(): React.ReactElement {
       firm === undefined || loading
         ? undefined
         : buildTearSheet({
+            rubric,
             firm,
             findings: findingsQuery.data ?? [],
             decisions: decisionsQuery.data ?? [],
             rules: rules.rankingRules,
             signals: signalsQuery.data ?? [],
           }),
-    [firm, loading, findingsQuery.data, decisionsQuery.data, signalsQuery.data, rules.rankingRules],
+    [
+      rubric,
+      firm,
+      loading,
+      findingsQuery.data,
+      decisionsQuery.data,
+      signalsQuery.data,
+      rules.rankingRules,
+    ],
   );
   const today = React.useMemo(() => localDay(Date.now()), []);
 

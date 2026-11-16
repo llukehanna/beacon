@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mirrorScore } from "../scoreMirror";
+import { ADVISORY, withTraits } from "../../../shared/rubric/__fixtures__/advisoryRubric";
 import { confirmItems, firmDecisionState } from "./decisionState";
-import { type FirmView, toScoreInput } from "./deskModel";
+import { type FirmView, previewScore } from "./deskModel";
 
 describe("firmDecisionState", () => {
   it("offers Qualify before the Qualified stage", () => {
@@ -36,14 +36,17 @@ describe("firmDecisionState", () => {
 });
 
 describe("confirmItems", () => {
-  const firm: FirmView = { firmType: "CS", solvent: true, advisoryConflict: false };
-  const mirror = mirrorScore(toScoreInput(firm));
+  const firm: FirmView = withTraits({ firmType: "CS", solvent: true, advisoryConflict: false });
+  const mirror = previewScore(ADVISORY, firm);
 
   it("counts gates answered on the record and by staged edits", () => {
-    const stored = confirmItems(firm, mirror, {}).find((i) => i.id === "gates");
+    const stored = confirmItems(ADVISORY, firm, mirror, {}).find((i) => i.id === "gates");
     expect(stored?.detail).toBe("2/4 gates answered");
     expect(stored?.ok).toBe(false);
-    const staged = confirmItems(firm, mirror, { webActivity: true, hasStOrBalanceSheet: false });
+    const staged = confirmItems(ADVISORY, firm, mirror, {
+      web_activity: true,
+      has_st_or_balance_sheet: false,
+    });
     expect(staged.find((i) => i.id === "gates")).toMatchObject({
       detail: "4/4 gates answered",
       ok: true,
@@ -51,19 +54,19 @@ describe("confirmItems", () => {
   });
 
   it("reports the scored axes on file against the rubric's total", () => {
-    const axes = confirmItems(firm, mirror, {}).find((i) => i.id === "axes");
+    const axes = confirmItems(ADVISORY, firm, mirror, {}).find((i) => i.id === "axes");
     expect(axes?.detail).toMatch(/^\d+ of 9 scored axes on file$/);
   });
 
   it("says a firm that is not scored is hard-rejected, not '0 of 0'", () => {
-    const rejected = mirrorScore(toScoreInput({ firmType: "CS", advisoryConflict: true }));
-    const axes = confirmItems(firm, rejected, {}).find((i) => i.id === "axes");
+    const rejected = previewScore(ADVISORY, withTraits({ firmType: "CS", advisoryConflict: true }));
+    const axes = confirmItems(ADVISORY, firm, rejected, {}).find((i) => i.id === "axes");
     expect(axes?.detail).toBe("not scored: the firm is hard-rejected");
   });
 
   it("clears the screen on the values on file and still warns when proposals would reject", () => {
     const screen = (p: { hardRejected: boolean; rejectReason: string } | null) =>
-      confirmItems(firm, mirror, {}, p).find((i) => i.id === "screen");
+      confirmItems(ADVISORY, firm, mirror, {}, p).find((i) => i.id === "screen");
     expect(screen(null)).toMatchObject({ label: "Cleared the hard screen", ok: true });
     expect(screen({ hardRejected: false, rejectReason: "" })?.detail).toBe("no rejection triggers");
     const warned = screen({

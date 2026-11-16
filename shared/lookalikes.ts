@@ -20,8 +20,9 @@
 import type { FirmLike } from "./exportRows.js";
 import { bucketOf } from "./pipelineBuckets.js";
 import type { Lifecycle } from "./pipelineBuckets.js";
-import { mirrorScore } from "./scoreMirror.js";
-import { scoreInputFromFirm } from "./scoring.js";
+import { traitsOf } from "./rubric/firm.js";
+import type { RubricContext } from "./rubric/types.js";
+import { scoreFirm } from "./scoring.js";
 import { PASSED } from "./vocab.js";
 
 /** How many lookalikes a "More like this" panel shows. */
@@ -48,25 +49,16 @@ export interface Lookalike {
   reasons: string[];
 }
 
-type TextKey =
-  | "sector"
-  | "coverageModel"
-  | "firmType"
-  | "hqCountry"
-  | "revenueBand"
-  | "ownership"
-  | "successionRisk";
-type NumberKey = "dealSizeMUsd" | "dealsPerMdL3y";
-
+/** A compared field: a Firm property, or a trait key when `trait` is set. */
 interface TextFeature {
-  key: TextKey;
+  key: string;
   weight: number;
   label: string;
   show: (value: string) => string;
 }
 
 interface NumberFeature {
-  key: NumberKey;
+  key: string;
   weight: number;
   label: string;
   show: (value: number) => string;
@@ -75,36 +67,82 @@ interface NumberFeature {
 const same = (value: string): string => value;
 const round1 = (n: number): string => String(Math.round(n * 10) / 10);
 
-function modelName(value: string): string {
-  const v = value.trim().toLowerCase();
-  return v === "cs" ? "Capital solutions" : v === "cf" ? "Corporate finance" : value.trim();
-}
-
-/** The sub-sector is the heaviest signal: firms that cover the same space compete for the same deals. */
-const TEXT_FEATURES: readonly TextFeature[] = [
-  { key: "sector", weight: 6, label: "Same sub-sector", show: same },
-  { key: "coverageModel", weight: 4, label: "Same coverage model", show: same },
-  { key: "firmType", weight: 4, label: "Same model", show: modelName },
-  { key: "hqCountry", weight: 4, label: "Same HQ country", show: same },
-  { key: "revenueBand", weight: 3, label: "Same revenue band", show: same },
-  { key: "ownership", weight: 2, label: "Same ownership", show: same },
-  { key: "successionRisk", weight: 2, label: "Same succession risk", show: same },
+/** The firm-level fields every workspace has. The sub-sector is the heaviest signal: firms that cover the same space compete for the same deals. */
+const FIRM_FEATURES: readonly Omit<TextFeature, "show">[] = [
+  { key: "sector", weight: 6, label: "Same sub-sector" },
+  { key: "firmType", weight: 4, label: "Same model" },
+  { key: "hqCountry", weight: 4, label: "Same HQ country" },
 ];
+
+/**
+ * How much a shared trait value counts, by trait key. A category fact or profile trait the table
+ * does not name still counts, at weight 2; a number trait counts only when named here.
+ */
+const TRAIT_TEXT: Readonly<Record<string, { weight: number; label: string }>> = {
+  coverage_model: { weight: 4, label: "Same coverage model" },
+  revenue_band: { weight: 3, label: "Same revenue band" },
+  ownership: { weight: 2, label: "Same ownership" },
+  succession_risk: { weight: 2, label: "Same succession risk" },
+};
 
 const NUMBER_FEATURES: readonly NumberFeature[] = [
   {
-    key: "dealSizeMUsd",
+    key: "deal_size_usd_m",
     weight: 4,
     label: `Deal size within ${TOLERANCE_PERCENT}%`,
     show: (n) => `$${round1(n)}m`,
   },
   {
-    key: "dealsPerMdL3y",
+    key: "deals_per_md_l3y",
     weight: 4,
     label: `Deal velocity within ${TOLERANCE_PERCENT}%`,
     show: (n) => `${round1(n)} deals per MD`,
   },
 ];
+
+/** The text fields compared, in reason order: sector, then the category traits, then model and HQ. */
+function textFeatures(rubric: RubricContext): TextFeature[] {
+  const thesisName = (value: string): string =>
+    rubric.definition.theses.find((t) => t.key.toLowerCase() === value.trim().toLowerCase())
+      ?.label ?? value.trim();
+  const firm = (key: string): TextFeature => {
+    const f = FIRM_FEATURES.find((x) => x.key === key) as Omit<TextFeature, "show">;
+    return { ...f, show: key === "firmType" ? thesisName : same };
+  };
+  const traits = rubric.traits
+    .filter((t) => t.kind === "category" && t.role !== "evidence")
+    .map((t): TextFeature => {
+      const known = TRAIT_TEXT[t.traitKey];
+      return {
+        key: t.traitKey,
+        weight: known?.weight ?? 2,
+        label: known?.label ?? `Same ${t.label.toLowerCase()}`,
+        show: same,
+      };
+    });
+  // Coverage reads beside the sector, the profile traits after the HQ country (the order the
+  // reasons have always been listed in).
+  const facts = traits.filter(
+    (t) => rubric.traits.find((x) => x.traitKey === t.key)?.role === "fact",
+  );
+  const profile = traits.filter((t) => !facts.includes(t));
+  return [firm("sector"), ...facts, firm("firmType"), firm("hqCountry"), ...profile];
+}
+
+function numberFeatures(rubric: RubricContext): NumberFeature[] {
+  return NUMBER_FEATURES.filter((f) =>
+    rubric.traits.some((t) => t.traitKey === f.key && t.kind === "number"),
+  );
+}
+
+const FIRM_KEYS: ReadonlySet<string> = new Set(FIRM_FEATURES.map((f) => f.key));
+
+/** A feature's value on a firm: the Firm property for a firm-level field, else the trait. */
+function valueOf(firm: FirmLike, feature: { key: string }): unknown {
+  return FIRM_KEYS.has(feature.key)
+    ? firm[feature.key as keyof FirmLike]
+    : traitsOf(firm)[feature.key];
+}
 
 const text = (v: unknown): string | null => {
   if (typeof v !== "string") {
@@ -133,19 +171,19 @@ interface Profile {
   total: number;
 }
 
-function profileOf(target: FirmLike): Profile {
+function profileOf(rubric: RubricContext, target: FirmLike): Profile {
   const texts: Profile["texts"] = [];
   const numbers: Profile["numbers"] = [];
   let total = 0;
-  for (const feature of TEXT_FEATURES) {
-    const value = text(target[feature.key]);
+  for (const feature of textFeatures(rubric)) {
+    const value = text(valueOf(target, feature));
     if (value !== null) {
       texts.push({ feature, value, folded: value.toLowerCase() });
       total += feature.weight;
     }
   }
-  for (const feature of NUMBER_FEATURES) {
-    const value = num(target[feature.key]);
+  for (const feature of numberFeatures(rubric)) {
+    const value = num(valueOf(target, feature));
     if (value !== null) {
       numbers.push({ feature, value });
       total += feature.weight;
@@ -166,13 +204,13 @@ type NumberEntry = Profile["numbers"][number];
 
 /** The candidate's value for a text field when it equals the target's, else null. */
 function textHit({ feature, folded }: TextEntry, candidate: FirmLike): string | null {
-  const theirs = text(candidate[feature.key]);
+  const theirs = text(valueOf(candidate, feature));
   return theirs !== null && theirs.toLowerCase() === folded ? theirs : null;
 }
 
 /** The candidate's value for a number field when it is within tolerance of the target's, else null. */
 function numberHit({ feature, value }: NumberEntry, candidate: FirmLike): number | null {
-  const theirs = num(candidate[feature.key]);
+  const theirs = num(valueOf(candidate, feature));
   return theirs !== null && within(value, theirs) ? theirs : null;
 }
 
@@ -225,11 +263,12 @@ const better = (a: Match, b: Match): boolean =>
  * A target with fewer than MIN_COMPARABLE_FIELDS fields on file has no lookalikes.
  */
 export function lookalikes(
+  rubric: RubricContext,
   target: FirmLike,
   universe: readonly FirmLike[],
   k: number = DEFAULT_K,
 ): Lookalike[] {
-  const profile = profileOf(target);
+  const profile = profileOf(rubric, target);
   const compared = profile.texts.length + profile.numbers.length;
   if (compared < MIN_COMPARABLE_FIELDS || k <= 0) {
     return [];
@@ -269,7 +308,7 @@ export function lookalikes(
 /** A lookalike with what a list needs to show it: name, tier, stage and whether it was passed. */
 export interface LookalikeRow extends Lookalike {
   name: string;
-  /** The live tier from the score mirror: A, B, C or Rejected. */
+  /** The live tier from the rubric: A, B, C or Rejected. */
   tier: string;
   stage: Lifecycle;
   /** True for a firm already turned down. It is listed, flagged, rather than hidden. */
@@ -277,6 +316,7 @@ export interface LookalikeRow extends Lookalike {
 }
 
 function describe(
+  rubric: RubricContext,
   found: readonly Lookalike[],
   byId: ReadonlyMap<string, FirmLike>,
 ): LookalikeRow[] {
@@ -286,12 +326,12 @@ function describe(
     if (firm === undefined) {
       continue;
     }
-    const mirror = mirrorScore(scoreInputFromFirm(firm));
-    const stage = bucketOf(firm, mirror);
+    const live = scoreFirm(rubric.definition, firm);
+    const stage = bucketOf(firm, live);
     rows.push({
       ...l,
       name: text(firm.firmName) ?? l.firmId,
-      tier: mirror.tier,
+      tier: live.tier,
       stage,
       passed: stage === PASSED,
     });
@@ -304,13 +344,14 @@ const indexById = (firms: readonly FirmLike[]): Map<string, FirmLike> =>
 
 /** "More like this" for one firm: its closest lookalikes among `firms`. Empty if the firm is unknown. */
 export function moreLikeThis(
+  rubric: RubricContext,
   firmId: string,
   firms: readonly FirmLike[],
   k: number = DEFAULT_K,
 ): LookalikeRow[] {
   const byId = indexById(firms);
   const target = byId.get(firmId);
-  return target === undefined ? [] : describe(lookalikes(target, firms, k), byId);
+  return target === undefined ? [] : describe(rubric, lookalikes(rubric, target, firms, k), byId);
 }
 
 /** A lookalike of the approved set, with the approved firm it is closest to. */
@@ -327,6 +368,7 @@ export interface ApprovedLookalike extends LookalikeRow {
  * top `cap` of the target it is closest to, so nothing that belongs in the result is lost.
  */
 export function lookalikesOfApproved(
+  rubric: RubricContext,
   approved: readonly FirmLike[],
   universe: readonly FirmLike[],
   cap: number = APPROVED_CAP,
@@ -337,7 +379,7 @@ export function lookalikesOfApproved(
   const bestFor = new Map<string, { found: Lookalike; targetId: string }>();
   for (const target of approved) {
     const targetId = target.firmId ?? "";
-    for (const found of lookalikes(target, candidates, cap)) {
+    for (const found of lookalikes(rubric, target, candidates, cap)) {
       const held = bestFor.get(found.firmId);
       if (
         held === undefined ||
@@ -358,6 +400,7 @@ export function lookalikesOfApproved(
     )
     .slice(0, Math.max(0, cap));
   const rows = describe(
+    rubric,
     ranked.map((r) => r.found),
     byId,
   );

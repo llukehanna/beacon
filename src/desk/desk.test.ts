@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { previewScore } from "../../shared/deskModel";
+import { ADVISORY, withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric";
+import { TOY_RUBRIC } from "../../shared/rubric/__fixtures__/toyRubric";
 import { COUNTRY_GEO } from "../../shared/taxonomy";
 import {
   type ScreeningRule,
@@ -13,11 +16,6 @@ import { agentRunFirmIds, defaultDeskFirmId, nextQueueFirmId } from "./deskDefau
 import { type DeskPanelInputs, deskPanelState } from "./deskPanelState";
 import { RESOLUTION_LABEL, lookalikesFor, resolutionLabel } from "./driftReview";
 import {
-  ENUM_EDIT_KEYS,
-  FINDING_AXIS_TO_KEY,
-  HARD_GATE_EDIT_KEYS,
-  HARD_GATE_PASS_WHEN,
-  NUMERIC_EDIT_KEYS,
   axisInputKind,
   coerceFindingValue,
   decideAccept,
@@ -47,20 +45,42 @@ import {
   windowRange,
   windowSegments,
 } from "./pipelineRows";
-import { type ActiveConfigRule, computeHardScreen, orderEnrichmentQueue, rankFirm } from "./queue";
+import {
+  type ActiveConfigRule,
+  type QueueFirm,
+  computeHardScreen,
+  orderEnrichmentQueue,
+  rankFirm,
+} from "./queue";
 import { summarizePredicate } from "./rulePredicate";
 import { repairTruncatedText } from "./ruleText";
 import { formatScore, queueRowTier, scoreFraction, shownScore } from "./scoreFormat";
-import { mirrorScore } from "./scoreMirror";
 import { excerptText, highlightQuote, modelChipTitle, modelLabel } from "./sourceHighlight";
 import { providerLabel } from "./tokens";
 import { NULL_OUTCOME_KEY, rates, tallyOutcomes } from "./trustMetrics";
 
-describe("scoreMirror (mirrors server rubric v2, /18)", () => {
+// The desk models take the rubric first and read a firm's traits. Test firms are written with
+// the firm columns (servicesFit, employees); these wrappers give them their traits.
+const R = ADVISORY;
+type Cols = Record<string, unknown>;
+const asQueue = (f: Cols) => withTraits(f) as unknown as QueueFirm;
+const score = (f: Cols) => previewScore(R, withTraits(f));
+const queueOf = (firms: Cols[], rules: readonly ActiveConfigRule[] = []) =>
+  orderEnrichmentQueue(R, firms.map(asQueue), rules);
+const rank = (f: Cols, rules: readonly ActiveConfigRule[] = []) => rankFirm(R, asQueue(f), rules);
+const hardScreen = (f: Cols, rules: readonly ActiveConfigRule[]) =>
+  computeHardScreen(R, asQueue(f), rules);
+const screen = (f: Cols, rules: readonly ScreeningRule[]) => screenFirm(R, withTraits(f), rules);
+const countScr = (firms: Cols[], rules: readonly ScreeningRule[]) =>
+  countScreened(R, firms.map(withTraits), rules);
+const liveQ = (f: Cols, rules: readonly ScreeningRule[], open: boolean) =>
+  isLiveQueueFirm(R, withTraits(f), rules, open);
+
+describe("the advisory rubric (rubric v2, /18)", () => {
   it("Baseline: Single + geo2 + 30 emp -> 6/18, C, Follow", () => {
-    const r = mirrorScore({
+    const r = score({
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 30,
     });
@@ -72,9 +92,9 @@ describe("scoreMirror (mirrors server rubric v2, /18)", () => {
   });
 
   it("Sparse firm: Multi + geo1 + 8 emp -> 4/18, soft Rejected, Enrich", () => {
-    const r = mirrorScore({
+    const r = score({
       firmType: "CF",
-      coverageModel: "Multi-Coverage Focus",
+      coverageModel: "Multi-sector",
       geoScore: 1,
       employees: 8,
     });
@@ -85,9 +105,9 @@ describe("scoreMirror (mirrors server rubric v2, /18)", () => {
   });
 
   it("Generalist -> hard reject", () => {
-    const r = mirrorScore({
+    const r = score({
       firmType: "CF",
-      coverageModel: "Generalist Focus",
+      coverageModel: "Generalist",
       geoScore: 0,
       employees: 3,
     });
@@ -97,9 +117,9 @@ describe("scoreMirror (mirrors server rubric v2, /18)", () => {
   });
 
   it("fully enriched CF -> 18/18, A, Outreach (C->A money shot)", () => {
-    const r = mirrorScore({
+    const r = score({
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       servicesFit: "Full advisory suite",
       mdPedigree: "Bulge-bracket or elite-boutique alumni",
       geoScore: 2,
@@ -116,14 +136,40 @@ describe("scoreMirror (mirrors server rubric v2, /18)", () => {
   });
 });
 
+describe("queue ranking under another workspace's rubric", () => {
+  it("counts headroom from the thesis's researched criteria and screens on its hard rejects", () => {
+    const toy = (firmId: string, traits: Record<string, string | number | boolean>) => ({
+      firmId,
+      firmType: "growth",
+      traits,
+    });
+    const ranked = orderEnrichmentQueue(TOY_RUBRIC, [
+      toy("sanctioned", { region_fit: 3, sanctioned: true }),
+      toy("open", { region_fit: 3 }),
+    ]);
+    expect(ranked.map((r) => r.firm.firmId)).toEqual(["open", "sanctioned"]);
+    // Region fit is a fact; product quality (weight 3) and team size are left to research.
+    expect(ranked[0]).toMatchObject({
+      currentScore: 3,
+      ceiling: 11,
+      gain: 8,
+      missingCount: 2,
+      maxPossible: 11,
+      tier: "C",
+      hardScreened: false,
+    });
+    expect(ranked[1]).toMatchObject({ hardScreened: true, hardScreenReason: "Sanctioned entity" });
+  });
+});
+
 describe("orderEnrichmentQueue", () => {
   it("among workable (non-R) firms, higher expected gain rises", () => {
-    const q = orderEnrichmentQueue([
+    const q = queueOf([
       {
         // Tier C — 9/18 with headroom of 8 across dealSize/dealsPerMd/firmAge/feeGen.
         firmId: "high-gain-b",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
         servicesFit: "Full advisory suite",
@@ -133,7 +179,7 @@ describe("orderEnrichmentQueue", () => {
         // Tier B — 13/18, only feeGen missing (headroom 2).
         firmId: "low-gain-a",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
         servicesFit: "Full advisory suite",
@@ -156,7 +202,7 @@ describe("orderEnrichmentQueue", () => {
     // max is 2 (was 1 under the retired v1 model), so ceiling = 16+2 = 18
     // and gain = 2 — not the stale ceiling=17/gain=1 the old ENRICHABLE
     // table would have produced.
-    const r = rankFirm({
+    const r = rank({
       firmId: "missing-only-feegen",
       firmType: "CF",
       coverageModel: "Single-sector focus",
@@ -180,18 +226,18 @@ describe("orderEnrichmentQueue", () => {
     // correct: enrichment may lift them into C or B once fields fill in.
     // Only actual base rules or approved HardScreenConfig rows count as
     // "hard-screened" for queue purposes.
-    const q = orderEnrichmentQueue([
+    const q = queueOf([
       {
         firmId: "low-score-workable",
         firmType: "CF",
-        coverageModel: "Multi-Coverage Focus",
+        coverageModel: "Multi-sector",
         geoScore: 1,
         employees: 5, // → tier Rejected via low score, but no screen tripped
       },
       {
         firmId: "workable-c",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // → Rejected tier (soft), 5/18
       },
@@ -209,11 +255,11 @@ describe("orderEnrichmentQueue", () => {
     // Client mirror can't see this firm's hard screen (its rubric fields
     // pass), but the ontology already screened it out — enrichment gain
     // is fictional. Must land below the workable, non-hard-screened firm.
-    const q = orderEnrichmentQueue([
+    const q = queueOf([
       {
         firmId: "hard-screened-discovered",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
         servicesFit: "Full advisory suite", // enough to clear R on its own
@@ -223,7 +269,7 @@ describe("orderEnrichmentQueue", () => {
       {
         firmId: "workable-c",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // Rejected tier (soft), 5/18
       },
@@ -245,19 +291,19 @@ describe("orderEnrichmentQueue", () => {
       threshold: "10",
       model: "CF",
     };
-    const q = orderEnrichmentQueue(
+    const q = queueOf(
       [
         {
           firmId: "small-cf",
           firmType: "CF",
-          coverageModel: "Single Coverage Focus",
+          coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 4,
         },
         {
           firmId: "workable-c",
           firmType: "CF",
-          coverageModel: "Single Coverage Focus",
+          coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 100,
         },
@@ -279,12 +325,12 @@ describe("orderEnrichmentQueue", () => {
       threshold: "50",
       model: "CS",
     };
-    const q = orderEnrichmentQueue(
+    const q = queueOf(
       [
         {
           firmId: "small-cf",
           firmType: "CF",
-          coverageModel: "Single Coverage Focus",
+          coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 4,
         },
@@ -296,11 +342,11 @@ describe("orderEnrichmentQueue", () => {
 
   it("computeHardScreen returns base-rule verdict for a hard-rejected firm", () => {
     // Generalist coverage → base rule fires. No configs needed.
-    const v = computeHardScreen(
+    const v = hardScreen(
       {
         firmId: "gen",
         firmType: "CF",
-        coverageModel: "Generalist Focus",
+        coverageModel: "Generalist",
         geoScore: 2,
         employees: 100,
       },
@@ -312,11 +358,11 @@ describe("orderEnrichmentQueue", () => {
   });
 
   it("computeHardScreen returns clear verdict when no rule matches (no configs)", () => {
-    const v = computeHardScreen(
+    const v = hardScreen(
       {
         firmId: "safe",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
       },
@@ -328,11 +374,11 @@ describe("orderEnrichmentQueue", () => {
   });
 
   it("terminal firms drop below active work but above hard-screened", () => {
-    const q = orderEnrichmentQueue([
+    const q = queueOf([
       {
         firmId: "qualified-high",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
         servicesFit: "Full advisory suite",
@@ -345,14 +391,14 @@ describe("orderEnrichmentQueue", () => {
       {
         firmId: "workable-c",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // Rejected tier (soft), 5/18, non-terminal, non-hard-screened
       },
       {
         firmId: "hard-screened",
         firmType: "CF",
-        coverageModel: "Generalist Focus", // client hard-reject
+        coverageModel: "Generalist", // client hard-reject
         geoScore: 2,
         employees: 100,
       },
@@ -368,8 +414,8 @@ describe("orderEnrichmentQueue", () => {
   });
 
   it("treats Qualified and every later deal stage, and Passed, as decided", () => {
-    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
-    const q = orderEnrichmentQueue(
+    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
+    const q = queueOf(
       ["Discovered", "Screening", "Qualified", "NDA", "Closed", "Passed"].map((lifecycleState) => ({
         ...base,
         firmId: lifecycleState,
@@ -394,11 +440,11 @@ describe("orderEnrichmentQueue", () => {
     // "qualified" (already single-word) works, and legacy snake_case
     // ("rejected") must also fold via normalizeLifecycle. The Pipeline test
     // for middle stages lives at the component layer.
-    const q = orderEnrichmentQueue([
+    const q = queueOf([
       {
         firmId: "in-review-snake",
         firmType: "CF",
-        coverageModel: "Single Coverage Focus",
+        coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
         lifecycleState: "in_review",
@@ -461,20 +507,20 @@ describe("findingActions — Accept / Verify decision", () => {
   it("Accept on a hard gate the analyst set to No + agent proposes Yes → conflict, not no-op", () => {
     const firm = { webActivity: false };
     const edits: Record<string, string | number | boolean> = {};
-    const current = effectiveAxisValue(firm, edits, "webActivity");
+    const current = effectiveAxisValue(withTraits(firm), edits, "web_activity");
     expect(current).toBe(false);
-    const decision = decideAccept({ axis: "web_activity", value: "Yes" }, current);
+    const decision = decideAccept(R, { axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("conflict");
     if (decision.kind === "conflict") {
-      expect(decision.editKey).toBe("webActivity");
+      expect(decision.editKey).toBe("web_activity");
       expect(decision.mine).toBe(false);
       expect(decision.theirs).toBe(true);
     }
   });
 
   it("Accept on a scorable axis the analyst set to a different number → conflict", () => {
-    const current = effectiveAxisValue({}, { dealSizeMUsd: 200 }, "dealSizeMUsd");
-    const decision = decideAccept({ axis: "deal_size_usd_m", value: "150" }, current);
+    const current = effectiveAxisValue(withTraits({}), { deal_size_usd_m: 200 }, "deal_size_usd_m");
+    const decision = decideAccept(R, { axis: "deal_size_usd_m", value: "150" }, current);
     expect(decision.kind).toBe("conflict");
     if (decision.kind === "conflict") {
       expect(decision.mine).toBe(200);
@@ -484,23 +530,23 @@ describe("findingActions — Accept / Verify decision", () => {
 
   it("Accept when analyst hasn't set the axis → apply cleanly", () => {
     const firm = { webActivity: null };
-    const current = effectiveAxisValue(firm, {}, "webActivity");
-    const decision = decideAccept({ axis: "web_activity", value: "Yes" }, current);
+    const current = effectiveAxisValue(withTraits(firm), {}, "web_activity");
+    const decision = decideAccept(R, { axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("apply");
     if (decision.kind === "apply") {
-      expect(decision.editKey).toBe("webActivity");
+      expect(decision.editKey).toBe("web_activity");
       expect(decision.value).toBe(true);
     }
   });
 
   it("Accept when analyst value matches agent → apply (idempotent, no conflict)", () => {
-    const current = effectiveAxisValue({}, { webActivity: true }, "webActivity");
-    const decision = decideAccept({ axis: "web_activity", value: "true" }, current);
+    const current = effectiveAxisValue(withTraits({}), { web_activity: true }, "web_activity");
+    const decision = decideAccept(R, { axis: "web_activity", value: "true" }, current);
     expect(decision.kind).toBe("apply");
   });
 
   it("Accept on an axis the client doesn't know how to route → unroutable, never conflict", () => {
-    const decision = decideAccept({ axis: "made_up_axis", value: "whatever" }, "existing");
+    const decision = decideAccept(R, { axis: "made_up_axis", value: "whatever" }, "existing");
     expect(decision.kind).toBe("unroutable");
     if (decision.kind === "unroutable") {
       expect(decision.reason).toBe("unknown-axis");
@@ -508,8 +554,8 @@ describe("findingActions — Accept / Verify decision", () => {
   });
 
   it("Verify on an empty axis writes the value (confirms as human-checked)", () => {
-    const current = effectiveAxisValue({}, {}, "webActivity");
-    const decision = decideVerify({ axis: "web_activity", value: "Yes" }, current);
+    const current = effectiveAxisValue(withTraits({}), {}, "web_activity");
+    const decision = decideVerify(R, { axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("apply");
     if (decision.kind === "apply") {
       expect(decision.value).toBe(true);
@@ -517,8 +563,8 @@ describe("findingActions — Accept / Verify decision", () => {
   });
 
   it("Verify with a different analyst-set value → conflict (no silent overwrite)", () => {
-    const current = effectiveAxisValue({ webActivity: false }, {}, "webActivity");
-    const decision = decideVerify({ axis: "web_activity", value: "Yes" }, current);
+    const current = effectiveAxisValue(withTraits({ webActivity: false }), {}, "web_activity");
+    const decision = decideVerify(R, { axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("conflict");
   });
 
@@ -527,157 +573,130 @@ describe("findingActions — Accept / Verify decision", () => {
     // control. Agent then proposes Yes. Effective value must be the
     // analyst's local edit, not the stale firm field.
     const firm = { webActivity: true };
-    const current = effectiveAxisValue(firm, { webActivity: false }, "webActivity");
+    const current = effectiveAxisValue(withTraits(firm), { web_activity: false }, "web_activity");
     expect(current).toBe(false);
-    const decision = decideAccept({ axis: "web_activity", value: "Yes" }, current);
+    const decision = decideAccept(R, { axis: "web_activity", value: "Yes" }, current);
     expect(decision.kind).toBe("conflict");
   });
 
   it("coerces yes/no/true/false variants for hard gates", () => {
-    expect(coerceFindingValue("webActivity", "Yes")).toBe(true);
-    expect(coerceFindingValue("webActivity", "no")).toBe(false);
-    expect(coerceFindingValue("webActivity", "TRUE")).toBe(true);
-    expect(coerceFindingValue("webActivity", "0")).toBe(false);
+    expect(coerceFindingValue(R, "web_activity", "Yes")).toBe(true);
+    expect(coerceFindingValue(R, "web_activity", "no")).toBe(false);
+    expect(coerceFindingValue(R, "web_activity", "TRUE")).toBe(true);
+    expect(coerceFindingValue(R, "web_activity", "0")).toBe(false);
     // Unroutable — the agent gave us prose we can't safely turn into a bool.
-    expect(coerceFindingValue("webActivity", "maybe")).toBeUndefined();
+    expect(coerceFindingValue(R, "web_activity", "maybe")).toBeUndefined();
   });
 
   it("coerces numeric axes to numbers", () => {
-    expect(coerceFindingValue("dealSizeMUsd", "150")).toBe(150);
-    expect(coerceFindingValue("dealSizeMUsd", "  75.5  ")).toBe(75.5);
-    expect(coerceFindingValue("dealSizeMUsd", "n/a")).toBeUndefined();
+    expect(coerceFindingValue(R, "deal_size_usd_m", "150")).toBe(150);
+    expect(coerceFindingValue(R, "deal_size_usd_m", "  75.5  ")).toBe(75.5);
+    expect(coerceFindingValue(R, "deal_size_usd_m", "n/a")).toBeUndefined();
   });
 });
 
 describe("hard-gate polarity — Pass always means cleared", () => {
-  // These four assertions are the whole contract for a new gate: adding
-  // one without an entry here should fail this suite and force the author
-  // to declare polarity intentionally instead of shipping ambiguous copy.
-  it("advisoryConflict: Pass = no conflict (stored false)", () => {
-    expect(HARD_GATE_PASS_WHEN.advisoryConflict).toBe(false);
+  // The catalog declares each gate's polarity: which stored value reads as Pass.
+  const passWhen = (key: string) => R.traits.find((t) => t.traitKey === key)?.passWhen;
+
+  it("advisory_conflict: Pass = no conflict (stored false)", () => {
+    expect(passWhen("advisory_conflict")).toBe(false);
   });
 
-  it("hasStOrBalanceSheet: Pass = no S&T / balance sheet (stored false)", () => {
-    expect(HARD_GATE_PASS_WHEN.hasStOrBalanceSheet).toBe(false);
+  it("has_st_or_balance_sheet: Pass = no S&T / balance sheet (stored false)", () => {
+    expect(passWhen("has_st_or_balance_sheet")).toBe(false);
   });
 
-  it("webActivity: Pass = has verifiable activity (stored true)", () => {
-    expect(HARD_GATE_PASS_WHEN.webActivity).toBe(true);
+  it("web_activity: Pass = has verifiable activity (stored true)", () => {
+    expect(passWhen("web_activity")).toBe(true);
   });
 
   it("solvent: Pass = solvent (stored true)", () => {
-    expect(HARD_GATE_PASS_WHEN.solvent).toBe(true);
+    expect(passWhen("solvent")).toBe(true);
   });
 
   it("every gate declares a polarity — no undefined entries", () => {
-    // If a gate lands in HARD_GATES (firmDesk/hardGateConfig.tsx) without an entry here,
-    // formatAxisValue silently falls back to raw booleans — the copy
-    // reads "You set true · agent proposes false" and the analyst loses
-    // the Pass/Fail framing. Assert we're covering exactly four gates.
-    expect(Object.keys(HARD_GATE_PASS_WHEN).sort()).toEqual([
-      "advisoryConflict",
-      "hasStOrBalanceSheet",
+    // A yes/no trait without a polarity would read as Yes / No instead of Pass / Fail.
+    const gates = R.traits.filter((t) => t.kind === "yesno");
+    expect(gates.map((t) => t.traitKey).sort()).toEqual([
+      "advisory_conflict",
+      "has_st_or_balance_sheet",
       "solvent",
-      "webActivity",
+      "web_activity",
     ]);
+    expect(gates.every((t) => typeof t.passWhen === "boolean")).toBe(true);
   });
 
   it("formatAxisValue renders Pass/Fail per polarity, not raw booleans", () => {
     // Two direct-polarity gates: true reads Pass.
-    expect(formatAxisValue("webActivity", true)).toBe("Pass");
-    expect(formatAxisValue("webActivity", false)).toBe("Fail");
-    expect(formatAxisValue("solvent", true)).toBe("Pass");
+    expect(formatAxisValue(R, "web_activity", true)).toBe("Pass");
+    expect(formatAxisValue(R, "web_activity", false)).toBe("Fail");
+    expect(formatAxisValue(R, "solvent", true)).toBe("Pass");
     // Two inverted-polarity gates: true reads Fail.
-    expect(formatAxisValue("advisoryConflict", true)).toBe("Fail");
-    expect(formatAxisValue("advisoryConflict", false)).toBe("Pass");
-    expect(formatAxisValue("hasStOrBalanceSheet", true)).toBe("Fail");
-    expect(formatAxisValue("hasStOrBalanceSheet", false)).toBe("Pass");
+    expect(formatAxisValue(R, "advisory_conflict", true)).toBe("Fail");
+    expect(formatAxisValue(R, "advisory_conflict", false)).toBe("Pass");
+    expect(formatAxisValue(R, "has_st_or_balance_sheet", true)).toBe("Fail");
+    expect(formatAxisValue(R, "has_st_or_balance_sheet", false)).toBe("Pass");
   });
 });
 
 describe("axisInputKind — abstain-card input schema", () => {
   it("hard gates render as boolean toggles", () => {
-    expect(axisInputKind("web_activity")).toBe("boolean");
-    expect(axisInputKind("advisory_conflict")).toBe("boolean");
-    expect(axisInputKind("has_st_or_balance_sheet")).toBe("boolean");
-    expect(axisInputKind("solvent")).toBe("boolean");
+    expect(axisInputKind(R, "web_activity")).toBe("boolean");
+    expect(axisInputKind(R, "advisory_conflict")).toBe("boolean");
+    expect(axisInputKind(R, "has_st_or_balance_sheet")).toBe("boolean");
+    expect(axisInputKind(R, "solvent")).toBe("boolean");
   });
 
   it("numeric rubric axes render as number inputs", () => {
-    expect(axisInputKind("deal_size_usd_m")).toBe("number");
-    expect(axisInputKind("deals_per_md_l3y")).toBe("number");
-    expect(axisInputKind("firm_age_years")).toBe("number");
-    expect(axisInputKind("fee_generating_count")).toBe("number");
-    // Alias forms in FINDING_AXIS_TO_KEY should route to the same edit
-    // key and inherit the number kind — a mixed backlog can't downgrade
-    // to a text box.
-    expect(axisInputKind("deal_size")).toBe("number");
-    expect(axisInputKind("firm_age")).toBe("number");
+    expect(axisInputKind(R, "deal_size_usd_m")).toBe("number");
+    expect(axisInputKind(R, "deals_per_md_l3y")).toBe("number");
+    expect(axisInputKind(R, "firm_age")).toBe("number");
+    expect(axisInputKind(R, "fee_generating_count")).toBe("number");
+    // A finding's axis is matched trimmed and case-insensitively.
+    expect(axisInputKind(R, " Deal_Size_USD_M ")).toBe("number");
   });
 
   it("categorical rubric axes render as enum selects", () => {
-    expect(axisInputKind("services_fit")).toBe("enum");
-    expect(axisInputKind("md_pedigree")).toBe("enum");
-    expect(axisInputKind("balance_sheet_principal")).toBe("enum");
+    expect(axisInputKind(R, "services_fit")).toBe("enum");
+    expect(axisInputKind(R, "md_pedigree")).toBe("enum");
+    expect(axisInputKind(R, "balance_sheet_principal")).toBe("enum");
   });
 
   it("axes without a known shape fall back to free text", () => {
-    expect(axisInputKind("geographic_footprint")).toBe("text");
-    expect(axisInputKind("hq_country")).toBe("text");
-    expect(axisInputKind("some_new_axis_the_agent_invented")).toBe("text");
+    expect(axisInputKind(R, "geographic_footprint")).toBe("text");
+    expect(axisInputKind(R, "hq_country")).toBe("text");
+    expect(axisInputKind(R, "some_new_axis_the_agent_invented")).toBe("text");
   });
 
-  it("accepts an edit key directly (no double normalization)", () => {
-    // Callers that already hold an edit key shouldn't have to re-normalize
-    // to snake_case just to ask the schema — pass-through must work.
-    expect(axisInputKind("webActivity")).toBe("boolean");
-    expect(axisInputKind("dealSizeMUsd")).toBe("number");
-    expect(axisInputKind("servicesFit")).toBe("enum");
+  it("reads another workspace's catalog", () => {
+    expect(axisInputKind(TOY_RUBRIC, "sanctioned")).toBe("boolean");
+    expect(axisInputKind(TOY_RUBRIC, "team_size")).toBe("number");
+    expect(axisInputKind(TOY_RUBRIC, "product_quality")).toBe("enum");
+    expect(axisInputKind(TOY_RUBRIC, "deal_size_usd_m")).toBe("text");
   });
 });
 
 describe("hard-gate input-control audit — no gate axis renders as dropdown/text", () => {
-  // Enumerate every raw finding-axis vocabulary term that maps to a hard
-  // gate. If any one of these ever resolved to "enum" or "text", the
-  // evidence panel's value editor would render a <select> or free-text box for what
-  // must be a Pass/Fail toggle — the exact bug this test is here to catch.
-  const gateAxisVariants = Object.entries(FINDING_AXIS_TO_KEY)
-    .filter(([, editKey]) => HARD_GATE_EDIT_KEYS.has(editKey))
-    .map(([rawAxis]) => rawAxis);
+  // If a gate ever resolved to "enum" or "text", the evidence panel's value editor would render
+  // a <select> or free-text box for what must be a Pass/Fail toggle.
+  const gates = R.traits.filter((t) => t.kind === "yesno").map((t) => t.traitKey);
 
-  it("every hard-gate axis (in every naming variant) resolves to boolean", () => {
-    // Preflight: the map has to actually route at least one variant per
-    // gate — if the loop is empty because someone deleted the alias
-    // rows, the assertions below would trivially pass and hide the bug.
-    expect(gateAxisVariants.length).toBeGreaterThanOrEqual(HARD_GATE_EDIT_KEYS.size);
-    for (const raw of gateAxisVariants) {
-      expect(axisInputKind(raw)).toBe("boolean");
-    }
-  });
-
-  it("gate edit keys resolve to boolean when passed directly (no double-normalization)", () => {
-    for (const editKey of HARD_GATE_EDIT_KEYS) {
-      expect(axisInputKind(editKey)).toBe("boolean");
-    }
-  });
-
-  it("no hard-gate edit key leaks into the enum or numeric shape sets", () => {
-    // The kind branches inside axisInputKind check HARD_GATE first, so
-    // even an overlap wouldn't misroute at read time — but a mis-added
-    // ENUM_EDIT_KEYS entry for a gate would still be a lie of intent.
-    // Assert the sets are disjoint so future edits stay honest.
-    for (const editKey of HARD_GATE_EDIT_KEYS) {
-      expect(ENUM_EDIT_KEYS.has(editKey)).toBe(false);
-      expect(NUMERIC_EDIT_KEYS.has(editKey)).toBe(false);
+  it("every hard-gate axis resolves to boolean", () => {
+    expect(gates.length).toBe(4);
+    for (const raw of gates) {
+      expect(axisInputKind(R, raw)).toBe("boolean");
     }
   });
 
   it("scoring axes never accidentally register as boolean gates", () => {
-    // Inverse of the above — if someone adds a scoring axis to
-    // HARD_GATE_PASS_WHEN by mistake, the enum/number branches never
-    // fire for it (HARD_GATE wins first). Guard against that.
-    for (const editKey of ["servicesFit", "mdPedigree", "balanceSheetPrincipal", "dealSizeMUsd"]) {
-      expect(HARD_GATE_EDIT_KEYS.has(editKey)).toBe(false);
+    for (const key of [
+      "services_fit",
+      "md_pedigree",
+      "balance_sheet_principal",
+      "deal_size_usd_m",
+    ]) {
+      expect(axisInputKind(R, key)).not.toBe("boolean");
     }
   });
 });
@@ -688,44 +707,45 @@ describe("displayFindingValue — gate cards read Pass/Fail, never raw booleans"
   // rendering "false", leaking the storage vocab into the analyst UI.
   // These renders now share the same Pass/Fail vocab as the gates row.
   it("routes direct-polarity gates: true = Pass, false = Fail", () => {
-    expect(displayFindingValue("web_activity", "true")).toBe("Pass");
-    expect(displayFindingValue("web_activity", "Yes")).toBe("Pass");
-    expect(displayFindingValue("web_activity", "no")).toBe("Fail");
-    expect(displayFindingValue("solvent", "true")).toBe("Pass");
-    expect(displayFindingValue("solvent", "0")).toBe("Fail");
+    expect(displayFindingValue(R, "web_activity", "true")).toBe("Pass");
+    expect(displayFindingValue(R, "web_activity", "Yes")).toBe("Pass");
+    expect(displayFindingValue(R, "web_activity", "no")).toBe("Fail");
+    expect(displayFindingValue(R, "solvent", "true")).toBe("Pass");
+    expect(displayFindingValue(R, "solvent", "0")).toBe("Fail");
   });
 
   it("routes inverted-polarity gates: true = Fail, false = Pass", () => {
-    expect(displayFindingValue("advisory_conflict", "true")).toBe("Fail");
-    expect(displayFindingValue("advisory_conflict", "false")).toBe("Pass");
-    expect(displayFindingValue("has_st_or_balance_sheet", "yes")).toBe("Fail");
-    expect(displayFindingValue("has_st_or_balance_sheet", "no")).toBe("Pass");
-    // The alias variant must render identically to the canonical one —
-    // a mixed backlog can't get half of its gate findings translated.
-    expect(displayFindingValue("st_or_balance_sheet", "yes")).toBe("Fail");
+    expect(displayFindingValue(R, "advisory_conflict", "true")).toBe("Fail");
+    expect(displayFindingValue(R, "advisory_conflict", "false")).toBe("Pass");
+    expect(displayFindingValue(R, "has_st_or_balance_sheet", "yes")).toBe("Fail");
+    expect(displayFindingValue(R, "has_st_or_balance_sheet", "no")).toBe("Pass");
+    // The axis is matched case-insensitively, so a differently cased finding renders the same.
+    expect(displayFindingValue(R, "HAS_ST_OR_BALANCE_SHEET", "yes")).toBe("Fail");
   });
 
   it("scoring axes pass their words through untouched and give deal size its unit", () => {
-    expect(displayFindingValue("deal_size_usd_m", "150")).toBe("$150m");
+    expect(displayFindingValue(R, "deal_size_usd_m", "150")).toBe("$150m");
     // The MCP tools and the exports ask for the bare number.
-    expect(displayFindingValue("deal_size_usd_m", "150", { units: false })).toBe("150");
-    expect(displayFindingValue("services_fit", "Full advisory suite")).toBe("Full advisory suite");
+    expect(displayFindingValue(R, "deal_size_usd_m", "150", { units: false })).toBe("150");
+    expect(displayFindingValue(R, "services_fit", "Full advisory suite")).toBe(
+      "Full advisory suite",
+    );
   });
 
   it("degrades gracefully on unknown axis or uncoercible gate value", () => {
     // Unknown axis: keep the raw string so the analyst still sees
     // something meaningful rather than an empty cell.
-    expect(displayFindingValue("mystery_axis", "whatever")).toBe("whatever");
+    expect(displayFindingValue(R, "mystery_axis", "whatever")).toBe("whatever");
     // Known gate axis but the agent gave us prose we can't turn into a
     // bool: show the raw text (better than "—" — the analyst can still
     // read what the agent said and decide manually).
-    expect(displayFindingValue("web_activity", "maybe")).toBe("maybe");
+    expect(displayFindingValue(R, "web_activity", "maybe")).toBe("maybe");
   });
 
   it("empty / null / undefined value → em dash", () => {
-    expect(displayFindingValue("web_activity", "")).toBe("—");
-    expect(displayFindingValue("web_activity", null)).toBe("—");
-    expect(displayFindingValue("web_activity", undefined)).toBe("—");
+    expect(displayFindingValue(R, "web_activity", "")).toBe("—");
+    expect(displayFindingValue(R, "web_activity", null)).toBe("—");
+    expect(displayFindingValue(R, "web_activity", undefined)).toBe("—");
   });
 });
 
@@ -735,17 +755,17 @@ describe("displayFindingValue — gate cards read Pass/Fail, never raw booleans"
 // silently disagree with the page it links to.
 
 describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
-  const mirrorOf = (input: Parameters<typeof mirrorScore>[0]) => mirrorScore(input);
+  const mirrorOf = (input: Cols) => score(input);
 
   it("hard-rejected firms land in Passed regardless of lifecycle", () => {
-    const firm = { firmType: "CF", coverageModel: "Generalist Focus", lifecycleState: "NDA" };
+    const firm = { firmType: "CF", coverageModel: "Generalist", lifecycleState: "NDA" };
     const m = mirrorOf(firm);
     expect(m.hardRejected).toBe(true);
     expect(bucketOf(firm, m)).toBe("Passed");
   });
 
   it("snake_case and hyphenated lifecycle values fold into the tracked stage", () => {
-    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
+    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     expect(bucketOf({ ...base, lifecycleState: "in_review" }, m)).toBe("Screening");
     expect(bucketOf({ ...base, lifecycleState: "In-Talks" }, m)).toBe("Outreach");
@@ -753,7 +773,7 @@ describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   });
 
   it("files each deal stage under its own bucket, and legacy names under their successors", () => {
-    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
+    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     for (const stage of ["Qualified", "Outreach", "NDA", "IOI", "LOI", "Closed", "Passed"]) {
       expect(bucketOf({ ...base, lifecycleState: stage }, m)).toBe(stage);
@@ -763,7 +783,7 @@ describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   });
 
   it("currentStage wins over lifecycleState, and disposition is the last resort", () => {
-    const base = { firmType: "CF", coverageModel: "Single Coverage Focus", geoScore: 2 };
+    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     expect(bucketOf({ ...base, currentStage: "Qualified", lifecycleState: "Discovered" }, m)).toBe(
       "Qualified",
@@ -909,8 +929,8 @@ describe("rulePredicate — shared /rules ↔ Home predicate string", () => {
   it("renders numeric thresholds bare and everything else quoted", () => {
     expect(summarizePredicate("employees", "<", "10")).toBe("employees < 10");
     expect(summarizePredicate("deal_size_usd_m", ">=", "-2.5")).toBe("deal_size_usd_m >= -2.5");
-    expect(summarizePredicate("coverage_model", "==", "Generalist Focus")).toBe(
-      'coverage_model == "Generalist Focus"',
+    expect(summarizePredicate("coverage_model", "==", "Generalist")).toBe(
+      'coverage_model == "Generalist"',
     );
   });
 
@@ -947,19 +967,19 @@ describe("activeScreening — approved rules screen the desk queue", () => {
   };
 
   it("screens on employees < 10 — the live numeric predicate", () => {
-    expect(screenFirm({ employees: 4 }, [employeesRule]).screened).toBe(true);
-    expect(screenFirm({ employees: 40 }, [employeesRule]).screened).toBe(false);
+    expect(screen({ employees: 4 }, [employeesRule]).screened).toBe(true);
+    expect(screen({ employees: 40 }, [employeesRule]).screened).toBe(false);
     // Boundary: the predicate is strict, so exactly 10 survives.
-    expect(screenFirm({ employees: 10 }, [employeesRule]).screened).toBe(false);
+    expect(screen({ employees: 10 }, [employeesRule]).screened).toBe(false);
   });
 
   it("screens on geo_score < 1 — the second live predicate, same evaluator", () => {
-    expect(screenFirm({ geoScore: 0 }, [geoRule]).screened).toBe(true);
-    expect(screenFirm({ geoScore: 2 }, [geoRule]).screened).toBe(false);
+    expect(screen({ geoScore: 0 }, [geoRule]).screened).toBe(true);
+    expect(screen({ geoScore: 2 }, [geoRule]).screened).toBe(false);
   });
 
   it("names the rule that screened the firm, for the queue chip", () => {
-    const res = screenFirm({ employees: 4, geoScore: 2 }, [employeesRule, geoRule]);
+    const res = screen({ employees: 4, geoScore: 2 }, [employeesRule, geoRule]);
     expect(res.screened).toBe(true);
     expect(res.rule?.label).toBe("employees < 10");
     expect(res.rule?.ruleId).toBe("R-emp");
@@ -968,39 +988,39 @@ describe("activeScreening — approved rules screen the desk queue", () => {
   it("a third numeric predicate works with no change to the evaluator", () => {
     const ageRule: ScreeningRule = {
       ruleId: "R-age",
-      axis: "firm_age_years",
+      axis: "firm_age",
       operator: ">=",
       threshold: "50",
       model: "both",
-      label: "firm_age_years >= 50",
+      label: "firm_age >= 50",
     };
-    expect(screenFirm({ firmAge: 60 }, [ageRule]).screened).toBe(true);
-    expect(screenFirm({ firmAge: 12 }, [ageRule]).screened).toBe(false);
+    expect(screen({ firmAge: 60 }, [ageRule]).screened).toBe(true);
+    expect(screen({ firmAge: 12 }, [ageRule]).screened).toBe(false);
   });
 
   it("honours a rule's model scope", () => {
     const cfOnly: ScreeningRule = { ...employeesRule, model: "CF" };
-    expect(screenFirm({ firmType: "CF", employees: 4 }, [cfOnly]).screened).toBe(true);
-    expect(screenFirm({ firmType: "CS", employees: 4 }, [cfOnly]).screened).toBe(false);
+    expect(screen({ firmType: "CF", employees: 4 }, [cfOnly]).screened).toBe(true);
+    expect(screen({ firmType: "CS", employees: 4 }, [cfOnly]).screened).toBe(false);
   });
 
   // ── The invariant ──
   it("NEVER screens a firm missing the predicate's property", () => {
-    expect(screenFirm({}, [employeesRule]).screened).toBe(false);
-    expect(screenFirm({ employees: null }, [employeesRule]).screened).toBe(false);
-    expect(screenFirm({ employees: undefined }, [employeesRule]).screened).toBe(false);
-    expect(screenFirm({ employees: "" }, [employeesRule]).screened).toBe(false);
+    expect(screen({}, [employeesRule]).screened).toBe(false);
+    expect(screen({ employees: null }, [employeesRule]).screened).toBe(false);
+    expect(screen({ employees: undefined }, [employeesRule]).screened).toBe(false);
+    expect(screen({ employees: "" }, [employeesRule]).screened).toBe(false);
     // A firm with geo data but no headcount is untouched by a headcount rule.
-    expect(screenFirm({ geoScore: 2 }, [employeesRule]).screened).toBe(false);
+    expect(screen({ geoScore: 2 }, [employeesRule]).screened).toBe(false);
   });
 
   it("refuses to screen on degenerate rules rather than guessing", () => {
     const unresolvableAxis: ScreeningRule = { ...employeesRule, axis: "vibes" };
     const badOperator: ScreeningRule = { ...employeesRule, operator: "~" };
     const nonNumericThreshold: ScreeningRule = { ...employeesRule, threshold: "ten" };
-    expect(screenFirm({ employees: 4 }, [unresolvableAxis]).screened).toBe(false);
-    expect(screenFirm({ employees: 4 }, [badOperator]).screened).toBe(false);
-    expect(screenFirm({ employees: 4 }, [nonNumericThreshold]).screened).toBe(false);
+    expect(screen({ employees: 4 }, [unresolvableAxis]).screened).toBe(false);
+    expect(screen({ employees: 4 }, [badOperator]).screened).toBe(false);
+    expect(screen({ employees: 4 }, [nonNumericThreshold]).screened).toBe(false);
   });
 
   it("counts screened firms for the header's third term", () => {
@@ -1010,7 +1030,7 @@ describe("activeScreening — approved rules screen the desk queue", () => {
       { employees: 90 }, // survives
       {}, // missing → survives
     ];
-    expect(countScreened(firms, [employeesRule])).toBe(2);
+    expect(countScr(firms, [employeesRule])).toBe(2);
   });
 });
 
@@ -1030,7 +1050,7 @@ describe("toScreeningRules — approved proposals, amended by active configs", (
     const rules = toScreeningRules([approved], []);
     expect(rules).toHaveLength(1);
     expect(rules[0].label).toBe("employees < 10");
-    expect(screenFirm({ employees: 7 }, rules).screened).toBe(true);
+    expect(screen({ employees: 7 }, rules).screened).toBe(true);
   });
 
   it("ignores pending and dismissed proposals", () => {
@@ -1042,7 +1062,7 @@ describe("toScreeningRules — approved proposals, amended by active configs", (
   it("an amended threshold un-screens a firm the original rule caught", () => {
     // v1 `< 10` screened a 7-employee firm; the analyst amends to `< 5`.
     const before = toScreeningRules([approved], []);
-    expect(screenFirm({ employees: 7 }, before).screened).toBe(true);
+    expect(screen({ employees: 7 }, before).screened).toBe(true);
 
     const after = toScreeningRules(
       [approved],
@@ -1066,9 +1086,9 @@ describe("toScreeningRules — approved proposals, amended by active configs", (
       ],
     );
     expect(after[0].label).toBe("employees < 5");
-    expect(screenFirm({ employees: 7 }, after).screened).toBe(false);
+    expect(screen({ employees: 7 }, after).screened).toBe(false);
     // The amended rule still bites below its new threshold.
-    expect(screenFirm({ employees: 3 }, after).screened).toBe(true);
+    expect(screen({ employees: 3 }, after).screened).toBe(true);
   });
 
   it("drops a rule whose config versions are all inactive (unapproved)", () => {
@@ -1105,7 +1125,7 @@ describe("isLiveQueueFirm — the desk's default view", () => {
   };
   // Open is the funnel's call now; the desk composes it with screening.
   const live = (firm: Record<string, unknown>, rules: ScreeningRule[], hardRejected = false) =>
-    isLiveQueueFirm(firm, rules, isOpenFirm(firm, hardRejected));
+    liveQ(firm, rules, isOpenFirm(firm, hardRejected));
 
   it("admits Discovered and Screening, tolerating separator spellings", () => {
     expect(isOpenFirm({ lifecycleState: "Discovered" }, false)).toBe(true);
@@ -1152,7 +1172,7 @@ describe("isLiveQueueFirm — the desk's default view", () => {
       employees: null,
       geoScore: null,
     };
-    expect(screenFirm(summit, [employeesRule]).screened).toBe(false);
+    expect(screen(summit, [employeesRule]).screened).toBe(false);
     expect(live(summit, [employeesRule])).toBe(true);
   });
 
@@ -1178,7 +1198,7 @@ describe("isLiveQueueFirm — the desk's default view", () => {
     for (const firm of searchCreated) {
       expect(live(firm, [employeesRule, geoRule])).toBe(true);
     }
-    expect(countScreened(searchCreated, [employeesRule, geoRule])).toBe(0);
+    expect(countScr(searchCreated, [employeesRule, geoRule])).toBe(0);
   });
 });
 
@@ -1216,9 +1236,9 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
   it("the rule card's count and the header's screened term are one number", () => {
     const rules = toScreeningRules([proposal], []);
     // What /rules prints on the card for this rule.
-    const cardCount = countScreened(population, rules);
+    const cardCount = countScr(population, rules);
     // What the desk header prints as "N screened by approved rules".
-    const headerScreened = countScreened(population, rules);
+    const headerScreened = countScr(population, rules);
     expect(cardCount).toBe(headerScreened);
     expect(cardCount).toBe(3);
   });
@@ -1226,8 +1246,8 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
   it("the header's four terms self-reconcile: live + openScreened === open", () => {
     const rules = toScreeningRules([proposal], []);
     const open = population.filter((f) => isOpenFirm(f, false));
-    const openScreened = countScreened(open, rules);
-    const live = open.filter((f) => isLiveQueueFirm(f, rules, true)).length;
+    const openScreened = countScr(open, rules);
+    const live = open.filter((f) => liveQ(f, rules, true)).length;
 
     expect(population.length).toBe(9);
     expect(open.length).toBe(7); // the two decided firms drop out
@@ -1238,8 +1258,8 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
     expect(live).toBe(4);
     // ...and open is a subset of the database, so the third term is safe.
     expect(open.length).toBeLessThanOrEqual(population.length);
-    for (const f of open.filter((x) => isLiveQueueFirm(x, rules, true))) {
-      expect(screenFirm(f, rules).screened).toBe(false);
+    for (const f of open.filter((x) => liveQ(x, rules, true))) {
+      expect(screen(f, rules).screened).toBe(false);
     }
   });
 
@@ -1248,7 +1268,7 @@ describe("desk header ↔ /rules card — the numbers a reviewer cross-checks", 
     // With genuinely zero approved rules, zero screened is correct.
     const none = toScreeningRules([{ ...proposal, ruleStatus: "pending" }], []);
     expect(none).toHaveLength(0);
-    expect(countScreened(population, none)).toBe(0);
+    expect(countScr(population, none)).toBe(0);
     // The funnel still narrows the desk to open work.
     expect(population.filter((f) => isOpenFirm(f, false)).length).toBe(7);
   });
@@ -1265,7 +1285,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "1",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Discovered",
@@ -1273,7 +1293,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "2",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Screening",
@@ -1281,7 +1301,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "3",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "in_review",
@@ -1291,7 +1311,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "4",
       firmType: "CF",
-      coverageModel: "Generalist Focus",
+      coverageModel: "Generalist",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Discovered",
@@ -1299,7 +1319,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "5",
       firmType: "CF",
-      coverageModel: "Generalist Focus",
+      coverageModel: "Generalist",
       geoScore: 0,
       employees: 3,
       lifecycleState: "Discovered",
@@ -1308,7 +1328,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "6",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Discovered",
@@ -1318,7 +1338,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "7",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Qualified",
@@ -1326,7 +1346,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "8",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       lifecycleState: "Passed",
@@ -1335,7 +1355,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     {
       firmId: "9",
       firmType: "CF",
-      coverageModel: "Single Coverage Focus",
+      coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
       disposition: "hard_rejected",
@@ -1346,14 +1366,14 @@ describe("desk open === pipeline Discovered + Screening", () => {
   const pipelineOpen = (): number => {
     const counts = emptyBucketCounts();
     for (const f of population) {
-      counts[bucketOf(f, mirrorScore(f))] += 1;
+      counts[bucketOf(f, score(f))] += 1;
     }
     return counts.Discovered + counts.Screening;
   };
 
   // What the desk header renders, via the ranker's hardRejected verdict.
   const deskOpen = (): number =>
-    orderEnrichmentQueue(population, []).filter((r) => isOpenFirm(r.firm, r.hardRejected)).length;
+    queueOf(population, []).filter((r) => isOpenFirm(r.firm, r.hardRejected)).length;
 
   it("the two counts are equal for the same firm set", () => {
     expect(deskOpen()).toBe(pipelineOpen());
@@ -1363,7 +1383,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
   it("all nine buckets still sum to the whole database", () => {
     const counts = emptyBucketCounts();
     for (const f of population) {
-      counts[bucketOf(f, mirrorScore(f))] += 1;
+      counts[bucketOf(f, score(f))] += 1;
     }
     const summed = LIFECYCLE_BUCKETS.reduce((n, b) => n + counts[b], 0);
     expect(summed).toBe(population.length);
@@ -1384,8 +1404,8 @@ describe("isEvaluable — a printed count must never be a fabricated zero", () =
   };
 
   it("accepts the numeric predicates the desk screens on", () => {
-    expect(isEvaluable(numeric)).toBe(true);
-    expect(isEvaluable({ ...numeric, axis: "geo_score", operator: ">=" })).toBe(true);
+    expect(isEvaluable(R, numeric)).toBe(true);
+    expect(isEvaluable(R, { ...numeric, axis: "geo_score", operator: ">=" })).toBe(true);
   });
 
   it("rejects text predicates rather than reporting them as screening zero firms", () => {
@@ -1400,40 +1420,39 @@ describe("isEvaluable — a printed count must never be a fabricated zero", () =
       model: "CF",
       label: 'services_fit contains "sales & trading"',
     };
-    expect(isEvaluable(contains)).toBe(false);
-    expect(screenFirm({ servicesFit: "Sales & Trading desk" }, [contains]).screened).toBe(false);
+    expect(isEvaluable(R, contains)).toBe(false);
+    expect(screen({ servicesFit: "Sales & Trading desk" }, [contains]).screened).toBe(false);
   });
 
   it("rejects unresolvable axes and non-numeric thresholds", () => {
-    expect(isEvaluable({ ...numeric, axis: "vibes" })).toBe(false);
-    expect(isEvaluable({ ...numeric, threshold: "ten" })).toBe(false);
+    expect(isEvaluable(R, { ...numeric, axis: "vibes" })).toBe(false);
+    expect(isEvaluable(R, { ...numeric, threshold: "ten" })).toBe(false);
   });
 });
 
-describe("geography axis — a numeric geo predicate must reach geoScore", () => {
-  // Live rule `geography < 2`. Firm carries BOTH a `geography` string
-  // ("Italy") and the 0-2 `geoScore`. Routed at the string, the comparison
-  // is NaN and the rule screens nobody while still showing as Approved —
-  // the same silent-zero class of bug as the original 711-of-711.
+describe("geo axis — a numeric geo predicate reads the geo score trait", () => {
+  // Rule `geo_score < 2`. The firm carries BOTH a `geography` string ("Italy") and the 0-2 geo
+  // score. Read from the string, the comparison would be NaN and the rule would screen nobody
+  // while still showing as Approved — the silent-zero class of bug of the original 711-of-711.
   const geoRule: ScreeningRule = {
     ruleId: "R-geo",
-    axis: "geography",
+    axis: "geo_score",
     operator: "<",
     threshold: "2",
     model: "CF",
-    label: "geography < 2",
+    label: "geo_score < 2",
   };
 
   it("is evaluable and screens on the numeric geo score", () => {
-    expect(isEvaluable(geoRule)).toBe(true);
-    expect(screenFirm({ geoScore: 0, geography: "Italy" }, [geoRule]).screened).toBe(true);
-    expect(screenFirm({ geoScore: 1, geography: "Italy" }, [geoRule]).screened).toBe(true);
-    expect(screenFirm({ geoScore: 2, geography: "USA" }, [geoRule]).screened).toBe(false);
+    expect(isEvaluable(R, geoRule)).toBe(true);
+    expect(screen({ geoScore: 0, geography: "Italy" }, [geoRule]).screened).toBe(true);
+    expect(screen({ geoScore: 1, geography: "Italy" }, [geoRule]).screened).toBe(true);
+    expect(screen({ geoScore: 2, geography: "USA" }, [geoRule]).screened).toBe(false);
   });
 
   it("still leaves a firm with no geo score alone", () => {
-    expect(screenFirm({ geography: "Italy" }, [geoRule]).screened).toBe(false);
-    expect(screenFirm({ geoScore: null, geography: "Italy" }, [geoRule]).screened).toBe(false);
+    expect(screen({ geography: "Italy" }, [geoRule]).screened).toBe(false);
+    expect(screen({ geoScore: null, geography: "Italy" }, [geoRule]).screened).toBe(false);
   });
 });
 
@@ -1553,22 +1572,24 @@ describe("verifiedBaselineEdits", () => {
   });
 
   it("stages a verified finding's value on an unset axis (the reload case)", () => {
-    const staged = verifiedBaselineEdits([verified("f1", "deals_per_md", "2")], () =>
-      effectiveAxisValue({}, {}, "dealsPerMdL3y"),
+    const staged = verifiedBaselineEdits(R, [verified("f1", "deals_per_md_l3y", "2")], () =>
+      effectiveAxisValue({}, {}, "deals_per_md_l3y"),
     );
-    expect(staged).toEqual([{ editKey: "dealsPerMdL3y", value: 2 }]);
+    expect(staged).toEqual([{ editKey: "deals_per_md_l3y", value: 2 }]);
   });
 
   it("coerces hard-gate values to booleans", () => {
     const staged = verifiedBaselineEdits(
+      R,
       [verified("f1", "advisory_conflict", "No")],
       () => undefined,
     );
-    expect(staged).toEqual([{ editKey: "advisoryConflict", value: false }]);
+    expect(staged).toEqual([{ editKey: "advisory_conflict", value: false }]);
   });
 
   it("does not stage proposed or abstained findings", () => {
     const staged = verifiedBaselineEdits(
+      R,
       [
         {
           findingId: "f1",
@@ -1578,7 +1599,7 @@ describe("verifiedBaselineEdits", () => {
         },
         {
           findingId: "f2",
-          axis: "deal_size",
+          axis: "deal_size_usd_m",
           value: "",
           findingStatus: "abstained",
           confidenceTier: "abstain",
@@ -1590,10 +1611,11 @@ describe("verifiedBaselineEdits", () => {
   });
 
   it("persisted firm values and in-session edits both win over the baseline", () => {
-    const firm = { firmAge: 6 };
-    const edits = { dealsPerMdL3y: 3 };
+    const firm = withTraits({ firmAge: 6 });
+    const edits = { deals_per_md_l3y: 3 };
     const staged = verifiedBaselineEdits(
-      [verified("f1", "firm_age", "9"), verified("f2", "deals_per_md", "2")],
+      R,
+      [verified("f1", "firm_age", "9"), verified("f2", "deals_per_md_l3y", "2")],
       (editKey) => effectiveAxisValue(firm, edits, editKey),
     );
     expect(staged).toEqual([]);
@@ -1601,9 +1623,10 @@ describe("verifiedBaselineEdits", () => {
 
   it("skips superseded and conflict-grouped findings", () => {
     const staged = verifiedBaselineEdits(
+      R,
       [
         { ...verified("f1", "firm_age", "9"), findingStatus: "superseded" },
-        { ...verified("f2", "deal_size", "40"), conflictGroupId: "cg-1" },
+        { ...verified("f2", "deal_size_usd_m", "40"), conflictGroupId: "cg-1" },
       ],
       () => undefined,
     );
@@ -1612,11 +1635,12 @@ describe("verifiedBaselineEdits", () => {
 
   it("verified beats a fresher proposed finding for the same axis", () => {
     const staged = verifiedBaselineEdits(
+      R,
       [
-        verified("f1", "deals_per_md", "2"),
+        verified("f1", "deals_per_md_l3y", "2"),
         {
           findingId: "f2",
-          axis: "deals_per_md",
+          axis: "deals_per_md_l3y",
           value: "5",
           findingStatus: "proposed",
           retrievedAt: "2026-07-25T00:00:00Z",
@@ -1624,12 +1648,12 @@ describe("verifiedBaselineEdits", () => {
       ],
       () => undefined,
     );
-    expect(staged).toEqual([{ editKey: "dealsPerMdL3y", value: 2 }]);
+    expect(staged).toEqual([{ editKey: "deals_per_md_l3y", value: 2 }]);
   });
 
   it("converges: once staged values are visible, it returns nothing", () => {
-    const edits = { dealsPerMdL3y: 2 };
-    const staged = verifiedBaselineEdits([verified("f1", "deals_per_md", "2")], (editKey) =>
+    const edits = { deals_per_md_l3y: 2 };
+    const staged = verifiedBaselineEdits(R, [verified("f1", "deals_per_md_l3y", "2")], (editKey) =>
       effectiveAxisValue({}, edits, editKey),
     );
     expect(staged).toEqual([]);
@@ -1649,33 +1673,33 @@ describe("providerLabel", () => {
 
 describe("formatScore — one 18-point scale everywhere", () => {
   it("formats the total over 18 with the tier letter", () => {
-    expect(formatScore(13, "B")).toBe("13/18 · B");
+    expect(formatScore(13, 18, "B")).toBe("13/18 · B");
   });
 
   it("omits the tier when none is given", () => {
-    expect(formatScore(13)).toBe("13/18");
-    expect(formatScore(13, null)).toBe("13/18");
+    expect(formatScore(13, 18)).toBe("13/18");
+    expect(formatScore(13, 18, null)).toBe("13/18");
   });
 
   it("shows an em dash for a missing or non-finite score", () => {
-    expect(formatScore(null)).toBe("—/18");
-    expect(formatScore(undefined, "A")).toBe("—/18 · A");
-    expect(formatScore(Number.NaN)).toBe("—/18");
+    expect(formatScore(null, 18)).toBe("—/18");
+    expect(formatScore(undefined, 18, "A")).toBe("—/18 · A");
+    expect(formatScore(Number.NaN, 18)).toBe("—/18");
   });
 
   it("reads a hard reject as 0/18 · Rejected", () => {
-    const r = mirrorScore({ firmType: "CS", advisoryConflict: true });
+    const r = score({ firmType: "CS", advisoryConflict: true });
     expect(r.hardRejected).toBe(true);
-    expect(formatScore(r.weightedTotal, r.tier)).toBe("0/18 · Rejected");
+    expect(formatScore(r.weightedTotal, 18, r.tier)).toBe("0/18 · Rejected");
   });
 
   it("scoreFraction is a 0-1 bar width, clamped", () => {
-    expect(scoreFraction(9)).toBe(0.5);
-    expect(scoreFraction(18)).toBe(1);
-    expect(scoreFraction(0)).toBe(0);
-    expect(scoreFraction(null)).toBe(0);
-    expect(scoreFraction(40)).toBe(1);
-    expect(scoreFraction(-3)).toBe(0);
+    expect(scoreFraction(9, 18)).toBe(0.5);
+    expect(scoreFraction(18, 18)).toBe(1);
+    expect(scoreFraction(0, 18)).toBe(0);
+    expect(scoreFraction(null, 18)).toBe(0);
+    expect(scoreFraction(40, 18)).toBe(1);
+    expect(scoreFraction(-3, 18)).toBe(0);
   });
 });
 

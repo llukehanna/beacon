@@ -10,14 +10,16 @@ import {
   pipelineSort,
 } from "@/desk/pipelineRows";
 import { shownScore } from "@/desk/scoreFormat";
-import { type MirrorResult, type ScoreInput, mirrorScore } from "@/desk/scoreMirror";
-import { axisLabel } from "../../shared/axisLabels";
 import {
   LIFECYCLE_BUCKETS,
   type Lifecycle,
   bucketOf,
   emptyBucketCounts,
 } from "../../shared/pipelineBuckets";
+import { traitsOf } from "../../shared/rubric/firm";
+import { showTraitValue } from "../../shared/rubric/traitValue";
+import type { RubricContext, ScoreResult, TraitValue } from "../../shared/rubric/types";
+import { scoreFirm } from "../../shared/scoring";
 import { PASSED } from "../../shared/vocab";
 import { relativeAge, toIsoTime } from "../home/age";
 
@@ -27,13 +29,8 @@ export interface FirmView {
   firmId?: string;
   firmName?: string | null;
   firmType?: string | null;
-  coverageModel?: string | null;
   sector?: string | null;
   hqCountry?: string | null;
-  employees?: number | null;
-  revenueBand?: string | null;
-  ownership?: string | null;
-  successionRisk?: string | null;
   lifecycleState?: string | null;
   currentStage?: string | null;
   lastReviewed?: string | number | Date | null;
@@ -44,17 +41,9 @@ export interface FirmView {
   outcome?: string | null;
   outcomeObservedAt?: string | number | Date | null;
   outcomeSource?: string | null;
-  // Fields needed by mirrorScore:
-  servicesFit?: string | null;
-  mdPedigree?: string | null;
-  balanceSheetPrincipal?: string | null;
-  geoScore?: number | null;
-  dealSizeMUsd?: number | null;
-  dealsPerMdL3y?: number | null;
-  firmAge?: number | null;
-  feeGeneratingCount?: number | null;
   geographicFootprint?: string | null;
-  advisoryConflict?: boolean | null;
+  /** The firm's trait values by trait key. */
+  traits?: Record<string, TraitValue>;
 }
 
 export interface LastActivity {
@@ -64,7 +53,7 @@ export interface LastActivity {
 
 export interface Row {
   firm: FirmView;
-  mirror: MirrorResult;
+  mirror: ScoreResult;
   /** Score and tier shown for the row: at-decision for passed firms, live otherwise. */
   score: { total: number; tier: string };
   bucket: Lifecycle;
@@ -72,38 +61,21 @@ export interface Row {
   lastActivity: LastActivity | null;
 }
 
-export function toScoreInput(f: FirmView): ScoreInput {
-  return {
-    firmType: f.firmType,
-    coverageModel: f.coverageModel,
-    servicesFit: f.servicesFit,
-    mdPedigree: f.mdPedigree,
-    balanceSheetPrincipal: f.balanceSheetPrincipal,
-    geoScore: f.geoScore,
-    dealSizeMUsd: f.dealSizeMUsd,
-    dealsPerMdL3y: f.dealsPerMdL3y,
-    firmAge: f.firmAge,
-    employees: f.employees,
-    feeGeneratingCount: f.feeGeneratingCount,
-    geographicFootprint: f.geographicFootprint,
-    advisoryConflict: f.advisoryConflict,
-  };
-}
+/** The selected value per profile trait (trait key to value); a missing or empty entry is "any". */
+export type ProfileFilter = Readonly<Record<string, string>>;
 
-export interface ProfileFilter {
-  revenueBand: string;
-  ownership: string;
-  successionRisk: string;
-}
-
-export const NO_PROFILE_FILTER: ProfileFilter = {
-  revenueBand: "",
-  ownership: "",
-  successionRisk: "",
-};
+export const NO_PROFILE_FILTER: ProfileFilter = {};
 
 export function hasProfileFilter(f: ProfileFilter): boolean {
-  return f.revenueBand !== "" || f.ownership !== "" || f.successionRisk !== "";
+  return Object.values(f).some((v) => v !== "");
+}
+
+const fields = (firm: FirmView): Readonly<Record<string, unknown>> =>
+  firm as Readonly<Record<string, unknown>>;
+
+/** A trait's value on a firm, by trait key. */
+export function traitOn(firm: FirmView, traitKey: string): TraitValue | undefined {
+  return traitsOf(fields(firm))[traitKey];
 }
 
 interface DecisionRow {
@@ -140,6 +112,7 @@ function matchesQuery(firm: FirmView, needle: string): boolean {
 
 /** Every firm that passes the search box and the profile filters, scored, bucketed and sorted. */
 export function buildRows(args: {
+  rubric: RubricContext;
   firms: readonly FirmView[];
   query: string;
   profile: ProfileFilter;
@@ -147,18 +120,14 @@ export function buildRows(args: {
   rejectByFirm: ReadonlyMap<string, RejectDecision>;
   activityByFirm: ReadonlyMap<string, LastActivity>;
 }): Row[] {
-  const { firms, query, profile, sort, rejectByFirm, activityByFirm } = args;
+  const { rubric, firms, query, profile, sort, rejectByFirm, activityByFirm } = args;
   const needle = query.trim().toLowerCase();
+  const picked = Object.entries(profile).filter(([, v]) => v !== "");
   const built = firms
-    .filter(
-      (firm) =>
-        (profile.revenueBand === "" || firm.revenueBand === profile.revenueBand) &&
-        (profile.ownership === "" || firm.ownership === profile.ownership) &&
-        (profile.successionRisk === "" || firm.successionRisk === profile.successionRisk),
-    )
+    .filter((firm) => picked.every(([key, v]) => traitOn(firm, key) === v))
     .filter((firm) => matchesQuery(firm, needle))
     .map((firm): Row => {
-      const mirror = mirrorScore(toScoreInput(firm));
+      const mirror = scoreFirm(rubric.definition, fields(firm));
       const bucket = bucketOf(firm, mirror);
       const reject = rejectByFirm.get(firm.firmId ?? "");
       return {
@@ -256,7 +225,7 @@ export function activityText(activity: LastActivity | null, now: number): string
 }
 
 /** Why a firm is out, in one string for the cell tooltip and the detail panel. */
-export function rejectText(mirror: MirrorResult, rationale: string | null): string {
+export function rejectText(mirror: ScoreResult, rationale: string | null): string {
   if (mirror.hardRejected) {
     return `Hard-rejected · ${mirror.rejectReason}`;
   }
@@ -278,36 +247,24 @@ export function sortSummary(sort: PipelineSort): string {
   return `sorted by ${SORT_LABEL[sort.key]}${sort.reversed ? " (reversed)" : ""}`;
 }
 
-/** The firm's profile as label and value pairs, leaving out what is not on file. */
-export function firmFacts(firm: FirmView): Array<{ label: string; value: string }> {
+/**
+ * The firm's profile as label and value pairs, leaving out what is not on file: every fact and
+ * profile trait and every number the agent researches, in catalog order, then the geography.
+ */
+export function firmFacts(
+  rubric: RubricContext,
+  firm: FirmView,
+): Array<{ label: string; value: string }> {
   const facts: Array<{ label: string; value: string }> = [];
-  const add = (label: string, value: string | null | undefined): void => {
-    if (value !== null && value !== undefined && value !== "") {
-      facts.push({ label, value });
+  for (const t of rubric.traits) {
+    const v = traitOn(firm, t.traitKey);
+    const shown = t.role !== "evidence" || t.kind === "number";
+    if (shown && v !== undefined && v !== "") {
+      facts.push({ label: t.label, value: showTraitValue(t, v) });
     }
-  };
-  add("Coverage", firm.coverageModel);
-  add(
-    axisLabel("employees"),
-    firm.employees === null || firm.employees === undefined ? null : String(firm.employees),
-  );
-  add("Revenue", firm.revenueBand);
-  add("Ownership", firm.ownership);
-  add("Succession risk", firm.successionRisk);
-  add(
-    axisLabel("deals_per_md_l3y"),
-    firm.dealsPerMdL3y === null || firm.dealsPerMdL3y === undefined
-      ? null
-      : String(firm.dealsPerMdL3y),
-  );
-  add(
-    axisLabel("deal_size_usd_m"),
-    firm.dealSizeMUsd === null || firm.dealSizeMUsd === undefined ? null : `$${firm.dealSizeMUsd}m`,
-  );
-  add(
-    axisLabel("firm_age"),
-    firm.firmAge === null || firm.firmAge === undefined ? null : `${firm.firmAge} yrs`,
-  );
-  add("Geography", firm.geographicFootprint);
+  }
+  if (firm.geographicFootprint) {
+    facts.push({ label: "Geography", value: firm.geographicFootprint });
+  }
   return facts;
 }

@@ -1,5 +1,5 @@
 import { parseRubricDefinition } from "../../shared/rubric/definition.js";
-import type { RubricDefinition, TraitDef } from "../../shared/rubric/types.js";
+import type { RubricContext, RubricDefinition, TraitDef } from "../../shared/rubric/types.js";
 import type { Queryable } from "../db/client.js";
 
 export interface ActiveRubric {
@@ -57,4 +57,10 @@ export async function loadTraits(q: Queryable): Promise<TraitDef[]> {
     passWhen: r.passWhen,
     theses: r.thesesJson === null ? null : (JSON.parse(r.thesesJson) as string[]),
   }));
+}
+
+/** The active rubric with its trait catalog: what scoring and labeling read. */
+export async function loadRubricContext(q: Queryable): Promise<RubricContext> {
+  const [{ definition }, traits] = await Promise.all([loadActiveRubric(q), loadTraits(q)]);
+  return { definition, traits };
 }

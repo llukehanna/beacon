@@ -55,3 +55,43 @@ export function parseTraitValue(trait: Pick<TraitDef, "kind">, raw: string): Tra
 export function formatTraitValue(v: TraitValue): string {
   return String(v);
 }
+
+const CURRENCY = /^[$€£¥]/;
+
+/**
+ * How much of a number's unit to show: all of it ("9 yrs"), only a currency ("$40m", while a
+ * count stays bare: "9"), or none (the bare value, for exports and other programs).
+ */
+export type UnitStyle = "all" | "currency" | "none";
+
+/**
+ * A trait value for a person to read. A yes/no trait reads as Pass or Fail by its polarity (Yes or
+ * No when it has none), and a number carries its unit as `units` says: "$40m" for a unit of "$m",
+ * "9 yrs" for "yrs".
+ */
+export function showTraitValue(
+  trait: Pick<TraitDef, "kind" | "unit" | "passWhen">,
+  v: TraitValue | null | undefined,
+  options: { units?: UnitStyle } = {},
+): string {
+  if (v === null || v === undefined || v === "") {
+    return "—";
+  }
+  if (trait.kind === "yesno" && typeof v === "boolean") {
+    if (trait.passWhen === null) {
+      return v ? "Yes" : "No";
+    }
+    return v === trait.passWhen ? "Pass" : "Fail";
+  }
+  const unit = trait.unit;
+  const units = options.units ?? "all";
+  if (units !== "none" && trait.kind === "number" && typeof v === "number" && unit) {
+    if (CURRENCY.test(unit)) {
+      return `${unit[0]}${v}${unit.slice(1)}`;
+    }
+    if (units === "all") {
+      return `${v} ${unit}`;
+    }
+  }
+  return String(v);
+}

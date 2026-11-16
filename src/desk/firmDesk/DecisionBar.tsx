@@ -3,6 +3,7 @@ import { Term } from "@/components/Term";
 import { errorMessage } from "@/data/adapter";
 import { useObservableClient, useOsdkAction } from "@/data/hooks";
 import { advanceStageAction, qualifyFirmAction, rejectFirmAction } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { type Command, useCommands } from "@/shell/commands";
 import {
   FIRM_DECISION_KEYS,
@@ -11,7 +12,7 @@ import {
   isTypingTarget,
 } from "@/shell/keys";
 import { Button, Kbd } from "@/ui";
-import { type MirrorResult } from "../scoreMirror";
+import type { ScoreResult } from "../../../shared/rubric/types";
 import styles from "./DecisionBar.module.css";
 import { confirmItems, firmDecisionState } from "./decisionState";
 import { type EditMap, type FirmView } from "./deskModel";
@@ -65,8 +66,8 @@ export function DecisionBar({
 }: {
   firm: FirmView;
   firmId: string;
-  /** The score mirror with staged edits applied. */
-  mirror: MirrorResult;
+  /** The score with staged edits applied. */
+  mirror: ScoreResult;
   edits: EditMap;
   onCommit: () => void;
   dirty: boolean;
@@ -77,6 +78,7 @@ export function DecisionBar({
   /** The score the open proposals would give, so the screen line agrees with the score box. */
   projection?: Projection | null;
 }): React.ReactElement {
+  const rubric = useRubric();
   const qualify = useOsdkAction(qualifyFirmAction);
   const reject = useOsdkAction(rejectFirmAction);
   const advance = useOsdkAction(advanceStageAction);
@@ -210,7 +212,7 @@ export function DecisionBar({
   }, [canCommit, canQualify, canAdvance, canPass, nextState]);
   useCommands(commands);
 
-  const items = confirmItems(firm, mirror, edits, projection);
+  const items = confirmItems(rubric, firm, mirror, edits, projection);
   const done = items.filter((i) => i.ok).length;
   const noteMissing = attemptedPass && note.trim() === "";
   const noteHint =

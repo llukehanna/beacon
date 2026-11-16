@@ -29,6 +29,7 @@ import {
   orderEnrichmentQueue,
   toQueueFirm,
 } from "../../shared/queue.js";
+import type { RubricContext } from "../../shared/rubric/types.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
@@ -47,7 +48,8 @@ import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { notIn, toWire } from "../db/repo.js";
-import { loadActiveRubric } from "../rubric/load.js";
+import { traitColumns } from "../db/traits.js";
+import { loadRubricContext } from "../rubric/load.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
 
@@ -65,7 +67,7 @@ type FirmRow = QueueFirm & ScreenableFirm;
 /** The firms with the columns the queue and the funnel read; `hidden` firms are not among them. */
 export async function loadLeanFirms(q: Queryable, hidden: readonly string[]): Promise<FirmRow[]> {
   const rows = await q.query(
-    `SELECT ${QUEUE_FIELDS.map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
+    `SELECT ${[...QUEUE_FIELDS, ...traitColumns()].map((c) => `"${c}"`).join(", ")} FROM ${OBJECT_TYPES.Firm.table}
       WHERE ${notIn('"firmId"', 1)}`,
     [hidden],
   );
@@ -256,7 +258,11 @@ export function feedRules(rules: readonly PendingRule[]): ActivityRule[] {
  * predicate isn't numerically evaluable (a text predicate is not "screens
  * nobody"). Computed only for the rule rows that will be shown.
  */
-export function projectRule(r: PendingRule, firms: readonly ScreenableFirm[]): number | null {
+export function projectRule(
+  rubric: RubricContext,
+  r: PendingRule,
+  firms: readonly ScreenableFirm[],
+): number | null {
   const [rule] = toScreeningRules(
     [
       {
@@ -270,7 +276,9 @@ export function projectRule(r: PendingRule, firms: readonly ScreenableFirm[]): n
     ],
     [],
   );
-  return rule === undefined || !isEvaluable(rule) ? null : countScreened(firms, [rule]);
+  return rule === undefined || !isEvaluable(rubric, rule)
+    ? null
+    : countScreened(rubric, firms, [rule]);
 }
 
 /**
@@ -374,9 +382,9 @@ export async function homeSummary(q: Queryable, access: Access): Promise<HomeSum
 
   // Funnel: one bucket per firm, hard-reject verdict included.
   const funnel = emptyBucketCounts();
-  const { definition } = await loadActiveRubric(q);
+  const rubric = await loadRubricContext(q);
   for (const f of firms) {
-    funnel[bucketOf(f, scoreFirm(definition, f))] += 1;
+    funnel[bucketOf(f, scoreFirm(rubric.definition, f as Record<string, unknown>))] += 1;
   }
 
   const abstainedSince = abstainedSinceByFirm(timedFindings);
@@ -386,6 +394,7 @@ export async function homeSummary(q: Queryable, access: Access): Promise<HomeSum
   // sort would give them (the comparator is a total order).
   const firmById = new Map(firms.map((f) => [f.firmId, f]));
   const judgmentFirms: JudgmentNeedsYou[] = orderEnrichmentQueue(
+    rubric,
     firms.filter((f) => axesByFirm.has(f.firmId)).map(toQueueFirm),
     configs,
   )
@@ -446,7 +455,7 @@ export async function homeSummary(q: Queryable, access: Access): Promise<HomeSum
   const pendingById = new Map(rules.map((r) => [r.proposedRuleId, r]));
   for (const item of needsYou) {
     if (item.kind === "rule") {
-      item.screens = projectRule(pendingById.get(item.proposedRuleId)!, firms);
+      item.screens = projectRule(rubric, pendingById.get(item.proposedRuleId)!, firms);
     }
   }
   const needsYouCounts: Record<NeedsYouDestination, number> = { review: 0, desk: 0, rules: 0 };
@@ -457,6 +466,7 @@ export async function homeSummary(q: Queryable, access: Access): Promise<HomeSum
   // Agent activity. A pending rule is fed in with its recorded proposal time; one without it
   // (proposed before the column existed) or without a readable predicate is left out of the feed.
   const activityInput = {
+    rubric,
     firms: firms.map((f) => ({
       firmId: f.firmId,
       firmName: f.firmName,

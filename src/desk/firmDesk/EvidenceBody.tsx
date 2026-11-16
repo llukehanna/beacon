@@ -2,6 +2,7 @@ import React from "react";
 import { errorMessage } from "@/data/adapter";
 import { useOsdkAction } from "@/data/hooks";
 import { resolveConflictAction } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { type Command, useCommands } from "@/shell/commands";
 import { isTypingTarget } from "@/shell/keys";
 import { Button, Chip, Kbd, StatusPill } from "@/ui";
@@ -9,13 +10,12 @@ import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
 import {
   type AcceptDecision,
-  FINDING_AXIS_TO_KEY,
   coerceFindingValue,
   decideVerify,
   displayFindingValue,
   formatAxisValue,
+  traitOfAxis,
 } from "../findingActions";
-import { type Model } from "../scoreMirror";
 import { excerptText, modelChipTitle, modelLabel } from "../sourceHighlight";
 import styles from "./EvidenceBody.module.css";
 import { SourceView } from "./SourceView";
@@ -58,7 +58,7 @@ function Checks({
   row: AxisRow;
   reading: NonNullable<ReturnType<typeof pickReading>>;
 }): React.ReactElement {
-  const checks = evidenceChecks(row.def, reading);
+  const checks = evidenceChecks(row.trait, reading);
   return (
     <div>
       {reading.grounded === false && (
@@ -107,7 +107,8 @@ export function EvidenceBody({
   onProvider,
 }: {
   row: AxisRow;
-  model: Model;
+  /** The thesis the firm is scored under. */
+  model: string;
   edits: EditMap;
   /** What the firm record holds for this axis, if anything. */
   onFile: OnFile | undefined;
@@ -118,7 +119,8 @@ export function EvidenceBody({
   provider: string | undefined;
   onProvider: (provider: string) => void;
 }): React.ReactElement {
-  const editKey = row.def.actionParam;
+  const rubric = useRubric();
+  const editKey = row.axis;
   const resolve = useOsdkAction(resolveConflictAction);
   const [resolveError, setResolveError] = React.useState<string | null>(null);
   const [prompt, setPrompt] = React.useState<Prompt | null>(null);
@@ -153,7 +155,7 @@ export function EvidenceBody({
     if (finding === undefined) {
       return;
     }
-    const decision: AcceptDecision = decideVerify(finding, getCurrent(editKey));
+    const decision: AcceptDecision = decideVerify(rubric, finding, getCurrent(editKey));
     if (decision.kind === "unroutable") {
       setPrompt(null);
       setUnroutable(
@@ -178,7 +180,7 @@ export function EvidenceBody({
       return;
     }
     // Keep the analyst's value; the finding records the disagreement.
-    queueVerify(finding, stringifyOverride(prompt.editKey, prompt.mine));
+    queueVerify(finding, stringifyOverride(rubric, prompt.editKey, prompt.mine));
     setPrompt(null);
   };
 
@@ -196,7 +198,7 @@ export function EvidenceBody({
       return;
     }
     applyEdit(editKey, value);
-    queueVerify(finding, stringifyOverride(editKey, value));
+    queueVerify(finding, stringifyOverride(rubric, editKey, value));
     setRejecting(false);
   };
 
@@ -209,8 +211,8 @@ export function EvidenceBody({
         chosenValue: chosen.value ?? "",
       });
       // Only once the ontology confirms the resolve is the choice staged on the axis.
-      const key = FINDING_AXIS_TO_KEY[(chosen.axis ?? "").trim().toLowerCase()];
-      const coerced = key === undefined ? undefined : coerceFindingValue(key, chosen.value);
+      const key = traitOfAxis(rubric, chosen.axis)?.traitKey;
+      const coerced = key === undefined ? undefined : coerceFindingValue(rubric, key, chosen.value);
       if (key !== undefined && coerced !== undefined) {
         applyEdit(key, coerced);
       }
@@ -283,7 +285,7 @@ export function EvidenceBody({
 
   const valueText =
     finding !== undefined && row.state !== "abstained"
-      ? displayFindingValue(row.axis, finding.value)
+      ? displayFindingValue(rubric, row.axis, finding.value)
       : null;
   const confidence = confidenceText(finding?.confidenceTier);
   const modelName = modelLabel(finding?.extractionModel);
@@ -307,7 +309,7 @@ export function EvidenceBody({
         {onFile !== undefined && (
           <p className={styles.onFile}>
             {onFile.pending ? "Pending" : "On file"}: <span>{onFile.text}</span>
-            {onFile.band !== null && ` · scores ${onFile.band} of 2`}
+            {onFile.band !== null && ` · scores ${onFile.band} of ${onFile.bandMax}`}
           </p>
         )}
 
@@ -316,13 +318,13 @@ export function EvidenceBody({
             {sides.map((f, i) => {
               const other = sides[1 - i];
               const label = sourceName(f);
-              const value = displayFindingValue(f.axis, f.value);
+              const value = displayFindingValue(rubric, f.axis, f.value);
               const conf = confidenceText(f.confidenceTier);
               return (
                 <div key={f.findingId} className={styles.side}>
                   <span className={styles.sideSource}>{label}</span>
                   <span
-                    className={`${styles.sideValue} ${row.def.kind === "enum" ? styles.sideWords : ""}`}
+                    className={`${styles.sideValue} ${row.trait.kind === "category" ? styles.sideWords : ""}`}
                   >
                     {value}
                   </span>
@@ -348,7 +350,7 @@ export function EvidenceBody({
               className={[
                 styles.value,
                 valueText === null ? styles.noValue : "",
-                valueText !== null && row.def.kind === "enum" ? styles.valueWords : "",
+                valueText !== null && row.trait.kind === "category" ? styles.valueWords : "",
               ]
                 .filter(Boolean)
                 .join(" ")}
@@ -387,7 +389,7 @@ export function EvidenceBody({
                       <span>{providerLabel(p)}</span>
                       <span className={styles.askedWhy}>
                         {r?.value != null
-                          ? `said ${displayFindingValue(row.axis, r.value)}. ${rejectReasonText(r.rejectReason ?? "")}`
+                          ? `said ${displayFindingValue(rubric, row.axis, r.value)}. ${rejectReasonText(r.rejectReason ?? "")}`
                           : "had nothing for this axis"}
                       </span>
                     </li>
@@ -410,7 +412,7 @@ export function EvidenceBody({
                     onClick={() => onProvider(r.provider)}
                   >
                     {providerLabel(r.provider)}
-                    <span>{displayFindingValue(row.axis, r.value)}</span>
+                    <span>{displayFindingValue(rubric, row.axis, r.value)}</span>
                   </button>
                 ))}
               </div>
@@ -427,7 +429,7 @@ export function EvidenceBody({
                 <li key={r.provider}>
                   <span>{providerLabel(r.provider)}</span>
                   <span className={styles.askedWhy}>
-                    {displayFindingValue(row.axis, r.value)}
+                    {displayFindingValue(rubric, row.axis, r.value)}
                     {r.grounded === false
                       ? ` (turned down: ${rejectReasonText(r.rejectReason ?? "")})`
                       : ""}
@@ -444,8 +446,9 @@ export function EvidenceBody({
         {prompt !== null && finding !== undefined && (
           <div role="alert" className={styles.prompt}>
             <p>
-              You set <strong>{formatAxisValue(prompt.editKey, prompt.mine)}</strong> · the agent
-              proposes <strong>{formatAxisValue(prompt.editKey, prompt.theirs)}</strong> (
+              You set <strong>{formatAxisValue(rubric, prompt.editKey, prompt.mine)}</strong> · the
+              agent proposes{" "}
+              <strong>{formatAxisValue(rubric, prompt.editKey, prompt.theirs)}</strong> (
               {sourceName(finding)}
               {finding.confidenceTier ? `, ${finding.confidenceTier}` : ""})
             </p>
@@ -484,7 +487,7 @@ export function EvidenceBody({
               </h3>
               <ValueEditor
                 row={row}
-                model={model}
+                thesis={model}
                 edits={edits}
                 current={getCurrent(editKey)}
                 stageLabel={rejecting ? "Reject and use value" : "Use value"}
@@ -523,7 +526,7 @@ export function EvidenceBody({
                   <li key={f.findingId}>
                     <span>{sourceName(f)}</span>
                     <span className={styles.earlierValue}>
-                      {displayFindingValue(row.axis, f.value)}
+                      {displayFindingValue(rubric, row.axis, f.value)}
                     </span>
                     <span className={styles.earlierMeta}>
                       {f.findingStatus ?? ""} {formatRetrievedShort(f)}

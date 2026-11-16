@@ -8,6 +8,7 @@ import {
   isSignalKind,
   kindLabel,
 } from "./marketSignals.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 import { providerLabel } from "./vocab.js";
 
 describe("market signal wording", () => {
@@ -25,16 +26,22 @@ describe("market signal wording", () => {
   });
 
   it("says what a signal moved", () => {
-    expect(axisMovedText({ kind: "departure", axis: "fee_generating_count", newValue: "3" })).toBe(
-      "Fee-earning heads → 3",
-    );
     expect(
-      axisMovedText({ kind: "deal_announcement", axis: "deal_size_usd_m", newValue: "180" }),
+      axisMovedText(ADVISORY, { kind: "departure", axis: "fee_generating_count", newValue: "3" }),
+    ).toBe("Fee-earning heads → 3");
+    expect(
+      axisMovedText(ADVISORY, {
+        kind: "deal_announcement",
+        axis: "deal_size_usd_m",
+        newValue: "180",
+      }),
     ).toBe("Avg deal size → $180m");
-    expect(axisMovedText({ kind: "acquisition" })).toBe("Market outcome: acquired by a competitor");
-    expect(axisMovedText({ kind: "departure" })).toBe("No score axis moved");
+    expect(axisMovedText(ADVISORY, { kind: "acquisition" })).toBe(
+      "Market outcome: acquired by a competitor",
+    );
+    expect(axisMovedText(ADVISORY, { kind: "departure" })).toBe("No score axis moved");
     expect(
-      axisMovedText({
+      axisMovedText(ADVISORY, {
         kind: "departure",
         axis: "fee_generating_count",
         newValue: "3",

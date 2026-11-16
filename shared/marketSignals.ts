@@ -7,7 +7,9 @@
  * Pure: no React, no data access. The server's apply step (server/signals/apply.ts) and the
  * screens read the same kinds, labels and wording.
  */
-import { axisLabel } from "./trustMetrics.js";
+import { axisLabel, traitOfAnyAxis } from "./axisLabels.js";
+import { showTraitValue } from "./rubric/traitValue.js";
+import type { RubricContext } from "./rubric/types.js";
 import { MARKET_SIGNAL } from "./vocab.js";
 
 /** The words that mark a signal as invented, wherever it is shown. */
@@ -77,7 +79,7 @@ export const isApplied = (s: SignalLike): boolean =>
  * What the signal changed, in words: the axis and the value it moved to, or the market outcome an
  * acquisition records.
  */
-export function axisMovedText(s: SignalLike): string {
+export function axisMovedText(rubric: RubricContext, s: SignalLike): string {
   if (s.effect === EFFECT_UNCHANGED) {
     return "No change";
   }
@@ -89,6 +91,11 @@ export function axisMovedText(s: SignalLike): string {
   if (axis === null || value === null) {
     return "No score axis moved";
   }
-  const shown = axis === "deal_size_usd_m" ? `$${value}m` : value;
-  return `${axisLabel(axis)} → ${shown}`;
+  const trait = traitOfAnyAxis(rubric, axis);
+  const n = Number(value);
+  const shown =
+    trait?.kind === "number" && Number.isFinite(n)
+      ? showTraitValue(trait, n, { units: "currency" })
+      : value;
+  return `${axisLabel(rubric, axis)} → ${shown}`;
 }

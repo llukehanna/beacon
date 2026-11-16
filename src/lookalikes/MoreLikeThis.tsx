@@ -1,6 +1,7 @@
 import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { Notice, Panel, Skeleton } from "@/ui";
 import { moreLikeThis } from "../../shared/lookalikes";
 import { LookalikeList } from "./LookalikeList";
@@ -17,13 +18,14 @@ export function MoreLikeThis({
   firmId: string;
   className?: string;
 }): React.ReactElement {
+  const rubric = useRubric();
   const { data, isLoading, error } = useOsdkObjects(Firm, {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
   });
   const rows = React.useMemo(
-    () => (data === undefined ? [] : moreLikeThis(firmId, data)),
-    [data, firmId],
+    () => (data === undefined ? [] : moreLikeThis(rubric, firmId, data)),
+    [rubric, data, firmId],
   );
   const headingId = React.useId();
   return (

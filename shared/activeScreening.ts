@@ -22,7 +22,9 @@
  * because the analyst's whole job is to go find that headcount. This is the
  * one invariant in the file that is not a preference.
  */
-import { firmFieldFor } from "./queue.js";
+import { resolveThesis } from "./rubric/engine.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import type { RubricContext } from "./rubric/types.js";
 
 /**
  * A rule in the shape this module screens on, normalized away from the
@@ -30,10 +32,10 @@ import { firmFieldFor } from "./queue.js";
  */
 export interface ScreeningRule {
   ruleId: string;
-  axis: string; // backend vocab — "employees", "geo_score"
+  axis: string; // a trait key — "employees", "geo_score"
   operator: string; // "<", "<=", ">", ">=", "==", "!="
   threshold: string; // stringified; parsed at compare time
-  model: string; // "CF" | "CS" | "both" — case-insensitive, "" means both
+  model: string; // a thesis key or "both" — case-insensitive, "" means both
   /** Analyst-facing predicate, e.g. `employees < 10`. Shown on the chip. */
   label: string;
 }
@@ -57,27 +59,29 @@ const NUMERIC_OPS: Record<string, (a: number, b: number) => boolean> = {
   "!=": (a, b) => a !== b,
 };
 
-function firmModel(firm: ScreenableFirm): "cf" | "cs" {
-  return (firm.firmType ?? "").trim().toLowerCase() === "cs" ? "cs" : "cf";
-}
-
-function ruleAppliesToModel(rule: ScreeningRule, firm: ScreenableFirm): boolean {
+function ruleAppliesToModel(
+  rubric: RubricContext,
+  rule: ScreeningRule,
+  firm: ScreenableFirm,
+): boolean {
   const rm = rule.model.trim().toLowerCase();
   if (rm === "" || rm === "both") {
     return true;
   }
-  return rm === firmModel(firm);
+  return rm === resolveThesis(rubric.definition, thesisOf(fields(firm))).key.toLowerCase();
 }
 
+const knownAxis = (rubric: RubricContext, axis: string): boolean =>
+  rubric.traits.some((t) => t.traitKey === axis.trim().toLowerCase());
+
 /**
- * Firms arrive from the SDK as wide objects; screening only needs firmType
- * (to honour a rule's model scope) plus whatever property the axis names,
- * which is read dynamically.
+ * Firms arrive from the SDK as wide objects; screening only needs the thesis
+ * (to honour a rule's scope) plus the trait the axis names.
  */
-export interface ScreenableFirm {
-  firmType?: string | null;
-  [key: string]: unknown;
-}
+export type ScreenableFirm = object;
+
+const fields = (firm: ScreenableFirm): Readonly<Record<string, unknown>> =>
+  firm as Readonly<Record<string, unknown>>;
 
 /**
  * Does this one rule screen this one firm?
@@ -87,15 +91,15 @@ export interface ScreenableFirm {
  * firm value. Screening a firm hides it from the queue, so every ambiguity
  * resolves toward leaving it visible.
  */
-export function ruleScreensFirm(rule: ScreeningRule, firm: ScreenableFirm): boolean {
-  if (!ruleAppliesToModel(rule, firm)) {
+export function ruleScreensFirm(
+  rubric: RubricContext,
+  rule: ScreeningRule,
+  firm: ScreenableFirm,
+): boolean {
+  if (!ruleAppliesToModel(rubric, rule, firm) || !knownAxis(rubric, rule.axis)) {
     return false;
   }
-  const field = firmFieldFor(rule.axis);
-  if (field === null) {
-    return false;
-  }
-  const raw = firm[field];
+  const raw = traitsOf(fields(firm))[rule.axis.trim().toLowerCase()];
   // THE invariant: absent data never trips a screen.
   if (raw === null || raw === undefined || raw === "") {
     return false;
@@ -116,9 +120,13 @@ export function ruleScreensFirm(rule: ScreeningRule, firm: ScreenableFirm): bool
  * Screen a firm against every approved rule, first match wins. `rules`
  * must already be filtered to approved — see `toScreeningRules`.
  */
-export function screenFirm(firm: ScreenableFirm, rules: readonly ScreeningRule[]): ScreenResult {
+export function screenFirm(
+  rubric: RubricContext,
+  firm: ScreenableFirm,
+  rules: readonly ScreeningRule[],
+): ScreenResult {
   for (const rule of rules) {
-    if (ruleScreensFirm(rule, firm)) {
+    if (ruleScreensFirm(rubric, rule, firm)) {
       return { screened: true, rule };
     }
   }
@@ -134,9 +142,9 @@ export function screenFirm(firm: ScreenableFirm, rules: readonly ScreeningRule[]
  * for hiding firms but a lie when rendered as "would screen 0 firms" —
  * that reads as "this rule is useless" rather than "not computed here".
  */
-export function isEvaluable(rule: ScreeningRule): boolean {
+export function isEvaluable(rubric: RubricContext, rule: ScreeningRule): boolean {
   return (
-    firmFieldFor(rule.axis) !== null &&
+    knownAxis(rubric, rule.axis) &&
     NUMERIC_OPS[rule.operator.trim()] !== undefined &&
     !Number.isNaN(Number(rule.threshold.trim()))
   );
@@ -144,12 +152,13 @@ export function isEvaluable(rule: ScreeningRule): boolean {
 
 /** Count of firms screened by the approved rules — the header's third term. */
 export function countScreened(
+  rubric: RubricContext,
   firms: readonly ScreenableFirm[],
   rules: readonly ScreeningRule[],
 ): number {
   let n = 0;
   for (const firm of firms) {
-    if (screenFirm(firm, rules).screened) {
+    if (screenFirm(rubric, firm, rules).screened) {
       n++;
     }
   }
@@ -265,9 +274,10 @@ export function toScreeningRules(
  * is this module's job; deciding what counts as open is not.
  */
 export function isLiveQueueFirm(
+  rubric: RubricContext,
   firm: ScreenableFirm,
   rules: readonly ScreeningRule[],
   open: boolean,
 ): boolean {
-  return open && !screenFirm(firm, rules).screened;
+  return open && !screenFirm(rubric, firm, rules).screened;
 }

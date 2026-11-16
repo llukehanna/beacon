@@ -3,14 +3,13 @@ import { errorMessage } from "@/data/adapter";
 import { useFirmObservations } from "@/data/firmObservations";
 import { useObservableClient, useOsdkAction, useOsdkObjects } from "@/data/hooks";
 import { ResearchFinding, enrichFirmAction, verifyFindingAction } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { MoreLikeThis } from "@/lookalikes/MoreLikeThis";
 import { isTypingTarget } from "@/shell/keys";
 import { useTourStepId } from "@/tour/tourContext";
-import { ENRICH_AXES } from "../../../shared/vocab";
 import { type FindingLike } from "../axisState";
-import { HARD_GATE_PASS_WHEN, effectiveAxisValue, verifiedBaselineEdits } from "../findingActions";
+import { effectiveAxisValue, verifiedBaselineEdits } from "../findingActions";
 import { type ActiveConfigRule } from "../queue";
-import { mirrorScore } from "../scoreMirror";
 import { AgentRunStrip } from "./AgentRunStrip";
 import { AxisGrid } from "./AxisGrid";
 import { DecisionBar } from "./DecisionBar";
@@ -23,10 +22,9 @@ import { buildAxisRows, summarizeRows } from "./axisRows";
 import {
   type EditMap,
   type FirmView,
-  buildMerged,
   editorForEditKey,
   enrichParams,
-  toScoreInput,
+  previewScore,
 } from "./deskModel";
 import { otherDialogOpen } from "./dialogs";
 import { buildOnFile } from "./onFile";
@@ -79,9 +77,9 @@ export function EnrichmentPanel({
     scrollRef.current?.scrollTo({ top: 0 });
   }, [firm.firmId]);
 
-  const base = React.useMemo(() => toScoreInput(firm), [firm]);
-  const before = mirrorScore(base);
-  const after = mirrorScore(buildMerged(base, edits));
+  const rubric = useRubric();
+  const before = React.useMemo(() => previewScore(rubric, firm), [rubric, firm]);
+  const after = React.useMemo(() => previewScore(rubric, firm, edits), [rubric, firm, edits]);
 
   const setAxis = React.useCallback((key: string, value: string | number | boolean) => {
     setEdits((prev) => ({ ...prev, [key]: value }));
@@ -123,20 +121,18 @@ export function EnrichmentPanel({
   const observations = useFirmObservations(agentRan === true ? firm.firmId : undefined);
   const seen = agentRan === true ? observations.data : undefined;
   const rows = React.useMemo(
-    () =>
-      buildAxisRows(
-        ENRICH_AXES.filter((a) => a.models.includes(after.model)),
-        seen,
-        overlaidFindings,
-      ),
-    [after.model, seen, overlaidFindings],
+    () => buildAxisRows(rubric, after.model, seen, overlaidFindings),
+    [rubric, after.model, seen, overlaidFindings],
   );
   const counts = React.useMemo(() => summarizeRows(rows), [rows]);
   const onFile = React.useMemo(
-    () => buildOnFile(rows, firm, edits, after),
-    [rows, firm, edits, after],
+    () => buildOnFile(rubric, rows, firm, edits, after),
+    [rubric, rows, firm, edits, after],
   );
-  const projection = React.useMemo(() => projectProposals(base, edits, rows), [base, edits, rows]);
+  const projection = React.useMemo(
+    () => projectProposals(rubric, firm, edits, rows),
+    [rubric, firm, edits, rows],
+  );
 
   // The grid shows once the provider readings are in as well as the findings: until then a row
   // can be picked whose evidence has nothing to show yet, and the summary above the grid
@@ -204,7 +200,7 @@ export function EnrichmentPanel({
   // in-session edits win — so the effect converges: once staged,
   // verifiedBaselineEdits returns [].
   React.useEffect(() => {
-    const staged = verifiedBaselineEdits(findings, (editKey) =>
+    const staged = verifiedBaselineEdits(rubric, findings, (editKey) =>
       effectiveAxisValue(firm, edits, editKey),
     );
     if (staged.length === 0) {
@@ -221,7 +217,7 @@ export function EnrichmentPanel({
       }
       return changed ? next : prev;
     });
-  }, [findings, firm, edits]);
+  }, [rubric, findings, firm, edits]);
 
   const findingObjById = React.useMemo(() => {
     const m = new Map<string, FindingLike>();
@@ -234,7 +230,7 @@ export function EnrichmentPanel({
   }, [findings]);
 
   const onCommit = React.useCallback(() => {
-    const args = enrichParams(firmId, edits);
+    const args = enrichParams(rubric, firmId, edits);
     void (async () => {
       try {
         await enrich.applyAction(args);
@@ -273,7 +269,7 @@ export function EnrichmentPanel({
       // hydration sees fresh firm state instead of racing a stale one).
       void observable.invalidateObjects();
     })();
-  }, [firmId, edits, enrich, pendingVerify, findingObjById, verify, observable]);
+  }, [rubric, firmId, edits, enrich, pendingVerify, findingObjById, verify, observable]);
 
   // Keyboard shortcuts. The arrow keys move the grid's selection; 0, 1, 2 and P, F answer the
   // selected axis; V and R act on a proposed value (see EvidenceBody).
@@ -283,6 +279,8 @@ export function EnrichmentPanel({
   selectedRef.current = selectedAxis;
   const afterModelRef = React.useRef(after.model);
   afterModelRef.current = after.model;
+  const rubricRef = React.useRef(rubric);
+  rubricRef.current = rubric;
   const commitRef = React.useRef<() => void>(() => undefined);
   commitRef.current = onCommit;
 
@@ -322,18 +320,17 @@ export function EnrichmentPanel({
       if (!row) {
         return;
       }
-      const editKey = row.def.actionParam;
-      if (row.def.kind === "gate") {
+      const editKey = row.axis;
+      if (row.trait.kind === "yesno") {
         if (e.key === "p" || e.key === "f") {
-          // Pass/Fail is polarity-mapped per gate: the stored boolean flips for advisoryConflict
-          // and hasStOrBalanceSheet, where true means "has a problem".
-          const passWhen = HARD_GATE_PASS_WHEN[editKey] ?? true;
+          // Pass/Fail is polarity-mapped per gate: the catalog says which stored value passes.
+          const passWhen = row.trait.passWhen ?? true;
           setAxis(editKey, e.key === "p" ? passWhen : !passWhen);
           e.preventDefault();
         }
         return;
       }
-      const ed = editorForEditKey(editKey, afterModelRef.current);
+      const ed = editorForEditKey(rubricRef.current, editKey, afterModelRef.current);
       if (ed?.kind === "categorical" && ed.options && ["0", "1", "2"].includes(e.key)) {
         const opt = ed.options.find((o) => o.score === Number(e.key));
         if (opt) {
@@ -379,6 +376,7 @@ export function EnrichmentPanel({
 
           <AxisGrid
             rows={rows}
+            thesis={after.model}
             counts={counts}
             edits={edits}
             onFile={onFile}

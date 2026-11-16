@@ -4,16 +4,10 @@ import { buildActivity } from "../../shared/activityFeed.js";
 import { needsYouAxisCountByFirm } from "../../shared/axisState.js";
 import { mandateFirmCounts, searchListFirmIds } from "../../shared/mandateFirms.js";
 import { OPEN_BUCKETS, bucketOf, emptyBucketCounts } from "../../shared/pipelineBuckets.js";
-import {
-  QUEUE_FIELDS,
-  SCORE_INPUT_FIELDS,
-  firmFieldNames,
-  orderEnrichmentQueue,
-  toQueueFirm,
-} from "../../shared/queue.js";
+import { QUEUE_FIELDS, orderEnrichmentQueue, toQueueFirm } from "../../shared/queue.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES, type ObjectOf } from "../../shared/schema.js";
-import { mirrorScore } from "../../shared/scoreMirror.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import type { AccuracySummary, HomeSummary, ShellCounts } from "../../shared/summaries.js";
 import { findingTrends, groundedCounts } from "../../shared/trends.js";
 import {
@@ -26,9 +20,10 @@ import {
 import { NO_WALL } from "../access.js";
 import { type Db } from "../db/client.js";
 import { insertObjects, listAll, listLinked } from "../db/repo.js";
+import { traitColumns } from "../db/traits.js";
 import { type SourceDocument, sourceDocument } from "../extraction/documents.js";
 import { resetDemo } from "../seed/reset.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { findingCells } from "./findings.js";
 import {
   VISIBLE_ROWS,
@@ -149,7 +144,7 @@ async function clientHome(d: Db) {
   const findings = await listAll(d, "ResearchFinding");
 
   const firmNameById = new Map(firms.map((x) => [x.firmId, x.firmName ?? x.firmId]));
-  const workable = orderEnrichmentQueue(firms.map(toQueueFirm), configs).filter(
+  const workable = orderEnrichmentQueue(TEST_RUBRIC, firms.map(toQueueFirm), configs).filter(
     (r) => !r.hardScreened && !r.terminal,
   );
   const axes = needsYouAxisCountByFirm(withIds(findings));
@@ -159,7 +154,9 @@ async function clientHome(d: Db) {
       [{ ...r, proposedRuleId: r.proposedRuleId as string, ruleStatus: "approved" }],
       [],
     );
-    return screen === undefined || !isEvaluable(screen) ? null : countScreened(firms, [screen]);
+    return screen === undefined || !isEvaluable(TEST_RUBRIC, screen)
+      ? null
+      : countScreened(TEST_RUBRIC, firms, [screen]);
   };
   const items: Plain[] = [
     ...drifts.map((x) => {
@@ -202,7 +199,7 @@ async function clientHome(d: Db) {
 
   const funnel = emptyBucketCounts();
   for (const x of firms) {
-    funnel[bucketOf(x, mirrorScore(x))] += 1;
+    funnel[bucketOf(x, scoreFirm(TEST_RUBRIC.definition, x))] += 1;
   }
 
   const overall = rates(withIds(findings));
@@ -318,7 +315,12 @@ describe("homeSummary", () => {
     }
     // Every pending rule is fed in: the full feed has one rule_proposed item per rule, dated by proposedAt.
     const full = buildActivity(
-      { firms: [], findings: [], proposedRules: feedRules(await runPendingRules()) },
+      {
+        rubric: TEST_RUBRIC,
+        firms: [],
+        findings: [],
+        proposedRules: feedRules(await runPendingRules()),
+      },
       1000,
     );
     const proposed = full.filter((i) => i.kind === "rule_proposed");
@@ -360,7 +362,7 @@ describe("homeSummary", () => {
     const pending = await runPendingRules();
     expect(pending.length).toBeGreaterThan(1);
     const firms = await loadLeanFirms(db, []);
-    const projected = pending.map((r) => projectRule(r, firms));
+    const projected = pending.map((r) => projectRule(TEST_RUBRIC, r, firms));
     expect(projected).toEqual(pending.map((r) => client.screens(r as unknown as Plain)));
     // Not vacuous: some rules are evaluable, some are not.
     expect(projected.some((n) => n !== null)).toBe(true);
@@ -405,12 +407,8 @@ describe("homeSummary", () => {
     expect(sql.get(edgeFirm)).toBe(seededAxes + 4);
   });
 
-  it("selects every Firm column the rules and the score can read, and only real ones", () => {
-    const columns = new Set(QUEUE_FIELDS);
-    for (const field of firmFieldNames()) {
-      expect(columns.has(field), field).toBe(true);
-    }
-    for (const column of QUEUE_FIELDS) {
+  it("selects only real Firm columns: the queue's own, and the ones traits are read from", () => {
+    for (const column of [...QUEUE_FIELDS, ...traitColumns()]) {
       expect(Object.keys(OBJECT_TYPES.Firm.properties), column).toContain(column);
     }
   });
@@ -421,7 +419,7 @@ describe("accuracySummary", () => {
     const summary = (await runFn(db, "accuracySummary")) as AccuracySummary;
     const findings = withIds(await listAll(db, "ResearchFinding"));
     const firms = await listAll(db, "Firm");
-    const expected = accuracyTables(cellsFromFindings(findings));
+    const expected = accuracyTables(TEST_RUBRIC, cellsFromFindings(findings));
     expect(summary.overall).toEqual(rates(findings));
     expect(summary.byProvider).toEqual(expected.byProvider);
     expect(summary.byAxis).toEqual(expected.byAxis);
@@ -627,15 +625,9 @@ describe("homeSummary and a hard-screen rule on a gate axis", () => {
     const firms = await listAll(d, "Firm");
 
     // The helper the UI ranks with screens the insolvent firm...
-    const ranked = orderEnrichmentQueue(firms.map(toQueueFirm), configs);
+    const ranked = orderEnrichmentQueue(TEST_RUBRIC, firms.map(toQueueFirm), configs);
     expect(ranked.find((r) => r.firm.firmId === "insolvent")?.hardScreened).toBe(true);
     expect(ranked.find((r) => r.firm.firmId === "sound")?.hardScreened).toBe(false);
-    // ...which the score-inputs-only input it replaced could not see.
-    const scoreOnly = firms.map((f) => ({
-      firmId: f.firmId,
-      ...Object.fromEntries(SCORE_INPUT_FIELDS.map((k) => [k, (f as Plain)[k]])),
-    }));
-    expect(orderEnrichmentQueue(scoreOnly, configs).some((r) => r.hardScreened)).toBe(false);
 
     // And the summary agrees with it.
     const summary = await homeSummary(d, NO_WALL);

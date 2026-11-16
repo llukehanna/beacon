@@ -10,7 +10,7 @@ import { Chip } from "@/ui";
 import styles from "./FirmTable.module.css";
 import { FitCell } from "./FitCell";
 import { StageChip } from "./chips";
-import { type Row, activityText, isOut } from "./pipelineModel";
+import { type Row, activityText, isOut, traitOn } from "./pipelineModel";
 import { useWindowedRows } from "./useWindowedRows";
 
 /** Fixed geometry: the body is windowed, so every row is exactly this tall. */
@@ -83,9 +83,9 @@ function FirmRow({
         <div className={styles.name} data-out={isOut(row) || undefined} title={name}>
           {name}
         </div>
-        {firm.coverageModel && (
-          <div className={styles.sub} title={firm.coverageModel}>
-            {firm.coverageModel}
+        {typeof traitOn(firm, "coverage_model") === "string" && (
+          <div className={styles.sub} title={String(traitOn(firm, "coverage_model"))}>
+            {traitOn(firm, "coverage_model")}
           </div>
         )}
       </td>
@@ -99,7 +99,7 @@ function FirmRow({
       <td>
         <FitCell row={row} />
       </td>
-      <td className={styles.num}>{firm.employees ?? "—"}</td>
+      <td className={styles.num}>{traitOn(firm, "employees") ?? "—"}</td>
       <td className={styles.hq} title={firm.hqCountry || undefined}>
         {hqCode(firm.hqCountry)}
       </td>

@@ -1,3 +1,4 @@
+import type { RubricContext } from "../../../shared/rubric/types";
 import { type ScreeningRule, isLiveQueueFirm } from "../activeScreening";
 import { type RankedFirm } from "../queue";
 
@@ -8,6 +9,7 @@ import { type RankedFirm } from "../queue";
  * it after a pass, so the next firm is always one the analyst can see.
  */
 export function visibleQueue(
+  rubric: RubricContext,
   queue: readonly RankedFirm[],
   {
     query,
@@ -33,7 +35,7 @@ export function visibleQueue(
       ? [...queue]
       : queue.filter((r) =>
           // The predicate the sidebar's header counts, so the list and "N in live queue" agree.
-          isLiveQueueFirm(r.firm, screeningRules, openIds.has(r.firm.firmId)),
+          isLiveQueueFirm(rubric, r.firm, screeningRules, openIds.has(r.firm.firmId)),
         );
   if (!searching) {
     return base;

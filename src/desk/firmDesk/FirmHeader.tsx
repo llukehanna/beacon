@@ -3,14 +3,17 @@ import { Link } from "react-router-dom";
 import { Term } from "@/components/Term";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { FROM_DESK } from "@/shell/origin";
 import { Chip, MonogramTile } from "@/ui";
 import { SYNTHETIC_LABEL } from "../../../shared/marketSignals";
-import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../../../shared/scoreMirror";
+import { resolveThesis } from "../../../shared/rubric/engine";
+import { traitsOf } from "../../../shared/rubric/firm";
+import { showTraitValue } from "../../../shared/rubric/traitValue";
+import type { RubricContext, ScoreResult } from "../../../shared/rubric/types";
 import { MARKET_SIGNAL, normalizeLifecycle } from "../../../shared/vocab";
 import { type ActiveConfigRule, computeHardScreen } from "../queue";
 import { formatScore } from "../scoreFormat";
-import { type MirrorResult } from "../scoreMirror";
 import { TIER_LABEL, outcomeChipStyle, outcomeLabel } from "../tokens";
 import styles from "./FirmHeader.module.css";
 import { TierMeterBar } from "./TierMeterBar";
@@ -68,8 +71,9 @@ function OutcomeChip({
 // for the header state and delegates the hard-screen verdict to the
 // shared computeHardScreen so the queue and header can't disagree.
 function headerState(
+  rubric: RubricContext,
   firm: FirmView,
-  after: MirrorResult,
+  after: ScoreResult,
   tier: string,
   activeConfigs: readonly ActiveConfigRule[],
   configsLoading: boolean,
@@ -83,7 +87,11 @@ function headerState(
   // "Hard-rejected" flicker by falling back to the tier label
   // until the query resolves. Once configs land, the shared verdict wins.
   if (!configsLoading) {
-    const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" }, activeConfigs);
+    const verdict = computeHardScreen(
+      rubric,
+      { ...firm, firmId: firm.firmId ?? "" },
+      activeConfigs,
+    );
     if (verdict.hardScreened) {
       return { hard: true, label: `Hard-rejected · ${verdict.reason ?? "screened"}` };
     }
@@ -103,18 +111,23 @@ function usePriorScore(firmId: string, enrichedAt: unknown): number | null {
 
 const signed = (n: number): string => `${n > 0 ? "+" : "−"}${Math.abs(n)}`;
 
-/** The facts the firm record actually has, as chips; nothing is shown for a missing field. */
-function factChips(firm: FirmView): string[] {
-  const facts: (string | null)[] = [
-    firm.sector || null,
-    firm.coverageModel || null,
-    firm.hqCountry || null,
-    typeof firm.employees === "number" ? `${firm.employees} staff` : null,
-    typeof firm.firmAge === "number" ? `${firm.firmAge} yrs old` : null,
-    firm.revenueBand ? `Revenue ${firm.revenueBand}` : null,
-    firm.ownership || null,
-    firm.successionRisk ? `${firm.successionRisk} succession risk` : null,
-  ];
+/**
+ * The facts the firm record actually has, as chips: its sector and HQ, then each fact and profile
+ * trait in catalog order (a number with its unit, a label with its name). Nothing is shown for a
+ * missing value.
+ */
+function factChips(rubric: RubricContext, firm: FirmView): string[] {
+  const traits = traitsOf(firm as Record<string, unknown>);
+  const facts: (string | null)[] = [firm.sector || null, firm.hqCountry || null];
+  for (const t of rubric.traits) {
+    const v = traits[t.traitKey];
+    if (t.role === "evidence" || v === undefined || v === "") {
+      continue;
+    }
+    facts.push(
+      t.kind === "number" && t.unit ? showTraitValue(t, v) : `${t.label}: ${showTraitValue(t, v)}`,
+    );
+  }
   return facts.filter((f): f is string => f !== null);
 }
 
@@ -128,8 +141,8 @@ export function FirmHeader({
   configsLoading,
 }: {
   firm: FirmView;
-  before: MirrorResult;
-  after: MirrorResult;
+  before: ScoreResult;
+  after: ScoreResult;
   saving: boolean;
   /** The score if the open proposals were verified; null when none is open. */
   projection: Projection | null;
@@ -143,8 +156,11 @@ export function FirmHeader({
   const score = after.weightedTotal;
   const beforeScore = before.weightedTotal;
   const changed = score !== beforeScore;
-  const state = headerState(firm, after, tier, activeConfigs, configsLoading);
-  const belowC = belowCGloss(tier, state.hard, TIER_THRESHOLDS[after.model].C, MAX_POSSIBLE);
+  const rubric = useRubric();
+  const thesis = resolveThesis(rubric.definition, after.model);
+  const MAX_POSSIBLE = after.maxPossible;
+  const state = headerState(rubric, firm, after, tier, activeConfigs, configsLoading);
+  const belowC = belowCGloss(tier, state.hard, thesis.tiers.C, MAX_POSSIBLE);
 
   const prior = usePriorScore(firm.firmId ?? "", firm.enrichedAt);
   // The change the last enrichment made is between two stored scores, so it is read from the
@@ -157,7 +173,7 @@ export function FirmHeader({
       <div className={styles.identity}>
         <h1 className={`${styles.name} ${after.hardRejected ? styles.struck : ""}`}>{name}</h1>
         <div className={styles.meta}>
-          {factChips(firm).map((fact) => (
+          {factChips(rubric, firm).map((fact) => (
             <Chip key={fact}>{fact}</Chip>
           ))}
           <Chip title="Lifecycle stage">{status}</Chip>
@@ -184,7 +200,7 @@ export function FirmHeader({
         <div className={styles.scoreRow}>
           <span className={`${styles.big} ${after.hardRejected ? styles.muted : ""}`}>
             <span aria-hidden="true">{score}</span>
-            <span className="sr-only">{formatScore(score)}</span>
+            <span className="sr-only">{formatScore(score, MAX_POSSIBLE)}</span>
           </span>
           <span className={styles.of} aria-hidden="true">
             / {MAX_POSSIBLE}
@@ -210,7 +226,9 @@ export function FirmHeader({
         {(saving || changed) && (
           <div className={styles.staged} role="status">
             <span className={styles.stagedDot} aria-hidden="true" />
-            {saving ? "Saving…" : `${formatScore(beforeScore)} → ${formatScore(score)} staged`}
+            {saving
+              ? "Saving…"
+              : `${formatScore(beforeScore, MAX_POSSIBLE)} → ${formatScore(score, MAX_POSSIBLE)} staged`}
           </div>
         )}
         <TierMeterBar score={score} model={after.model} prior={prior} hard={state.hard} />

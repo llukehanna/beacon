@@ -7,6 +7,7 @@ import {
   ruleKey,
   rulePatternKey,
 } from "./predicate.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 import { describePredicate } from "./rulePredicate.js";
 import { ADVISORY_ACQUISITIONS } from "./workspaces/advisoryAcquisitions.js";
 
@@ -132,19 +133,21 @@ describe("rubricGateFor", () => {
 
 describe("describePredicate", () => {
   it("says a predicate in the shared axis words, with plain operators and the deal size unit", () => {
-    expect(describePredicate("deal_size_usd_m", "<", "20")).toBe("Avg deal size below $20m");
-    expect(describePredicate("employees", ">=", "10")).toBe("Headcount at least 10");
-    expect(describePredicate("coverage_model", "==", "Generalist Focus")).toBe(
+    expect(describePredicate(ADVISORY, "deal_size_usd_m", "<", "20")).toBe(
+      "Avg deal size below $20m",
+    );
+    expect(describePredicate(ADVISORY, "employees", ">=", "10")).toBe("Headcount at least 10");
+    expect(describePredicate(ADVISORY, "coverage_model", "==", "Generalist Focus")).toBe(
       "Sector coverage is Generalist Focus",
     );
-    expect(describePredicate("firm_age", "!=", "3")).toBe("Firm age is not 3");
+    expect(describePredicate(ADVISORY, "firm_age", "!=", "3")).toBe("Firm age is not 3");
   });
 
   it("never shows the machine names", () => {
-    const said = describePredicate("deals_per_md_l3y", "<=", "2");
+    const said = describePredicate(ADVISORY, "deals_per_md_l3y", "<=", "2");
     expect(said).toBe("Deals per MD (last 3 years) at most 2");
     expect(said).not.toMatch(/_|<|>|=/);
-    expect(describePredicate("", "<", "1")).toBe("a rule with no condition");
+    expect(describePredicate(ADVISORY, "", "<", "1")).toBe("a rule with no condition");
   });
 });
 

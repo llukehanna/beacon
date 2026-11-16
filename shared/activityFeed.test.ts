@@ -6,11 +6,18 @@ import {
   buildActivity,
   latestRunHeadline,
 } from "./activityFeed.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 
 const T = Date.parse("2026-11-04T12:00:00.000Z");
 const at = (hoursBefore: number) => new Date(T - hoursBefore * 3_600_000).toISOString();
 
-const empty: ActivityInput = { firms: [], findings: [], proposedRules: [], driftEvents: [] };
+const empty: ActivityInput = {
+  rubric: ADVISORY,
+  firms: [],
+  findings: [],
+  proposedRules: [],
+  driftEvents: [],
+};
 const firm = (firmId: string, hoursBefore?: number) => ({
   firmId,
   firmName: `Firm ${firmId}`,
@@ -116,6 +123,7 @@ describe("buildActivity", () => {
   it("orders newest first with stable ties", () => {
     const same = at(1);
     const input: ActivityInput = {
+      rubric: ADVISORY,
       firms: [firm("b", 1), firm("a", 1)],
       findings: [
         finding({ firmId: "b", retrievedAt: same }),
