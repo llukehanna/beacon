@@ -120,3 +120,34 @@ describe("reading firms", () => {
     expect((await getObject(db, "Firm", "f1"))?.traits).toEqual({});
   });
 });
+
+describe("locking a firm", () => {
+  /** A Queryable over `db` that keeps every statement it runs. */
+  const recording = (db: Db) => {
+    const sql: string[] = [];
+    return {
+      sql,
+      q: {
+        query: <T>(text: string, params?: unknown[]) => {
+          sql.push(text);
+          return db.query<T>(text, params);
+        },
+      },
+    };
+  };
+
+  it("takes the lock before reading traits, so a waiter reads the traits the lock holder committed", async () => {
+    // Under READ COMMITTED a statement that waited for a row lock re-reads only the locked row; a
+    // subquery in the same statement keeps the snapshot from before the wait. The traits must come
+    // from a statement run after the lock is held.
+    const db = await bareFirm();
+    await appendTraitValues(db, "f1", { employees: 30 }, { setBy: "seed", setAt: AT });
+    const { sql, q } = recording(db);
+    const firm = await getObject(q, "Firm", "f1", { forUpdate: true });
+    expect(firm?.traits).toEqual({ employees: 30 });
+    const lock = sql.findIndex((s) => /FOR UPDATE/.test(s));
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(sql[lock]).not.toMatch(/firm_trait_current/);
+    expect(sql.findIndex((s, i) => i > lock && /firm_trait_current/.test(s))).toBeGreaterThan(lock);
+  });
+});

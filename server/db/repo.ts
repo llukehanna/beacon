@@ -165,9 +165,13 @@ export async function getObject<N extends ObjectTypeName>(
   opts: { forUpdate?: boolean } = {},
 ): Promise<ObjectOf<N> | null> {
   const def = OBJECT_TYPES[type];
-  const lock = opts.forUpdate ? " FOR UPDATE" : "";
+  if (opts.forUpdate) {
+    // Lock first, then read in a new statement. A statement that waited for the lock re-reads only
+    // the locked row; a subquery in it (a firm's traits) would keep the snapshot from before the wait.
+    await q.query(`SELECT 1 FROM ${def.table} WHERE ${col(def.primaryKey)} = $1 FOR UPDATE`, [pk]);
+  }
   const rows = await q.query(
-    `SELECT ${selectList(type, def.table)} FROM ${def.table} WHERE ${col(def.primaryKey)} = $1${lock}`,
+    `SELECT ${selectList(type, def.table)} FROM ${def.table} WHERE ${col(def.primaryKey)} = $1`,
     [pk],
   );
   return rows[0] ? toWire(type, rows[0]) : null;

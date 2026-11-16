@@ -386,3 +386,32 @@ describe("applyDueSignals", () => {
     expect((await getObject(db, "MarketSignal", "ghost"))?.appliedAt).toBeDefined();
   });
 });
+
+describe("applyDueSignals locking", () => {
+  it("locks the firms before reading their traits", async () => {
+    // A run that waited for a firm lock must read the traits the lock holder committed: a trait
+    // subquery inside the locking statement would keep the snapshot from before the wait.
+    const db = await createTestDb();
+    const firm = await seedFirm(db, AT_THE_FLOOR);
+    await addSignal(db, { signalId: "s1", firmId: firm.$primaryKey, effectiveDate: hoursAgo(2) });
+    const sql: string[] = [];
+    const recorded: Db = {
+      ...db,
+      transaction: (fn) =>
+        db.transaction((tx) =>
+          fn({
+            ...tx,
+            query: (text, params) => {
+              sql.push(text);
+              return tx.query(text, params);
+            },
+          }),
+        ),
+    };
+    await applyDueSignals(recorded, NOW);
+    const lock = sql.findIndex((s) => /FROM firm\b/.test(s) && /FOR UPDATE/.test(s));
+    expect(lock).toBeGreaterThanOrEqual(0);
+    expect(sql[lock]).not.toMatch(/firm_trait_current/);
+    expect(sql.findIndex((s, i) => i > lock && /firm_trait_current/.test(s))).toBeGreaterThan(lock);
+  });
+});
