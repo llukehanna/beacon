@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import type { ActionName, ObjectOf, Props } from "../shared/schema.js";
-import { ADVISORY_ACQUISITIONS } from "../shared/workspaces/advisoryAcquisitions.js";
 import { NO_WALL } from "./access.js";
 import { type ApplyOptions, applyAction } from "./actions/apply.js";
 import type { ActionResult } from "./actions/types.js";
@@ -8,7 +7,6 @@ import { WRITABLE_TABLES, typesForTable } from "./actions/writes.js";
 import { type Db, createPgliteDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
 import { getObject, insertObject } from "./db/repo.js";
-import { seedWorkspace } from "./rubric/seedWorkspace.js";
 
 /** Fixed clock for action tests. */
 export const T0 = new Date("2026-09-01T12:00:00.000Z");
@@ -30,8 +28,7 @@ export const STRONG_CF: Props<"Firm"> = {
 /** Fresh in-memory Postgres with the full schema. One per test. */
 export async function createTestDb(): Promise<Db> {
   const db = await createPgliteDb();
-  await migrate(db);
-  await seedWorkspace(db, ADVISORY_ACQUISITIONS, "2026-09-01T00:00:00.000Z");
+  await migrate(db); // migration 0004 writes the catalog and the active rubric
   return db;
 }
 

@@ -1,3 +1,5 @@
+import { TraitValueError, checkTraitValue } from "../../shared/rubric/traitValue.js";
+import type { TraitValue } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
 import { axisPoints, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
 import {
@@ -10,10 +12,12 @@ import {
   normalizeLifecycle,
 } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
+import { traitColumn } from "../db/traits.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
 import { planFirmAxes } from "../extraction/plan.js";
+import { loadTraits } from "../rubric/load.js";
 import { type FirmObj, iso, logDecision, requireObject, snapshotScore } from "./common.js";
 import { computeDriftForFirm } from "./drift.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -219,11 +223,53 @@ function parseKeyList(raw: string | undefined): Set<string> {
   );
 }
 
+/** Parse and check enrichFirm's `traitValues` against the stored catalog. */
+async function traitValuesParam(
+  ctx: ActionContext,
+  raw: string | undefined,
+): Promise<Record<string, TraitValue | null>> {
+  if (raw === undefined) {
+    return {};
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new ActionError("traitValues must be a JSON object of trait key to value");
+  }
+  const catalog = new Map((await loadTraits(ctx.tx)).map((t) => [t.traitKey, t]));
+  const out: Record<string, TraitValue | null> = {};
+  for (const [key, v] of Object.entries(parsed)) {
+    const trait = catalog.get(key);
+    if (!trait || traitColumn(key) === undefined) {
+      throw new ActionError(`Unknown trait "${key}"`);
+    }
+    try {
+      out[key] = checkTraitValue(trait, v);
+    } catch (e) {
+      throw new ActionError(e instanceof TraitValueError ? e.message : String(e));
+    }
+  }
+  return out;
+}
+
 export const enrichFirm = defineAction("enrichFirm", {
   async run(ctx, p) {
     const { firm } = p;
-    const values: Record<string, unknown> = p;
+    const values: Record<string, unknown> = { ...p };
     const patch: Record<string, unknown> = {};
+    // Values keyed by trait: evidence axes join the per-axis path below, the rest land directly.
+    for (const [key, v] of Object.entries(await traitValuesParam(ctx, p.traitValues))) {
+      const axis = ENRICH_AXES.find((a) => a.axis === key);
+      if (axis) {
+        values[axis.actionParam] = v;
+      } else {
+        patch[traitColumn(key)!] = v;
+      }
+    }
     const written: AxisDef[] = [];
     for (const axis of ENRICH_AXES) {
       const v = values[axis.actionParam];
@@ -258,7 +304,9 @@ export const enrichFirm = defineAction("enrichFirm", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
-    for (const axis of written.filter((a) => manual.has(a.actionParam))) {
+    for (const axis of written.filter(
+      (a) => (manual.has(a.actionParam) || manual.has(a.axis)) && values[a.actionParam] !== null,
+    )) {
       const value = formatAxisValue(values[axis.actionParam] as string | number | boolean);
       const backed = existing.some(
         (f) =>

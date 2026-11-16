@@ -7,10 +7,15 @@ import type { ObjectOf, Props } from "../../shared/schema.js";
 import type { Model, Tier } from "../../shared/scoreMirror.js";
 import { firmModel, parseAxisValue, scoreFirm } from "../../shared/scoring.js";
 import type { AxisDef, Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import { withTraits } from "../db/traits.js";
 import { truthFor } from "../enrichment/providers.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { planFirm } from "../extraction/plan.js";
+
+/** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
+const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
 
 /** What the agent made of one axis for one firm, beside the truth. */
 export interface SlotResult {
@@ -94,8 +99,8 @@ export function evaluateFirm(
     model,
     extractionModel: extraction.model,
     slots,
-    truthTier: scoreFirm(withValues(firm, truths)).tier,
-    agentTier: scoreFirm(withValues(firm, settled)).tier,
+    truthTier: scoreFirm(RUBRIC, withTraits(withValues(firm, truths))).tier,
+    agentTier: scoreFirm(RUBRIC, withTraits(withValues(firm, settled))).tier,
   };
 }
 

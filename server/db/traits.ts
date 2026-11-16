@@ -14,3 +14,17 @@ export function withTraits<T extends Record<string, unknown>>(
 ): T & { traits: Record<string, TraitValue> } {
   return { ...row, traits: legacyTraits(ADVISORY_ACQUISITIONS, row) };
 }
+
+const COLUMN_OF: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(ADVISORY_ACQUISITIONS.legacyFields).map(([column, key]) => [key, column]),
+);
+
+/** The firm column a trait is stored in today, or undefined for an unknown trait. */
+export function traitColumn(traitKey: string): string | undefined {
+  return COLUMN_OF[traitKey];
+}
+
+/** Every historic field name (camelCase columns, action params) and trait key, as a trait key. */
+export function traitKeyFor(name: string): string | undefined {
+  return ADVISORY_ACQUISITIONS.legacyFieldAliases[name] ?? (COLUMN_OF[name] ? name : undefined);
+}

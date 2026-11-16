@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ADVISORY_ACQUISITIONS, RUBRIC_ID } from "../../shared/workspaces/advisoryAcquisitions.js";
-import type { Db } from "../db/client.js";
+import { type Db, createPgliteDb } from "../db/client.js";
+import { MIGRATIONS, migrate } from "../db/migrate.js";
 import { getObject, listObjects } from "../db/repo.js";
 import { STRONG_CF, createTestDb, seedFirm } from "../testing.js";
 import { loadActiveRubric, loadTraits } from "./load.js";
@@ -57,5 +58,32 @@ describe("a firm's derived traits", () => {
     await expect(listObjects(db, "Firm", { where: { traits: { $eq: "x" } } })).rejects.toThrow(
       /Unknown property "traits"/,
     );
+  });
+});
+
+describe("migration 0004 on a database seeded before it", () => {
+  it("scores at once, and a reset from the older snapshot keeps the catalog and rubric", async () => {
+    const old = await createPgliteDb();
+    await old.exec(
+      `CREATE TABLE schema_migrations (version integer PRIMARY KEY, name text NOT NULL, "appliedAt" timestamptz NOT NULL DEFAULT now())`,
+    );
+    for (const m of MIGRATIONS.filter((x) => x.version < 4)) {
+      await old.exec(m.sql);
+      await old.query(`INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, [
+        m.version,
+        m.name,
+      ]);
+    }
+    // A snapshot saved by the previous build: copies of its tables, none for trait or rubric.
+    await old.exec(`CREATE TABLE snapshot_firm AS TABLE firm`);
+    await migrate(old);
+    expect((await loadActiveRubric(old)).rubricId).toBe(RUBRIC_ID);
+    const [{ n }] = await old.query<{ n: number }>(`SELECT count(*)::int AS n FROM snapshot_trait`);
+    expect(n).toBe(ADVISORY_ACQUISITIONS.traits.length);
+    const [{ r }] = await old.query<{ r: number }>(
+      `SELECT count(*)::int AS r FROM snapshot_rubric WHERE "active"`,
+    );
+    expect(r).toBe(1);
+    await old.close();
   });
 });

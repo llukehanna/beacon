@@ -1,8 +1,10 @@
+import type { ScoreResult } from "../../shared/rubric/types.js";
 import type { ObjectOf, ObjectTypeName, Props } from "../../shared/schema.js";
-import type { MirrorResult } from "../../shared/scoreMirror.js";
-import { RUBRIC_VERSION, THESIS_VERSION, scoreFirm } from "../../shared/scoring.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import { getObject, insertObject } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { ActionError } from "../errors.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import type { ActionContext } from "./types.js";
 
 export type FirmObj = ObjectOf<"Firm">;
@@ -26,8 +28,9 @@ export async function snapshotScore(
   ctx: ActionContext,
   firm: FirmObj,
   computedBy: string,
-): Promise<MirrorResult> {
-  const result = scoreFirm(firm);
+): Promise<ScoreResult> {
+  const { rubricId, definition } = await loadActiveRubric(ctx.tx);
+  const result = scoreFirm(definition, withTraits(firm));
   await insertObject(ctx.tx, "QualificationScore", {
     scoreId: ctx.newId("qs"),
     firmId: firm.$primaryKey,
@@ -38,8 +41,9 @@ export async function snapshotScore(
     tier: result.tier,
     confidence: result.confidence,
     axisScoresJson: JSON.stringify(result.axisScores),
-    thesisVersion: THESIS_VERSION,
-    rubricVersion: RUBRIC_VERSION,
+    // A rubric version carries its theses, so both stamps name it.
+    thesisVersion: rubricId,
+    rubricVersion: rubricId,
     computedBy,
     computedAt: iso(ctx.now),
   });

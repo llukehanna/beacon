@@ -3,7 +3,9 @@ import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
 import { PASSED, firmIdFor, normalizeLifecycle } from "../../shared/vocab.js";
 import { getObject, insertObject, insertObjects, listAll } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { ActionError } from "../errors.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { type FirmObj, iso, requireObject } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
 
@@ -91,6 +93,7 @@ export const runSearch = defineAction("runSearch", {
     }
 
     const excluded = new Set((p.exclusions ?? []).map(norm));
+    const { definition } = await loadActiveRubric(ctx.tx);
     const matches = all
       .filter(
         (f) =>
@@ -99,7 +102,7 @@ export const runSearch = defineAction("runSearch", {
           !excluded.has(norm(f.$primaryKey)) &&
           matchesSelection(f, sel),
       )
-      .map((f) => ({ f, s: scoreFirm(f).weightedTotal }))
+      .map((f) => ({ f, s: scoreFirm(definition, withTraits(f)).weightedTotal }))
       // Ties break by code unit, not localeCompare: the seed's results must not depend on the machine's locale.
       .sort((a, b) => b.s - a.s || byCodeUnit(a.f.firmName ?? "", b.f.firmName ?? ""))
       .map((x) => x.f);
