@@ -54,6 +54,7 @@ const REFERENCES: ReadonlyArray<{ table: string; column: string; parent: string;
   { table: "drift_event", column: "firmId", parent: "firm", key: "firmId" },
   { table: "market_signal", column: "firmId", parent: "firm", key: "firmId" },
   { table: "restricted_firm", column: "firmId", parent: "firm", key: "firmId" },
+  { table: "firm_trait_value", column: "firmId", parent: "firm", key: "firmId" },
   {
     table: "hard_screen_config",
     column: "sourceProposedRuleId",
@@ -162,7 +163,7 @@ describe("database integrity, on a seeded database", () => {
       ).toEqual([]);
     });
 
-    it("are exactly the sixteen listed, each checked at commit", async () => {
+    it("are exactly the seventeen listed, each checked at commit", async () => {
       const fks = await db.query<{
         tbl: string;
         col: string;

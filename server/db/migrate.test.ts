@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { OBJECT_TYPES, type ObjectTypeDef } from "../../shared/schema.js";
 import { resetDemo } from "../seed/reset.js";
+import { resetFromSnapshot } from "../seed/snapshot.js";
 import { type Db, createPgliteDb } from "./client.js";
 import { SQL_TYPE, ddl } from "./ddl.js";
 import { LEGACY_SCHEMA_SQL } from "./legacySchema.fixture.js";
@@ -102,9 +103,10 @@ describe("migrate", () => {
         expect(Object.keys(t.properties), `${t.table}.${name} is a property`).toContain(name);
       }
     }
-    // Beyond the object tables there is only the join table and meta.
+    // Beyond the object tables there is only the current-trait view, the join table and meta.
     const objectTables = new Set<string>(Object.values(OBJECT_TYPES).map((t) => t.table));
     expect([...byTable.keys()].filter((t) => !objectTables.has(t)).sort()).toEqual([
+      "firm_trait_current",
       "meta",
       "search_list_firm",
     ]);
@@ -251,4 +253,135 @@ describe("migrate", () => {
     });
     expect(await migrate(db)).toEqual({ applied: [] });
   }, 300_000);
+});
+
+describe("migration 0005: firm trait values", () => {
+  /** A database with every migration before `version` applied, none after. */
+  async function migratedBefore(version: number): Promise<Db> {
+    const db = await createPgliteDb();
+    await db.exec(
+      `CREATE TABLE schema_migrations (version integer PRIMARY KEY, name text NOT NULL, "appliedAt" timestamptz NOT NULL DEFAULT now())`,
+    );
+    for (const m of MIGRATIONS.filter((x) => x.version < version)) {
+      await db.exec(m.sql);
+      await db.query(`INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, [
+        m.version,
+        m.name,
+      ]);
+    }
+    return db;
+  }
+
+  /** Each firm's current traits as one map per firm, read from `table` (latest revision wins). */
+  const currentTraits = async (db: Db, table = "firm_trait_value") =>
+    Object.fromEntries(
+      (
+        await db.query<{ firmId: string; traits: Record<string, unknown> }>(
+          `SELECT "firmId", jsonb_object_agg("traitKey",
+                    coalesce(to_jsonb("valueString"), to_jsonb("valueNumber"), to_jsonb("valueBoolean"))) AS traits
+             FROM (SELECT DISTINCT ON ("firmId", "traitKey") * FROM ${table}
+                    ORDER BY "firmId", "traitKey", "revision" DESC) v
+            GROUP BY "firmId"`,
+        )
+      ).map((r) => [r.firmId, r.traits]),
+    );
+
+  const FULL = {
+    firmId: "full",
+    firmType: "CS",
+    servicesFit: "Full private-capital suite",
+    mdPedigree: "Senior credit / capital-markets pedigree",
+    balanceSheetPrincipal: "Advisory only",
+    dealSizeMUsd: 120.5,
+    dealsPerMdL3y: 2.5,
+    firmAge: 14,
+    feeGeneratingCount: 4,
+    advisoryConflict: false,
+    hasSTOrBalanceSheet: false,
+    webActivity: true,
+    solvent: true,
+    coverageModel: "Multi-sector",
+    geoScore: 2,
+    employees: 30,
+    revenueBand: "$10–25M",
+    ownership: "Partnership",
+    successionRisk: "Low",
+    enrichedAt: "2026-09-01T00:00:00Z",
+  };
+  const FULL_TRAITS = {
+    services_fit: "Full private-capital suite",
+    md_pedigree: "Senior credit / capital-markets pedigree",
+    balance_sheet_principal: "Advisory only",
+    deal_size_usd_m: 120.5,
+    deals_per_md_l3y: 2.5,
+    firm_age: 14,
+    fee_generating_count: 4,
+    advisory_conflict: false,
+    has_st_or_balance_sheet: false,
+    web_activity: true,
+    solvent: true,
+    coverage_model: "Multi-sector",
+    geo_score: 2,
+    employees: 30,
+    revenue_band: "$10–25M",
+    ownership: "Partnership",
+    succession_risk: "Low",
+  };
+
+  async function withFirms(db: Db): Promise<void> {
+    const insert = async (row: Record<string, unknown>) => {
+      const cols = Object.keys(row);
+      await db.query(
+        `INSERT INTO firm (${cols.map((c) => `"${c}"`).join(", ")}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(", ")})`,
+        Object.values(row),
+      );
+    };
+    await insert(FULL);
+    await insert({ firmId: "sparse", firmType: "CF", employees: 12 });
+    await insert({ firmId: "bare" });
+  }
+
+  it("backfills one revision per non-empty legacy column, and the thesis from firmType", async () => {
+    const db = await migratedBefore(5);
+    await withFirms(db);
+    await migrate(db);
+    expect(await currentTraits(db)).toEqual({ full: FULL_TRAITS, sparse: { employees: 12 } });
+    expect(
+      await db.query(
+        `SELECT "traitValueId", "revision", "setBy", "setAt" FROM firm_trait_value
+          WHERE "firmId" = 'full' AND "traitKey" = 'firm_age'`,
+      ),
+    ).toEqual([
+      {
+        traitValueId: "full:firm_age:1",
+        revision: 1,
+        setBy: "migration",
+        setAt: new Date("2026-09-01T00:00:00Z"),
+      },
+    ]);
+    expect(await db.query(`SELECT "firmId", "thesis" FROM firm ORDER BY 1`)).toEqual([
+      { firmId: "bare", thesis: null },
+      { firmId: "full", thesis: "CS" },
+      { firmId: "sparse", thesis: "CF" },
+    ]);
+  });
+
+  it("fills the snapshot too, so a reset before the next reseed keeps every firm's traits", async () => {
+    const db = await migratedBefore(5);
+    await withFirms(db);
+    await db.exec(`CREATE TABLE snapshot_firm AS TABLE firm`);
+    await db.query(
+      `INSERT INTO meta (key, value) VALUES ('snapshotAt', '2026-09-01T12:00:00.000Z')`,
+    );
+    await migrate(db);
+    expect(await currentTraits(db, "snapshot_firm_trait_value")).toEqual({
+      full: FULL_TRAITS,
+      sparse: { employees: 12 },
+    });
+    await resetFromSnapshot(db, new Date("2026-09-02T12:00:00.000Z"));
+    expect(await currentTraits(db)).toEqual({ full: FULL_TRAITS, sparse: { employees: 12 } });
+    expect(await db.query(`SELECT "thesis" FROM firm WHERE "firmId" = 'full'`)).toEqual([
+      { thesis: "CS" },
+    ]);
+  });
 });
