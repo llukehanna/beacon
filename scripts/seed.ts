@@ -19,7 +19,7 @@ const fixtures = fixtureFiles.flatMap((f) => f.records);
 const clustering = loadClusteringFixture();
 // A record made against other document text or another prompt version is ignored by the seed, and
 // the demo then quietly shows rule-based values. Say so, loudly, per model file.
-const universe = new Map(generateUniverse().map((f) => [f.firmId!, f]));
+const universe = new Map(generateUniverse().map((f) => [f.firmId, f]));
 if (fixtureFiles.length === 0) {
   console.log("extraction fixtures: none (every firm is read by the rule-based extractor)");
 }

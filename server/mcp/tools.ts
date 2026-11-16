@@ -73,7 +73,7 @@ const searchFirmsInput = z
     query: text(100).optional().describe("Part of the firm's name (case-insensitive)."),
     sector: text(100).optional().describe("Sector, e.g. Software (case-insensitive, exact)."),
     hqCountry: text(100).optional().describe("Headquarters country (case-insensitive, exact)."),
-    firmType: z
+    thesis: z
       .enum(["CF", "CS"])
       .optional()
       .describe("Scoring model: CF (corporate finance) or CS (capital solutions)."),
@@ -92,7 +92,7 @@ const searchFirmsInput = z
 interface FirmHit {
   firmId: string;
   firmName: string;
-  firmType: string | null;
+  thesis: string | null;
   sector: string | null;
   hqCountry: string | null;
   employees: number | null;
@@ -129,7 +129,7 @@ async function searchFirms(
         (needle !== undefined && !(firm.firmName ?? "").toLowerCase().includes(needle)) ||
         (args.sector !== undefined && !same(firm.sector, args.sector)) ||
         (args.hqCountry !== undefined && !same(firm.hqCountry, args.hqCountry)) ||
-        (args.firmType !== undefined && !same(firm.firmType, args.firmType))
+        (args.thesis !== undefined && !same(firm.thesis, args.thesis))
       ) {
         continue;
       }
@@ -145,7 +145,7 @@ async function searchFirms(
       hits.push({
         firmId: firm.$primaryKey,
         firmName: firm.firmName ?? firm.$primaryKey,
-        firmType: firm.firmType ?? null,
+        thesis: firm.thesis ?? null,
         sector: firm.sector ?? null,
         hqCountry: firm.hqCountry ?? null,
         employees: typeof employees === "number" ? employees : null,

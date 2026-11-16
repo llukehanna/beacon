@@ -290,25 +290,58 @@ describe("enrichFirm", () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, { lifecycleState: "Discovered" });
     await addFinding(db, { findingId: "f1", firmId: firm.$primaryKey, value: "150" });
+    const before = (
+      await db.query(`SELECT * FROM firm WHERE "firmId" = $1`, [firm.$primaryKey])
+    )[0];
     await run(db, "enrichFirm", {
       firm: firm.$primaryKey,
-      dealSizeMUsd: 150,
-      firmAge: 12,
-      hasStOrBalanceSheet: false,
-      fieldsEnteredManually: JSON.stringify(["dealSizeMUsd", "firmAge", "hasStOrBalanceSheet"]),
+      traitValues: JSON.stringify({
+        deal_size_usd_m: 150,
+        firm_age: 12,
+        has_st_or_balance_sheet: false,
+      }),
+      fieldsEnteredManually: JSON.stringify([
+        "deal_size_usd_m",
+        "firm_age",
+        "has_st_or_balance_sheet",
+      ]),
     });
     const after = await getObject(db, "Firm", firm.$primaryKey);
-    expect(after).toMatchObject({
-      dealSizeMUsd: 150,
-      firmAge: 12,
-      hasSTOrBalanceSheet: false,
-      lifecycleState: "Screening",
+    expect(after).toMatchObject({ lifecycleState: "Screening" });
+    expect(after?.traits).toMatchObject({
+      deal_size_usd_m: 150,
+      firm_age: 12,
+      has_st_or_balance_sheet: false,
     });
-    const analyst = (await findingsOf(db, firm.$primaryKey))
-      .filter((f) => f.provider === "analyst")
-      .map((f) => f.axis)
-      .sort();
+    // The values are trait-value rows, each citing the finding behind it; no trait column moved.
+    const stored = (
+      await db.query(`SELECT * FROM firm WHERE "firmId" = $1`, [firm.$primaryKey])
+    )[0];
+    for (const column of ["dealSizeMUsd", "firmAge", "hasSTOrBalanceSheet"]) {
+      expect(stored[column], column).toEqual(before[column]);
+    }
+    const analystFindings = (await findingsOf(db, firm.$primaryKey)).filter(
+      (f) => f.provider === "analyst",
+    );
+    const analyst = analystFindings.map((f) => f.axis).sort();
     expect(analyst).toEqual(["firm_age", "has_st_or_balance_sheet"]); // deal size is already backed by f1
+    const sources = await db.query<{
+      traitKey: string;
+      sourceFindingId: string | null;
+      setBy: string;
+    }>(
+      `SELECT "traitKey", "sourceFindingId", "setBy" FROM firm_trait_current
+        WHERE "firmId" = $1 AND "traitKey" IN ('deal_size_usd_m', 'firm_age') ORDER BY 1`,
+      [firm.$primaryKey],
+    );
+    expect(sources).toEqual([
+      { traitKey: "deal_size_usd_m", sourceFindingId: "f1", setBy: "demo-analyst" },
+      {
+        traitKey: "firm_age",
+        sourceFindingId: analystFindings.find((f) => f.axis === "firm_age")!.$primaryKey,
+        setBy: "demo-analyst",
+      },
+    ]);
     expect(
       await listAll(db, "QualificationScore", { where: { firmId: { $eq: firm.$primaryKey } } }),
     ).toHaveLength(1);
@@ -327,9 +360,7 @@ describe("enrichFirm", () => {
     await run(db, "qualifyFirm", { firm: firm.$primaryKey });
     await run(db, "enrichFirm", {
       firm: firm.$primaryKey,
-      dealSizeMUsd: 10,
-      dealsPerMdL3y: 0.5,
-      firmAge: 2,
+      traitValues: JSON.stringify({ deal_size_usd_m: 10, deals_per_md_l3y: 0.5, firm_age: 2 }),
     });
     const drifts = await listAll(db, "DriftEvent", {
       where: { firmId: { $eq: firm.$primaryKey } },

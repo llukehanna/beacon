@@ -8,14 +8,15 @@ import type { ActionResult } from "./actions/types.js";
 import { WRITABLE_TABLES, typesForTable } from "./actions/writes.js";
 import { type Db, createPgliteDb } from "./db/client.js";
 import { migrate } from "./db/migrate.js";
-import { getObject, insertObject } from "./db/repo.js";
+import { getObject } from "./db/repo.js";
+import { insertFirms } from "./seed/firms.js";
 
 /** Fixed clock for action tests. */
 export const T0 = new Date("2026-09-01T12:00:00.000Z");
 
 /** A CF firm that scores 18/18, tier A, under rubric v2. */
 export const STRONG_CF: Props<"Firm"> = {
-  firmType: "CF",
+  thesis: "CF",
   coverageModel: "Single-sector focus",
   servicesFit: "Full advisory suite",
   mdPedigree: "Bulge-bracket or elite-boutique alumni",
@@ -40,23 +41,63 @@ export async function createTestDb(): Promise<Db> {
   return db;
 }
 
-export async function seedFirm(db: Db, overrides: Props<"Firm"> = {}): Promise<ObjectOf<"Firm">> {
+/** Test firm fields, which may name traits by today's column names (as STRONG_CF does). */
+export type TestFirm = Props<"Firm"> & { traits?: Record<string, unknown> };
+
+/** A test firm as the record to insert and its traits, read from column names and `traits`. */
+function splitTestFirm(fields: TestFirm): { row: Props<"Firm">; traits: Record<string, unknown> } {
+  const row: Record<string, unknown> = {};
+  const traits: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(fields)) {
+    const key = ADVISORY_ACQUISITIONS.legacyFields[name];
+    if (name === "traits") {
+      continue;
+    } else if (key !== undefined) {
+      if (value !== undefined && value !== null) {
+        traits[key] = value;
+      }
+    } else {
+      row[name] = value;
+    }
+  }
+  return { row: row, traits: { ...traits, ...fields.traits } };
+}
+
+/** Insert test firms, their traits stored as trait values. Each must carry its firmId. */
+export async function insertTestFirms(db: Db, firms: readonly TestFirm[]): Promise<void> {
+  await insertFirms(
+    db,
+    firms.map((f) => {
+      const { row, traits } = splitTestFirm(f);
+      return { ...row, firmId: f.firmId!, traits };
+    }),
+    { setBy: "seed", setAt: T0.toISOString() },
+  );
+}
+
+/**
+ * A firm for a test: the record, with its traits stored as trait values. `overrides` may name traits
+ * by today's column names (`employees`, `dealSizeMUsd`, as STRONG_CF does) or pass `traits` by key.
+ */
+export async function seedFirm(db: Db, overrides: TestFirm = {}): Promise<ObjectOf<"Firm">> {
   const firmId = overrides.firmId ?? `firm-${randomUUID().slice(0, 8)}`;
-  await insertObject(db, "Firm", {
-    firmName: "Test Advisors",
-    firmType: "CF",
-    hqCountry: "United States",
-    geography: "US",
-    geographicFootprint: "US",
-    geoScore: 2,
-    sector: "Software",
-    employees: 25,
-    coverageModel: "Single-sector focus",
-    lifecycleState: "Screening",
-    currentStage: "Screening",
-    ...overrides,
-    firmId,
-  });
+  await insertTestFirms(db, [
+    {
+      firmName: "Test Advisors",
+      thesis: "CF",
+      hqCountry: "United States",
+      geography: "US",
+      geographicFootprint: "US",
+      geoScore: 2,
+      sector: "Software",
+      employees: 25,
+      coverageModel: "Single-sector focus",
+      lifecycleState: "Screening",
+      currentStage: "Screening",
+      ...overrides,
+      firmId,
+    },
+  ]);
   return (await getObject(db, "Firm", firmId))!;
 }
 

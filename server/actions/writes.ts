@@ -16,6 +16,8 @@ for (const [name, def] of Object.entries(OBJECT_TYPES)) {
   }
   TYPES_BY_TABLE.set(def.table, [name as ObjectTypeName]);
 }
+// A firm's traits are its trait values: appending one changes the Firm a client displays.
+TYPES_BY_TABLE.set(OBJECT_TYPES.FirmTraitValue.table, ["FirmTraitValue", "Firm"]);
 for (const link of LINKS) {
   TYPES_BY_TABLE.set(link.joinTable, [
     ...new Set([...(TYPES_BY_TABLE.get(link.joinTable) ?? []), link.source]),

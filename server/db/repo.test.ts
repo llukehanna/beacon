@@ -57,11 +57,11 @@ describe("repository", () => {
   });
 
   it("filters with $eq and orders by a property", async () => {
-    await insertObject(db, "Firm", { firmId: "a", firmName: "Zed", firmType: "CF" });
-    await insertObject(db, "Firm", { firmId: "b", firmName: "Amy", firmType: "CF" });
-    await insertObject(db, "Firm", { firmId: "c", firmName: "Cat", firmType: "CS" });
+    await insertObject(db, "Firm", { firmId: "a", firmName: "Zed", thesis: "CF" });
+    await insertObject(db, "Firm", { firmId: "b", firmName: "Amy", thesis: "CF" });
+    await insertObject(db, "Firm", { firmId: "c", firmName: "Cat", thesis: "CS" });
     const { data: rows } = await listObjects(db, "Firm", {
-      where: { firmType: { $eq: "CF" } },
+      where: { thesis: { $eq: "CF" } },
       orderBy: { firmName: "asc" },
     });
     expect(rows.map((r) => r.firmName)).toEqual(["Amy", "Zed"]);
@@ -69,7 +69,7 @@ describe("repository", () => {
 
   it("refuses unsupported filters and unknown sort keys", async () => {
     await expect(
-      listObjects(db, "Firm", { where: { firmType: { $gt: "A" } as never } }),
+      listObjects(db, "Firm", { where: { thesis: { $gt: "A" } as never } }),
     ).rejects.toBeInstanceOf(HttpError);
     await expect(listObjects(db, "Firm", { orderBy: { nope: "asc" } })).rejects.toThrow(
       /Unknown property/,
@@ -87,7 +87,7 @@ describe("repository", () => {
 
   describe("paging", () => {
     const seedFive = async () => {
-      // Out of key order, with two ties on firmType and one null firmName.
+      // Out of key order, with two ties on thesis and one null firmName.
       const rows = [
         ["f1", "Echo", "CF"],
         ["f2", "Bravo", "CS"],
@@ -95,8 +95,8 @@ describe("repository", () => {
         ["f4", "Delta", "CF"],
         ["f5", "Alpha", "CS"],
       ] as const;
-      for (const [firmId, firmName, firmType] of rows) {
-        await insertObject(db, "Firm", { firmId, firmName, firmType });
+      for (const [firmId, firmName, thesis] of rows) {
+        await insertObject(db, "Firm", { firmId, firmName, thesis });
       }
     };
     const pages = async (opts: Parameters<typeof listObjects>[2]) => {
@@ -144,8 +144,8 @@ describe("repository", () => {
       const orders: Record<string, "asc" | "desc">[] = [
         { firmName: "asc" },
         { firmName: "desc" },
-        { firmType: "desc", firmName: "asc" },
-        { firmType: "asc", firmName: "desc" },
+        { thesis: "desc", firmName: "asc" },
+        { thesis: "asc", firmName: "desc" },
       ];
       for (const orderBy of orders) {
         expect((await pages({ orderBy, pageSize: 2 })).flat(), JSON.stringify(orderBy)).toEqual(
@@ -157,7 +157,7 @@ describe("repository", () => {
 
     it("resumes correctly after a page that ends on a null sort key", async () => {
       await seedFive();
-      await insertObject(db, "Firm", { firmId: "f6", firmType: "CF" }); // second null firmName
+      await insertObject(db, "Firm", { firmId: "f6", thesis: "CF" }); // second null firmName
       for (const dir of ["asc", "desc"] as const) {
         const all = (await listObjects(db, "Firm", { orderBy: { firmName: dir } })).data.map(
           (r) => r.$primaryKey,
@@ -189,7 +189,7 @@ describe("repository", () => {
       await seedFive();
       expect(
         await pages({
-          where: { firmType: { $eq: "CF" } },
+          where: { thesis: { $eq: "CF" } },
           orderBy: { firmName: "asc" },
           pageSize: 2,
         }),

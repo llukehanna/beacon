@@ -13,7 +13,7 @@ import { ADVISORY_ACQUISITIONS } from "./workspaces/advisoryAcquisitions.js";
 
 describe("matchesPredicate", () => {
   const firm = {
-    firmType: "CF",
+    thesis: "CF",
     traits: { employees: 6, coverage_model: "Generalist", geo_score: 1 },
   };
 
@@ -38,7 +38,7 @@ describe("matchesPredicate", () => {
 
   it("never screens a firm that is missing the value", () => {
     expect(
-      matchesPredicate({ firmType: "CF" }, { axis: "employees", operator: "<", threshold: "10" }),
+      matchesPredicate({ thesis: "CF" }, { axis: "employees", operator: "<", threshold: "10" }),
     ).toBe(false);
   });
 

@@ -31,7 +31,7 @@ export type FirmLike = Nullable<
     ObjectOf<"Firm">,
     | "firmId"
     | "firmName"
-    | "firmType"
+    | "thesis"
     | "hqCountry"
     | "sector"
     | "lifecycleState"
@@ -100,7 +100,7 @@ export const NO_SOURCE = "no source";
  */
 export const PROFILE_COLUMNS: readonly { key: string; header: string; trait?: true }[] = [
   { key: "stage", header: "Stage" },
-  { key: "firmType", header: "Firm type" },
+  { key: "thesis", header: "Firm type" },
   { key: "hqCountry", header: "HQ country" },
   { key: "sector", header: "Sector" },
   { key: "employees", header: "Employees", trait: true },
@@ -110,7 +110,7 @@ export const PROFILE_COLUMNS: readonly { key: string; header: string; trait?: tr
   { key: "coverage_model", header: "Coverage", trait: true },
 ];
 
-const FIRM_TEXT_KEYS = ["firmType", "hqCountry", "sector"] as const;
+const FIRM_TEXT_KEYS = ["thesis", "hqCountry", "sector"] as const;
 
 function text(v: string | null | undefined): string | null {
   const s = (v ?? "").trim();

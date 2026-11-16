@@ -236,8 +236,8 @@ describe("groundExtraction", () => {
   });
 
   it("rejects a label from the other firm model's list", () => {
-    const cs = firms.find((f) => f.firmType === "CS");
-    const cf = firms.find((f) => f.firmType !== "CS");
+    const cs = firms.find((f) => f.thesis === "CS");
+    const cf = firms.find((f) => f.thesis !== "CS");
     expect(cs && cf).toBeTruthy();
     const check = (firm: (typeof firms)[number], label: string) => {
       const docs = firmDocuments(firm);

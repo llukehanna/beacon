@@ -170,7 +170,8 @@ describe("firm accessors", () => {
 
   it("reads thesis, falling back to the legacy firmType column", () => {
     expect(thesisOf({ thesis: "CS", firmType: "CF" })).toBe("CS");
-    expect(thesisOf({ firmType: "CF" })).toBe("CF");
+    expect(thesisOf({ firmType: "CS" })).toBe("CS");
+    expect(thesisOf({ thesis: "CF" })).toBe("CF");
     expect(thesisOf({})).toBeNull();
   });
 });

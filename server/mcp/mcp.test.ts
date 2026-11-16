@@ -523,7 +523,7 @@ describe("get_firm_evidence", () => {
   });
 
   it("returns a deal size as the bare number, not the $m the screen shows", () => {
-    const [firm] = [{ $primaryKey: "f1", firmName: "Harbour", firmType: "CF" }];
+    const [firm] = [{ $primaryKey: "f1", firmName: "Harbour", thesis: "CF" }];
     const evidence = firmEvidence(TEST_RUBRIC, firm as never, [
       {
         findingId: "r1",

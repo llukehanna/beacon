@@ -11,8 +11,8 @@ import type { RubricContext, ScoreResult, TraitValue, Traits } from "./rubric/ty
 export interface FirmView {
   firmId?: string;
   firmName?: string | null;
-  /** The thesis the firm is scored under (today's column is firmType). */
-  firmType?: string | null;
+  /** The thesis the firm is scored under (today's column is thesis). */
+  thesis?: string | null;
   /** Every catalog trait the firm has a value for, by trait key. */
   traits?: Record<string, TraitValue>;
   geographicFootprint?: string | null;

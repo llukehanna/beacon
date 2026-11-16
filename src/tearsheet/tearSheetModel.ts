@@ -297,9 +297,9 @@ export function buildTearSheet({
     researched: agentHasRun(findings),
     hasQuotes: [...evidence, ...conflicts.flatMap((c) => c.sides)].some((c) => c.quote !== null),
     facts: [
-      ...(nonEmpty(firm.firmType) === null
+      ...(nonEmpty(firm.thesis) === null
         ? []
-        : [{ label: "Firm type", value: firm.firmType as string }]),
+        : [{ label: "Firm type", value: firm.thesis as string }]),
       ...(nonEmpty(firm.sector) === null
         ? []
         : [{ label: "Sector", value: firm.sector as string }]),

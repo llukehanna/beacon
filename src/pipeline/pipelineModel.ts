@@ -28,7 +28,7 @@ import { relativeAge, toIsoTime } from "../home/age";
 export interface FirmView {
   firmId?: string;
   firmName?: string | null;
-  firmType?: string | null;
+  thesis?: string | null;
   sector?: string | null;
   hqCountry?: string | null;
   lifecycleState?: string | null;

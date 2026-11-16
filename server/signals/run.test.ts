@@ -80,7 +80,16 @@ describe("applyDueSignals", () => {
 
     const { drifts } = await applyDueSignals(db, NOW);
 
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.feeGeneratingCount).toBe(3);
+    const moved = await getObject(db, "Firm", firm.$primaryKey);
+    expect(moved?.traits?.fee_generating_count).toBe(3);
+    expect(moved?.feeGeneratingCount).toBeUndefined(); // stored as a trait value, not in the column
+    expect(
+      await db.query(
+        `SELECT "setBy", "sourceFindingId" IS NOT NULL AS cited FROM firm_trait_current
+          WHERE "firmId" = $1 AND "traitKey" = 'fee_generating_count'`,
+        [firm.$primaryKey],
+      ),
+    ).toEqual([{ setBy: "market-signal", cited: true }]);
     const findings = await listAll(db, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
@@ -129,7 +138,16 @@ describe("applyDueSignals", () => {
     const { drifts } = await applyDueSignals(db, NOW);
     expect(drifts).toEqual([]);
     expect(await listAll(db, "DriftEvent")).toHaveLength(0);
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.feeGeneratingCount).toBe(3);
+    const moved = await getObject(db, "Firm", firm.$primaryKey);
+    expect(moved?.traits?.fee_generating_count).toBe(3);
+    expect(moved?.feeGeneratingCount).toBeUndefined(); // stored as a trait value, not in the column
+    expect(
+      await db.query(
+        `SELECT "setBy", "sourceFindingId" IS NOT NULL AS cited FROM firm_trait_current
+          WHERE "firmId" = $1 AND "traitKey" = 'fee_generating_count'`,
+        [firm.$primaryKey],
+      ),
+    ).toEqual([{ setBy: "market-signal", cited: true }]);
   });
 
   it("an acquisition signal resurfaces a passed firm in Review", async () => {
@@ -245,7 +263,7 @@ describe("applyDueSignals", () => {
       effect: "unchanged",
     });
     expect(byId.get("moved")?.effect).toBe("moved");
-    expect((await getObject(db, "Firm", noFee))?.feeGeneratingCount).toBeUndefined();
+    expect((await getObject(db, "Firm", noFee))?.traits?.fee_generating_count).toBeUndefined();
     const findings = await listAll(db, "ResearchFinding");
     expect(findings).toHaveLength(1);
     expect(findings[0].firmId).toBe(withFee);
@@ -273,7 +291,7 @@ describe("applyDueSignals", () => {
     const { applied, drifts } = await applyDueSignals(db, NOW);
     expect(applied).toEqual(["s1"]);
     expect(drifts).toEqual([]);
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.feeGeneratingCount).toBe(4);
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.traits?.fee_generating_count).toBe(4);
     expect(await listAll(db, "DriftEvent")).toHaveLength(0);
     expect((await getObject(db, "MarketSignal", "s1"))?.effect).toBe("unchanged");
     expect(
@@ -319,11 +337,13 @@ describe("applyDueSignals", () => {
     expect(first.applied).toEqual(
       Array.from({ length: MAX_SIGNALS_PER_RUN }, (_, i) => `s${String(i).padStart(2, "0")}`),
     );
-    const changed = (await listAll(db, "Firm")).filter((f) => f.feeGeneratingCount === 3);
+    const changed = (await listAll(db, "Firm")).filter((f) => f.traits?.fee_generating_count === 3);
     expect(changed.map((f) => f.$primaryKey).sort()).toEqual(
       first.applied.map((id) => `bulk-${id.slice(1)}`),
     );
-    expect((await getObject(db, "Firm", bystander.$primaryKey))?.feeGeneratingCount).toBe(4);
+    expect((await getObject(db, "Firm", bystander.$primaryKey))?.traits?.fee_generating_count).toBe(
+      4,
+    );
     expect(await listAll(db, "ResearchFinding")).toHaveLength(MAX_SIGNALS_PER_RUN);
 
     expect((await applyDueSignals(db, NOW)).applied).toHaveLength(MAX_SIGNALS_PER_RUN);
@@ -352,7 +372,7 @@ describe("applyDueSignals", () => {
     expect(signals.map((s) => s.appliedAt)).toEqual(signals.map((s) => s.effectiveDate));
     const findings = await listAll(db, "ResearchFinding", { orderBy: { retrievedAt: "asc" } });
     expect(findings.map((f) => f.retrievedAt)).toEqual([hoursAgo(30), hoursAgo(20)]);
-    expect((await getObject(db, "Firm", firm.$primaryKey))?.feeGeneratingCount).toBe(5);
+    expect((await getObject(db, "Firm", firm.$primaryKey))?.traits?.fee_generating_count).toBe(5);
   });
 
   it("marks a signal for a missing firm applied and writes nothing for it", async () => {

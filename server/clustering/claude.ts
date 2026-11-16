@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { predicateAxes } from "../../shared/predicate.js";
+import { thesisOf, traitsOf } from "../../shared/rubric/firm.js";
 import type { RubricContext } from "../../shared/rubric/types.js";
 import { OPERATORS } from "../../shared/vocab.js";
 import { costFromUsage, hasPrice } from "../extraction/pricing.js";
@@ -71,29 +72,27 @@ const ProposalsSchema = z.object({
   ),
 });
 
-const FACTS = [
-  "firmType",
-  "employees",
-  "dealSizeMUsd",
-  "dealsPerMdL3y",
-  "firmAge",
-  "feeGeneratingCount",
-  "geoScore",
-  "coverageModel",
-] as const;
-
-/** One JSON object per line: decision id, rationale, and the facts a predicate can use. */
-export function renderRejections(rows: readonly RejectionRow[]): string {
-  const lines = rows.map((r) =>
-    JSON.stringify({
+/**
+ * One JSON object per line: decision id, rationale, and the facts a predicate can use (the firm's
+ * thesis and its values on the rubric's predicate axes, keyed by axis).
+ */
+export function renderRejections(rows: readonly RejectionRow[], rubric: RubricContext): string {
+  const axes = predicateAxes(rubric.traits);
+  const lines = rows.map((r) => {
+    const traits = traitsOf(r.firm);
+    const thesis = thesisOf(r.firm);
+    return JSON.stringify({
       decisionId: r.decisionId,
       rationale: r.rationale,
-      facts: Object.fromEntries(
-        FACTS.filter((k) => r.firm[k] !== undefined).map((k) => [k, r.firm[k]]),
-      ),
-    }),
-  );
-  return `Predicate facts map to axes: employees→employees, dealSizeMUsd→deal_size_usd_m, dealsPerMdL3y→deals_per_md_l3y, firmAge→firm_age, feeGeneratingCount→fee_generating_count, geoScore→geo_score, coverageModel→coverage_model.\n\nRejections:\n${lines.join("\n")}`;
+      facts: {
+        ...(thesis === null ? {} : { thesis }),
+        ...Object.fromEntries(
+          axes.filter((k) => traits[k] !== undefined).map((k) => [k, traits[k]]),
+        ),
+      },
+    });
+  });
+  return `Each fact is keyed by the axis a predicate names.\n\nRejections:\n${lines.join("\n")}`;
 }
 
 interface UsageLike {
@@ -172,7 +171,7 @@ export function createClaudeClusterer(
       thinking: { type: "adaptive" },
       output_config: { format: { type: "json_schema", schema: clusterOutputSchema(rubric) } },
       system: CLUSTER_SYSTEM,
-      messages: [{ role: "user", content: renderRejections(rows) }],
+      messages: [{ role: "user", content: renderRejections(rows, rubric) }],
     });
     const call = modelCallOf(message, new Date());
     if (call !== null && onCall !== undefined) {

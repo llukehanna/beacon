@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createTestDb } from "../testing.js";
 import type { Db } from "./client.js";
-import { insertObject } from "./repo.js";
+import { getObject, insertObject, listObjects } from "./repo.js";
 import { appendTraitValues } from "./traits.js";
 
 const AT = "2026-09-01T12:00:00.000Z";
@@ -89,5 +89,34 @@ describe("appendTraitValues", () => {
     await expect(db.query(`DELETE FROM firm_trait_value`)).rejects.toThrow(
       "firm_trait_value is append-only",
     );
+  });
+});
+
+describe("reading firms", () => {
+  it("takes each firm's traits from its latest trait values, never from the old columns", async () => {
+    const db = await createTestDb();
+    // A stale legacy column must not leak into the traits map.
+    await insertObject(db, "Firm", { firmId: "f1", firmName: "Stale Advisors", employees: 5 });
+    await appendTraitValues(
+      db,
+      "f1",
+      { employees: 30, solvent: true },
+      { setBy: "seed", setAt: AT },
+    );
+    await appendTraitValues(db, "f1", { employees: 31 }, { setBy: "analyst", setAt: AT });
+    await insertObject(db, "Firm", { firmId: "f2", firmName: "Empty Advisors" });
+    expect((await getObject(db, "Firm", "f1"))?.traits).toEqual({ employees: 31, solvent: true });
+    const page = await listObjects(db, "Firm", { orderBy: { firmName: "asc" } });
+    expect(page.data.map((f) => [f.$primaryKey, f.traits])).toEqual([
+      ["f2", {}],
+      ["f1", { employees: 31, solvent: true }],
+    ]);
+  });
+
+  it("drops a trait whose latest value cleared it", async () => {
+    const db = await bareFirm();
+    await appendTraitValues(db, "f1", { employees: 30 }, { setBy: "seed", setAt: AT });
+    await appendTraitValues(db, "f1", { employees: null }, { setBy: "analyst", setAt: AT });
+    expect((await getObject(db, "Firm", "f1"))?.traits).toEqual({});
   });
 });

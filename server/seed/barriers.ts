@@ -55,7 +55,8 @@ function barrierIds(): (prefix: string) => string {
 /** Firms nothing else in the seed touched: still Discovered, never enriched, searched, listed in a mandate's universe, decided or signalled. */
 async function untouchedFirms(db: Db): Promise<string[]> {
   const rows = await db.query<{ firmId: string; employees: number | null }>(
-    `SELECT f."firmId", f."employees" FROM firm f
+    `SELECT f."firmId", c."valueNumber" AS employees FROM firm f
+       LEFT JOIN firm_trait_current c ON c."firmId" = f."firmId" AND c."traitKey" = 'employees'
       WHERE f."lifecycleState" = 'Discovered' AND f."enrichedBy" IS NULL
         AND f."discoveredViaSearchId" IS NULL
         AND NOT EXISTS (SELECT 1 FROM search_membership m WHERE m."firmId" = f."firmId")

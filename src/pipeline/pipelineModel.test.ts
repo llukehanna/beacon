@@ -22,7 +22,7 @@ const HOUR = 3_600_000;
 
 /** A firm; legacy column names in `over` (employees, ownership) become its traits. */
 function firm(id: string, over: Record<string, unknown> = {}): FirmView {
-  return withTraits({ firmId: id, firmName: `Firm ${id}`, firmType: "CF", ...over });
+  return withTraits({ firmId: id, firmName: `Firm ${id}`, thesis: "CF", ...over });
 }
 
 const rows = (firms: FirmView[], query = "") =>

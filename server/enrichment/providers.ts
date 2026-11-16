@@ -28,7 +28,7 @@ export interface Observation {
 export interface FirmRef {
   firmId?: string | null;
   firmName?: string | null;
-  firmType?: string | null;
+  thesis?: string | null;
   $primaryKey?: string;
 }
 

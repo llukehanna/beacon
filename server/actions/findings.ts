@@ -8,10 +8,10 @@ import {
   parseTraitValue,
 } from "../../shared/rubric/traitValue.js";
 import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
-import { OBJECT_TYPES, type Props } from "../../shared/schema.js";
+import type { Props } from "../../shared/schema.js";
 import { ANALYST, DECISION, type Provider, normalizeLifecycle } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
-import { traitColumn, traitKeyFor } from "../db/traits.js";
+import { appendTraitValues, isWholeNumberTrait } from "../db/traits.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
@@ -259,7 +259,7 @@ async function traitValuesParam(
   const out: Record<string, TraitValue | null> = {};
   for (const [key, v] of Object.entries(parsed)) {
     const trait = catalog.get(key);
-    if (!trait || traitColumn(key) === undefined) {
+    if (!trait) {
       throw new ActionError(`Unknown trait "${key}"`);
     }
     let value: TraitValue | null;
@@ -279,12 +279,7 @@ async function traitValuesParam(
  * case-insensitively, then stored as the catalog spells it).
  */
 function storable(trait: TraitDef, value: TraitValue): TraitValue {
-  const column = traitColumn(trait.traitKey) as keyof (typeof OBJECT_TYPES)["Firm"]["properties"];
-  if (
-    typeof value === "number" &&
-    OBJECT_TYPES.Firm.properties[column] === "integer" &&
-    !Number.isInteger(value)
-  ) {
+  if (typeof value === "number" && isWholeNumberTrait(trait.traitKey) && !Number.isInteger(value)) {
     throw new ActionError(`${trait.traitKey} must be a whole number, got ${value}`);
   }
   if (trait.kind === "category" && typeof value === "string" && trait.options !== null) {
@@ -301,67 +296,62 @@ function storable(trait: TraitDef, value: TraitValue): TraitValue {
 export const enrichFirm = defineAction("enrichFirm", {
   async run(ctx, p) {
     const { firm } = p;
-    // Every value as trait key → value: the legacy per-field params, then traitValues.
-    const incoming: Record<string, TraitValue | null> = {};
-    for (const [name, v] of Object.entries(p)) {
-      const key = traitKeyFor(name);
-      if (key !== undefined && v !== undefined) {
-        incoming[key] = v as TraitValue | null;
-      }
-    }
-    Object.assign(incoming, await traitValuesParam(ctx, p.traitValues));
-    const patch: Record<string, unknown> = {};
-    for (const [key, v] of Object.entries(incoming)) {
-      patch[traitColumn(key)!] = v;
+    const incoming = await traitValuesParam(ctx, p.traitValues);
+    if (Object.keys(incoming).length === 0) {
+      throw new ActionError("Nothing to enrich; pass at least one trait value");
     }
     const catalog = await loadTraits(ctx.tx);
     const written = evidenceTraits(catalog).filter((t) => incoming[t.traitKey] !== undefined);
-    if (Object.keys(patch).length === 0) {
-      throw new ActionError("Nothing to enrich; pass at least one field");
-    }
 
+    // Each value cites the finding behind it: an open or verified finding with the same value, or
+    // the analyst finding recorded for a manual value nothing backs.
+    const manual = parseKeyList(p.fieldsEnteredManually);
+    const existing = await listAll(ctx.tx, "ResearchFinding", {
+      where: { firmId: { $eq: firm.$primaryKey } },
+    });
+    const created: string[] = [];
+    const sources: Record<string, string | undefined> = {};
+    for (const axis of written.filter((a) => incoming[a.traitKey] !== null)) {
+      const value = formatTraitValue(incoming[axis.traitKey]!);
+      const backing = existing
+        .filter(
+          (f) =>
+            f.axis === axis.traitKey &&
+            f.value !== undefined &&
+            (f.findingStatus === "proposed" || f.findingStatus === "verified") &&
+            sameValue(axis, f.value, value),
+        )
+        .sort(
+          (a, b) => Number(b.findingStatus === "verified") - Number(a.findingStatus === "verified"),
+        )[0];
+      if (backing) {
+        sources[axis.traitKey] = backing.$primaryKey;
+      } else if (manual.has(axis.traitKey)) {
+        // Analyst evidence only for manual values no existing finding backs; accepted agent
+        // findings are verified separately by the desk's flush.
+        const id = await insertAnalystFinding(
+          ctx,
+          firm,
+          axis,
+          value,
+          "Entered by the analyst on the enrichment desk.",
+        );
+        created.push(id);
+        sources[axis.traitKey] = id;
+      }
+    }
+    await appendTraitValues(ctx.tx, firm.$primaryKey, incoming, {
+      setBy: ctx.user,
+      setAt: iso(ctx.now),
+      sources,
+    });
     await updateObject(ctx.tx, "Firm", firm.$primaryKey, {
-      ...(patch as Props<"Firm">),
       enrichedBy: ctx.user,
       enrichedAt: iso(ctx.now),
       lastReviewed: iso(ctx.now),
       ...moveToScreening(firm),
     });
     const fresh = await requireObject(ctx, "Firm", firm.$primaryKey);
-
-    // Record analyst evidence only for manual values no existing finding backs;
-    // accepted agent findings are verified separately by the desk's flush.
-    // Old clients name fields by column; new ones by trait key.
-    const manual = new Set(
-      [...parseKeyList(p.fieldsEnteredManually)].map((n) => traitKeyFor(n) ?? n),
-    );
-    const existing = await listAll(ctx.tx, "ResearchFinding", {
-      where: { firmId: { $eq: firm.$primaryKey } },
-    });
-    const created: string[] = [];
-    for (const axis of written.filter(
-      (a) => manual.has(a.traitKey) && incoming[a.traitKey] !== null,
-    )) {
-      const value = formatTraitValue(incoming[axis.traitKey]!);
-      const backed = existing.some(
-        (f) =>
-          f.axis === axis.traitKey &&
-          f.value !== undefined &&
-          (f.findingStatus === "proposed" || f.findingStatus === "verified") &&
-          sameValue(axis, f.value, value),
-      );
-      if (!backed) {
-        created.push(
-          await insertAnalystFinding(
-            ctx,
-            fresh,
-            axis,
-            value,
-            "Entered by the analyst on the enrichment desk.",
-          ),
-        );
-      }
-    }
 
     const result = await snapshotScore(ctx, fresh, "enrichFirm");
     created.push(
