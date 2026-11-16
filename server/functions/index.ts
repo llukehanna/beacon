@@ -13,6 +13,7 @@ import { homeSummary } from "./homeSummary.js";
 import { operationsSummary } from "./operationsSummary.js";
 import { shellCounts } from "./shellCounts.js";
 import { sourceDocument } from "./sourceDocument.js";
+import { tourFirm } from "./tourFirm.js";
 
 /** A function runs for one persona: `access` says which firms it must leave out and which mandates it must name by codename. */
 export type QueryFunction = (
@@ -27,6 +28,7 @@ const BY_NAME = {
   sourceDocument: (q, params, access) => sourceDocument(q, params, access),
   firmObservations: (q, params, access) => firmObservations(q, params, access),
   shellCounts: (q, _params, access) => shellCounts(q, access),
+  tourFirm: (q, _params, access) => tourFirm(q, access),
   // Measurements of the app itself (action latency, model spend): no firm appears in them.
   operationsSummary: (q) => operationsSummary(q),
 } satisfies Record<FunctionName, QueryFunction>;
