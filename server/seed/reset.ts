@@ -1,4 +1,5 @@
 import { OBJECT_TYPES, type Props } from "../../shared/schema.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import type { ApplyOptions } from "../actions/apply.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db, Tx } from "../db/client.js";
@@ -6,6 +7,7 @@ import { setMeta } from "../db/meta.js";
 import { migrate } from "../db/migrate.js";
 import { insertObjects } from "../db/repo.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
+import { seedWorkspace } from "../rubric/seedWorkspace.js";
 import { seedBarriers } from "./barriers.js";
 import { seedHistory } from "./history.js";
 import { seedSignals } from "./signals.js";
@@ -65,6 +67,7 @@ export async function resetDemo(
   await db.transaction(async (tx) => {
     // One statement naming every table: a foreign key's target can only be truncated with the tables that point at it.
     await tx.query(`TRUNCATE ${[...OBJECT_TABLES, "search_list_firm"].join(", ")}`);
+    await seedWorkspace(tx, ADVISORY_ACQUISITIONS, historyStart.toISOString());
     await insertObjects(tx, "Firm", universe);
     await insertObjects(tx, "Extraction", [...extractions.values()]);
     await seedHistory(joined(tx, db), historyStart, opts);

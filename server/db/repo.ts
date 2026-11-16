@@ -8,6 +8,7 @@ import {
 } from "../../shared/schema.js";
 import { HttpError } from "../errors.js";
 import type { Queryable } from "./client.js";
+import { withTraits } from "./traits.js";
 
 export interface ListOptions {
   where?: Record<string, { $eq: unknown }>;
@@ -54,7 +55,7 @@ export function toWire<N extends ObjectTypeName>(
   }
   out.$apiName = type;
   out.$primaryKey = String(row[OBJECT_TYPES[type].primaryKey]);
-  return out as ObjectOf<N>;
+  return (type === "Firm" ? withTraits(out) : out) as ObjectOf<N>;
 }
 
 function insertParts<N extends ObjectTypeName>(

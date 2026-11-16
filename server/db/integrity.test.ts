@@ -607,8 +607,11 @@ describe("migration 0003 on a database that already holds rows", () => {
       CREATE TABLE snapshot_research_finding AS TABLE research_finding;
     `);
 
-    await expect(migrate(db)).resolves.toEqual({ applied: [3] });
-    expect(await schemaVersion(db)).toBe(3);
+    // Everything from 0003 on applies; this case is about 0003's repairs.
+    await expect(migrate(db)).resolves.toEqual({
+      applied: MIGRATIONS.filter((m) => m.version >= 3).map((m) => m.version),
+    });
+    expect(await schemaVersion(db)).toBe(MIGRATIONS.at(-1)!.version);
 
     // What is kept.
     expect(await ids(db, "firm", "firmId")).toEqual(["f-via-orphan", "f1", "f2"]);
