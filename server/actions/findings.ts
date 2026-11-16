@@ -8,7 +8,7 @@ import {
   parseTraitValue,
 } from "../../shared/rubric/traitValue.js";
 import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
-import type { Props } from "../../shared/schema.js";
+import { OBJECT_TYPES, type Props } from "../../shared/schema.js";
 import { ANALYST, DECISION, type Provider, normalizeLifecycle } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
 import { traitColumn, traitKeyFor } from "../db/traits.js";
@@ -262,13 +262,40 @@ async function traitValuesParam(
     if (!trait || traitColumn(key) === undefined) {
       throw new ActionError(`Unknown trait "${key}"`);
     }
+    let value: TraitValue | null;
     try {
-      out[key] = checkTraitValue(trait, v);
+      value = checkTraitValue(trait, v);
     } catch (e) {
       throw new ActionError(e instanceof TraitValueError ? e.message : String(e));
     }
+    out[key] = value === null ? null : storable(trait, value);
   }
   return out;
+}
+
+/**
+ * A checked value as its column stores it, refused by trait name when it cannot be: a fraction
+ * for a whole-number trait, or a label outside a category trait's vocabulary (matched trimmed and
+ * case-insensitively, then stored as the catalog spells it).
+ */
+function storable(trait: TraitDef, value: TraitValue): TraitValue {
+  const column = traitColumn(trait.traitKey) as keyof (typeof OBJECT_TYPES)["Firm"]["properties"];
+  if (
+    typeof value === "number" &&
+    OBJECT_TYPES.Firm.properties[column] === "integer" &&
+    !Number.isInteger(value)
+  ) {
+    throw new ActionError(`${trait.traitKey} must be a whole number, got ${value}`);
+  }
+  if (trait.kind === "category" && typeof value === "string" && trait.options !== null) {
+    const want = value.trim().toLowerCase();
+    const label = trait.options.find((o) => o.toLowerCase() === want);
+    if (label === undefined) {
+      throw new ActionError(`${trait.traitKey} must be one of: ${trait.options.join(", ")}`);
+    }
+    return label;
+  }
+  return value;
 }
 
 export const enrichFirm = defineAction("enrichFirm", {

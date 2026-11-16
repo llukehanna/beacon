@@ -361,6 +361,17 @@ describe("enrichFirm", () => {
     ]);
   });
 
+  it("stores a category label as the catalog spells it", async () => {
+    const db = await createTestDb();
+    const firm = await seedFirm(db, STRONG_CF);
+    await run(db, "enrichFirm", {
+      firm: firm.$primaryKey,
+      traitValues: JSON.stringify({ services_fit: "  full ADVISORY suite " }),
+    });
+    const after = await getObject(db, "Firm", firm.$primaryKey);
+    expect(after?.traits?.services_fit).toBe("Full advisory suite");
+  });
+
   it("refuses an unknown trait or a value of the wrong kind, and writes nothing", async () => {
     const db = await createTestDb();
     const firm = await seedFirm(db, STRONG_CF);
@@ -368,6 +379,10 @@ describe("enrichFirm", () => {
       ['{"nope": 1}', /nope/],
       ['{"deal_size_usd_m": "abc"}', /deal_size_usd_m/],
       ['{"advisory_conflict": "yes"}', /advisory_conflict/],
+      // A whole-number trait refuses a fraction by name, before Postgres would.
+      ['{"firm_age": 9.5}', /firm_age must be a whole number/],
+      // A category trait takes only its catalog's labels.
+      ['{"coverage_model": "Generalist focus"}', /coverage_model must be one of/],
       ["[1, 2]", /traitValues/],
     ] as const) {
       await expect(run(db, "enrichFirm", { firm: firm.$primaryKey, traitValues })).rejects.toThrow(
