@@ -9,14 +9,24 @@ export type TraitValue = string | number | boolean;
 export type Traits = Readonly<Record<string, TraitValue>>;
 export type TraitKind = "category" | "number" | "yesno";
 
+/**
+ * - evidence: providers observe it and analysts verify it; the rubric may score it.
+ * - fact: set when the firm is generated or discovered; the rubric may score it.
+ * - profile: describes the firm for reading and filtering; never scored.
+ */
+export type TraitRole = "evidence" | "fact" | "profile";
+
 export interface TraitDef {
   traitKey: string;
   label: string;
   description: string;
   unit: string | null;
   kind: TraitKind;
-  /** Whether the enrichment agent researches it. */
-  enrichable: boolean;
+  role: TraitRole;
+  /** The vocabulary of a category trait (every thesis's scored options are drawn from it). */
+  options: string[] | null;
+  /** For a yes/no trait: which stored value reads as Pass on the desk. */
+  passWhen: boolean | null;
 }
 
 export interface Band {
@@ -104,4 +114,10 @@ export interface ScoreResult {
   action: Action;
   confidence: number;
   axisScores: AxisScore[];
+}
+
+/** What a screen or model needs to score and label firms: the rubric and its trait catalog. */
+export interface RubricContext {
+  definition: RubricDefinition;
+  traits: readonly TraitDef[];
 }
