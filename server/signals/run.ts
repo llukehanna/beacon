@@ -124,9 +124,15 @@ export async function applyDueSignals(
     }
     const signals = rows.map((r) => toWire("MarketSignal", r));
     const firmIds = [...new Set(signals.map((s) => s.firmId))].sort();
+    // Lock the firms, then read them with their traits in a new statement, so a run that waited
+    // for a lock sees the traits the holder committed (a subquery in the locking statement would not).
+    await tx.query(
+      `SELECT 1 FROM ${OBJECT_TYPES.Firm.table} WHERE "firmId" = ANY($1::text[]) ORDER BY "firmId" FOR UPDATE`,
+      [firmIds],
+    );
     const firmRows = await tx.query<Record<string, unknown>>(
       `SELECT f.*, ${traitsSql("f")} FROM ${OBJECT_TYPES.Firm.table} f
-        WHERE f."firmId" = ANY($1::text[]) ORDER BY f."firmId" FOR UPDATE OF f`,
+        WHERE f."firmId" = ANY($1::text[]) ORDER BY f."firmId"`,
       [firmIds],
     );
     const firms = new Map<string, FirmState>(
