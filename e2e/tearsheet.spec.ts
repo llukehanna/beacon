@@ -89,7 +89,7 @@ test("the tear sheet prints from its button and is named after the firm", async 
   const { id, name } = await showcaseFirm(page);
   await page.goto(tearSheetPath(id));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText(name);
-  await expect(page).toHaveTitle(`Beacon — Tear sheet: ${name}`);
+  await expect(page).toHaveTitle(`${name} tear sheet — Beacon`);
 
   await page.evaluate(() => {
     (window as unknown as { printed: number }).printed = 0;
