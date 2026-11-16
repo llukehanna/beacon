@@ -6,6 +6,7 @@ import {
   prevStep,
   resolveAnchor,
   stepFromSearch,
+  stepParams,
   stepSearch,
   withStepParams,
 } from "./tourModel";
@@ -31,25 +32,23 @@ describe("tour steps", () => {
 
 describe("the Desk stops' firm", () => {
   const desk = TOUR_STEPS[1];
+  const FIRM = TOUR_FIRM_ID;
 
-  it("every Desk stop opens the tour firm", () => {
-    for (const step of TOUR_STEPS.filter((s) => s.route === "/desk")) {
-      expect(step.params).toEqual({ firmId: TOUR_FIRM_ID });
+  it("every Desk stop, and only those, opens the tour's firm", () => {
+    for (const step of TOUR_STEPS) {
+      expect(stepParams(step, FIRM)).toEqual(step.route === "/desk" ? { firmId: FIRM } : {});
     }
-    expect(TOUR_STEPS.filter((s) => s.route !== "/desk").every((s) => s.params === undefined)).toBe(
-      true,
-    );
   });
 
   it("arriving from another page carries the step's params and place", () => {
-    expect(arrivalSearch(desk, 1)).toBe(`?firmId=${TOUR_FIRM_ID}&tour=2`);
-    expect(arrivalSearch(TOUR_STEPS[4], 4)).toBe("?tour=5");
+    expect(arrivalSearch(desk, 1, FIRM)).toBe(`?firmId=${FIRM}&tour=2`);
+    expect(arrivalSearch(TOUR_STEPS[4], 4, FIRM)).toBe("?tour=5");
   });
 
   it("fills in a missing param and keeps one already there", () => {
-    expect(withStepParams("?tour=2", desk)).toBe(`?tour=2&firmId=${TOUR_FIRM_ID}`);
-    expect(withStepParams("?tour=2&firmId=other", desk)).toBeNull();
-    expect(withStepParams("?tour=5", TOUR_STEPS[4])).toBeNull();
+    expect(withStepParams("?tour=2", desk, FIRM)).toBe(`?tour=2&firmId=${FIRM}`);
+    expect(withStepParams("?tour=2&firmId=other", desk, FIRM)).toBeNull();
+    expect(withStepParams("?tour=5", TOUR_STEPS[4], FIRM)).toBeNull();
   });
 });
 

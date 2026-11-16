@@ -1,12 +1,13 @@
-import { TOUR_FIRM_ID } from "../../shared/showcaseFirms";
-
 /** One stop on the guided tour: where it happens, what it points at and what it says. */
 export interface TourStep {
   id: string;
   /** The route the stop lives on. */
   route: string;
-  /** Query parameters the stop needs, filled in when the URL lacks them (the Desk's firm). */
-  params?: Readonly<Record<string, string>>;
+  /**
+   * True for the Desk stops: they open on the tour's firm, which the server picks each time
+   * (server/functions/tourFirm.ts) so a firm a visitor has passed or settled is not shown again.
+   */
+  onFirm?: boolean;
   /** The `data-tour` value of the element to highlight; null shows a centred card instead. */
   anchor: string | null;
   /**
@@ -17,9 +18,6 @@ export interface TourStep {
   title: string;
   body: string;
 }
-
-/** The Desk stops open on a firm whose agent run is nearly complete, not on whichever leads the queue. */
-const DESK = { firmId: TOUR_FIRM_ID };
 
 /** The six stops, in order. The tour reads and highlights; it never changes stored data. */
 export const TOUR_STEPS: readonly TourStep[] = [
@@ -33,7 +31,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "conflict",
     route: "/desk",
-    params: DESK,
+    onFirm: true,
     anchor: "conflict-row",
     title: "When two sources disagree",
     body: "Here two sources gave different values for the same axis. Beacon does not average them or quietly pick one. It shows both, and the analyst chooses the one they trust.",
@@ -41,7 +39,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "evidence",
     route: "/desk",
-    params: DESK,
+    onFirm: true,
     anchor: "evidence",
     title: "Every value cites its source",
     body: "Each value points at the sentence it was read from and has to pass grounding checks. Where no source supports an axis, Beacon records an abstention instead of guessing.",
@@ -49,7 +47,7 @@ export const TOUR_STEPS: readonly TourStep[] = [
   {
     id: "pass",
     route: "/desk",
-    params: DESK,
+    onFirm: true,
     anchor: "pass-note",
     reveal: "decision-bar",
     title: "Passing takes a reason",

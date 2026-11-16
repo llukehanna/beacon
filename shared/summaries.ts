@@ -98,6 +98,11 @@ export interface HomeSummary {
 }
 
 /** The three figures the sidebar and status bar show; each equals the Home figure of the same name. */
+/** The firm the guided tour's Desk stops open on (server/functions/tourFirm.ts). */
+export interface TourFirm {
+  firmId: string;
+}
+
 export interface ShellCounts {
   /** Firms the funnel counts as open (Discovered or Screening). */
   open: number;
