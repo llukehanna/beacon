@@ -403,7 +403,7 @@ export default function TearSheetPage(): React.ReactElement {
   const name = sheet?.name;
   React.useEffect(() => {
     if (name !== undefined) {
-      document.title = `Beacon — Tear sheet: ${name}`;
+      document.title = `${name} tear sheet — Beacon`;
     }
   }, [name]);
 

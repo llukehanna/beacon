@@ -1,6 +1,3 @@
-.node-installation/
-
-# Generated from @osdk/create-app CLI
 # Logs
 logs
 *.log
@@ -30,7 +27,6 @@ dist-ssr
 
 .data/
 .env*
-.vercel
 .wrangler
 .dev.vars*
 
@@ -41,3 +37,4 @@ playwright-report/
 
 # Local tool workspace
 .superpowers/
+.playwright-mcp/

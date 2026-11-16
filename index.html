@@ -2,11 +2,52 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/beacon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Beacon</title>
+    <title>Beacon — Acquisition target sourcing</title>
+    <meta
+      name="description"
+      content="An AI-assisted workbench for sourcing acquisition targets. Every value carries its source, and analysts' decisions become the screening rules for the next search. Live demo on synthetic data."
+    />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#07080a" />
+
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="apple-mobile-web-app-title" content="Beacon" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Beacon" />
+    <meta property="og:title" content="Beacon — Acquisition target sourcing" />
+    <meta
+      property="og:description"
+      content="Every value carries its source. Analysts' decisions become the screening rules for the next search. Live demo on synthetic data."
+    />
+    <meta property="og:url" content="https://beacon.lukeghanna.com/" />
+    <meta property="og:image" content="https://beacon.lukeghanna.com/og.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="Beacon: acquisition targets, sourced with evidence you can check. The enrichment desk shows a firm's values by source."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- Paint the app's background before the stylesheet arrives, so a cold load never flashes white. -->
+    <style>
+      html {
+        background: #07080a;
+        color: #ecedef;
+      }
+    </style>
   </head>
   <body>
+    <noscript>
+      <p style="padding: 48px 24px; font: 15px/1.5 system-ui, sans-serif; text-align: center">
+        Beacon needs JavaScript to run. Enable it and reload the page.
+      </p>
+    </noscript>
     <div id="root-container">
       <div id="root"></div>
     </div>
