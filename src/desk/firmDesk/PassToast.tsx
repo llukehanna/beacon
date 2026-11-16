@@ -34,7 +34,9 @@ export function PassToast({
       {firmName !== null && (
         <div className={styles.toast}>
           <span>
-            Passed {firmName}. Its reason joins the <Link to="/rules">rule review</Link>.
+            Passed {firmName}
+            {firmName.endsWith(".") ? "" : "."} Its reason joins the{" "}
+            <Link to="/rules">rule review</Link>.
           </span>
           <button type="button" className={styles.close} onClick={onClose} aria-label="Dismiss">
             ×

@@ -18,8 +18,8 @@ describe("evalsModel", () => {
   });
 
   it("links an example to the Desk on that firm", () => {
-    expect(deskHref("zephyrleasecurities_australia")).toBe(
-      "/desk?firmId=zephyrleasecurities_australia",
+    expect(deskHref("acklandcoverdalepickard_australia")).toBe(
+      "/desk?firmId=acklandcoverdalepickard_australia",
     );
   });
 
@@ -62,9 +62,9 @@ describe("tierFraming", () => {
 
 describe("exampleFirmName", () => {
   it("shows a name, never an id", () => {
-    const names = new Map([["ivesco_unitedstates", "Ives & Co."]]);
-    expect(exampleFirmName("ivesco_unitedstates", names)).toBe("Ives & Co.");
+    const names = new Map([["edgertonco_india", "Edgerton & Co."]]);
+    expect(exampleFirmName("edgertonco_india", names)).toBe("Edgerton & Co.");
     expect(exampleFirmName("unknown_firm", names)).toBe("A firm outside this view");
-    expect(exampleFirmName("ivesco_unitedstates", undefined)).toBe("…");
+    expect(exampleFirmName("edgertonco_india", undefined)).toBe("…");
   });
 });

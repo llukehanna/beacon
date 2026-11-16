@@ -1,14 +1,15 @@
 /**
  * Deterministic mock data providers. Each firm has a hidden "truth" per
  * axis, and each provider observes it with its own coverage and error rate.
- * Everything is a pure function of (provider, firmId, axis), so there is no
- * fixture table and firms discovered later still get data.
+ * Everything is a pure function of (provider, firm, axis), keyed by the firm's
+ * seed key, so there is no fixture table and firms discovered later still get data.
  */
 import { type EvidenceTrait, optionsFor } from "../../shared/rubric/catalog.js";
 import { resolveThesis } from "../../shared/rubric/engine.js";
 import { thesisOf } from "../../shared/rubric/firm.js";
 import { type Provider } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import { seedKeyFor } from "../seed/universe.js";
 import { gaussian, pick, rng } from "./random.js";
 
 export interface Observation {
@@ -32,6 +33,8 @@ export interface FirmRef {
 }
 
 export const idOf = (f: FirmRef): string => f.$primaryKey ?? f.firmId ?? "";
+/** The key the firm's hidden values are drawn from (its id, unless it was renamed; see seedKeyFor). */
+const keyOf = (f: FirmRef): string => seedKeyFor(idOf(f));
 const isCs = (f: FirmRef): boolean => thesisKey(f) === "CS";
 /** The firm's thesis under the workspace these mocks describe. */
 const thesisKey = (f: FirmRef): string =>
@@ -105,7 +108,7 @@ export const PROVIDERS: Readonly<
 
 /** The firm's hidden true value for an axis (what a perfect analyst would find). */
 export function truthFor(firm: FirmRef, axis: EvidenceTrait): string {
-  const r = rng(`truth|${idOf(firm)}|${axis.traitKey}`);
+  const r = rng(`truth|${keyOf(firm)}|${axis.traitKey}`);
   const cs = isCs(firm);
   switch (axis.traitKey) {
     case "services_fit":
@@ -160,7 +163,7 @@ function draw(
   if (!p.axes.includes(axis.traitKey)) {
     return null;
   }
-  const r = rng(`obs|${provider}|${idOf(firm)}|${axis.traitKey}`);
+  const r = rng(`obs|${provider}|${keyOf(firm)}|${axis.traitKey}`);
   if (r() > p.coverage) {
     return null;
   }

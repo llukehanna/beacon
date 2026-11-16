@@ -98,6 +98,11 @@ export interface HomeSummary {
 }
 
 /** The three figures the sidebar and status bar show; each equals the Home figure of the same name. */
+/** The firm the guided tour's Desk stops open on (server/functions/tourFirm.ts). */
+export interface TourFirm {
+  firmId: string;
+}
+
 export interface ShellCounts {
   /** Firms the funnel counts as open (Discovered or Screening). */
   open: number;
@@ -153,10 +158,18 @@ export interface DaySpend {
   costUsd: number;
 }
 
+/** A reset that failed and rolled back: when, and the error it raised. */
+export interface ResetError {
+  at: string;
+  message: string;
+}
+
 /** The Operations tab: action latency and live-model spend since the last reset. */
 export interface OperationsSummary {
   /** The `lastResetAt` the window starts at; null when none was recorded. */
   windowStart: string | null;
+  /** Why the latest reset failed (nightly, idle or the button); null once a reset succeeds. */
+  lastResetError: ResetError | null;
   actions: ActionStat[];
   /** Live Claude calls per UTC day, newest first. */
   spend: DaySpend[];

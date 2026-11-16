@@ -9,4 +9,5 @@ export type FunctionName =
   | "operationsSummary"
   | "shellCounts"
   | "firmObservations"
-  | "sourceDocument";
+  | "sourceDocument"
+  | "tourFirm";

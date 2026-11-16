@@ -427,9 +427,11 @@ test("passing says so, points at the rule review and moves to the next firm", as
   await page.getByRole("textbox", { name: "Decision note" }).fill("Outside the mandate");
   await page.getByRole("button", { name: /^Pass(?!ing)/ }).click();
 
-  const toast = page.getByRole("status").filter({ hasText: `Passed ${name}.` });
-  await expect(region).toContainText(`Passed ${name}. Its reason joins the rule review.`);
-  await expect(toast).toContainText(`Passed ${name}. Its reason joins the rule review.`);
+  // A name that ends in a full stop ("Hale & Co.") gets no second one.
+  const passed = `Passed ${name.endsWith(".") ? name : `${name}.`}`;
+  const toast = page.getByRole("status").filter({ hasText: passed });
+  await expect(region).toContainText(`${passed} Its reason joins the rule review.`);
+  await expect(toast).toContainText(`${passed} Its reason joins the rule review.`);
   await expect(toast.getByRole("link", { name: "rule review" })).toHaveAttribute("href", "/rules");
   // The desk has moved on to the next firm in the queue.
   await expect(page).not.toHaveURL(new RegExp(`firmId=${passedId}(&|$)`));

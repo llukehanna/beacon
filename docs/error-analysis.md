@@ -6,14 +6,14 @@ Every number here is read from [evals.json](evals.json), which `npm run eval` re
 
 ## The taxonomy
 
-The agent enriches 7,079 firm axes (700 firms, each axis its model scores). 4,505 of them (63.6%) end with the true value settled. Each of the other 2,574 is in exactly one of four kinds, by what the agent recorded.
+The agent enriches 7,079 firm axes (700 firms, each axis its model scores). 4,534 of them (64.0%) end with the true value settled. Each of the other 2,545 is in exactly one of four kinds, by what the agent recorded.
 
 | Kind | Axes | Share of axes | What happened |
 | --- | --- | --- | --- |
-| A wrong value was settled (`wrong-source-wins`) | 329 | 4.6% | The agent settled on a value that is not the truth. Reconciliation settles only when the readings it kept agree, so a wrong value reaches the record when one source's error stands alone or every source repeats it. |
-| Sources disagreed (`conflict-surfaced`) | 141 | 2.0% | Two sources gave different values. The agent recorded both positions, ordered by provider trust, and picked no winner. |
+| A wrong value was settled (`wrong-source-wins`) | 327 | 4.6% | The agent settled on a value that is not the truth. Reconciliation settles only when the readings it kept agree, so a wrong value reaches the record when one source's error stands alone or every source repeats it. |
+| Sources disagreed (`conflict-surfaced`) | 82 | 1.2% | Two sources gave different values. The agent recorded both positions, ordered by provider trust, and picked no winner. |
 | No source had it (`abstained-correctly`) | 2,104 | 29.7% | No source's record stated the axis, so the agent recorded no value. |
-| A value was lost (`abstained-wrongly`) | 0 | 0.0% | A record stated the axis but no value survived extraction and grounding. |
+| A value was lost (`abstained-wrongly`) | 32 | 0.5% | A record stated the axis but no value survived extraction and grounding. |
 
 The universe has no time dimension, so there is no "stale value" kind: a source is wrong or right, never out of date.
 
@@ -23,31 +23,37 @@ Each links to the firm on the Desk of the live demo. Examples are the first firm
 
 **A wrong value was settled**
 
-- [`merriweatherfairbairnwinslow_unitedkingdom`, web_activity](https://beacon.lukeghanna.com/desk?firmId=merriweatherfairbairnwinslow_unitedkingdom)
-- [`zephyrleasecurities_australia`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=zephyrleasecurities_australia)
-- [`rosalescallowaylindqvistpartners_unitedstates`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=rosalescallowaylindqvistpartners_unitedstates)
+- [`gillardsackville_unitedkingdom`, web_activity](https://beacon.lukeghanna.com/desk?firmId=gillardsackville_unitedkingdom)
+- [`saxenagroup_australia`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=saxenagroup_australia)
+- [`melvillewadsworthadvisors_unitedstates`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=melvillewadsworthadvisors_unitedstates)
 
 **Sources disagreed**
 
-- [`merriweatherfairbairnwinslow_unitedkingdom`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=merriweatherfairbairnwinslow_unitedkingdom)
-- [`penroseeskerabernathy_unitedstates`, fee_generating_count](https://beacon.lukeghanna.com/desk?firmId=penroseeskerabernathy_unitedstates)
-- [`stonewickgroup_japan`, deals_per_md_l3y](https://beacon.lukeghanna.com/desk?firmId=stonewickgroup_japan)
+- [`ulrichsalterpartners_unitedstates`, firm_age](https://beacon.lukeghanna.com/desk?firmId=ulrichsalterpartners_unitedstates)
+- [`dalrymplepartners_japan`, deals_per_md_l3y](https://beacon.lukeghanna.com/desk?firmId=dalrymplepartners_japan)
+- [`sharlandsturgessadvisory_singapore`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=sharlandsturgessadvisory_singapore)
 
 **No source had it**
 
-- [`merriweatherfairbairnwinslow_unitedkingdom`, deals_per_md_l3y](https://beacon.lukeghanna.com/desk?firmId=merriweatherfairbairnwinslow_unitedkingdom)
-- [`kowalskicapitalpartners_unitedkingdom`, deal_size_usd_m](https://beacon.lukeghanna.com/desk?firmId=kowalskicapitalpartners_unitedkingdom)
-- [`eastwickbrandtiverson_unitedstates`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=eastwickbrandtiverson_unitedstates)
+- [`gillardsackville_unitedkingdom`, deals_per_md_l3y](https://beacon.lukeghanna.com/desk?firmId=gillardsackville_unitedkingdom)
+- [`bassettlarkin_unitedkingdom`, deal_size_usd_m](https://beacon.lukeghanna.com/desk?firmId=bassettlarkin_unitedkingdom)
+- [`slatermerchantpartners_unitedstates`, md_pedigree](https://beacon.lukeghanna.com/desk?firmId=slatermerchantpartners_unitedstates)
 
-**A value was lost.** None in the recorded run.
+**A value was lost**
+
+- [`ferrersadvisory_unitedstates`, services_fit](https://beacon.lukeghanna.com/desk?firmId=ferrersadvisory_unitedstates)
+- [`carrowpartners_unitedstates`, has_st_or_balance_sheet](https://beacon.lukeghanna.com/desk?firmId=carrowpartners_unitedstates)
+- [`musgravemeredithsouthallpartnersllc_unitedstates`, firm_age](https://beacon.lukeghanna.com/desk?firmId=musgravemeredithsouthallpartnersllc_unitedstates)
 
 ## What Beacon does about each
 
-**Provider trust order (BeaconDB, Deal DB, Filings, Web search).** It decides which position leads when sources disagree, and which two positions are shown when more than two exist. Of the 141 conflicts, the more trusted source matched the truth in 90.8% (`reconciled.higherTrustRight`). That is a good tiebreak and still wrong in the other 9.2%, which is why the order never settles a conflict on its own. Web search is the weakest source, at 82.3% precision against 98.5% for BeaconDB, and it is last in the order.
+**Provider trust order (BeaconDB, Deal DB, Filings, Web search).** It decides which position leads when sources disagree, and which two positions are shown when more than two exist. Of the 82 conflicts, the more trusted source matched the truth in 86.6% (`reconciled.higherTrustRight`). That is a good tiebreak and still wrong in the other 13.4%, which is why the order never settles a conflict on its own. Web search is the weakest source, at 81.1% precision against 98.5% for BeaconDB, and it is last in the order.
 
-**Abstention.** When no source supplies a value the agent records that, instead of guessing. 2,104 axes (29.7%) ended this way, and 100% of abstentions were justified (`abstention.calibration`): none had a record that stated the value. No value was lost (0 `abstained-wrongly`). The 17 answers the grounding check dropped were all for axes no record stated, so they ended as correct abstentions rather than unsupported values. The harness cannot say how many wrong values a guess would have added, because the agent never guesses.
+**Abstention.** When no source supplies a value the agent records that, instead of guessing. 2,136 axes (30.2%) ended this way (`abstention.rate`): 2,104 where no record stated the axis, and 32 where a record did but no value survived. 98.5% of abstentions were justified (`abstention.calibration`), meaning no provider's record stated the value. The other 1.5% are the 32 lost values, the first failure the old fixtures did not have. The harness cannot say how many wrong values a guess would have added, because the agent never guesses.
 
-**Conflicts surfaced to the analyst.** The 141 conflicts (2.8% of axes that had any reading, `reconciled.conflictRate`) are handed to the analyst with both quotes and sources rather than settled. This is where review time goes: the analyst decides, and the other position is marked rejected. What review cannot yet catch is the first row of the taxonomy. The 329 wrong values settled are 6.8% of settled values (reconciled precision is 93.2%), and each carries its source and quote for the analyst, who is the only check on it. The harness does not break these down by provider or confidence.
+**Why values were lost.** The grounding check requires the value to appear in the quote the model gives for it. The Web search source's `web_activity` answer is a true/false answer about whether the firm is active. In this run the model often quoted a trade-press line, such as a headline saying the firm "advises on the sale of" a company, as proof of activity, instead of a sentence that states the value. The check rejects those quotes, correctly, because the quote does not say the value. The 295 answers the grounding check dropped are almost all this kind: 266 are these `web_activity` answers; the other 29 are scattered across filings and Deal DB axes. The axis then rests on the other sources, and counts as "A value was lost" only when no source's reading survived.
+
+**Conflicts surfaced to the analyst.** The 82 conflicts (1.7% of axes that had any reading, `reconciled.conflictRate`) are handed to the analyst with both quotes and sources rather than settled. This is where review time goes: the analyst decides, and the other position is marked rejected. What review cannot yet catch is the first row of the taxonomy. The 327 wrong values settled are 6.7% of settled values (reconciled precision is 93.3%), and each carries its source and quote for the analyst, who is the only check on it. The harness does not break these down by provider or confidence.
 
 **Approved rules.** Analyst rejections that share a pattern are proposed as screening rules, and an approved rule then screens matching firms out as a hard screen. The harness plants the seed's rejection patterns and checks that the heuristic clusterer finds them: 4 of 4 (`ruleRecovery`). That checks the loop end to end. It does not measure how many bad extractions a rule prevents, so the taxonomy above does not change when a rule is approved.
 

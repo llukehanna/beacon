@@ -1,5 +1,5 @@
 import type { ActionStat } from "../../shared/operations.js";
-import type { DaySpend, OperationsSummary } from "../../shared/summaries.js";
+import type { DaySpend, OperationsSummary, ResetError } from "../../shared/summaries.js";
 import { CLAUDE_DAILY_MAX } from "../clustering/choose.js";
 import type { Queryable } from "../db/client.js";
 import { getMeta } from "../db/meta.js";
@@ -13,8 +13,9 @@ const round = (n: number, places: number): number => Number(n.toFixed(places));
  * the definition `percentiles` in shared/operations.ts states; it exists on PGlite and on Neon.
  */
 export async function operationsSummary(q: Queryable): Promise<OperationsSummary> {
-  const [windowStart, actions, days] = await Promise.all([
+  const [windowStart, resetError, actions, days] = await Promise.all([
     getMeta(q, "lastResetAt"),
+    getMeta(q, "lastResetError"),
     q.query<ActionStat>(
       `SELECT "actionName",
               count(*)::int AS count,
@@ -35,6 +36,7 @@ export async function operationsSummary(q: Queryable): Promise<OperationsSummary
   ]);
   return {
     windowStart,
+    lastResetError: resetError === null ? null : (JSON.parse(resetError) as ResetError),
     actions,
     spend: days.map((d) => ({ ...d, costUsd: round(d.costUsd, 6) })),
     dailyCallCap: CLAUDE_DAILY_MAX,

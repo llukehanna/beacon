@@ -1,8 +1,10 @@
 import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useOsdkQuery } from "@/data/hooks";
 import { EVIDENCE_DRAWER_CLASS } from "@/desk/firmDesk/dialogs";
 import { type Command, useCommands } from "@/shell/commands";
 import { isTypingTarget } from "@/shell/keys";
+import { TOUR_FIRM_ID } from "../../shared/showcaseFirms";
 import { TourCard } from "./TourCard";
 import { TourContext, type TourControls } from "./tourContext";
 import {
@@ -59,6 +61,12 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
   const index = stepFromSearch(search);
   const step = index === null ? null : TOUR_STEPS[index];
   const anchor = useAnchor(step, narrow);
+  const running = index !== null;
+
+  // The Desk stops' firm, asked for while the tour runs. Until it arrives a Desk stop that still
+  // needs it waits; if the question fails, the seeded tour firm stands in.
+  const tourFirm = useOsdkQuery("tourFirm", undefined, { enabled: running });
+  const firmId = tourFirm.data?.firmId ?? (tourFirm.error ? TOUR_FIRM_ID : undefined);
 
   // Where focus was when the tour opened, to give back on close.
   const openerRef = React.useRef<Element | null>(null);
@@ -76,15 +84,25 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
     if (step === null || index === null) {
       return;
     }
-    if (pathname !== step.route) {
-      navigate({ pathname: step.route, search: arrivalSearch(step, index) }, { replace: true });
+    const needsFirm =
+      step.onFirm === true &&
+      (pathname !== step.route || !new URLSearchParams(search).has("firmId"));
+    if (needsFirm && firmId === undefined) {
       return;
     }
-    const filled = withStepParams(search, step);
+    const firm = firmId ?? TOUR_FIRM_ID;
+    if (pathname !== step.route) {
+      navigate(
+        { pathname: step.route, search: arrivalSearch(step, index, firm) },
+        { replace: true },
+      );
+      return;
+    }
+    const filled = withStepParams(search, step, firm);
     if (filled !== null) {
       navigate({ pathname, search: filled }, { replace: true });
     }
-  }, [step, index, pathname, search, navigate]);
+  }, [step, index, pathname, search, navigate, firmId]);
 
   const goTo = React.useCallback(
     (to: number): void => {
@@ -92,10 +110,10 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
       navigate(
         target.route === pathname
           ? { pathname, search: stepSearch(search, to) }
-          : { pathname: target.route, search: arrivalSearch(target, to) },
+          : { pathname: target.route, search: arrivalSearch(target, to, firmId ?? TOUR_FIRM_ID) },
       );
     },
-    [navigate, pathname, search],
+    [navigate, pathname, search, firmId],
   );
 
   const start = React.useCallback((): void => {
@@ -126,7 +144,6 @@ export function TourProvider({ children }: { children: React.ReactNode }): React
   const closeRef = React.useRef(close);
   closeRef.current = close;
 
-  const running = index !== null;
   React.useEffect(() => {
     if (!running) {
       return undefined;
