@@ -10,8 +10,13 @@ export function FitCell({ row }: { row: Row }) {
   if (isOut(row)) {
     const reason = rejectText(mirror, rejectionRationale);
     return (
-      <div className={styles.out} title={`${formatScore(score.total, score.tier)} · ${reason}`}>
-        <span className={styles.score}>{formatScore(score.total, score.tier)}</span>
+      <div
+        className={styles.out}
+        title={`${formatScore(score.total, row.mirror.maxPossible, score.tier)} · ${reason}`}
+      >
+        <span className={styles.score}>
+          {formatScore(score.total, row.mirror.maxPossible, score.tier)}
+        </span>
         <span className={styles.reason}>{reason}</span>
       </div>
     );
@@ -20,11 +25,16 @@ export function FitCell({ row }: { row: Row }) {
   return (
     <div className={styles.fit}>
       <span className={styles.score} style={{ color: tierColor }}>
-        {formatScore(score.total)}
+        {formatScore(score.total, row.mirror.maxPossible)}
       </span>
       <TierTag tier={score.tier} />
       <span className={styles.bar} aria-hidden="true">
-        <span style={{ width: `${scoreFraction(score.total) * 100}%`, background: tierColor }} />
+        <span
+          style={{
+            width: `${scoreFraction(score.total, row.mirror.maxPossible) * 100}%`,
+            background: tierColor,
+          }}
+        />
       </span>
     </div>
   );

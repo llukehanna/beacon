@@ -1,155 +1,66 @@
 // Pure helpers for wiring Findings-panel Accept / Verify buttons into the
 // analyst's edit map. Kept out of the firmDesk components so the conflict-detection logic
 // is unit-testable without a React harness.
+//
+// A finding's axis is a trait key, and so is every edit key: the edit map is applied to
+// enrichFirm as `traitValues`. What a trait's input looks like, how a raw value coerces, and
+// how a value reads all come from the trait catalog.
 import { type FindingLike, isVerifiedFinding, pickAuthoritative } from "./axisState.js";
+import { traitFor } from "./rubric/catalog.js";
+import { traitsOf } from "./rubric/firm.js";
+import { parseTraitValue, showTraitValue } from "./rubric/traitValue.js";
+import type { RubricContext, TraitDef } from "./rubric/types.js";
 
-// Canonical axis vocabulary lives server-side (snake_case English). Older
-// short forms stay as aliases so a mixed backlog still routes cleanly when
-// the analyst clicks Accept. Hard-gate axes route to the WRITE key expected
-// by enrichFirmAction (hasStOrBalanceSheet — action spelling), not the SDK
-// READ key (hasSTOrBalanceSheet) — the edit map is applied to the action.
-export const FINDING_AXIS_TO_KEY: Record<string, string> = {
-  services_fit: "servicesFit",
-  md_pedigree: "mdPedigree",
-  balance_sheet_principal: "balanceSheetPrincipal",
-  deal_size: "dealSizeMUsd",
-  deal_size_usd_m: "dealSizeMUsd",
-  deals_per_md: "dealsPerMdL3y",
-  deals_per_md_l3y: "dealsPerMdL3y",
-  firm_age: "firmAge",
-  firm_age_years: "firmAge",
-  fee_generating_count: "feeGeneratingCount",
-  advisory_conflict: "advisoryConflict",
-  has_st_or_balance_sheet: "hasStOrBalanceSheet",
-  st_or_balance_sheet: "hasStOrBalanceSheet",
-  web_activity: "webActivity",
-  solvent: "solvent",
-};
-
-// Per-hard-gate display polarity — which stored boolean reads as "Pass"
-// (cleared) for the analyst. Two of the four gates invert. Storage stays
-// the same boolean the ontology already speaks; UI copy is uniform Pass /
-// Fail. Single source of truth so a new gate can't ship ambiguous.
-export const HARD_GATE_PASS_WHEN: Record<string, boolean> = {
-  advisoryConflict: false,
-  hasStOrBalanceSheet: false,
-  webActivity: true,
-  solvent: true,
-};
-
-// Edit-map keys whose analyst input is a boolean (hard gates). Derived
-// from HARD_GATE_PASS_WHEN so adding a gate only touches one place.
-export const HARD_GATE_EDIT_KEYS = new Set(Object.keys(HARD_GATE_PASS_WHEN));
-
-// Edit keys that must be numeric when passed into enrichFirmAction. Kept in
-// sync with NUMERIC_KEYS in shared/deskModel.ts (single source of truth would be
-// nicer but would drag more of the desk into this module).
-export const NUMERIC_EDIT_KEYS = new Set([
-  "dealSizeMUsd",
-  "dealsPerMdL3y",
-  "firmAge",
-  "feeGeneratingCount",
-  "employees",
-]);
-
-// Edit keys the rubric treats as enums — the "needs you" input should
-// render a select, not a text box. Options themselves live in shared/deskModel.ts
-// (they depend on CF/CS model context); this set only says "which axes
-// are enum-shaped."
-export const ENUM_EDIT_KEYS = new Set([
-  "servicesFit",
-  "mdPedigree",
-  "balanceSheetPrincipal",
-  "coverageModel",
-]);
-
-// Unit hints for numeric axes — attached to the number input so the
-// analyst isn't guessing whether "150" means dollars, millions, or a count
-// over the last 3 years.
-export const NUMERIC_UNIT: Record<string, string> = {
-  dealSizeMUsd: "$m USD",
-  dealsPerMdL3y: "per MD, last 3 years",
-  firmAge: "yrs",
-  feeGeneratingCount: "MDs",
-  employees: "employees",
-};
+/** The catalog trait a finding axis (or edit key) names; undefined when the catalog has none. */
+export function traitOfAxis(
+  rubric: RubricContext,
+  axisOrKey: string | null | undefined,
+): TraitDef | undefined {
+  return traitFor(rubric.traits, axisOrKey ?? "");
+}
 
 export type AxisInputKind = "boolean" | "number" | "enum" | "text";
 
-// Resolve the input shape for an "axis abstained — needs you" cell. The
-// axis argument accepts either the raw finding vocab (snake_case) or the
-// canonical edit key — findings arrive as raw, but callers already holding
-// an edit key shouldn't have to re-normalize.
-export function axisInputKind(axisOrEditKey: string): AxisInputKind {
-  const editKey = FINDING_AXIS_TO_KEY[(axisOrEditKey ?? "").trim().toLowerCase()] ?? axisOrEditKey;
-  if (HARD_GATE_EDIT_KEYS.has(editKey)) {
-    return "boolean";
-  }
-  if (NUMERIC_EDIT_KEYS.has(editKey)) {
-    return "number";
-  }
-  if (ENUM_EDIT_KEYS.has(editKey)) {
-    return "enum";
-  }
-  return "text";
-}
-
-// Firm READ keys don't always match edit keys — hasStOrBalanceSheet is the
-// action spelling; hasSTOrBalanceSheet is the SDK spelling. Only one axis
-// differs today.
-const EDIT_KEY_TO_READ_KEY: Record<string, string> = {
-  hasStOrBalanceSheet: "hasSTOrBalanceSheet",
+const INPUT_KIND: Record<TraitDef["kind"], AxisInputKind> = {
+  yesno: "boolean",
+  number: "number",
+  category: "enum",
 };
 
-export function readKeyFor(editKey: string): string {
-  return EDIT_KEY_TO_READ_KEY[editKey] ?? editKey;
+// Resolve the input shape for an "axis abstained — needs you" cell.
+export function axisInputKind(rubric: RubricContext, axisOrKey: string): AxisInputKind {
+  const trait = traitOfAxis(rubric, axisOrKey);
+  return trait === undefined ? "text" : INPUT_KIND[trait.kind];
 }
 
-// Coerce a finding's raw string value into the shape enrichFirmAction expects
-// for this axis. Returns undefined when the value can't be routed — the
+// Coerce a finding's raw string value into the shape enrichFirm expects
+// for this trait. Returns undefined when the value can't be routed — the
 // caller must surface that instead of silently no-op'ing.
 export function coerceFindingValue(
-  editKey: string,
+  rubric: RubricContext,
+  traitKey: string,
   raw: string | null | undefined,
 ): string | number | boolean | undefined {
   if (raw === null || raw === undefined) {
     return undefined;
   }
-  const trimmed = raw.trim();
-  if (trimmed === "") {
-    return undefined;
-  }
-  if (HARD_GATE_EDIT_KEYS.has(editKey)) {
-    const s = trimmed.toLowerCase();
-    if (s === "yes" || s === "true" || s === "y" || s === "1") {
-      return true;
-    }
-    if (s === "no" || s === "false" || s === "n" || s === "0") {
-      return false;
-    }
-    return undefined;
-  }
-  if (NUMERIC_EDIT_KEYS.has(editKey)) {
-    const n = Number(trimmed);
-    return Number.isFinite(n) ? n : undefined;
-  }
-  return trimmed;
+  const trait = traitOfAxis(rubric, traitKey);
+  const kind = trait?.kind ?? "category";
+  return parseTraitValue({ kind }, raw) ?? undefined;
 }
 
 // Loose current-value read: prefer the analyst's in-progress edit, else
-// fall back to whatever's persisted on the firm. Returns null/undefined
+// fall back to whatever's on the firm. Returns null/undefined
 // verbatim so the caller can tell "unset" from "explicitly false".
 export function effectiveAxisValue(
   firm: object,
   edits: Record<string, string | number | boolean>,
-  editKey: string,
+  traitKey: string,
 ): string | number | boolean | null | undefined {
-  if (Object.prototype.hasOwnProperty.call(edits, editKey)) {
-    return edits[editKey];
+  if (Object.prototype.hasOwnProperty.call(edits, traitKey)) {
+    return edits[traitKey];
   }
-  // The firm is a wide row; the axis's read key names one of its columns.
-  const v: unknown = Reflect.get(firm, readKeyFor(editKey));
-  return v as string | number | boolean | null | undefined;
+  return traitsOf(firm as Record<string, unknown>)[traitKey];
 }
 
 // Normalized "is there an analyst-provided value here?" check. Empty strings
@@ -191,31 +102,40 @@ export type AcceptDecision =
     }
   | { kind: "unroutable"; reason: "unknown-axis" | "uncoercible-value" };
 
+function routed(
+  rubric: RubricContext,
+  finding: { axis?: string | null; value?: string | null },
+):
+  | { editKey: string; theirs: string | number | boolean }
+  | Extract<AcceptDecision, { kind: "unroutable" }> {
+  const trait = traitOfAxis(rubric, finding.axis);
+  if (trait === undefined) {
+    return { kind: "unroutable", reason: "unknown-axis" };
+  }
+  const theirs = coerceFindingValue(rubric, trait.traitKey, finding.value ?? "");
+  if (theirs === undefined) {
+    return { kind: "unroutable", reason: "uncoercible-value" };
+  }
+  return { editKey: trait.traitKey, theirs };
+}
+
 // Decide what should happen when the analyst clicks Accept on a proposed
 // finding. Never silently no-ops on conflict — the caller must render the
 // Keep-mine / Take-agent's choice when kind === "conflict".
 export function decideAccept(
+  rubric: RubricContext,
   finding: { axis?: string | null; value?: string | null },
   current: string | number | boolean | null | undefined,
 ): AcceptDecision {
-  const rawAxis = (finding.axis ?? "").trim().toLowerCase();
-  const editKey = FINDING_AXIS_TO_KEY[rawAxis];
-  if (editKey === undefined) {
-    return { kind: "unroutable", reason: "unknown-axis" };
+  const r = routed(rubric, finding);
+  if ("kind" in r) {
+    return r;
   }
-  const theirs = coerceFindingValue(editKey, finding.value ?? "");
-  if (theirs === undefined) {
-    return { kind: "unroutable", reason: "uncoercible-value" };
-  }
+  const { editKey, theirs } = r;
   if (!hasValue(current) || valuesMatch(current, theirs)) {
     return { kind: "apply", editKey, value: theirs };
   }
-  return {
-    kind: "conflict",
-    editKey,
-    mine: current as string | number | boolean,
-    theirs,
-  };
+  return { kind: "conflict", editKey, mine: current as string | number | boolean, theirs };
 }
 
 // Verify semantics: "confirm the current value as human-checked (writing
@@ -223,30 +143,11 @@ export function decideAccept(
 // already matches, no-op on the write; if it differs, don't overwrite —
 // surface a conflict so the analyst chooses (same UI as Accept).
 export function decideVerify(
+  rubric: RubricContext,
   finding: { axis?: string | null; value?: string | null },
   current: string | number | boolean | null | undefined,
 ): AcceptDecision {
-  const rawAxis = (finding.axis ?? "").trim().toLowerCase();
-  const editKey = FINDING_AXIS_TO_KEY[rawAxis];
-  if (editKey === undefined) {
-    return { kind: "unroutable", reason: "unknown-axis" };
-  }
-  const theirs = coerceFindingValue(editKey, finding.value ?? "");
-  if (theirs === undefined) {
-    return { kind: "unroutable", reason: "uncoercible-value" };
-  }
-  if (!hasValue(current)) {
-    return { kind: "apply", editKey, value: theirs };
-  }
-  if (valuesMatch(current, theirs)) {
-    return { kind: "apply", editKey, value: theirs };
-  }
-  return {
-    kind: "conflict",
-    editKey,
-    mine: current as string | number | boolean,
-    theirs,
-  };
+  return decideAccept(rubric, finding, current);
 }
 
 // Rebuild the staged-edit baseline from human-verified findings.
@@ -259,15 +160,16 @@ export function decideVerify(
 // enrichment has nothing to send. This derives the edits a fresh session
 // must re-stage: for every axis whose authoritative finding is verified
 // and which currently has no value, stage the finding's value again.
-// Persisted firm fields and in-session analyst edits always win — only
+// Persisted firm values and in-session analyst edits always win — only
 // unset axes are filled — so callers can re-run this until it returns [].
 // Conflict-grouped findings are excluded: staging their values is the
 // resolve flow's job, not the baseline's.
 export function verifiedBaselineEdits(
+  rubric: RubricContext,
   findings: readonly FindingLike[],
   getCurrent: (editKey: string) => string | number | boolean | null | undefined,
 ): Array<{ editKey: string; value: string | number | boolean }> {
-  const byAxis = new Map<string, FindingLike[]>();
+  const byTrait = new Map<string, FindingLike[]>();
   for (const f of findings) {
     if ((f.findingStatus ?? "").toLowerCase() === "superseded") {
       continue;
@@ -276,27 +178,21 @@ export function verifiedBaselineEdits(
     if (gid !== null && gid !== undefined && gid !== "") {
       continue;
     }
-    const axis = (f.axis ?? "").trim().toLowerCase();
-    if (FINDING_AXIS_TO_KEY[axis] === undefined) {
+    const trait = traitOfAxis(rubric, f.axis);
+    if (trait === undefined) {
       continue;
     }
-    const arr = byAxis.get(axis) ?? [];
-    arr.push(f);
-    byAxis.set(axis, arr);
+    byTrait.set(trait.traitKey, [...(byTrait.get(trait.traitKey) ?? []), f]);
   }
 
   const out: Array<{ editKey: string; value: string | number | boolean }> = [];
-  for (const [axis, arr] of byAxis) {
+  for (const [editKey, arr] of byTrait) {
     const auth = pickAuthoritative(arr);
     if (!isVerifiedFinding(auth)) {
       continue;
     }
-    const editKey = FINDING_AXIS_TO_KEY[axis];
-    const value = coerceFindingValue(editKey, auth.value ?? "");
-    if (value === undefined) {
-      continue;
-    }
-    if (hasValue(getCurrent(editKey))) {
+    const value = coerceFindingValue(rubric, editKey, auth.value ?? "");
+    if (value === undefined || hasValue(getCurrent(editKey))) {
       continue;
     }
     out.push({ editKey, value });
@@ -304,18 +200,18 @@ export function verifiedBaselineEdits(
   return out;
 }
 
-// Coerce a raw finding value string through the axis's expected type and
-// render it via formatAxisValue. This is the ONE entry point for showing
-// a finding.value to the analyst — every card that renders one (proposed,
-// history, abstained, conflict pair) should call this so gate findings
-// never leak "true / false" or "yes / no" into the UI. When the axis
-// isn't routable or the value can't be coerced, we fall through to the
-// raw string so malformed backend data still shows *something* to the
-// analyst instead of an empty cell.
+// Coerce a raw finding value string through the trait's type and render it
+// for a person. This is the ONE entry point for showing a finding.value to
+// the analyst — every card that renders one (proposed, history, abstained,
+// conflict pair) calls this so gate findings never leak "true / false" or
+// "yes / no" into the UI. When the axis isn't in the catalog or the value
+// can't be coerced, we fall through to the raw string so malformed data
+// still shows *something* instead of an empty cell.
 //
 // Units are for people reading a screen. The MCP tools and the exports hand the value on to other
 // programs and spreadsheets, so they pass `{ units: false }` and get the bare number back.
 export function displayFindingValue(
+  rubric: RubricContext,
   rawAxis: string | null | undefined,
   rawValue: string | null | undefined,
   options: { units?: boolean } = {},
@@ -324,40 +220,33 @@ export function displayFindingValue(
   if (raw === "") {
     return "—";
   }
-  const axisKey = (rawAxis ?? "").trim().toLowerCase();
-  const editKey = FINDING_AXIS_TO_KEY[axisKey];
-  if (editKey === undefined) {
+  const trait = traitOfAxis(rubric, rawAxis);
+  if (trait === undefined) {
     return raw;
   }
-  const coerced = coerceFindingValue(editKey, raw);
-  if (coerced === undefined) {
-    return raw;
-  }
-  return formatAxisValue(editKey, coerced, options.units ?? true);
+  const coerced = parseTraitValue(trait, raw);
+  return coerced === null
+    ? raw
+    : showTraitValue(trait, coerced, { units: (options.units ?? true) ? "currency" : "none" });
 }
 
-// Human-facing rendering of a hard-gate boolean vs a scored string. Kept
-// symmetric between "mine" and "theirs" in the conflict prompt copy. Hard
-// gates read as Pass / Fail per their polarity — the raw booleans never
-// leak into analyst copy.
+// Human-facing rendering of a value by edit key. Kept symmetric between
+// "mine" and "theirs" in the conflict prompt copy. Hard gates read as
+// Pass / Fail per their polarity — the raw booleans never leak into copy.
 export function formatAxisValue(
-  editKey: string,
+  rubric: RubricContext,
+  traitKey: string,
   v: string | number | boolean | null | undefined,
   units = true,
 ): string {
-  if (v === null || v === undefined || v === "") {
-    return "—";
+  const trait = traitOfAxis(rubric, traitKey);
+  if (trait === undefined) {
+    return v === null || v === undefined || v === "" ? "—" : String(v);
   }
-  if (HARD_GATE_EDIT_KEYS.has(editKey)) {
-    if (typeof v !== "boolean") {
-      return String(v);
-    }
-    const passWhen = HARD_GATE_PASS_WHEN[editKey];
-    return v === passWhen ? "Pass" : "Fail";
-  }
-  // Deal size is in millions of dollars; a bare "40" would not say so.
-  if (units && editKey === "dealSizeMUsd" && typeof v === "number") {
-    return `$${v}m`;
-  }
-  return String(v);
+  return showTraitValue(trait, v, { units: units ? "currency" : "none" });
+}
+
+/** Whether a trait is a yes/no gate (its analyst input is a boolean). */
+export function isGateTrait(rubric: RubricContext, traitKey: string): boolean {
+  return traitOfAxis(rubric, traitKey)?.kind === "yesno";
 }

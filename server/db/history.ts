@@ -7,6 +7,7 @@ export const APPEND_ONLY_TABLES = [
   "qualification_score",
   "review_decision",
   "research_finding",
+  "rubric",
 ] as const;
 
 export type AppendOnlyTable = (typeof APPEND_ONLY_TABLES)[number];
@@ -16,4 +17,6 @@ export const MUTABLE_COLUMNS: Readonly<Record<AppendOnlyTable, readonly string[]
   qualification_score: [],
   review_decision: [],
   research_finding: ["findingStatus", "verifiedByHuman", "verifiedBy", "verifiedAt"],
+  // A published rubric version never changes; only which version is active does.
+  rubric: ["active"],
 };

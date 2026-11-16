@@ -1,13 +1,14 @@
 /** What the decision bar needs to know about a firm: where it stands and what is left to confirm. */
+import { researchedTraits } from "../../../shared/rubric/catalog";
+import { thesisOf, traitsOf } from "../../../shared/rubric/firm";
+import type { RubricContext, ScoreResult } from "../../../shared/rubric/types";
 import {
   PASSED,
   isQualifiedOrLater,
   nextLifecycle,
   normalizeLifecycle,
 } from "../../../shared/vocab";
-import { type MirrorResult } from "../scoreMirror";
 import { type EditMap, type FirmView } from "./deskModel";
-import { HARD_GATES } from "./hardGateConfig";
 import { type Projection } from "./projection";
 
 export interface FirmDecisionState {
@@ -57,18 +58,22 @@ export interface ConfirmItem {
  * line says both, so it never contradicts the score box.
  */
 export function confirmItems(
+  rubric: RubricContext,
   firm: FirmView,
-  mirror: MirrorResult,
+  mirror: ScoreResult,
   edits: EditMap,
   projection: Pick<Projection, "hardRejected" | "rejectReason"> | null = null,
 ): ConfirmItem[] {
   const knownAxes = mirror.axisScores.filter((a) => a.known).length;
   const totalAxes = mirror.axisScores.length;
-  const gatesSet = HARD_GATES.filter((g) => {
-    const staged = edits[g.editKey];
-    const stored = firm[g.readKey];
-    return typeof staged === "boolean" || stored === true || stored === false;
-  }).length;
+  // The yes/no gates researched for the firm's thesis.
+  const gates = researchedTraits(rubric, thesisOf(firm as Record<string, unknown>)).filter(
+    (t) => t.kind === "yesno",
+  );
+  const stored = traitsOf(firm as Record<string, unknown>);
+  const gatesSet = gates.filter(
+    (g) => typeof edits[g.traitKey] === "boolean" || typeof stored[g.traitKey] === "boolean",
+  ).length;
   const wouldReject = !mirror.hardRejected && projection?.hardRejected === true;
   const screen = mirror.hardRejected
     ? { label: "Hard screen (rejected)", detail: mirror.rejectReason }
@@ -91,8 +96,8 @@ export function confirmItems(
     {
       id: "gates",
       label: "Hard gates recorded",
-      detail: `${gatesSet}/${HARD_GATES.length} gates answered`,
-      ok: gatesSet === HARD_GATES.length,
+      detail: `${gatesSet}/${gates.length} gates answered`,
+      ok: gatesSet === gates.length,
     },
     { id: "screen", ...screen, ok: !mirror.hardRejected },
   ];

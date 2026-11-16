@@ -4,6 +4,7 @@ import { Search } from "@blueprintjs/icons";
 import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm, ReviewDecision } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { useMediaQuery } from "@/desk/firmDesk/useMediaQuery";
 import {
   DEFAULT_SORT,
@@ -43,6 +44,7 @@ import {
  * the list, and selecting a firm opens its detail beside the list, or in a drawer under 1280 px.
  */
 export default function PipelinePage(): React.ReactElement {
+  const rubric = useRubric();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { data, isLoading, error } = useOsdkObjects(Firm, {
@@ -97,8 +99,8 @@ export default function PipelinePage(): React.ReactElement {
 
   // Search and profile filters decide which firms are counted; the stage tab then picks among them.
   const rows = React.useMemo(
-    () => buildRows({ firms, query, profile, sort, rejectByFirm, activityByFirm }),
-    [firms, query, profile, sort, rejectByFirm, activityByFirm],
+    () => buildRows({ rubric, firms, query, profile, sort, rejectByFirm, activityByFirm }),
+    [rubric, firms, query, profile, sort, rejectByFirm, activityByFirm],
   );
   const counts = React.useMemo(() => stageCounts(rows), [rows]);
   const visibleRows = React.useMemo(() => rowsForStage(rows, stage), [rows, stage]);

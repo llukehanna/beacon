@@ -4,8 +4,9 @@
  */
 import { type AxisRow, openConflictFindings } from "./axisRows.js";
 import { type FindingLike } from "./axisState.js";
+import type { TraitDef } from "./rubric/types.js";
 import type { ProviderObservation } from "./summaries.js";
-import { type AxisDef, PROVIDER_TRUST } from "./vocab.js";
+import { PROVIDER_TRUST } from "./vocab.js";
 
 /** Mirrors the server's grounding rule: a shorter quote is a fragment, not a statement. */
 const MIN_QUOTE_WORDS = 4;
@@ -18,7 +19,10 @@ export interface CheckView {
 }
 
 /** The three grounding checks for one reading, from the checks the server computed. */
-export function evidenceChecks(def: AxisDef, reading: ProviderObservation): CheckView[] {
+export function evidenceChecks(
+  trait: Pick<TraitDef, "kind">,
+  reading: ProviderObservation,
+): CheckView[] {
   const c = reading.checks;
   const found = c !== null && c.line !== null;
   return [
@@ -28,7 +32,7 @@ export function evidenceChecks(def: AxisDef, reading: ProviderObservation): Chec
       status: found ? "pass" : "fail",
       detail: found ? `line ${c.line}` : "not found",
     },
-    def.kind === "gate"
+    trait.kind === "yesno"
       ? {
           id: "value",
           label: "Value appears in the quote",

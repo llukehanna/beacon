@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { CANDIDATES } from "../clustering/heuristic.js";
 import { rng } from "../enrichment/random.js";
 import { asFirmObject } from "../eval/pipeline.js";
+import { TEST_RUBRIC } from "../testing.js";
 import { REJECTION_COUNTS, REJECTION_NOTES, planRejections } from "./rejections.js";
 import { generateUniverse } from "./universe.js";
+
+/** The rubric's candidate screens with their keywords compiled the way the heuristic compiles them. */
+const CANDIDATES = TEST_RUBRIC.definition.candidateScreens.map((c) => ({
+  axis: c.axis,
+  keywords: new RegExp(c.keywords, "i"),
+}));
 
 const universe = generateUniverse().map(asFirmObject);
 const effects = (firms = universe) => {

@@ -5,7 +5,7 @@ import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
 import { resetDemo } from "../seed/reset.js";
 import { resetFromSnapshot, saveSnapshot } from "../seed/snapshot.js";
-import { createTestDb, run, seedFirm } from "../testing.js";
+import { TEST_RUBRIC, createTestDb, run, seedFirm } from "../testing.js";
 import { type Db, type Tx, createPgliteDb } from "./client.js";
 import { APPEND_ONLY_TABLES, MUTABLE_COLUMNS } from "./history.js";
 import { MIGRATIONS, migrate, schemaVersion } from "./migrate.js";
@@ -461,7 +461,7 @@ describe("one proposed rule per predicate", () => {
     const db = await createTestDb();
     await rejectedSmallFirms(db);
     const shouting: Clusterer = async (rows) => {
-      const out = await heuristicClusterer(rows);
+      const out = await heuristicClusterer(rows, TEST_RUBRIC);
       return {
         ...out,
         proposals: out.proposals.map((p) => ({
@@ -607,8 +607,11 @@ describe("migration 0003 on a database that already holds rows", () => {
       CREATE TABLE snapshot_research_finding AS TABLE research_finding;
     `);
 
-    await expect(migrate(db)).resolves.toEqual({ applied: [3] });
-    expect(await schemaVersion(db)).toBe(3);
+    // Everything from 0003 on applies; this case is about 0003's repairs.
+    await expect(migrate(db)).resolves.toEqual({
+      applied: MIGRATIONS.filter((m) => m.version >= 3).map((m) => m.version),
+    });
+    expect(await schemaVersion(db)).toBe(MIGRATIONS.at(-1)!.version);
 
     // What is kept.
     expect(await ids(db, "firm", "firmId")).toEqual(["f-via-orphan", "f1", "f2"]);

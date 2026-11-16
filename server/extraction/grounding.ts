@@ -3,17 +3,12 @@
  * The check is "the document says this", not "this matches our answer key".
  * Pure: no DB, no network.
  */
-import { parseAxisValue } from "../../shared/scoring.js";
-import {
-  type AxisDef,
-  CF_MD_LABELS,
-  CF_SERVICES_LABELS,
-  CS_BSP_LABELS,
-  CS_MD_LABELS,
-  CS_SERVICES_LABELS,
-  type Provider,
-  axisByName,
-} from "../../shared/vocab.js";
+import { evidenceTraits, optionsFor, traitFor } from "../../shared/rubric/catalog.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import { parseTraitValue } from "../../shared/rubric/traitValue.js";
+import type { TraitDef } from "../../shared/rubric/types.js";
+import type { Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import {
   type FirmRef,
   type Observation,
@@ -35,21 +30,9 @@ export interface GroundingResult {
   rejected: { provider: Provider; axis: string; reason: RejectReason }[];
 }
 
-const isCs = (f: FirmRef): boolean => (f.firmType ?? "").toLowerCase() === "cs";
-
-/** Allowed labels for a categorical axis, by the firm's model. */
-function labelsFor(firm: FirmRef, axis: AxisDef): readonly string[] {
-  const cs = isCs(firm);
-  switch (axis.axis) {
-    case "services_fit":
-      return cs ? CS_SERVICES_LABELS : CF_SERVICES_LABELS;
-    case "md_pedigree":
-      return cs ? CS_MD_LABELS : CF_MD_LABELS;
-    case "balance_sheet_principal":
-      return CS_BSP_LABELS;
-    default:
-      return [];
-  }
+/** A category trait's labels for the firm's thesis (the mock documents use exactly these). */
+function labelsFor(firm: FirmRef, axis: TraitDef): readonly string[] {
+  return optionsFor(WS.rubric, thesisOf(firm as Readonly<Record<string, unknown>>), axis);
 }
 
 const collapse = (s: string): string => s.replace(/\s+/g, " ").trim();
@@ -111,11 +94,11 @@ function quoteHasNumber(quote: string, value: number): boolean {
  * Whether an accepted value appears in its quote: the label for a categorical axis, the number
  * for a numeric one, the word true or false (as a whole word) for a gate.
  */
-export function valueInQuote(axis: AxisDef, value: string, quote: string): boolean {
+export function valueInQuote(axis: Pick<TraitDef, "kind">, value: string, quote: string): boolean {
   if (axis.kind === "number") {
     return quoteHasNumber(quote, Number(value));
   }
-  if (axis.kind === "gate") {
+  if (axis.kind === "yesno") {
     return quote
       .toLowerCase()
       .split(/[^\p{L}\p{N}]+/u)
@@ -125,15 +108,15 @@ export function valueInQuote(axis: AxisDef, value: string, quote: string): boole
 }
 
 /** The canonical string for an accepted value, or null when the value is not valid for the axis. */
-function validValue(firm: FirmRef, axis: AxisDef, raw: string): string | null {
+function validValue(firm: FirmRef, axis: TraitDef, raw: string): string | null {
   if (axis.kind === "number" && !PLAIN_NUMBER.test(raw.trim())) {
     return null;
   }
-  const parsed = parseAxisValue(axis, raw);
+  const parsed = parseTraitValue(axis, raw);
   if (parsed === null) {
     return null;
   }
-  if (axis.kind === "enum") {
+  if (axis.kind === "category") {
     return labelsFor(firm, axis).includes(String(parsed)) ? String(parsed) : null;
   }
   // Numbers keep the digits as written ("4.0" stays "4.0"); gates normalise to true/false.
@@ -160,8 +143,8 @@ export function groundExtraction(
     };
 
     const doc = docs.find((d) => d.provider === provider);
-    const axis = axisByName(axisName);
-    if (!doc || !axis || !PROVIDERS[provider].axes.includes(axis.axis)) {
+    const axis = traitFor(evidenceTraits(WS.traits), axisName);
+    if (!doc || !axis || !PROVIDERS[provider].axes.includes(axis.traitKey)) {
       reject("axis_not_covered");
       continue;
     }
@@ -188,14 +171,14 @@ export function groundExtraction(
       continue;
     }
 
-    const key = `${provider}|${axis.axis}`;
+    const key = `${provider}|${axis.traitKey}`;
     if (seen.has(key)) {
       continue;
     }
     seen.add(key);
     observations.push({
       provider,
-      axis: axis.axis,
+      axis: axis.traitKey,
       value,
       confidence: confidenceFor(provider, firm, axis),
       sourceUrl: "",

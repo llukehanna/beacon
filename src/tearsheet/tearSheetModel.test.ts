@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { firmEvidence } from "../../server/mcp/evidence";
+import { ADVISORY, withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric";
 import type { ObjectOf } from "../../shared/schema";
 import { type FindingLike } from "../desk/axisState";
 import { type FirmView } from "../desk/firmDesk/deskModel";
 import { type DecisionInput, buildTearSheet, localDay } from "./tearSheetModel";
 
-const firm: FirmView = {
+/** The test firm as columns; `withTraits` gives it the traits the API would attach. */
+const COLUMNS = {
   firmId: "acme_us",
   firmName: "Acme Advisors",
   firmType: "CF",
@@ -23,6 +25,7 @@ const firm: FirmView = {
   lifecycleState: "Screening",
   revenueBand: "$10-25m",
 };
+const firm: FirmView = withTraits(COLUMNS);
 
 const finding = (over: Partial<FindingLike> & { findingId: string }): FindingLike => ({
   provider: "dealdb",
@@ -33,7 +36,13 @@ const finding = (over: Partial<FindingLike> & { findingId: string }): FindingLik
 
 describe("buildTearSheet", () => {
   it("reads the live score, tier and per-axis breakdown from the rubric", () => {
-    const sheet = buildTearSheet({ firm, findings: [], decisions: [], rules: [] });
+    const sheet = buildTearSheet({
+      rubric: ADVISORY,
+      firm,
+      findings: [],
+      decisions: [],
+      rules: [],
+    });
     expect(sheet.name).toBe("Acme Advisors");
     expect(sheet.stage).toBe("Screening");
     expect(sheet.score.max).toBe(18);
@@ -50,19 +59,19 @@ describe("buildTearSheet", () => {
       expect.arrayContaining([
         { label: "Sector", value: "Industrials" },
         { label: "HQ", value: "United States" },
-        { label: "Revenue", value: "$10-25m" },
+        { label: "Revenue band", value: "$10-25m" },
       ]),
     );
   });
 
   it("shows an open proposal where nothing is on file, marked unverified and not scored", () => {
-    const bare: FirmView = {
-      ...firm,
+    const bare: FirmView = withTraits({
+      ...COLUMNS,
       dealSizeMUsd: undefined,
       firmAge: undefined,
       mdPedigree: undefined,
       feeGeneratingCount: undefined,
-    };
+    });
     const findings = [
       finding({ findingId: "p", axis: "deal_size_usd_m", value: "46" }),
       finding({ findingId: "c1", axis: "firm_age", value: "24", conflictGroupId: "g" }),
@@ -81,7 +90,13 @@ describe("buildTearSheet", () => {
         findingStatus: "abstained",
       }),
     ];
-    const sheet = buildTearSheet({ firm: bare, findings, decisions: [], rules: [] });
+    const sheet = buildTearSheet({
+      rubric: ADVISORY,
+      firm: bare,
+      findings,
+      decisions: [],
+      rules: [],
+    });
     const line = (axis: string) => sheet.axes.find((a) => a.axis === axis);
     expect(line("Avg deal size")).toEqual({
       axis: "Avg deal size",
@@ -104,6 +119,7 @@ describe("buildTearSheet", () => {
     // The MCP's evidence calls the same axes proposed and in conflict, and gives the deal size as
     // the bare number: the "$…m" is for the screen.
     const evidence = firmEvidence(
+      ADVISORY,
       asRow<"Firm">({ ...bare, $apiName: "Firm", $primaryKey: "acme_us" }),
       findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
     );
@@ -115,6 +131,7 @@ describe("buildTearSheet", () => {
 
   it("keeps a value on file over an open proposal for the same axis", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [finding({ findingId: "p", axis: "deal_size_usd_m", value: "46" })],
       decisions: [],
@@ -129,6 +146,7 @@ describe("buildTearSheet", () => {
 
   it("cites the quote, provider and model behind each value", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({
@@ -172,6 +190,7 @@ describe("buildTearSheet", () => {
 
   it("states open conflicts with both sides and abstentions on their own", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({
@@ -237,11 +256,12 @@ describe("buildTearSheet", () => {
         tierAtDecision: "C",
       },
     ];
-    const open = buildTearSheet({ firm, findings: [], decisions, rules: [] });
+    const open = buildTearSheet({ rubric: ADVISORY, firm, findings: [], decisions, rules: [] });
     expect(open.decisions.map((d) => d.label)).toEqual(["Passed", "Advanced"]);
     expect(open.atDecision).toBeNull();
 
     const passed = buildTearSheet({
+      rubric: ADVISORY,
       firm: { ...firm, lifecycleState: "Passed" },
       findings: [],
       decisions,
@@ -256,7 +276,8 @@ describe("buildTearSheet", () => {
 
   it("says a hard-screened firm is rejected, with the reason", () => {
     const sheet = buildTearSheet({
-      firm: { ...firm, coverageModel: "Generalist" },
+      rubric: ADVISORY,
+      firm: withTraits({ ...COLUMNS, coverageModel: "Generalist" }),
       findings: [],
       decisions: [],
       rules: [],
@@ -271,6 +292,7 @@ describe("buildTearSheet", () => {
 
   it("never cites an analyst's note as a source sentence", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({
@@ -308,6 +330,7 @@ describe("buildTearSheet", () => {
 
   it("credits a corroborated finding's quote to the provider whose document holds it", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({
@@ -339,6 +362,7 @@ describe("buildTearSheet", () => {
         sourceQuote: `Quote from ${provider}.`,
       });
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         side("s1", "websearch", "4"),
@@ -355,9 +379,10 @@ describe("buildTearSheet", () => {
   });
 
   it("says whether the agent has run, and not before", () => {
-    const none = buildTearSheet({ firm, findings: [], decisions: [], rules: [] });
+    const none = buildTearSheet({ rubric: ADVISORY, firm, findings: [], decisions: [], rules: [] });
     expect(none.researched).toBe(false);
     const analystOnly = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [finding({ findingId: "x", provider: "analyst", axis: "firm_age", value: "9" })],
       decisions: [],
@@ -365,6 +390,7 @@ describe("buildTearSheet", () => {
     });
     expect(analystOnly.researched).toBe(false);
     const ran = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [finding({ findingId: "y", axis: "firm_age", value: "9" })],
       decisions: [],
@@ -423,8 +449,9 @@ describe("the tear sheet and the MCP's firm evidence", () => {
         confidenceTier: "abstain",
       }),
     ];
-    const sheet = buildTearSheet({ firm, findings, decisions: [], rules: [] });
+    const sheet = buildTearSheet({ rubric: ADVISORY, firm, findings, decisions: [], rules: [] });
     const evidence = firmEvidence(
+      ADVISORY,
       asRow<"Firm">({ ...firm, $apiName: "Firm", $primaryKey: "acme_us" }),
       findings.map((f) => asRow<"ResearchFinding">({ ...f, $primaryKey: f.findingId })),
     );
@@ -483,6 +510,7 @@ describe("market signals on the sheet", () => {
 
   it("lists the applied signals newest first, each labelled synthetic, and none that is still to come", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [],
       decisions: [],
@@ -504,11 +532,14 @@ describe("market signals on the sheet", () => {
   });
 
   it("has no signals when none is given", () => {
-    expect(buildTearSheet({ firm, findings: [], decisions: [], rules: [] }).signals).toEqual([]);
+    expect(
+      buildTearSheet({ rubric: ADVISORY, firm, findings: [], decisions: [], rules: [] }).signals,
+    ).toEqual([]);
   });
 
   it("credits a signal's finding to the synthetic signal, never to an analyst, and never quotes it", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({
@@ -555,7 +586,7 @@ describe("market signals on the sheet", () => {
       retrievedAt: "2026-05-02T00:00:00Z",
     });
     const heads = (findings: FindingLike[]) =>
-      buildTearSheet({ firm, findings, decisions: [], rules: [] }).evidence.find(
+      buildTearSheet({ rubric: ADVISORY, firm, findings, decisions: [], rules: [] }).evidence.find(
         (e) => e.axis === "Fee-earning heads",
       );
     expect(heads([analyst("2026-05-01T00:00:00Z"), signal])).toMatchObject({
@@ -571,6 +602,7 @@ describe("market signals on the sheet", () => {
 
   it("does not call a signal's finding research", () => {
     const sheet = buildTearSheet({
+      rubric: ADVISORY,
       firm,
       findings: [
         finding({ findingId: "ms1", axis: "firm_age", value: "9", provider: "market_signal" }),

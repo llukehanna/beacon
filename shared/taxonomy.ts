@@ -3,6 +3,8 @@
  * SearchPage chips, the server's search matching, and the seed generator.
  * Generic by design: nothing here is copied from any real firm's site.
  */
+import { resolveThesis } from "./rubric/engine.js";
+import type { RubricDefinition } from "./rubric/types.js";
 
 export interface FacetGroup {
   label: string;
@@ -51,12 +53,6 @@ export const PRODUCT_GROUPS: readonly FacetGroup[] = [
     ],
   },
 ];
-
-/** Product group → the firm type (thesis model) it selects. */
-export const PRODUCT_FIRM_TYPE: Readonly<Record<string, "CF" | "CS">> = {
-  "Corporate Finance": "CF",
-  "Capital Solutions": "CS",
-};
 
 export const INDUSTRY_GROUPS: readonly FacetGroup[] = [
   {
@@ -148,7 +144,8 @@ export const COUNTRY_CODE: Readonly<Record<string, string>> = {
 
 export interface Selection {
   countries: Set<string>;
-  firmTypes: Set<"CF" | "CS">;
+  /** Thesis keys a product pick selected (the rubric maps product groups to theses). */
+  firmTypes: Set<string>;
   sectors: Set<string>;
   /** Values that matched no facet — callers reject these. */
   unknown: string[];
@@ -157,9 +154,9 @@ export interface Selection {
 /**
  * Expand facet picks (group labels or sub-chips, from any of the three
  * facets) into concrete match sets. Picking a group label selects all of
- * its subs; product picks select a firm type.
+ * its subs; product picks select the theses whose product groups name them.
  */
-export function expandSelections(values: readonly string[]): Selection {
+export function expandSelections(def: RubricDefinition, values: readonly string[]): Selection {
   const sel: Selection = {
     countries: new Set(),
     firmTypes: new Set(),
@@ -176,7 +173,9 @@ export function expandSelections(values: readonly string[]): Selection {
     } else if (v in COUNTRY_GEO) {
       sel.countries.add(v);
     } else if (product) {
-      sel.firmTypes.add(PRODUCT_FIRM_TYPE[product.label]);
+      for (const t of def.theses.filter((x) => x.productGroups.includes(product.label))) {
+        sel.firmTypes.add(t.key);
+      }
     } else if (industry) {
       industry.subs.forEach((s) => sel.sectors.add(s));
     } else if (ALL_SECTORS.includes(v)) {
@@ -189,13 +188,14 @@ export function expandSelections(values: readonly string[]): Selection {
 }
 
 export function matchesSelection(
+  def: RubricDefinition,
   firm: { hqCountry?: string | null; firmType?: string | null; sector?: string | null },
   sel: Selection,
 ): boolean {
   if (sel.countries.size > 0 && !sel.countries.has(firm.hqCountry ?? "")) {
     return false;
   }
-  if (sel.firmTypes.size > 0 && !sel.firmTypes.has((firm.firmType ?? "CF") as "CF" | "CS")) {
+  if (sel.firmTypes.size > 0 && !sel.firmTypes.has(resolveThesis(def, firm.firmType).key)) {
     return false;
   }
   if (sel.sectors.size > 0 && !sel.sectors.has(firm.sector ?? "")) {

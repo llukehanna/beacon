@@ -1,16 +1,16 @@
 # Architecture
 
-Beacon is a React app over a small TypeScript backend. One schema file describes the whole data model, every write goes through a named action, and the rubric is one module that both the browser and the server import.
+Beacon is a React app over a small TypeScript backend. One schema file describes the whole data model, every write goes through a named action, and the rubric is data that one scoring engine, imported by both the browser and the server, interprets.
 
 ```mermaid
 flowchart LR
   UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · functions · reset/]
   API --> Actions[Action handlers<br/>one transaction each]
-  Actions --> Rubric[Shared rubric<br/>shared/scoreMirror.ts]
+  Actions --> Rubric[Rubric engine<br/>shared/rubric/engine.ts]
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
-  Actions --> PG[(Postgres<br/>18 object tables)]
+  Actions --> PG[(Postgres<br/>20 object tables)]
   Schema[shared/schema.ts<br/>the ontology] -.-> PG
   Schema -.-> API
   Schema -.-> UI
@@ -18,7 +18,7 @@ flowchart LR
 
 ## Ontology first
 
-`shared/schema.ts` declares the 18 object types (firms, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, market signals, the search join objects, the information-barrier objects (restricted firms, mandate access grants and the access log), and the operations records, action runs and model calls), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
+`shared/schema.ts` declares the 20 object types (firms, the trait catalog and the versioned rubric, mandates, searches, findings, model extractions, scores, decisions, drift events, rules, hard-screen configs, market signals, the search join objects, the information-barrier objects (restricted firms, mandate access grants and the access log), and the operations records, action runs and model calls), their properties and types, the two links the UI traverses, and the 18 action names. Everything else derives from it:
 
 - **Storage.** One Postgres table per object type, with quoted camelCase columns that match the property names, created by numbered SQL migrations in `server/db/migrations/` (`0001_baseline.sql` is the whole schema as it stood when migrations began, written to be idempotent so it adopts a database created earlier). `server/db/migrate.ts` applies the ones a database has not recorded in its `schema_migrations` table, in order, in one transaction behind an advisory lock (so concurrent runs apply each version once, and a failing migration changes nothing), with a 5 s lock timeout so live traffic waits at most that long behind an `ALTER TABLE` before the run gives up and can be retried. `npm run migrate` runs it against `DATABASE_URL`, the seed and the tests run it on their own databases, and the Worker never changes the schema: once per isolate it reads the recorded version, and while that is below the build's latest it answers every `/api/*` request 503 ("The database schema is behind this build") and keeps serving the static pages. A migration that has shipped is never edited; a change is a new file, and `npm run migrations:gen` bundles the files into `server/db/migrations.generated.ts`, which the Worker imports (a test fails when the two differ). `server/db/ddl.ts` still renders the schema from `shared/schema.ts`, but only for a test that checks the migrated database has exactly those tables, columns and types, so a property added without a migration fails CI. A saved demo snapshot taken earlier restores the new column empty until the next `npm run seed`.
 - **Repository.** `server/db/repo.ts` reads and writes by object type. Every column name that reaches SQL is checked against the schema first, and every value is a bound parameter, so a request can't name a column that doesn't exist or inject SQL.
@@ -46,7 +46,7 @@ Every write is an action in `server/actions/`, registered by name. Applying one:
 
 Live Claude calls (clustering, when switched on) record a `ModelCall` the same way, with the token counts the API reported and a cost computed from the price table in `server/extraction/pricing.ts`. Both are operations metrics, not demo data: they are left out of the reset snapshot, cleared by every reset, and capped at 10,000 stored action runs. The seeded history is built through the same actions but records nothing.
 
-History is append-only, and the database holds it to that. A trigger on each history table (`qualification_score_append_only`, `review_decision_append_only` and `research_finding_append_only`, migration 0003) refuses the write. Qualification scores and review decisions are never updated or deleted. A research finding is never deleted and only ever changes its verification status and stamp (`findingStatus`, `verifiedByHuman`, `verifiedBy`, `verifiedAt`); an analyst override creates a new finding instead of editing the agent's. A drift event only changes its status and resolution, and a proposed rule or a hard-screen config only its status and active flag: those limits are application code, with no trigger behind them. TRUNCATE fires no row trigger, so the nightly reset still clears and rebuilds the history.
+History is append-only, and the database holds it to that. A trigger on each history table (`qualification_score_append_only`, `review_decision_append_only` and `research_finding_append_only`, migration 0003, and `rubric_append_only`, migration 0004) refuses the write. Qualification scores and review decisions are never updated or deleted. A research finding is never deleted and only ever changes its verification status and stamp (`findingStatus`, `verifiedByHuman`, `verifiedBy`, `verifiedAt`); an analyst override creates a new finding instead of editing the agent's. A published rubric version is never rewritten or deleted; only which version is active may change (`active`). A drift event only changes its status and resolution, and a proposed rule or a hard-screen config only its status and active flag: those limits are application code, with no trigger behind them. TRUNCATE fires no row trigger, so the nightly reset still clears and rebuilds the history.
 
 The same migration puts the references and the required columns in the database. Every `firmId`, `mandateId`, `searchId` and `sourceProposedRuleId` that names another row is a foreign key, checked at commit (`DEFERRABLE INITIALLY DEFERRED`, so the seed and the reset can insert tables in any order inside their one transaction). The reference columns and always-set timestamps that `shared/schema.ts` lists as `required` are NOT NULL. A proposed rule is unique on its predicate (axis, operator, threshold and model, compared as `ruleKey` does: trimmed, case-insensitive, an empty model meaning both), so two clustering runs racing to propose the same rule cannot both land: the later one leaves the existing rule and says so in its note.
 
@@ -88,7 +88,9 @@ Each finding stores the record id, the exact quote, and the extraction model. On
 
 ## Scoring as shared code
 
-`shared/scoreMirror.ts` is the rubric: nine scored axes, each 0, 1, or 2 (18 points), recorded beside four pass or fail gates that earn no points (the desk lists six or seven scored axes with the gates, and scores the rest from the firm record), separate tables for the corporate-finance and capital-solutions theses, hard rejects, and A/B/C tiers. The desk imports it to preview a firm's score as the analyst accepts findings. The server imports the same module when it writes a score snapshot. There is one implementation, so the preview and the record can't disagree.
+What can be known about a firm, and how it is scored, are data ([0011](decisions/0011-traits-and-rubric-as-data.md)). The `Trait` catalog lists each trait with its kind, unit, vocabulary and role (evidence the agent researches, a fact on the record, or a profile field that is never scored). The active `Rubric` is a validated JSON definition: theses with weighted criteria, hard rejects, tier cuts and actions. `shared/rubric/engine.ts` scores any definition. The desk loads the active rubric and catalog once to preview a firm's score as the analyst accepts findings, and the server runs the same engine on the same rows when it writes a score snapshot, so the preview and the record can't disagree.
+
+The advisory-acquisitions workspace (`shared/workspaces/`) is the configured example: nine scored axes, each 0, 1, or 2 (18 points), recorded beside four pass or fail gates that earn no points, separate theses for corporate finance and capital solutions, hard rejects, and A/B/C tiers. A parity test holds it to the hand-written rubric it replaced, and a leak test keeps its vocabulary out of the engine, the screens and the server.
 
 ## Run agent → Accept → Commit
 

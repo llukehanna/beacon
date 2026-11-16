@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { errorMessage } from "@/data/adapter";
 import { useLinks, useOsdkObjects } from "@/data/hooks";
 import { Firm, Mandate, ResearchFinding, ReviewDecision, Search } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { ExportMenu } from "@/export/ExportMenu";
 import { type Command, useCommands } from "@/shell/commands";
 import { FROM_DESK } from "@/shell/origin";
@@ -34,6 +35,7 @@ import { useScreeningRules } from "./useScreeningRules";
 import { visibleQueue } from "./visibleQueue";
 
 function Desk(): React.ReactElement {
+  const rubric = useRubric();
   const { data, isLoading, error } = useOsdkObjects(Firm, {
     orderBy: { firmName: "asc" },
     autoFetchMore: true,
@@ -240,8 +242,8 @@ function Desk(): React.ReactElement {
     // sidebar's live-queue partition screens on the same object it ranks. Home and
     // the server's homeSummary build the same input.
     const firms = (filteredData ?? []).map(toQueueFirm);
-    return orderEnrichmentQueue(firms, rankingRules);
-  }, [filteredData, rankingRules]);
+    return orderEnrichmentQueue(rubric, firms, rankingRules);
+  }, [rubric, filteredData, rankingRules]);
 
   // With no firm in the URL, open on the first queue firm whose agent run is still open: the
   // firms `runAgentEnrichment` touched and no analyst has acted on yet (`enrichedBy` is the
@@ -314,7 +316,7 @@ function Desk(): React.ReactElement {
   const filters = useQueueFilters();
   const visibleIds = React.useMemo(
     () =>
-      visibleQueue(queue, {
+      visibleQueue(rubric, queue, {
         query: filters.query,
         showAll: filters.showAll,
         membershipPinned: searchActive,
@@ -323,7 +325,7 @@ function Desk(): React.ReactElement {
           queue.filter((r) => isOpenFirm(r.firm, r.hardRejected)).map((r) => r.firm.firmId),
         ),
       }).map((r) => r.firm.firmId),
-    [queue, filters.query, filters.showAll, searchActive, screeningRules],
+    [rubric, queue, filters.query, filters.showAll, searchActive, screeningRules],
   );
   const visibleRef = React.useRef(visibleIds);
   visibleRef.current = visibleIds;

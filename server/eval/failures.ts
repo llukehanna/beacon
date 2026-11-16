@@ -67,7 +67,7 @@ export function failureTaxonomy(
       entry.examples.length < MAX_EXAMPLES &&
       !entry.examples.some((e) => e.firmId === slot.firmId)
     ) {
-      entry.examples.push({ firmId: slot.firmId, axis: slot.axis.axis });
+      entry.examples.push({ firmId: slot.firmId, axis: slot.axis.traitKey });
     }
   }
   return { slots: { total, correct }, failures };

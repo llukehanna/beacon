@@ -8,7 +8,9 @@ import {
   normalizeLifecycle,
 } from "../../shared/vocab.js";
 import { updateObject } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { ActionError } from "../errors.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { type FirmObj, iso, logDecision, snapshotScore } from "./common.js";
 import { resolveOpenDriftOnPass } from "./drift.js";
 import { defineAction } from "./types.js";
@@ -91,7 +93,7 @@ export const advanceStage = defineAction("advanceStage", {
       currentStage: targetState,
       lastReviewed: iso(ctx.now),
     });
-    const live = scoreFirm(firm); // recorded on the decision, not persisted as a score version
+    const live = scoreFirm((await loadActiveRubric(ctx.tx)).definition, withTraits(firm)); // recorded on the decision, not persisted as a score version
     const decisionId = await logDecision(ctx, {
       firmId: firm.$primaryKey,
       decisionType: DECISION.advance,

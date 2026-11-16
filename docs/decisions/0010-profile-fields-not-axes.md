@@ -1,6 +1,6 @@
 # 0010. Profile fields are not axes
 
-Status: Accepted
+Status: Superseded in part by [0011](0011-traits-and-rubric-as-data.md). The split stands, and is now a trait's `role` in the catalog: `evidence` for an axis, `profile` for a profile field, and `fact` for the record fields the rubric scores. `ENRICH_AXES` and the profile vocabularies moved into the advisory workspace.
 
 ## Context
 

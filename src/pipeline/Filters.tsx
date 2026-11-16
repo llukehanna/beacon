@@ -1,25 +1,15 @@
 import React from "react";
+import { useRubric } from "@/data/rubricContext";
 import { type PipelineSort, type PipelineSortKey } from "@/desk/pipelineRows";
 import { Button } from "@/ui";
-import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab";
 import styles from "./Filters.module.css";
 import { type ProfileFilter, SORT_LABEL } from "./pipelineModel";
-
-const PROFILE_FILTERS: ReadonlyArray<{
-  key: keyof ProfileFilter;
-  label: string;
-  options: readonly string[];
-}> = [
-  { key: "revenueBand", label: "Revenue", options: REVENUE_BANDS },
-  { key: "ownership", label: "Ownership", options: OWNERSHIP_TYPES },
-  { key: "successionRisk", label: "Succession risk", options: SUCCESSION_RISKS },
-];
 
 const SORT_KEYS: readonly PipelineSortKey[] = ["stage", "score", "name"];
 
 /**
- * Profile filters (revenue, ownership, succession risk) and, on screens where the table's column
- * headers are gone, the sort choice.
+ * A filter per profile trait in the catalog (revenue band, ownership and succession risk for the
+ * advisory workspace) and, on screens where the table's column headers are gone, the sort choice.
  */
 export function Filters({
   profile,
@@ -32,18 +22,21 @@ export function Filters({
   sort: PipelineSort;
   onSort: (next: PipelineSort) => void;
 }): React.ReactElement {
+  const profileFilters = useRubric().traits.filter(
+    (t) => t.role === "profile" && t.kind === "category",
+  );
   return (
     <div className={styles.filters}>
-      {PROFILE_FILTERS.map(({ key, label, options }) => (
+      {profileFilters.map(({ traitKey: key, label, options }) => (
         <select
           key={key}
           className={styles.select}
-          value={profile[key]}
+          value={profile[key] ?? ""}
           onChange={(e) => onProfile({ ...profile, [key]: e.target.value })}
           aria-label={label}
         >
           <option value="">{label}: any</option>
-          {options.map((o) => (
+          {(options ?? []).map((o) => (
             <option key={o} value={o}>
               {o}
             </option>

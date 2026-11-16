@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import { useRubric } from "@/data/rubricContext";
 import { useTour } from "@/tour/tourContext";
 import { Button } from "@/ui";
 import styles from "./AboutPage.module.css";
@@ -9,78 +10,86 @@ import {
   ACTION_COUNT,
   ARCHITECTURE_DOC_URL,
   AUTHOR_URL,
-  AXIS_COUNT,
   FOUNDRY_DOC_URL,
   OBJECT_TYPE_COUNT,
   REPO_URL,
-  RUBRIC_MAX,
+  rubricFacts,
 } from "./facts";
 
-const STEPS: ReadonlyArray<{ title: string; body: React.ReactNode }> = [
-  {
-    title: "Mandate to search",
-    body: (
-      <>
-        Leadership writes what it is after in plain words. Beacon turns that into a{" "}
-        <Link to="/mandate">mandate</Link> and a search over a universe of candidate firms.
-      </>
-    ),
-  },
-  {
-    title: "Agent enrichment with cited evidence",
-    body: (
-      <>
-        For each firm an agent reads several sources on the <Link to="/desk">Desk</Link>. Every
-        value it proposes carries the exact sentence it came from, and is kept only if that sentence
-        is in the source. Where no source supports an axis, it abstains instead of guessing, and
-        where two sources disagree it shows both rather than picking one.
-      </>
-    ),
-  },
-  {
-    title: "A deterministic rubric",
-    body: (
-      <>
-        A plain-code rubric of {AXIS_COUNT} scored axes, each scored 0 to 2 ({RUBRIC_MAX} points),
-        turns the values on file into a score and a tier. Four pass or fail gates (advisory
-        conflict, sales and trading or a balance sheet, web activity, solvency) are recorded beside
-        them and earn no points, so the desk lists a firm&rsquo;s axes and gates together: six or
-        seven scored axes and the four gates, with the rest of the nine scored from the firm record.
-        The same module runs in the browser for live previews and on the server for the record, so
-        the two cannot disagree.
-      </>
-    ),
-  },
-  {
-    title: "Analyst decisions",
-    body: (
-      <>
-        Analysts accept, override, qualify or pass. Passing takes a written reason, and every
-        decision is kept in history rather than overwritten.
-      </>
-    ),
-  },
-  {
-    title: "Rules learned from reasons, with approval",
-    body: (
-      <>
-        When enough passes share a reason, Beacon drafts a screening <Link to="/rules">rule</Link>,
-        shows the firms it came from and how many it would screen, and does nothing until an analyst
-        approves it.
-      </>
-    ),
-  },
-  {
-    title: "Drift",
-    body: (
-      <>
-        When new evidence moves a firm you already decided on, it returns to{" "}
-        <Link to="/review">Review</Link> with the reason, so an old call is looked at again instead
-        of going stale.
-      </>
-    ),
-  },
-];
+/** The steps the page walks through; the rubric figures come from the active rubric. */
+function steps({
+  max: RUBRIC_MAX,
+  axes: AXIS_COUNT,
+}: {
+  max: number;
+  axes: number;
+}): ReadonlyArray<{ title: string; body: React.ReactNode }> {
+  return [
+    {
+      title: "Mandate to search",
+      body: (
+        <>
+          Leadership writes what it is after in plain words. Beacon turns that into a{" "}
+          <Link to="/mandate">mandate</Link> and a search over a universe of candidate firms.
+        </>
+      ),
+    },
+    {
+      title: "Agent enrichment with cited evidence",
+      body: (
+        <>
+          For each firm an agent reads several sources on the <Link to="/desk">Desk</Link>. Every
+          value it proposes carries the exact sentence it came from, and is kept only if that
+          sentence is in the source. Where no source supports an axis, it abstains instead of
+          guessing, and where two sources disagree it shows both rather than picking one.
+        </>
+      ),
+    },
+    {
+      title: "A deterministic rubric",
+      body: (
+        <>
+          A plain-code rubric of {AXIS_COUNT} scored axes, each scored 0 to 2 ({RUBRIC_MAX} points),
+          turns the values on file into a score and a tier. Four pass or fail gates (advisory
+          conflict, sales and trading or a balance sheet, web activity, solvency) are recorded
+          beside them and earn no points, so the desk lists a firm&rsquo;s axes and gates together:
+          six or seven scored axes and the four gates, with the rest of the nine scored from the
+          firm record. The same module runs in the browser for live previews and on the server for
+          the record, so the two cannot disagree.
+        </>
+      ),
+    },
+    {
+      title: "Analyst decisions",
+      body: (
+        <>
+          Analysts accept, override, qualify or pass. Passing takes a written reason, and every
+          decision is kept in history rather than overwritten.
+        </>
+      ),
+    },
+    {
+      title: "Rules learned from reasons, with approval",
+      body: (
+        <>
+          When enough passes share a reason, Beacon drafts a screening <Link to="/rules">rule</Link>
+          , shows the firms it came from and how many it would screen, and does nothing until an
+          analyst approves it.
+        </>
+      ),
+    },
+    {
+      title: "Drift",
+      body: (
+        <>
+          When new evidence moves a firm you already decided on, it returns to{" "}
+          <Link to="/review">Review</Link> with the reason, so an old call is looked at again
+          instead of going stale.
+        </>
+      ),
+    },
+  ];
+}
 
 const LEGEND: ReadonlyArray<{ term: string; text: string }> = [
   { term: "Analyst in the browser", text: "The React app. Every screen reads through the API." },
@@ -117,6 +126,7 @@ const LEGEND: ReadonlyArray<{ term: string; text: string }> = [
 /** What Beacon is, the problem it answers, how it works, where it came from and where to look next. */
 export default function AboutPage(): React.ReactElement {
   const { start } = useTour();
+  const STEPS = steps(rubricFacts(useRubric()));
   return (
     <DocPage
       title="About Beacon"

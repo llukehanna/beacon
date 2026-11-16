@@ -37,6 +37,10 @@ export function ddl(): string {
     `CREATE INDEX IF NOT EXISTS drift_event_firm ON drift_event ("firmId");`,
     `CREATE INDEX IF NOT EXISTS search_membership_search ON search_membership ("searchId");`,
     `CREATE INDEX IF NOT EXISTS market_signal_firm ON market_signal ("firmId");`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS trait_workspace_key ON trait ("workspaceKey", "traitKey");`,
+    // One active rubric per workspace, and one row per published version.
+    `CREATE UNIQUE INDEX IF NOT EXISTS rubric_one_active ON rubric ("workspaceKey") WHERE "active";`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS rubric_workspace_version ON rubric ("workspaceKey", "version");`,
     // The hourly run asks only for what is unapplied and due; the partial index keeps that one cheap lookup.
     `CREATE INDEX IF NOT EXISTS market_signal_due ON market_signal ("effectiveDate") WHERE "appliedAt" IS NULL;`,
   ].join("\n");

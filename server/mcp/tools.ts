@@ -5,11 +5,12 @@
  * written here and nothing is built from input; a tool only calls the repository.
  */
 import { z } from "zod";
-import { toScoreInput } from "../../shared/deskModel.js";
 import { bucketOf } from "../../shared/pipelineBuckets.js";
+import { traitsOf } from "../../shared/rubric/firm.js";
+import type { Tier } from "../../shared/rubric/types.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { MAX_POSSIBLE, type Tier, mirrorScore } from "../../shared/scoreMirror.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import { LIFECYCLE_STAGES, PASSED } from "../../shared/vocab.js";
 import {
   type Access,
@@ -24,6 +25,7 @@ import {
 import type { Queryable } from "../db/client.js";
 import { MAX_PAGE_SIZE, getObject, listAll, listObjects } from "../db/repo.js";
 import { HttpError } from "../errors.js";
+import { loadRubricContext } from "../rubric/load.js";
 import { firmEvidence } from "./evidence.js";
 import {
   JSONRPC_INVALID_PARAMS,
@@ -114,6 +116,7 @@ async function searchFirms(
 
   const hits: FirmHit[] = [];
   const read = { orderBy: { firmName: "asc" as const }, exclude: excludeFor(access, "Firm") };
+  const { definition } = await loadRubricContext(q);
   let pageToken: string | undefined;
   let pages = 0;
   do {
@@ -130,10 +133,11 @@ async function searchFirms(
       ) {
         continue;
       }
-      const mirror = mirrorScore(toScoreInput(firm));
-      const stage = bucketOf(firm, mirror);
+      const live = scoreFirm(definition, firm);
+      const stage = bucketOf(firm, live);
+      const employees = traitsOf(firm).employees;
       if (
-        (args.tier !== undefined && mirror.tier !== args.tier) ||
+        (args.tier !== undefined && live.tier !== args.tier) ||
         (args.stage && stage !== args.stage)
       ) {
         continue;
@@ -144,11 +148,11 @@ async function searchFirms(
         firmType: firm.firmType ?? null,
         sector: firm.sector ?? null,
         hqCountry: firm.hqCountry ?? null,
-        employees: firm.employees ?? null,
+        employees: typeof employees === "number" ? employees : null,
         stage,
-        tier: mirror.tier,
-        score: mirror.weightedTotal,
-        maxScore: MAX_POSSIBLE,
+        tier: live.tier,
+        score: live.weightedTotal,
+        maxScore: live.maxPossible,
       });
     }
   } while (pageToken !== undefined && pages < scan.maxPages);
@@ -197,7 +201,7 @@ async function getFirmEvidence(
   });
   // Opening a firm in detail is viewing it, exactly as the Desk's own reads are logged.
   await logAccess(q, access, "Firm", firm.$primaryKey);
-  return firmEvidence(present(access, firm), findings);
+  return firmEvidence(await loadRubricContext(q), present(access, firm), findings);
 }
 
 // ─── list_rules ──────────────────────────────────────────────────────────

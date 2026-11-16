@@ -4,6 +4,7 @@ import { ExternalLink } from "@/about/DocLayout";
 import { ERROR_ANALYSIS_DOC_URL, EVALS_DOC_URL } from "@/about/facts";
 import { useOsdkObjects } from "@/data/hooks";
 import { Firm } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { SectionHead } from "@/home/SectionHead";
 import { Chip, Metric, Panel } from "@/ui";
 import { axisLabel } from "../../shared/axisLabels";
@@ -92,6 +93,7 @@ function ProviderTable({ report }: { report: EvalReport }): React.ReactElement {
 }
 
 function Taxonomy({ report }: { report: EvalReport }): React.ReactElement {
+  const rubric = useRubric();
   const { slots, failures } = report;
   // The examples carry firm ids; the firms are read to show their names, and each links to its Desk.
   const firms = useOsdkObjects(Firm, { autoFetchMore: true });
@@ -129,7 +131,7 @@ function Taxonomy({ report }: { report: EvalReport }): React.ReactElement {
                 {f.examples.map((e) => (
                   <li key={`${e.firmId}:${e.axis}`}>
                     <Link className={styles.example} to={deskHref(e.firmId)}>
-                      <span className={styles.exampleAxis}>{axisLabel(e.axis)}</span>
+                      <span className={styles.exampleAxis}>{axisLabel(rubric, e.axis)}</span>
                       <span className={styles.exampleFirm}>{exampleFirmName(e.firmId, names)}</span>
                     </Link>
                   </li>

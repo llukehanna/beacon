@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 import {
   NULL_OUTCOME_KEY,
   OUTCOME_SLOTS,
@@ -39,7 +40,7 @@ describe("accuracyTables", () => {
     f("6", { provider: "analyst", axis: "firm_age", verifiedByHuman: true }),
     f("7", { axis: "firm_age", findingStatus: "proposed" }),
   ];
-  const t = accuracyTables(cellsFromFindings(findings));
+  const t = accuracyTables(ADVISORY, cellsFromFindings(findings));
 
   it("rates the overall group over every finding", () => {
     expect(t.overall).toMatchObject({ total: 7, decided: 3, agreement: 67, override: 33 });
@@ -56,6 +57,7 @@ describe("accuracyTables", () => {
 
   it("counts abstentions that no real source produced in their own 'No source' row", () => {
     const t2 = accuracyTables(
+      ADVISORY,
       cellsFromFindings([
         f("1", { provider: "agent", confidenceTier: "abstain", findingStatus: "abstained" }),
         f("2", { provider: "none", confidenceTier: "abstain" }),
@@ -77,7 +79,7 @@ describe("accuracyTables", () => {
   });
 
   it("omits a provider with no findings, and the 'No source' row when nothing abstained", () => {
-    const t2 = accuracyTables([
+    const t2 = accuracyTables(ADVISORY, [
       { provider: "dealdb", axis: "firm_age", agree: 0, override: 0, abstain: 0, total: 0 },
       { provider: "filings", axis: "firm_age", agree: 1, override: 0, abstain: 0, total: 1 },
     ]);
@@ -93,7 +95,7 @@ describe("accuracyTables", () => {
   });
 
   it("names an axis-less finding's row 'unknown axis'", () => {
-    const t2 = accuracyTables(cellsFromFindings([f("1", { provider: "dealdb" })]));
+    const t2 = accuracyTables(ADVISORY, cellsFromFindings([f("1", { provider: "dealdb" })]));
     expect(t2.byAxis).toEqual([
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- vitest types asymmetric matchers as any
       { key: "__unknown__", label: "unknown axis", r: expect.objectContaining({ total: 1 }) },
@@ -132,7 +134,7 @@ describe("a synthetic market signal's finding", () => {
     expect(countFindings([signal, real]).total).toBe(1);
     expect(rates([signal, real])).toEqual(rates([real]));
     expect(cellsFromFindings([signal])).toEqual([]);
-    const tables = accuracyTables(cellsFromFindings([signal, real]));
+    const tables = accuracyTables(ADVISORY, cellsFromFindings([signal, real]));
     expect(tables.byProvider.map((r) => r.key)).toEqual(["dealdb"]);
     expect(tables.overall.total).toBe(1);
   });

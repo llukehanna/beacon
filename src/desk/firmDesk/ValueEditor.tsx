@@ -1,13 +1,7 @@
 import React from "react";
+import { useRubric } from "@/data/rubricContext";
 import { Button, Kbd, Segmented } from "@/ui";
-import {
-  HARD_GATE_PASS_WHEN,
-  NUMERIC_UNIT,
-  axisInputKind,
-  coerceFindingValue,
-  formatAxisValue,
-} from "../findingActions";
-import { type Model } from "../scoreMirror";
+import { axisInputKind, coerceFindingValue, formatAxisValue } from "../findingActions";
 import styles from "./ValueEditor.module.css";
 import { type AxisRow } from "./axisRows";
 import { type EditMap, editorForEditKey, enumOptionsFor } from "./deskModel";
@@ -21,14 +15,15 @@ type Staged = string | number | boolean;
  */
 export function ValueEditor({
   row,
-  model,
+  thesis,
   edits,
   current,
   onStage,
   stageLabel,
 }: {
   row: AxisRow;
-  model: Model;
+  /** The thesis the firm is scored under: it decides a category axis's options. */
+  thesis: string | null;
   edits: EditMap;
   /** The value in effect now: a staged edit, else what is on the firm. */
   current: Staged | null | undefined;
@@ -36,13 +31,14 @@ export function ValueEditor({
   /** The label of the button that stages a typed value. */
   stageLabel: string;
 }): React.ReactElement {
-  const editKey = row.def.actionParam;
-  const kind = axisInputKind(editKey);
+  const rubric = useRubric();
+  const editKey = row.axis;
+  const kind = axisInputKind(rubric, editKey);
   const [text, setText] = React.useState("");
   const staged = edits[editKey];
 
   const submitText = (): void => {
-    const coerced = coerceFindingValue(editKey, text);
+    const coerced = coerceFindingValue(rubric, editKey, text);
     if (coerced === undefined) {
       return;
     }
@@ -52,7 +48,7 @@ export function ValueEditor({
 
   let control: React.ReactNode;
   if (kind === "boolean") {
-    const passWhen = HARD_GATE_PASS_WHEN[editKey] ?? true;
+    const passWhen = row.trait.passWhen ?? true;
     control = (
       <Segmented<boolean>
         ariaLabel={`${row.label}: Pass or Fail`}
@@ -65,8 +61,8 @@ export function ValueEditor({
       />
     );
   } else if (kind === "enum") {
-    const options = editorForEditKey(editKey, model)?.options;
-    const labels = options?.map((o) => o.label) ?? enumOptionsFor(editKey, model);
+    const options = editorForEditKey(rubric, editKey, thesis)?.options;
+    const labels = options?.map((o) => o.label) ?? enumOptionsFor(rubric, editKey, thesis);
     control = (
       <div className={styles.options} role="radiogroup" aria-label={`${row.label} value`}>
         {labels.map((label, i) => (
@@ -86,7 +82,7 @@ export function ValueEditor({
     );
   } else {
     const numeric = kind === "number";
-    const unit = numeric ? NUMERIC_UNIT[editKey] : undefined;
+    const unit = numeric ? (row.trait.unit ?? undefined) : undefined;
     control = (
       <div className={styles.typed}>
         <input
@@ -121,7 +117,9 @@ export function ValueEditor({
     <div className={styles.editor}>
       {control}
       {staged !== undefined && staged !== "" && (
-        <p className={styles.staged}>Staged for commit: {formatAxisValue(editKey, staged)}</p>
+        <p className={styles.staged}>
+          Staged for commit: {formatAxisValue(rubric, editKey, staged)}
+        </p>
       )}
     </div>
   );

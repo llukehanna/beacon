@@ -1,5 +1,7 @@
 import React from "react";
+import { rubricFacts } from "@/about/facts";
 import { Term } from "@/components/Term";
+import { useRubric } from "@/data/rubricContext";
 import { parseChangedAxes, resolutionLabel } from "@/desk/driftReview";
 import { formatScore } from "@/desk/scoreFormat";
 import { TIER_COLOR, isOutcomeDivergence, outcomeLabel } from "@/desk/tokens";
@@ -17,9 +19,10 @@ function TierBadge({
   score: number | null | undefined;
 }): React.ReactElement {
   const color = TIER_COLOR[tier] ?? TIER_COLOR.Rejected;
+  const max = rubricFacts(useRubric()).max;
   return (
     <span className={styles.badge} style={{ "--tier": color } as React.CSSProperties}>
-      {score !== null && score !== undefined ? formatScore(score, tier) : tier}
+      {score !== null && score !== undefined ? formatScore(score, max, tier) : tier}
     </span>
   );
 }
@@ -41,6 +44,7 @@ export function DriftDetail({
   /** Closes the panel; the drawer has its own close button, so only a column that can close passes this. */
   onClose?: () => void;
 }): React.ReactElement {
+  const rubric = useRubric();
   const { drift, resolved, lookalikes } = item;
   const [lookalikesOpen, setLookalikesOpen] = React.useState(false);
   const reason = reasonStyle(drift);
@@ -119,7 +123,7 @@ export function DriftDetail({
       {!resolved && !divergence && firstChange && (
         <section className={styles.quote} aria-label="What changed">
           <p className={styles.why}>
-            {axisLabel(firstChange.axis)}: {formatChangeValue(firstChange.old)} →{" "}
+            {axisLabel(rubric, firstChange.axis)}: {formatChangeValue(firstChange.old)} →{" "}
             {formatChangeValue(firstChange.new)}
           </p>
           {firstChange.source && (

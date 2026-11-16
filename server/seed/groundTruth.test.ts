@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { evidenceTraits } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
 import { observe, truthFor } from "../enrichment/providers.js";
+import { TEST_RUBRIC } from "../testing.js";
 import { generateUniverse } from "./universe.js";
+
+const AXES = evidenceTraits(TEST_RUBRIC.traits);
 
 /**
  * Every generated firm, by its place in the universe, with everything about it except its name and
@@ -14,11 +18,11 @@ function groundTruthLines(): string[] {
     const profile: Record<string, unknown> = { ...firm };
     delete profile.firmId;
     delete profile.firmName;
-    const truth = ENRICH_AXES.map((a) => `${a.axis}=${truthFor(firm, a)}`);
+    const truth = AXES.map((a) => `${a.traitKey}=${truthFor(firm, a)}`);
     const reports = PROVIDER_TRUST.flatMap((p) =>
-      ENRICH_AXES.map((a) => {
+      AXES.map((a) => {
         const o = observe(p, firm, a);
-        return `${p}.${a.axis}=${o ? `${o.value}@${o.confidence}` : "-"}`;
+        return `${p}.${a.traitKey}=${o ? `${o.value}@${o.confidence}` : "-"}`;
       }),
     );
     const fields = Object.entries(profile)

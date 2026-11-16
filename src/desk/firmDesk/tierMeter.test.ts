@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { MAX_POSSIBLE, type Model, TIER_THRESHOLDS, tierFor } from "../scoreMirror";
+import {
+  MAX_POSSIBLE,
+  type Model,
+  TIER_THRESHOLDS,
+  tierFor,
+} from "../../../shared/rubric/__oracle__/legacyRubricV2";
 import { segmentLabel, tierMeter, tierText } from "./tierMeter";
 
 const CUTS = TIER_THRESHOLDS.CF;

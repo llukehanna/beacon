@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { evidenceTraits } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { confidenceFor, observe } from "../enrichment/providers.js";
 import { generateUniverse } from "../seed/universe.js";
 import { DOCUMENT_VERSION, documentsHash, firmDocuments, sourceDocument } from "./documents.js";
+
+const EVIDENCE = evidenceTraits(WS.traits);
 
 const firms = generateUniverse(50);
 const firm = firms[0];
@@ -83,9 +87,9 @@ describe("sourceDocument", () => {
   it("states exactly the non-null observe() results for that provider", () => {
     for (const f of firms) {
       for (const p of PROVIDER_TRUST) {
-        const expected = ENRICH_AXES.flatMap((a) => {
+        const expected = EVIDENCE.flatMap((a) => {
           const o = observe(p, f, a);
-          return o ? [{ axis: a.axis, value: o.value }] : [];
+          return o ? [{ axis: a.traitKey, value: o.value }] : [];
         });
         const got = sourceDocument(p, f).fields.map(({ axis, value }) => ({ axis, value }));
         expect(got).toEqual(expected);
@@ -135,7 +139,7 @@ describe("confidenceFor", () => {
     let missed = 0;
     for (const f of firms) {
       for (const p of PROVIDER_TRUST) {
-        for (const a of ENRICH_AXES) {
+        for (const a of EVIDENCE) {
           const o = observe(p, f, a);
           const c = confidenceFor(p, f, a);
           if (o) {
@@ -153,7 +157,7 @@ describe("confidenceFor", () => {
     expect(seen).toBeGreaterThan(0);
     expect(missed).toBeGreaterThan(0);
     // Websearch midpoint is (0.4 + 0.75) / 2 = 0.575, rounded to 2 decimals.
-    const miss = ENRICH_AXES.find((a) => !observe("websearch", firm, a))!;
+    const miss = EVIDENCE.find((a) => !observe("websearch", firm, a))!;
     expect(confidenceFor("websearch", firm, miss)).toBe(0.58);
   });
 });

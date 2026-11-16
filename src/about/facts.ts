@@ -5,8 +5,9 @@
  * `server/trustClaims.test.ts`: change the source and that test fails until this file and
  * docs/security.md agree with it.
  */
+import { maxPossible, resolveThesis } from "../../shared/rubric/engine";
+import type { RubricContext } from "../../shared/rubric/types";
 import { ACTION_NAMES, OBJECT_TYPES } from "../../shared/schema";
-import { MAX_POSSIBLE } from "../../shared/scoreMirror";
 
 export const REPO_URL = "https://github.com/llukehanna/beacon";
 export const AUTHOR_URL = "https://lukeghanna.com";
@@ -21,9 +22,11 @@ export const ERROR_ANALYSIS_DOC_URL = `${DOCS_URL}/error-analysis.md`;
 /** Derived from shared code. */
 export const OBJECT_TYPE_COUNT = Object.keys(OBJECT_TYPES).length;
 export const ACTION_COUNT = ACTION_NAMES.length;
-/** Nine axes, each scored 0, 1 or 2. */
-export const RUBRIC_MAX = MAX_POSSIBLE;
-export const AXIS_COUNT = MAX_POSSIBLE / 2;
+/** The default thesis's most points and how many axes it scores, from the active rubric. */
+export function rubricFacts(rubric: RubricContext): { max: number; axes: number } {
+  const thesis = resolveThesis(rubric.definition, null);
+  return { max: maxPossible(thesis), axes: thesis.criteria.length };
+}
 
 /** Pinned to server/seed/universe.ts (UNIVERSE_SIZE). */
 export const FIRM_COUNT = 700;

@@ -1,6 +1,6 @@
 import React from "react";
-import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../scoreMirror";
-import type { Model } from "../scoreMirror";
+import { useRubric } from "@/data/rubricContext";
+import { maxPossible, resolveThesis } from "../../../shared/rubric/engine";
 import styles from "./TierMeterBar.module.css";
 import { belowCGloss, segmentLabel, tierMeter } from "./tierMeter";
 
@@ -18,12 +18,15 @@ export function TierMeterBar({
   hard = false,
 }: {
   score: number;
-  model: Model;
+  /** The thesis the firm is scored under: its tier cuts size the segments. */
+  model: string;
   prior?: number | null;
   /** True when the firm is hard-screened out, which is what makes the lowest segment "Rejected". */
   hard?: boolean;
 }): React.ReactElement {
-  const meter = tierMeter(score, MAX_POSSIBLE, TIER_THRESHOLDS[model], prior);
+  const thesis = resolveThesis(useRubric().definition, model);
+  const MAX_POSSIBLE = maxPossible(thesis);
+  const meter = tierMeter(score, MAX_POSSIBLE, thesis.tiers, prior);
   const label =
     `Score ${score} of ${MAX_POSSIBLE}, ${meter.tier === "Rejected" ? segmentLabel(meter.tier, hard) : `tier ${meter.tier}`}` +
     (meter.ghost === null ? "" : `. Before the last enrichment: ${prior}`);
@@ -51,7 +54,7 @@ export function TierMeterBar({
             key={s.tier}
             className={s.tier === meter.tier ? styles.scaleCurrent : undefined}
             style={{ left: pct(s.from) }}
-            title={belowCGloss(s.tier, hard, TIER_THRESHOLDS[model].C, MAX_POSSIBLE) ?? undefined}
+            title={belowCGloss(s.tier, hard, thesis.tiers.C, MAX_POSSIBLE) ?? undefined}
           >
             {segmentLabel(s.tier, hard)}
           </span>

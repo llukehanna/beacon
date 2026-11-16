@@ -20,7 +20,7 @@ A corporate development team buying advisory firms starts from a thesis ("sector
 
 - **From thesis to universe.** A mandate written in plain language is read back as filters (thesis, geography, product, sector), and the search returns the firms that fit.
 - **Evidence you can check.** An agent reads each firm's source records and proposes a value for every scoring axis, with the sentence that supports it. A value without a word-for-word quote is thrown away. When sources disagree the analyst sees both sides; when no source has the answer the agent says so rather than guessing.
-- **A score anyone can explain.** A fixed 18-point rubric per thesis gives every firm a score and an A/B/C tier, with hard rejects. The same rubric previews in the browser and records on the server.
+- **A score anyone can explain.** A rubric defined as data (18 points per thesis in the demo workspace) gives every firm a score and an A/B/C tier, with hard rejects. The same engine previews in the browser and records on the server, and another team's thesis is a new definition, not new code.
 - **Decisions that teach the next search.** The reasons analysts pass on firms are grouped into proposed screening rules, each showing how many firms it would screen out. A rule applies only after an analyst approves it.
 - **Nothing goes stale quietly.** When new evidence or a market event (a senior hire, a departure, an acquisition) moves a firm's tier, it comes back for review.
 - **Work that leaves the tool.** Excel workbooks with a citations sheet, CSVs in Salesforce, DealCloud and Affinity layouts, a printable one-page tear sheet per firm, and lookalike targets with the reasons they match.
@@ -57,17 +57,18 @@ Every figure is measured against the synthetic universe's hidden truth; none say
 | Abstentions where no source had the value                         | 98.5%                                                                 |
 | Planted rejection patterns the clusterer recovers, in the evaluation | 4 of 4 (the app does not keep a proposal that repeats a rubric gate) |
 | Cost of the recorded extraction run, all 700 firms                | $1.49                                                                 |
-| Ontology                                                          | 18 object tables, every write a named action in one transaction       |
+| Ontology                                                          | 20 object tables, every write a named action in one transaction       |
 | Tests                                                             | over 1,200 unit and integration tests and 176 end-to-end tests, in CI, plus a daily check of the live demo |
 
 ## Why it is built this way
 
-Ten short [decision records](docs/decisions/README.md) explain the choices that matter, among them:
+Eleven short [decision records](docs/decisions/README.md) explain the choices that matter, among them:
 
 - [Abstention over guessing](docs/decisions/0004-abstention-over-guessing.md): an empty cell is more useful to an analyst than a confident wrong one.
 - [Claude extraction with a grounding check and recorded fixtures](docs/decisions/0002-claude-extraction-grounding-fixtures.md): every value quotes its source, and the demo, seed and CI need no API key.
 - [Human approval before rules apply](docs/decisions/0007-human-approval-before-rules-apply.md): the system proposes, an analyst decides.
 - [One rubric module on both sides](docs/decisions/0003-shared-rubric-module.md): the score previewed is the score recorded.
+- [Traits and the rubric are data](docs/decisions/0011-traits-and-rubric-as-data.md): another team's thesis is a new definition, not new code.
 - [Workers and a snapshot reset](docs/decisions/0008-workers-and-snapshot-reset.md): a public demo that runs on a free plan and resets in one transaction.
 - [An OSDK-shaped data seam](docs/decisions/0001-osdk-shaped-data-seam.md): the frontend can move back to Foundry without changing its screens.
 

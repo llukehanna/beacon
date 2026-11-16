@@ -30,7 +30,8 @@ import {
   systemPromptCaches,
 } from "../server/extraction/pricing.js";
 import { generateUniverse } from "../server/seed/universe.js";
-import { firmModel } from "../shared/scoring.js";
+import { resolveThesis } from "../shared/rubric/engine.js";
+import { ADVISORY_ACQUISITIONS } from "../shared/workspaces/advisoryAcquisitions.js";
 import { recordClustering } from "./cluster-fixture.js";
 import { loadExtractionFixtures } from "./fixture-files.js";
 
@@ -140,7 +141,10 @@ const firms = generateUniverse();
 const prepared = new Map(
   firms.map((firm) => {
     const docs = firmDocuments(firm);
-    const user = buildUserMessage(docs, firmModel(firm));
+    const user = buildUserMessage(
+      docs,
+      resolveThesis(ADVISORY_ACQUISITIONS.rubric, firm.firmType).key,
+    );
     return [firm.firmId!, { firm, docs, hash: documentsHash(docs), user }] as const;
   }),
 );

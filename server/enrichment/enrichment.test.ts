@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { PROVIDER_TRUST, axisByName } from "../../shared/vocab.js";
+import { traitFor } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { observe, truthFor } from "./providers.js";
 import type { Observation } from "./providers.js";
 import { type FindingPlan, reconcileAxis } from "./reconcile.js";
 
+const T = (key: string) => traitFor(WS.traits, key)!;
+
 const firm = { firmId: "acme_unitedstates", firmName: "Acme", firmType: "CF" };
-const dealSize = axisByName("deal_size_usd_m")!;
+const dealSize = T("deal_size_usd_m");
 const obs = (provider: Observation["provider"], value: string, confidence = 0.85): Observation => ({
   provider,
-  axis: dealSize.axis,
+  axis: dealSize.traitKey,
   value,
   confidence,
   sourceUrl: `https://${provider}.example/x`,
@@ -24,7 +28,7 @@ describe("mock providers", () => {
   });
 
   it("only answer axes they cover, with .example source URLs", () => {
-    expect(observe("filings", firm, axisByName("md_pedigree")!)).toBeNull();
+    expect(observe("filings", firm, T("md_pedigree"))).toBeNull();
     const many = Array.from({ length: 40 }, (_, i) =>
       observe("dealdb", { ...firm, firmId: `f${i}` }, dealSize),
     ).filter(Boolean);

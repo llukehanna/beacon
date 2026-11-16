@@ -4,7 +4,7 @@ import { Chip } from "@/ui";
 import styles from "./FirmCards.module.css";
 import { FitCell } from "./FitCell";
 import { StageChip } from "./chips";
-import { type Row, activityText, isOut } from "./pipelineModel";
+import { type Row, activityText, isOut, traitOn } from "./pipelineModel";
 import { useWindowedRows } from "./useWindowedRows";
 
 /** Card height plus the gap under it: the list is windowed, so every card takes exactly this. */
@@ -56,8 +56,8 @@ function FirmCard({
       <div className={styles.meta}>
         {firm.firmType && <Chip>{firm.firmType}</Chip>}
         <span className={styles.where}>{where.join(" · ")}</span>
-        {firm.employees !== null && firm.employees !== undefined && (
-          <span className={styles.staff}>{firm.employees} staff</span>
+        {typeof traitOn(firm, "employees") === "number" && (
+          <span className={styles.staff}>{traitOn(firm, "employees")} staff</span>
         )}
       </div>
       <div className={styles.bottom}>

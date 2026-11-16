@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADVISORY } from "../../../shared/rubric/__fixtures__/advisoryRubric";
 import { nextAfterPass } from "../deskDefaults";
 import { type RankedFirm } from "../queue";
 import { visibleQueue } from "./visibleQueue";
@@ -22,14 +23,18 @@ const ids = (rows: RankedFirm[]) => rows.map((r) => r.firm.firmId);
 
 describe("visibleQueue", () => {
   it("lists the live queue by default, and every firm when asked", () => {
-    expect(ids(visibleQueue(queue, base))).toEqual(["a", "b"]);
-    expect(ids(visibleQueue(queue, { ...base, showAll: true }))).toEqual(["a", "b", "c"]);
-    expect(ids(visibleQueue(queue, { ...base, membershipPinned: true }))).toEqual(["a", "b", "c"]);
+    expect(ids(visibleQueue(ADVISORY, queue, base))).toEqual(["a", "b"]);
+    expect(ids(visibleQueue(ADVISORY, queue, { ...base, showAll: true }))).toEqual(["a", "b", "c"]);
+    expect(ids(visibleQueue(ADVISORY, queue, { ...base, membershipPinned: true }))).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
   });
 
   it("narrows to the search text, by name or id, across firms the live queue leaves out", () => {
-    expect(ids(visibleQueue(queue, { ...base, query: " cedar " }))).toEqual(["c"]);
-    expect(ids(visibleQueue(queue, { ...base, query: "b" }))).toEqual(["b"]);
+    expect(ids(visibleQueue(ADVISORY, queue, { ...base, query: " cedar " }))).toEqual(["c"]);
+    expect(ids(visibleQueue(ADVISORY, queue, { ...base, query: "b" }))).toEqual(["b"]);
   });
 });
 

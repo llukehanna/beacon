@@ -10,6 +10,7 @@ import {
   isApplied,
   kindLabel,
 } from "../../shared/marketSignals";
+import type { RubricContext } from "../../shared/rubric/types";
 import { relativeAge, toIsoTime } from "../home/age";
 
 export interface SignalRowModel {
@@ -42,6 +43,7 @@ const effectiveMs = (s: SignalLike): number => {
 
 /** The newest `limit` applied signals, with firm names from `firms`. */
 export function buildSignalsView(
+  rubric: RubricContext,
   signals: readonly SignalLike[],
   firms: ReadonlyArray<{ firmId?: string; firmName?: string | null }>,
   now: number,
@@ -67,7 +69,7 @@ export function buildSignalsView(
         kind: kindLabel(s.kind),
         age: relativeAge(iso, now),
         date: iso === null ? "" : iso.slice(0, 10),
-        moved: axisMovedText(s),
+        moved: axisMovedText(rubric, s),
         label: SYNTHETIC_LABEL,
       };
     }),

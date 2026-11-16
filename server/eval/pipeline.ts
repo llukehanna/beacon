@@ -3,20 +3,31 @@
  * `planFirm` (documents, extraction, grounding, reconciliation) the agent runs, then the
  * deterministic rubric. Pure: no DB, no network, no clock.
  */
+import { resolveThesis } from "../../shared/rubric/engine.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import { parseTraitValue } from "../../shared/rubric/traitValue.js";
+import type { Tier, TraitDef } from "../../shared/rubric/types.js";
 import type { ObjectOf, Props } from "../../shared/schema.js";
-import type { Model, Tier } from "../../shared/scoreMirror.js";
-import { firmModel, parseAxisValue, scoreFirm } from "../../shared/scoring.js";
-import type { AxisDef, Provider } from "../../shared/vocab.js";
+import { scoreFirm } from "../../shared/scoring.js";
+import type { Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import { traitColumn, withTraits } from "../db/traits.js";
 import { truthFor } from "../enrichment/providers.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { planFirm } from "../extraction/plan.js";
 
+/** A thesis key of the advisory workspace (the eval runs on its seed). */
+type Model = string;
+
+/** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
+const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
+
 /** What the agent made of one axis for one firm, beside the truth. */
 export interface SlotResult {
   firmId: string;
   model: Model;
-  axis: AxisDef;
+  axis: TraitDef;
   /** The hidden true value. */
   truth: string;
   /** Providers whose source record states this axis, before any extraction. */
@@ -49,11 +60,11 @@ export const asFirmObject = (firm: Props<"Firm">): ObjectOf<"Firm"> =>
 /** The firm with each axis set to the given value, as the desk would after accepting it. */
 function withValues(
   firm: ObjectOf<"Firm">,
-  values: ReadonlyMap<AxisDef, string>,
+  values: ReadonlyMap<TraitDef, string>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...firm };
   for (const [axis, value] of values) {
-    out[axis.firmField] = parseAxisValue(axis, value);
+    out[traitColumn(axis.traitKey)!] = parseTraitValue(axis, value);
   }
   return out;
 }
@@ -62,15 +73,15 @@ export function evaluateFirm(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
 ): FirmEvaluation {
-  const model = firmModel(firm);
+  const model = resolveThesis(RUBRIC, thesisOf(firm)).key;
   const { docs, extraction, grounded, axes } = planFirm(
     firm,
     rows,
     () => `conflict-${firm.$primaryKey}`,
   );
   const slots: SlotResult[] = [];
-  const truths = new Map<AxisDef, string>();
-  const settled = new Map<AxisDef, string>();
+  const truths = new Map<TraitDef, string>();
+  const settled = new Map<TraitDef, string>();
   for (const { axis, plans } of axes) {
     const truth = truthFor(firm, axis);
     truths.set(axis, truth);
@@ -82,9 +93,11 @@ export function evaluateFirm(
       model,
       axis,
       truth,
-      stated: docs.filter((d) => d.fields.some((f) => f.axis === axis.axis)).map((d) => d.provider),
+      stated: docs
+        .filter((d) => d.fields.some((f) => f.axis === axis.traitKey))
+        .map((d) => d.provider),
       kept: grounded.observations
-        .filter((o) => o.axis === axis.axis)
+        .filter((o) => o.axis === axis.traitKey)
         .map((o) => ({ provider: o.provider, value: o.value })),
       plans,
     });
@@ -94,8 +107,8 @@ export function evaluateFirm(
     model,
     extractionModel: extraction.model,
     slots,
-    truthTier: scoreFirm(withValues(firm, truths)).tier,
-    agentTier: scoreFirm(withValues(firm, settled)).tier,
+    truthTier: scoreFirm(RUBRIC, withTraits(withValues(firm, truths))).tier,
+    agentTier: scoreFirm(RUBRIC, withTraits(withValues(firm, settled))).tier,
   };
 }
 

@@ -1,37 +1,26 @@
 import type { ActionParams } from "./actionParams.js";
 import { axisLabel } from "./axisLabels.js";
 import { type FindingLike, retrievedMs } from "./axisState.js";
-import { HARD_GATE_EDIT_KEYS } from "./findingActions.js";
-import { type Model, type ScoreInput } from "./scoreMirror.js";
+import { isGateTrait, traitOfAxis } from "./findingActions.js";
+import { criterionFor, optionsFor, researchedFor } from "./rubric/catalog.js";
+import { resolveThesis, scoreTraits } from "./rubric/engine.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import { showTraitValue } from "./rubric/traitValue.js";
+import type { RubricContext, ScoreResult, TraitValue, Traits } from "./rubric/types.js";
 
 export interface FirmView {
   firmId?: string;
   firmName?: string | null;
+  /** The thesis the firm is scored under (today's column is firmType). */
   firmType?: string | null;
-  coverageModel?: string | null;
-  servicesFit?: string | null;
-  mdPedigree?: string | null;
-  balanceSheetPrincipal?: string | null;
-  geoScore?: number | null;
-  dealSizeMUsd?: number | null;
-  dealsPerMdL3y?: number | null;
-  firmAge?: number | null;
-  employees?: number | null;
-  feeGeneratingCount?: number | null;
+  /** Every catalog trait the firm has a value for, by trait key. */
+  traits?: Record<string, TraitValue>;
   geographicFootprint?: string | null;
-  advisoryConflict?: boolean | null;
-  // NB: SDK spells this hasSTOrBalanceSheet; enrichFirmAction param is hasStOrBalanceSheet.
-  hasSTOrBalanceSheet?: boolean | null;
-  webActivity?: boolean | null;
-  solvent?: boolean | null;
   hqCountry?: string | null;
   lifecycleState?: string | null;
   currentStage?: string | null;
   sector?: string | null;
   employeeGroup?: string | null;
-  revenueBand?: string | null;
-  ownership?: string | null;
-  successionRisk?: string | null;
   // When and by whom the firm was last enriched ("agent" until an analyst commits).
   enrichedAt?: string | null;
   enrichedBy?: string | null;
@@ -45,115 +34,75 @@ export interface FirmView {
   outcomeSource?: string | null;
 }
 
+/** Staged analyst edits, by trait key. */
 export type EditMap = Record<string, string | number | boolean>;
 
-export const NUMERIC_KEYS = ["dealSizeMUsd", "dealsPerMdL3y", "firmAge", "feeGeneratingCount"];
+/** An edit as its trait stores it: numbers typed into a text box become numbers; blanks are left out. */
+function editValue(
+  rubric: RubricContext,
+  key: string,
+  v: string | number | boolean,
+): TraitValue | null {
+  if (v === "") {
+    return null;
+  }
+  return traitOfAxis(rubric, key)?.kind === "number" ? Number(v) : v;
+}
 
 /** The enrichFirm call that commits a firm's staged edits; blank edits are left out. */
-export function enrichParams(firmId: string, edits: EditMap): ActionParams<"enrichFirm"> {
-  const params: Record<string, string | number | boolean> = {
+export function enrichParams(
+  rubric: RubricContext,
+  firmId: string,
+  edits: EditMap,
+): ActionParams<"enrichFirm"> {
+  const values: Record<string, TraitValue> = {};
+  for (const [k, v] of Object.entries(edits)) {
+    const value = editValue(rubric, k, v);
+    if (value !== null) {
+      values[k] = value;
+    }
+  }
+  return {
     firm: firmId,
+    traitValues: JSON.stringify(values),
     fieldsEnteredManually: JSON.stringify(Object.keys(edits)),
   };
-  for (const [k, v] of Object.entries(edits)) {
-    if (v === "" || v === undefined) {
-      continue;
-    }
-    params[k] = NUMERIC_KEYS.includes(k) ? Number(v) : v;
-  }
-  // The edit keys are the enrichFirm parameter names (editorForEditKey); the server rejects any other.
-  return params as ActionParams<"enrichFirm">;
 }
-
-// Canonical axis→edit-key mapping lives in ./findingActions so the accept
-// / verify / conflict-detection logic can be unit-tested without React.
 
 /** The findings' axis label. The one label map is shared/axisLabels. */
-export function displayAxis(raw: string | undefined): string {
-  return axisLabel(raw);
+export function displayAxis(rubric: RubricContext, raw: string | undefined): string {
+  return axisLabel(rubric, raw);
 }
 
-export function toScoreInput(f: FirmView): ScoreInput {
-  return {
-    firmType: f.firmType,
-    coverageModel: f.coverageModel,
-    servicesFit: f.servicesFit,
-    mdPedigree: f.mdPedigree,
-    balanceSheetPrincipal: f.balanceSheetPrincipal,
-    geoScore: f.geoScore,
-    dealSizeMUsd: f.dealSizeMUsd,
-    dealsPerMdL3y: f.dealsPerMdL3y,
-    firmAge: f.firmAge,
-    employees: f.employees,
-    feeGeneratingCount: f.feeGeneratingCount,
-    geographicFootprint: f.geographicFootprint,
-    advisoryConflict: f.advisoryConflict,
-  };
+/** A firm's traits with the staged edits laid over them: what the preview score reads. */
+export function mergedTraits(rubric: RubricContext, firm: FirmView, edits: EditMap): Traits {
+  const out: Record<string, TraitValue> = { ...traitsOf(firm as Record<string, unknown>) };
+  for (const [k, v] of Object.entries(edits)) {
+    const value = editValue(rubric, k, v);
+    if (value !== null) {
+      out[k] = value;
+    }
+  }
+  return out;
 }
 
-export function buildMerged(base: ScoreInput, edits: EditMap): ScoreInput {
-  const m: ScoreInput = { ...base };
-  if (typeof edits.servicesFit === "string" && edits.servicesFit !== "") {
-    m.servicesFit = edits.servicesFit;
-  }
-  if (typeof edits.mdPedigree === "string" && edits.mdPedigree !== "") {
-    m.mdPedigree = edits.mdPedigree;
-  }
-  if (typeof edits.balanceSheetPrincipal === "string" && edits.balanceSheetPrincipal !== "") {
-    m.balanceSheetPrincipal = edits.balanceSheetPrincipal;
-  }
-  if (edits.dealSizeMUsd !== undefined && edits.dealSizeMUsd !== "") {
-    m.dealSizeMUsd = Number(edits.dealSizeMUsd);
-  }
-  if (edits.dealsPerMdL3y !== undefined && edits.dealsPerMdL3y !== "") {
-    m.dealsPerMdL3y = Number(edits.dealsPerMdL3y);
-  }
-  if (edits.firmAge !== undefined && edits.firmAge !== "") {
-    m.firmAge = Number(edits.firmAge);
-  }
-  if (edits.feeGeneratingCount !== undefined && edits.feeGeneratingCount !== "") {
-    m.feeGeneratingCount = Number(edits.feeGeneratingCount);
-  }
-  if (typeof edits.advisoryConflict === "boolean") {
-    m.advisoryConflict = edits.advisoryConflict;
-  }
-  return m;
+/** The firm's score as the rubric gives it, with any staged edits applied. */
+export function previewScore(
+  rubric: RubricContext,
+  firm: FirmView,
+  edits: EditMap = {},
+): ScoreResult {
+  return scoreTraits(
+    rubric.definition,
+    thesisOf(firm as Record<string, unknown>),
+    mergedTraits(rubric, firm, edits),
+  );
 }
 
 interface CatOption {
-  score: 0 | 1 | 2;
+  score: number;
   label: string;
 }
-
-const CF_SERVICES_OPTS: CatOption[] = [
-  { score: 0, label: "Conflicted: trading, lending or research" },
-  { score: 1, label: "Adjacent advisory services" },
-  { score: 2, label: "Full advisory suite" },
-];
-
-const CF_MD_OPTS: CatOption[] = [
-  { score: 0, label: "Operator / non-finance backgrounds" },
-  { score: 1, label: "Mixed: industry or boutique banking" },
-  { score: 2, label: "Bulge-bracket or elite-boutique alumni" },
-];
-
-const CS_SERVICES_OPTS: CatOption[] = [
-  { score: 0, label: "No private-capital products" },
-  { score: 1, label: "Some private-capital products" },
-  { score: 2, label: "Full private-capital suite" },
-];
-
-const CS_MD_OPTS: CatOption[] = [
-  { score: 0, label: "Non-finance backgrounds" },
-  { score: 1, label: "Some credit or banking experience" },
-  { score: 2, label: "Senior credit / capital-markets pedigree" },
-];
-
-const CS_BSP_OPTS: CatOption[] = [
-  { score: 0, label: "Invests its own balance sheet" },
-  { score: 1, label: "Occasional co-investment" },
-  { score: 2, label: "Advisory only" },
-];
 
 export interface AxisEditor {
   editKey: string;
@@ -162,60 +111,56 @@ export interface AxisEditor {
   unit?: string;
 }
 
-export function editorForAxis(axisLabel: string, model: Model): AxisEditor | undefined {
-  switch (axisLabel) {
-    case "Services":
-      return { editKey: "servicesFit", kind: "categorical", options: CF_SERVICES_OPTS };
-    case "CS Services Fit":
-      return { editKey: "servicesFit", kind: "categorical", options: CS_SERVICES_OPTS };
-    case "MD Experience":
-      return {
-        editKey: "mdPedigree",
-        kind: "categorical",
-        options: model === "CS" ? CS_MD_OPTS : CF_MD_OPTS,
-      };
-    case "Balance Sheet / Principal":
-      return { editKey: "balanceSheetPrincipal", kind: "categorical", options: CS_BSP_OPTS };
-    case "Deal Size":
-      return { editKey: "dealSizeMUsd", kind: "number", unit: "$m USD" };
-    case "Deals per MD":
-      return { editKey: "dealsPerMdL3y", kind: "number", unit: "per MD, last 3 years" };
-    case "Firm Age":
-      return { editKey: "firmAge", kind: "number", unit: "yrs" };
-    case "Fee-Generating":
-      return { editKey: "feeGeneratingCount", kind: "number", unit: "MDs" };
-    default:
-      return undefined;
+/**
+ * The editor for a researched trait the thesis scores, by trait key: a picklist of the thesis's
+ * options (with their points) or a number box with the trait's unit. Undefined for gates, facts,
+ * and traits the thesis does not score.
+ */
+export function editorForEditKey(
+  rubric: RubricContext,
+  editKey: string,
+  thesisKey: string | null | undefined,
+): AxisEditor | undefined {
+  const trait = traitOfAxis(rubric, editKey);
+  if (trait === undefined || trait.role !== "evidence") {
+    return undefined;
   }
+  if (!researchedFor(rubric.definition, trait, thesisKey)) {
+    return undefined;
+  }
+  const c = criterionFor(rubric.definition, thesisKey, trait.traitKey);
+  if (c === undefined) {
+    return undefined;
+  }
+  if (c.scoring.type === "category") {
+    return {
+      editKey: trait.traitKey,
+      kind: "categorical",
+      options: c.scoring.options.map((o) => ({ score: o.points, label: o.value })),
+    };
+  }
+  return trait.kind === "number"
+    ? { editKey: trait.traitKey, kind: "number", unit: trait.unit ?? undefined }
+    : undefined;
 }
 
-const EDITOR_LABELS: Record<Model, string[]> = {
-  CF: ["Services", "MD Experience", "Deal Size", "Deals per MD", "Firm Age", "Fee-Generating"],
-  CS: [
-    "CS Services Fit",
-    "MD Experience",
-    "Balance Sheet / Principal",
-    "Deal Size",
-    "Deals per MD",
-    "Firm Age",
-    "Fee-Generating",
-  ],
-};
-
-/** The editor for a firm field, by its edit key; undefined for gates and fields with no editor. */
-export function editorForEditKey(editKey: string, model: Model): AxisEditor | undefined {
-  for (const label of EDITOR_LABELS[model]) {
-    const editor = editorForAxis(label, model);
-    if (editor?.editKey === editKey) {
-      return editor;
-    }
-  }
-  return undefined;
+/** The score's axis name for a trait under the firm's thesis (its criterion's label); undefined when unscored. */
+export function criterionLabelFor(
+  rubric: RubricContext,
+  traitKey: string,
+  thesisKey: string | null | undefined,
+): string | undefined {
+  return criterionFor(rubric.definition, thesisKey, traitKey)?.label;
 }
 
-/** The rubric mirror's axis label for a firm field (e.g. dealSizeMUsd is "Deal Size"); undefined for gates. */
-export function mirrorLabelForEditKey(editKey: string, model: Model): string | undefined {
-  return EDITOR_LABELS[model].find((label) => editorForAxis(label, model)?.editKey === editKey);
+/** The trait key behind a score axis (a criterion label) for the firm's thesis. */
+export function traitKeyForAxis(
+  rubric: RubricContext,
+  axis: string,
+  thesisKey: string | null | undefined,
+): string | undefined {
+  return resolveThesis(rubric.definition, thesisKey).criteria.find((c) => c.label === axis)
+    ?.traitKey;
 }
 
 // ─── Search filter (rediscovery) ─────────────────────────────────────────
@@ -247,50 +192,11 @@ export function searchLabel(
   return [base, base.endsWith(day) ? "" : day].filter((part) => part !== "").join(" · ");
 }
 
-// Human-readable value per axis. Never surface rubric-band expressions
-// ("geo_score=2", "8-40", ">$150m") — those are internal to mirrorScore.
-export function humanAxisValue(axisLabel: string, firm: FirmView): string {
-  switch (axisLabel) {
-    case "Coverage Model":
-      return firm.coverageModel ?? "—";
-    case "Services":
-    case "CS Services Fit":
-      return firm.servicesFit ?? "—";
-    case "MD Experience":
-      return firm.mdPedigree ?? "—";
-    case "Balance Sheet / Principal":
-      return firm.balanceSheetPrincipal ?? "—";
-    case "Geographic Footprint": {
-      const parts: string[] = [];
-      if (firm.hqCountry) {
-        parts.push(firm.hqCountry);
-      }
-      if (firm.geographicFootprint && firm.geographicFootprint !== firm.hqCountry) {
-        parts.push(firm.geographicFootprint);
-      }
-      return parts.length > 0 ? parts.join(" · ") : "—";
-    }
-    case "Deal Size":
-      return firm.dealSizeMUsd !== null && firm.dealSizeMUsd !== undefined
-        ? `$${firm.dealSizeMUsd}m`
-        : "—";
-    case "Deals per MD":
-      return firm.dealsPerMdL3y !== null && firm.dealsPerMdL3y !== undefined
-        ? `${firm.dealsPerMdL3y} deals/MD`
-        : "—";
-    case "Firm Age":
-      return firm.firmAge !== null && firm.firmAge !== undefined ? `${firm.firmAge} yrs` : "—";
-    case "Headcount":
-      return firm.employees !== null && firm.employees !== undefined
-        ? `${firm.employees} employees`
-        : "—";
-    case "Fee-Generating":
-      return firm.feeGeneratingCount !== null && firm.feeGeneratingCount !== undefined
-        ? `${firm.feeGeneratingCount} fee-earning heads`
-        : "—";
-    default:
-      return "—";
-  }
+/** A trait's value on the firm for a person to read ("$40m", "9 yrs"); "—" when unset. */
+export function humanAxisValue(rubric: RubricContext, traitKey: string, firm: FirmView): string {
+  const trait = traitOfAxis(rubric, traitKey);
+  const v = traitsOf(firm as Record<string, unknown>)[traitKey];
+  return trait === undefined ? (v === undefined ? "—" : String(v)) : showTraitValue(trait, v);
 }
 
 // Word-boundary truncation. Rewinds from a hard character cap back to the
@@ -324,8 +230,9 @@ export function formatObservedDate(raw: unknown): string | null {
 
 export function describeCohort(firm: FirmView): string {
   const bits: string[] = [];
-  if (firm.firmType) {
-    bits.push(firm.firmType);
+  const thesis = thesisOf(firm as Record<string, unknown>);
+  if (thesis !== null) {
+    bits.push(thesis);
   }
   if (firm.employeeGroup) {
     bits.push(firm.employeeGroup);
@@ -344,29 +251,26 @@ export function formatRetrievedShort(f: FindingLike): string {
   return d.toISOString().slice(0, 10);
 }
 
-// Format a coerced axis value as the string verifyFindingAction.overrideValue
-// expects. Boolean gates read as "Yes" / "No"; everything else stringifies.
-export function stringifyOverride(editKey: string, v: string | number | boolean): string {
-  if (HARD_GATE_EDIT_KEYS.has(editKey)) {
+// Format a coerced value as the string verifyFinding's overrideValue
+// expects. Yes/no traits read as "Yes" / "No"; everything else stringifies.
+export function stringifyOverride(
+  rubric: RubricContext,
+  editKey: string,
+  v: string | number | boolean,
+): string {
+  if (isGateTrait(rubric, editKey)) {
     return v === true ? "Yes" : v === false ? "No" : String(v);
   }
   return String(v);
 }
 
-// Enum options for abstain axes that are picklists in the rubric. Two of
-// them (servicesFit, mdPedigree) split by model — CF vs CS. Everything
-// numeric / boolean / free-text is handled elsewhere via axisInputKind.
-export function enumOptionsFor(editKey: string, model: Model): string[] {
-  switch (editKey) {
-    case "servicesFit":
-      return (model === "CS" ? CS_SERVICES_OPTS : CF_SERVICES_OPTS).map((o) => o.label);
-    case "mdPedigree":
-      return (model === "CS" ? CS_MD_OPTS : CF_MD_OPTS).map((o) => o.label);
-    case "balanceSheetPrincipal":
-      return CS_BSP_OPTS.map((o) => o.label);
-    case "coverageModel":
-      return ["Single Coverage Focus", "Multi-Coverage Focus", "Generalist Focus"];
-    default:
-      return [];
-  }
+// The picklist for a category trait under the firm's thesis: its scored options, else the
+// catalog's vocabulary. Numbers, yes/no traits and unknown keys have none.
+export function enumOptionsFor(
+  rubric: RubricContext,
+  editKey: string,
+  thesisKey: string | null | undefined,
+): string[] {
+  const trait = traitOfAxis(rubric, editKey);
+  return trait?.kind === "category" ? optionsFor(rubric.definition, thesisKey, trait) : [];
 }
