@@ -1,4 +1,5 @@
 import React from "react";
+import { useRubric } from "@/data/rubricContext";
 import { Button, Panel } from "@/ui";
 import type { FirmLike } from "../../shared/exportRows";
 import { APPROVED_CAP, lookalikesOfApproved } from "../../shared/lookalikes";
@@ -19,7 +20,11 @@ export function ApprovedLookalikes({
   universe: readonly FirmLike[];
   onClose: () => void;
 }): React.ReactElement {
-  const rows = React.useMemo(() => lookalikesOfApproved(approved, universe), [approved, universe]);
+  const rubric = useRubric();
+  const rows = React.useMemo(
+    () => lookalikesOfApproved(rubric, approved, universe),
+    [rubric, approved, universe],
+  );
   const titleId = React.useId();
   const count = approved.length;
   return (

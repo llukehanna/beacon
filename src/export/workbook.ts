@@ -5,6 +5,7 @@ import {
   citationsTable,
   targetsTable,
 } from "../../shared/exportRows";
+import type { RubricContext } from "../../shared/rubric/types";
 
 /** A column wide enough for its header and typical cells, within [10, 60] characters. */
 function widths(headers: string[], rows: Cell[][], cap = 60): { width: number }[] {
@@ -31,14 +32,15 @@ function plain(c: Cell) {
  * came from). The writer is fetched here, on the first export, so it is not in any page's bundle.
  */
 export async function buildWorkbook(
+  rubric: RubricContext,
   rows: readonly ExportRow[],
   citations: readonly Citation[][],
 ): Promise<Blob> {
   // The universal build writes on this thread; the browser build starts a worker from a blob URL,
   // which the Content-Security-Policy does not allow.
   const { default: writeExcelFile } = await import("write-excel-file/universal");
-  const targets = targetsTable(rows);
-  const cites = citationsTable(rows, citations);
+  const targets = targetsTable(rubric, rows);
+  const cites = citationsTable(rubric, rows, citations);
   const sheet = (t: { headers: string[]; rows: Cell[][] }) => [
     t.headers.map((h) => ({ value: h, fontWeight: "bold" as const })),
     ...t.rows.map((r) => r.map(plain)),

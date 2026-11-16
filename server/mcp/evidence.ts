@@ -9,12 +9,11 @@
  */
 import { authoritativeFinding, buildAxisRows } from "../../shared/axisRows.js";
 import { type Citation, citationOf } from "../../shared/citation.js";
-import { toScoreInput } from "../../shared/deskModel.js";
 import { conflictSides } from "../../shared/evidenceModel.js";
 import { displayFindingValue } from "../../shared/findingActions.js";
+import type { RubricContext } from "../../shared/rubric/types.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { MAX_POSSIBLE, mirrorScore } from "../../shared/scoreMirror.js";
-import { ENRICH_AXES } from "../../shared/vocab.js";
+import { scoreFirm } from "../../shared/scoring.js";
 
 /** One side of an open conflict: a value one source gave, and where it came from. */
 export interface ConflictSideEvidence extends Citation {
@@ -47,22 +46,18 @@ export interface FirmEvidence {
   firmId: string;
   firmName: string;
   /** The live rubric score and tier the Desk shows for the firm. */
-  score: { total: number; max: number; tier: string; model: "CF" | "CS" };
+  score: { total: number; max: number; tier: string; model: string };
   axes: AxisEvidence[];
 }
 
 /** The firm's evidence for `findings` (all of the firm's, whatever their status). */
 export function firmEvidence(
+  rubric: RubricContext,
   firm: ObjectOf<"Firm">,
   findings: readonly ObjectOf<"ResearchFinding">[],
 ): FirmEvidence {
-  const view = firm;
-  const mirror = mirrorScore(toScoreInput(view));
-  const rows = buildAxisRows(
-    ENRICH_AXES.filter((a) => a.models.includes(mirror.model)),
-    undefined,
-    findings,
-  );
+  const live = scoreFirm(rubric.definition, firm);
+  const rows = buildAxisRows(rubric, live.model, undefined, findings);
   const axes = rows.map((row): AxisEvidence => {
     const base = {
       axis: row.axis,
@@ -78,7 +73,7 @@ export function firmEvidence(
       return {
         ...base,
         sides: conflictSides(row).map((f) => ({
-          value: displayFindingValue(row.axis, f.value, { units: false }),
+          value: displayFindingValue(rubric, row.axis, f.value, { units: false }),
           ...citationOf(f),
         })),
       };
@@ -89,7 +84,7 @@ export function firmEvidence(
     }
     return {
       ...base,
-      value: displayFindingValue(row.axis, f.value, { units: false }),
+      value: displayFindingValue(rubric, row.axis, f.value, { units: false }),
       ...citationOf(f),
     };
   });
@@ -97,10 +92,10 @@ export function firmEvidence(
     firmId: firm.$primaryKey,
     firmName: firm.firmName ?? firm.$primaryKey,
     score: {
-      total: mirror.weightedTotal,
-      max: MAX_POSSIBLE,
-      tier: mirror.tier,
-      model: mirror.model,
+      total: live.weightedTotal,
+      max: live.maxPossible,
+      tier: live.tier,
+      model: live.model,
     },
     axes,
   };

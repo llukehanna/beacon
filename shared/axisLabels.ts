@@ -1,45 +1,15 @@
 /**
  * The one place that names a rubric axis for a person. The desk, the tear sheet, the Home feed,
- * the evals, the exports and the MCP evidence all read their axis labels from here, in sentence
- * case, so the same axis never goes by two names.
+ * the evals, the exports and the MCP evidence all read their axis labels from here, so the same
+ * axis never goes by two names.
  *
- * Axes arrive in several spellings: the finding vocabulary (`deal_size_usd_m`), the firm property
- * (`dealSizeMUsd`), the rubric mirror's own names (`Deal Size`, `MD Experience`) and a few older
- * short forms. Every spelling is folded onto one key (lower case, letters and digits only).
- * Pure: no React, no data access.
+ * Labels come from the trait catalog. An axis arrives either as a trait key (`deal_size_usd_m`,
+ * the finding and rule vocabulary) or as a score's axis, which is the label of the criterion that
+ * scored it (`Deal Size`); both fold onto the trait's label. Pure: no React, no data access.
  */
+import type { RubricContext, TraitDef } from "./rubric/types.js";
 
-/** Canonical label per folded key. Several spellings of one axis share a label on purpose. */
-const LABELS: Readonly<Record<string, string>> = {
-  coveragemodel: "Sector coverage",
-  servicesfit: "Services fit",
-  services: "Services fit",
-  csservicesfit: "Services fit",
-  mdpedigree: "MD pedigree",
-  mdexperience: "MD pedigree",
-  balancesheetprincipal: "Balance sheet / principal",
-  dealsize: "Avg deal size",
-  dealsizemusd: "Avg deal size",
-  dealsizeusdm: "Avg deal size",
-  dealspermd: "Deals per MD (last 3 years)",
-  dealspermdl3y: "Deals per MD (last 3 years)",
-  firmage: "Firm age",
-  firmageyears: "Firm age",
-  employees: "Headcount",
-  headcount: "Headcount",
-  feegeneratingcount: "Fee-earning heads",
-  feegenerating: "Fee-earning heads",
-  geographicfootprint: "Geographic fit",
-  geoscore: "Geographic fit",
-  // The four yes/no gates. The two spellings of the balance-sheet gate mirror FINDING_AXIS_TO_KEY.
-  advisoryconflict: "Advisory conflict",
-  hasstorbalancesheet: "Sales & trading / balance sheet",
-  storbalancesheet: "Sales & trading / balance sheet",
-  webactivity: "Web activity",
-  solvent: "Solvent",
-};
-
-/** What an axis the map does not know reads as. */
+/** What an axis the catalog does not know reads as. */
 export const UNKNOWN_AXIS = "unknown axis";
 
 /** "has_st_or_balance_sheet" as "Has st or balance sheet": sentence case, never Title Case. */
@@ -57,15 +27,31 @@ function sentenceCase(raw: string): string {
 
 const fold = (raw: string): string => raw.toLowerCase().replace(/[^a-z0-9]/g, "");
 
+/** The catalog trait an axis names, by trait key, trait label, or the label of a criterion scoring it. */
+export function traitOfAnyAxis(rubric: RubricContext, raw: string): TraitDef | undefined {
+  const k = fold(raw);
+  const direct = rubric.traits.find((t) => fold(t.traitKey) === k || fold(t.label) === k);
+  if (direct !== undefined) {
+    return direct;
+  }
+  for (const thesis of rubric.definition.theses) {
+    const c = thesis.criteria.find((x) => fold(x.label) === k);
+    if (c !== undefined) {
+      return rubric.traits.find((t) => t.traitKey === c.traitKey);
+    }
+  }
+  return undefined;
+}
+
 /** The label for an axis in any of its spellings; an unknown axis is put into sentence case. */
-export function axisLabel(raw: string | undefined | null): string {
+export function axisLabel(rubric: RubricContext, raw: string | undefined | null): string {
   if (raw === undefined || raw === null || raw.trim() === "") {
     return UNKNOWN_AXIS;
   }
-  return LABELS[fold(raw)] ?? sentenceCase(raw);
+  return traitOfAnyAxis(rubric, raw)?.label ?? sentenceCase(raw);
 }
 
-/** True when the map names the axis, whatever its spelling. */
-export function isKnownAxis(raw: string | undefined | null): boolean {
-  return raw !== undefined && raw !== null && LABELS[fold(raw)] !== undefined;
+/** True when the catalog names the axis, whatever its spelling. */
+export function isKnownAxis(rubric: RubricContext, raw: string | undefined | null): boolean {
+  return raw !== undefined && raw !== null && traitOfAnyAxis(rubric, raw) !== undefined;
 }

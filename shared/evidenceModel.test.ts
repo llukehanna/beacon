@@ -7,15 +7,15 @@ import {
   pickReading,
   rejectReasonText,
 } from "./evidenceModel.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 import type { ProviderObservation } from "./summaries.js";
-import { ENRICH_AXES } from "./vocab.js";
 
 const axis = (name: string) => {
-  const def = ENRICH_AXES.find((a) => a.axis === name);
-  if (!def) {
+  const trait = ADVISORY.traits.find((t) => t.traitKey === name);
+  if (!trait) {
     throw new Error(name);
   }
-  return def;
+  return trait;
 };
 
 const reading = (over: Partial<ProviderObservation>): ProviderObservation => ({
@@ -82,17 +82,23 @@ describe("pickReading", () => {
   };
 
   it("prefers the reading the finding cites", () => {
-    const [row] = buildAxisRows([axis("fee_generating_count")], undefined, [finding]);
+    const [row] = buildAxisRows(ADVISORY, "CS", undefined, [finding]).filter(
+      (r) => r.axis === "fee_generating_count",
+    );
     expect(pickReading({ ...row, readings }, finding)?.provider).toBe("websearch");
   });
 
   it("otherwise takes the first reading that has a value", () => {
-    const [row] = buildAxisRows([axis("fee_generating_count")], undefined, []);
+    const [row] = buildAxisRows(ADVISORY, "CS", undefined, []).filter(
+      (r) => r.axis === "fee_generating_count",
+    );
     expect(pickReading({ ...row, readings }, undefined)?.provider).toBe("dealdb");
   });
 
   it("has nothing to pick when no provider said anything", () => {
-    const [row] = buildAxisRows([axis("fee_generating_count")], undefined, []);
+    const [row] = buildAxisRows(ADVISORY, "CS", undefined, []).filter(
+      (r) => r.axis === "fee_generating_count",
+    );
     expect(pickReading({ ...row, readings: [] }, undefined)).toBeUndefined();
   });
 });

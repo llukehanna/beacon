@@ -15,7 +15,7 @@ export interface TierMeterModel {
 const clamp01 = (x: number): number => Math.min(1, Math.max(0, x));
 
 /**
- * `cuts` are the rubric's tier thresholds (shared/scoreMirror TIER_THRESHOLDS): the lowest total
+ * `cuts` are the thesis's tier thresholds (ThesisDef.tiers): the lowest total
  * that earns C, B and A. Below C is Rejected. The tier is the one the cuts give the score, so it
  * agrees with the rubric.
  */

@@ -16,20 +16,28 @@ import {
   toCsv,
 } from "./exportRows.js";
 import { displayFindingValue } from "./findingActions.js";
-import { ENRICH_AXES } from "./vocab.js";
+import { ADVISORY, withTraits } from "./rubric/__fixtures__/advisoryRubric.js";
+import { TOY_RUBRIC } from "./rubric/__fixtures__/toyRubric.js";
+import { evidenceTraits } from "./rubric/catalog.js";
 
-const firm = (over: Partial<FirmLike> = {}): FirmLike => ({
-  firmId: "f1",
-  firmName: "Harbour Partners",
-  firmType: "CF",
-  hqCountry: "United Kingdom",
-  sector: "Industrials",
-  employees: 40,
-  ownership: "Partnership",
-  coverageModel: "Single-sector focus",
-  lifecycleState: "Screening",
-  ...over,
-});
+const ENRICH_AXES = evidenceTraits(ADVISORY.traits);
+
+/** Test firms are written with the firm columns; `withTraits` gives them their traits. */
+type Over = Record<string, unknown>;
+
+const firm = (over: Over = {}): FirmLike =>
+  withTraits({
+    firmId: "f1",
+    firmName: "Harbour Partners",
+    firmType: "CF",
+    hqCountry: "United Kingdom",
+    sector: "Industrials",
+    employees: 40,
+    ownership: "Partnership",
+    coverageModel: "Single-sector focus",
+    lifecycleState: "Screening",
+    ...over,
+  });
 
 const finding = (over: Partial<FindingLike> = {}): FindingLike => ({
   findingId: "r1",
@@ -48,9 +56,10 @@ const finding = (over: Partial<FindingLike> = {}): FindingLike => ({
 
 describe("exportRows", () => {
   it("handles abstentions and empty lists", () => {
-    expect(exportRows([], [])).toEqual({ rows: [], citations: [] });
+    expect(exportRows(ADVISORY, [], [])).toEqual({ rows: [], citations: [] });
 
     const { rows, citations } = exportRows(
+      ADVISORY,
       [firm()],
       [
         finding({
@@ -73,7 +82,7 @@ describe("exportRows", () => {
   });
 
   it("carries a finding's value and where it came from", () => {
-    const { rows, citations } = exportRows([firm()], [finding()]);
+    const { rows, citations } = exportRows(ADVISORY, [firm()], [finding()]);
     expect(rows[0]).toMatchObject({
       firmId: "f1",
       firmName: "Harbour Partners",
@@ -93,6 +102,7 @@ describe("exportRows", () => {
 
   it("cites no quote for an analyst's entry, whatever note its excerpt holds", () => {
     const { rows, citations } = exportRows(
+      ADVISORY,
       [firm()],
       [
         finding({
@@ -117,6 +127,7 @@ describe("exportRows", () => {
 
   it("cites a market signal's finding as a synthetic signal with no quote", () => {
     const { citations } = exportRows(
+      ADVISORY,
       [firm()],
       [
         finding({
@@ -166,17 +177,18 @@ describe("exportRows", () => {
       confidenceTier: null,
       retrievedAt: "2026-02-01T00:00:00Z",
     });
-    const older = exportRows([firm()], [analyst("2026-01-01T00:00:00Z"), signal]);
+    const older = exportRows(ADVISORY, [firm()], [analyst("2026-01-01T00:00:00Z"), signal]);
     expect(older.rows[0].fee_generating_count).toBe(3);
     expect(older.citations[0].find((c) => c.axis === "fee_generating_count")?.provider).toBe(
       "Synthetic market signal",
     );
-    const newer = exportRows([firm()], [analyst("2026-03-01T00:00:00Z"), signal]);
+    const newer = exportRows(ADVISORY, [firm()], [analyst("2026-03-01T00:00:00Z"), signal]);
     expect(newer.rows[0].fee_generating_count).toBe(5);
   });
 
   it("prefers the human-verified finding, types numbers and gates, and skips superseded ones", () => {
     const { rows } = exportRows(
+      ADVISORY,
       [firm()],
       [
         finding({
@@ -236,7 +248,7 @@ describe("exportRows", () => {
       },
     ] satisfies (AxisFinding & FindingLike)[];
     const all = [...sides, finding()];
-    const { rows, citations } = exportRows([firm()], all);
+    const { rows, citations } = exportRows(ADVISORY, [firm()], all);
     // The cell says so, the two most trusted sources first (Deal DB before Filings), as the Desk lists them.
     expect(rows[0].fee_generating_count).toBe("Conflict: 3 vs 5");
     // Both sides are cited, and every other axis still has its one citation.
@@ -260,22 +272,22 @@ describe("exportRows", () => {
     expect(citations[0]).toHaveLength(ENRICH_AXES.length + 1);
 
     // The Desk reads the same sides, with the same citations, from the same findings.
-    const desk = buildAxisRows(ENRICH_AXES, undefined, sides).find(
+    const desk = buildAxisRows(ADVISORY, "CS", undefined, sides).find(
       (r) => r.axis === "fee_generating_count",
     )!;
     expect(desk.state).toBe("conflict");
     expect(
       conflictSides(desk).map((f) => {
         const c = citationOf(f);
-        return { value: displayFindingValue(desk.axis, f.value, { units: false }), ...c };
+        return { value: displayFindingValue(ADVISORY, desk.axis, f.value, { units: false }), ...c };
       }),
     ).toEqual(cited.map(({ axis: _axis, ...side }) => side));
 
     // The files print it: in the Targets cell, and on two Citations lines.
-    const targets = targetsTable(rows);
+    const targets = targetsTable(ADVISORY, rows);
     expect(targets.rows[0]).toContain("Conflict: 3 vs 5");
     expect(toCsv(targets.headers, targets.rows)).toContain("Conflict: 3 vs 5");
-    const lines = citationsTable(rows, citations).rows.filter((r) =>
+    const lines = citationsTable(ADVISORY, rows, citations).rows.filter((r) =>
       String(r[1]).includes("(conflict"),
     );
     expect(lines.map((r) => [r[1], r[2]])).toEqual([
@@ -295,6 +307,7 @@ describe("exportRows", () => {
         conflictGroupId: "g2",
       });
     const { rows, citations } = exportRows(
+      ADVISORY,
       [firm()],
       [side("d1", "40", "dealdb"), side("d2", "55", "filings")],
     );
@@ -303,7 +316,7 @@ describe("exportRows", () => {
       "40",
       "55",
     ]);
-    expect(displayFindingValue("deal_size_usd_m", "40")).toBe("$40m");
+    expect(displayFindingValue(ADVISORY, "deal_size_usd_m", "40")).toBe("$40m");
   });
 
   it("does not mark a conflict nobody can still decide", () => {
@@ -325,13 +338,14 @@ describe("exportRows", () => {
         findingStatus: "superseded",
       }),
     ];
-    const { rows, citations } = exportRows([firm()], decided);
+    const { rows, citations } = exportRows(ADVISORY, [firm()], decided);
     expect(String(rows[0].firm_age ?? "")).not.toContain("Conflict");
     expect(citations[0]).toHaveLength(ENRICH_AXES.length);
   });
 
   it("falls back to the value already on the firm, without a citation", () => {
     const { rows, citations } = exportRows(
+      ADVISORY,
       [firm({ servicesFit: "Adjacent advisory services" })],
       [],
     );
@@ -341,6 +355,7 @@ describe("exportRows", () => {
 
   it("does not credit a finding that has no value for the firm's own value", () => {
     const { rows, citations } = exportRows(
+      ADVISORY,
       [firm({ servicesFit: "Adjacent advisory services" })],
       [finding({ value: "" })],
     );
@@ -354,7 +369,7 @@ describe("exportRows", () => {
   });
 
   it("uses the score and tier the page shows when it gives them", () => {
-    const { rows } = exportRows([firm({ score: 15, tier: "A" })], []);
+    const { rows } = exportRows(ADVISORY, [firm({ score: 15, tier: "A" })], []);
     expect(rows[0].score).toBe(15);
     expect(rows[0].tier).toBe("A");
   });
@@ -395,21 +410,21 @@ describe("toCsv", () => {
   });
 
   it("never prints undefined", () => {
-    const { rows } = exportRows([firm()], []);
-    const t = targetsTable(rows);
+    const { rows } = exportRows(ADVISORY, [firm()], []);
+    const t = targetsTable(ADVISORY, rows);
     expect(toCsv(t.headers, t.rows)).not.toContain("undefined");
   });
 });
 
 describe("workbook tables", () => {
   it("reads an empty axis or citation as no source", () => {
-    const { rows, citations } = exportRows([firm()], [finding()]);
-    const t = targetsTable(rows);
+    const { rows, citations } = exportRows(ADVISORY, [firm()], [finding()]);
+    const t = targetsTable(ADVISORY, rows);
     expect(t.headers.slice(0, 3)).toEqual(["Firm", "Tier", "Score"]);
     expect(t.headers[t.headers.length - 1]).toBe("Firm ID");
     expect(t.rows[0]).toHaveLength(t.headers.length);
     expect(t.rows[0]).toContain(NO_SOURCE);
-    const c = citationsTable(rows, citations);
+    const c = citationsTable(ADVISORY, rows, citations);
     expect(c.headers).toEqual(["Firm", "Axis", "Provider", "Quote", "Model"]);
     expect(c.rows).toHaveLength(ENRICH_AXES.length);
     expect(c.rows.every((r) => r.length === 5 && r.every((x) => x !== null))).toBe(true);
@@ -419,6 +434,25 @@ describe("workbook tables", () => {
       "Filings",
       "We advise on mergers.",
       "claude-haiku-4-5",
+    ]);
+  });
+});
+
+describe("an export under another workspace's catalog", () => {
+  it("has a column per researched trait, named from that catalog", () => {
+    const { rows, citations } = exportRows(
+      TOY_RUBRIC,
+      [{ firmId: "t1", firmName: "Toy Co", traits: { product_quality: "Great", team_size: 12 } }],
+      [],
+    );
+    expect(rows[0]).toMatchObject({ product_quality: "Great", team_size: 12, maxScore: 11 });
+    expect(citations[0].map((c) => c.axis)).toEqual(["product_quality", "team_size", "sanctioned"]);
+    const t = targetsTable(TOY_RUBRIC, rows);
+    expect(t.headers.slice(-4)).toEqual([
+      "Product quality",
+      "Team size",
+      "Sanctions screen",
+      "Firm ID",
     ]);
   });
 });
@@ -447,6 +481,7 @@ describe("exportFileName", () => {
 
 describe("CRM formats", () => {
   const { rows } = exportRows(
+    ADVISORY,
     [firm(), firm({ firmId: "f2", firmName: "=Evil Corp", employees: null, hqCountry: null })],
     [],
   );

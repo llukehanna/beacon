@@ -3,12 +3,14 @@
  * axis (from the observations) with what Beacon decided (from the stored findings). Pure: no
  * React, no data access.
  */
+import { axisLabel } from "./axisLabels.js";
 import { type FindingLike, classifyAxis, pickAuthoritative } from "./axisState.js";
-import { displayAxis } from "./deskModel.js";
-import { FINDING_AXIS_TO_KEY, displayFindingValue } from "./findingActions.js";
-import { MAX_POSSIBLE } from "./scoreMirror.js";
+import { displayFindingValue, traitOfAxis } from "./findingActions.js";
+import { criterionFor, researchedTraits } from "./rubric/catalog.js";
+import { criterionMax, maxPossible, resolveThesis } from "./rubric/engine.js";
+import type { RubricContext, TraitDef } from "./rubric/types.js";
 import type { FirmObservations, ProviderObservation } from "./summaries.js";
-import { type AxisDef, PROVIDER_TRUST } from "./vocab.js";
+import { PROVIDER_TRUST } from "./vocab.js";
 
 export type RowState =
   "conflict" | "proposed" | "verified" | "abstained" | "rejected" | "signal" | "empty";
@@ -26,12 +28,14 @@ export interface Rejection {
 }
 
 export interface AxisRow {
-  /** The finding-vocabulary name, e.g. `fee_generating_count`. */
+  /** The trait key, e.g. `fee_generating_count` (the finding vocabulary). */
   axis: string;
-  def: AxisDef;
+  trait: TraitDef;
   label: string;
-  /** "×1" for a scored axis (each adds 0 to 2 of the 18 points), "gate" for a pass/fail gate. */
+  /** "×1" for an axis the thesis scores at weight 1, "gate" for a pass/fail gate, "—" otherwise. */
   weight: string;
+  /** The most points the axis can add (its best band times its weight); null when unscored. */
+  maxPoints: number | null;
   state: RowState;
   /** Keyed by provider, every provider present; `value: null` where it had nothing kept. */
   cells: Record<string, CellView>;
@@ -47,9 +51,6 @@ const isStatus = (f: FindingLike, status: string): boolean =>
 
 const isGrouped = (f: FindingLike): boolean =>
   f.conflictGroupId !== undefined && f.conflictGroupId !== null && f.conflictGroupId !== "";
-
-const matchesAxis = (def: AxisDef, f: FindingLike): boolean =>
-  FINDING_AXIS_TO_KEY[(f.axis ?? "").trim().toLowerCase()] === def.actionParam;
 
 /** The two (or more) sides of a conflict that is still open: grouped findings, one still proposed. */
 export function openConflictFindings(row: Pick<AxisRow, "findings">): FindingLike[] {
@@ -97,24 +98,26 @@ export function authoritativeFinding(row: AxisRow): FindingLike | undefined {
 const emptyCell = (): CellView => ({ value: null, confidence: null });
 
 /**
- * One row per axis, in the order given (rubric order). `obs` is undefined while the observations
- * load: every cell is then empty and the status still comes from the findings.
+ * One row per trait the firm's thesis researches, in catalog order. `obs` is undefined while the
+ * observations load: every cell is then empty and the status still comes from the findings.
  */
 export function buildAxisRows(
-  axes: readonly AxisDef[],
+  rubric: RubricContext,
+  thesisKey: string | null | undefined,
   obs: FirmObservations | undefined,
   findings: readonly FindingLike[],
 ): AxisRow[] {
   const visible = findings.filter((f) => !isStatus(f, "superseded"));
-  return axes.map((def): AxisRow => {
-    const readings = obs?.axes.find((a) => a.axis === def.axis)?.providers ?? [];
+  return researchedTraits(rubric, thesisKey).map((trait): AxisRow => {
+    const axis = trait.traitKey;
+    const readings = obs?.axes.find((a) => a.axis === axis)?.providers ?? [];
     const cells: Record<string, CellView> = {};
     const rejections: Rejection[] = [];
     for (const provider of PROVIDER_TRUST) {
       const reading = readings.find((r) => r.provider === provider);
       if (reading?.value != null && reading.grounded === true) {
         cells[provider] = {
-          value: displayFindingValue(def.axis, reading.value),
+          value: displayFindingValue(rubric, axis, reading.value),
           confidence: reading.confidence,
         };
         continue;
@@ -123,17 +126,20 @@ export function buildAxisRows(
       if (reading?.value != null && reading.grounded === false) {
         rejections.push({
           provider,
-          value: displayFindingValue(def.axis, reading.value),
+          value: displayFindingValue(rubric, axis, reading.value),
           reason: reading.rejectReason ?? "rejected",
         });
       }
     }
-    const own = visible.filter((f) => matchesAxis(def, f));
+    const own = visible.filter((f) => traitOfAxis(rubric, f.axis)?.traitKey === axis);
+    const criterion = criterionFor(rubric.definition, thesisKey, axis);
     return {
-      axis: def.axis,
-      def,
-      label: displayAxis(def.axis),
-      weight: def.kind === "gate" ? "gate" : "×1",
+      axis,
+      trait,
+      label: axisLabel(rubric, axis),
+      weight:
+        criterion !== undefined ? `×${criterion.weight}` : trait.kind === "yesno" ? "gate" : "—",
+      maxPoints: criterion === undefined ? null : criterionMax(criterion) * criterion.weight,
       state: stateOf(own),
       cells,
       rejections,
@@ -174,28 +180,47 @@ export function summaryText(c: RowCounts): string {
   return `${plural(c.conflicts, "conflict", "conflicts")} · ${c.proposed} proposed · ${c.abstained} abstained · ${c.verified} verified`;
 }
 
-/** The rubric's scored axes: each earns 0 to 2 of the 18 points. */
-export const SCORED_AXIS_COUNT = MAX_POSSIBLE / 2;
+/** How many axes the thesis scores. */
+export function scoredAxisCount(
+  rubric: RubricContext,
+  thesisKey: string | null | undefined,
+): number {
+  return resolveThesis(rubric.definition, thesisKey).criteria.length;
+}
+
+/** The most points the thesis can award. */
+export function maxPointsFor(rubric: RubricContext, thesisKey: string | null | undefined): number {
+  return maxPossible(resolveThesis(rubric.definition, thesisKey));
+}
 
 /**
- * How the grid's rows add up, so the count above it and the rubric's nine axes reconcile: the
+ * How the grid's rows add up, so the count above it and the rubric's scored axes reconcile: the
  * scored axes and gates in the grid, plus the scored axes that come from the firm record alone.
  */
-export function gridComposition(rows: readonly Pick<AxisRow, "def">[]): {
+export function gridComposition(
+  rubric: RubricContext,
+  thesisKey: string | null | undefined,
+  rows: readonly Pick<AxisRow, "axis" | "trait">[],
+): {
   scored: number;
   gates: number;
   fromRecord: number;
 } {
-  const gates = rows.filter((r) => r.def.kind === "gate").length;
-  const scored = rows.length - gates;
-  return { scored, gates, fromRecord: Math.max(0, SCORED_AXIS_COUNT - scored) };
+  const gates = rows.filter((r) => r.trait.kind === "yesno").length;
+  const scored = rows.filter((r) => criterionFor(rubric.definition, thesisKey, r.axis)).length;
+  return { scored, gates, fromRecord: Math.max(0, scoredAxisCount(rubric, thesisKey) - scored) };
 }
 
-/** "7 scored axes + 4 gates. 2 more scored axes come from the firm record, below." */
-export function compositionText(rows: readonly Pick<AxisRow, "def">[]): string {
-  const { scored, gates, fromRecord } = gridComposition(rows);
+/** "7 scored axes + 4 gates. 2 more of the 9 scored axes come from the firm record, below." */
+export function compositionText(
+  rubric: RubricContext,
+  thesisKey: string | null | undefined,
+  rows: readonly Pick<AxisRow, "axis" | "trait">[],
+): string {
+  const { scored, gates, fromRecord } = gridComposition(rubric, thesisKey, rows);
+  const total = scoredAxisCount(rubric, thesisKey);
   const head = `${plural(scored, "scored axis", "scored axes")} + ${plural(gates, "gate", "gates")}.`;
   return fromRecord === 0
     ? head
-    : `${head} ${fromRecord} more of the ${SCORED_AXIS_COUNT} scored axes come${fromRecord === 1 ? "s" : ""} from the firm record, below.`;
+    : `${head} ${fromRecord} more of the ${total} scored axes come${fromRecord === 1 ? "s" : ""} from the firm record, below.`;
 }

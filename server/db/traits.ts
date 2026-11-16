@@ -28,3 +28,8 @@ export function traitColumn(traitKey: string): string | undefined {
 export function traitKeyFor(name: string): string | undefined {
   return ADVISORY_ACQUISITIONS.legacyFieldAliases[name] ?? (COLUMN_OF[name] ? name : undefined);
 }
+
+/** The firm columns that store traits today: what a raw SELECT needs for `withTraits`. */
+export function traitColumns(): string[] {
+  return Object.keys(ADVISORY_ACQUISITIONS.legacyFields);
+}

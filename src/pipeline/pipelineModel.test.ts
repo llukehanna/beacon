@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_SORT } from "@/desk/pipelineRows";
+import { ADVISORY, withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric";
 import {
   type FirmView,
   NO_PROFILE_FILTER,
@@ -19,12 +20,14 @@ import {
 const NOW = Date.parse("2026-11-05T12:00:00.000Z");
 const HOUR = 3_600_000;
 
-function firm(id: string, over: Partial<FirmView> = {}): FirmView {
-  return { firmId: id, firmName: `Firm ${id}`, firmType: "CF", ...over };
+/** A firm; legacy column names in `over` (employees, ownership) become its traits. */
+function firm(id: string, over: Record<string, unknown> = {}): FirmView {
+  return withTraits({ firmId: id, firmName: `Firm ${id}`, firmType: "CF", ...over });
 }
 
 const rows = (firms: FirmView[], query = "") =>
   buildRows({
+    rubric: ADVISORY,
     firms,
     query,
     profile: NO_PROFILE_FILTER,
@@ -112,6 +115,7 @@ describe("rows and counts", () => {
 
   it("filters on the profile fields", () => {
     const built = buildRows({
+      rubric: ADVISORY,
       firms: [firm("x", { ownership: "PE-backed" }), firm("y", { ownership: "Partnership" })],
       query: "",
       profile: { ...NO_PROFILE_FILTER, ownership: "PE-backed" },
@@ -161,14 +165,17 @@ describe("wording", () => {
   });
 
   it("lists only the facts on file", () => {
-    expect(firmFacts(firm("a"))).toEqual([]);
+    expect(firmFacts(ADVISORY, firm("a"))).toEqual([]);
     expect(
-      firmFacts(firm("a", { employees: 0, dealSizeMUsd: 40, firmAge: 12, ownership: "PE-backed" })),
+      firmFacts(
+        ADVISORY,
+        firm("a", { employees: 0, dealSizeMUsd: 40, firmAge: 12, ownership: "PE-backed" }),
+      ),
     ).toEqual([
-      { label: "Headcount", value: "0" },
-      { label: "Ownership", value: "PE-backed" },
       { label: "Avg deal size", value: "$40m" },
       { label: "Firm age", value: "12 yrs" },
+      { label: "Headcount", value: "0 employees" },
+      { label: "Ownership", value: "PE-backed" },
     ]);
   });
 });

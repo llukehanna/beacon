@@ -14,7 +14,7 @@ import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { sortedRows } from "../db/ordering.js";
 import { insertObject, insertObjectIfAbsent, listAll, updateObject } from "../db/repo.js";
 import { ActionError } from "../errors.js";
-import { loadActiveRubric, loadTraits } from "../rubric/load.js";
+import { loadRubricContext } from "../rubric/load.js";
 import { iso, logDecision } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
 
@@ -226,11 +226,8 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         return { rows, clustered: null };
       }
       // The rubric and catalog are read outside the transaction, like the rows they ground.
-      const [{ definition }, traits] = await Promise.all([loadActiveRubric(db), loadTraits(db)]);
-      return {
-        rows,
-        clustered: await (ctx.clusterer ?? heuristicClusterer)(rows, { definition, traits }),
-      };
+      const rubric = await loadRubricContext(db);
+      return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows, rubric) };
     },
     // Writes only. The queue and the existing-proposal set are read here, inside the transaction, so
     // a rule that was already committed is not proposed again. A rule another request commits after
@@ -243,6 +240,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       // the full rule key cannot see a second threshold for a pattern; this lock does.
       await ctx.tx.query(`SELECT pg_advisory_xact_lock($1)`, [PROPOSE_LOCK]);
       const { proposals, source } = clustered;
+      const rubric = await loadRubricContext(ctx.tx);
       const firms = await listAll(ctx.tx, "Firm");
       const byId = new Map(rows.map((r) => [r.decisionId, r]));
       const existing = await listAll(ctx.tx, "ProposedRule");
@@ -263,7 +261,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       ): void => {
         const key = rulePatternKey(axis, op, model);
         if (!covered.has(key)) {
-          covered.set(key, `${describePredicate(axis, op, threshold)} (${state})`);
+          covered.set(key, `${describePredicate(rubric, axis, op, threshold)} (${state})`);
         }
       };
       for (const r of existing) {
@@ -295,8 +293,8 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       /** Supported patterns the rubric already hard-rejects on. */
       const enforced = new Set<string>();
       let answered = 0;
-      const axes = new Set(predicateAxes(await loadTraits(ctx.tx)));
-      const { definition } = await loadActiveRubric(ctx.tx);
+      const axes = new Set(predicateAxes(rubric.traits));
+      const { definition } = rubric;
       for (const p of proposals) {
         const pred = {
           axis: p.predicateAxis.trim(),
@@ -324,7 +322,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         // A rule that repeats one of the rubric's hard-rejects would screen nobody the rubric does
         // not already reject.
         if (rubricGateFor(definition, pred) !== null) {
-          enforced.add(describePredicate(pred.axis, pred.operator, pred.threshold));
+          enforced.add(describePredicate(rubric, pred.axis, pred.operator, pred.threshold));
           continue;
         }
         // One rule per pattern: a second threshold for the same axis and operator is the same
@@ -368,7 +366,7 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
         created.push(proposedRuleId);
         covered.set(
           rulePatternKey(pred.axis, pred.operator, pred.model),
-          `${describePredicate(pred.axis, pred.operator, pred.threshold)} (pending)`,
+          `${describePredicate(rubric, pred.axis, pred.operator, pred.threshold)} (pending)`,
         );
       }
       const by = source === "claude" ? "Claude" : "the keyword heuristic";

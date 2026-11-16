@@ -9,8 +9,9 @@
  * What counts as a "run": the agent writes every finding of one enrichment at
  * one instant, so a firm's findings sharing a `retrievedAt` are one run.
  */
+import { axisLabel } from "./axisLabels.js";
 import { isAbstainedFinding, isVerifiedFinding } from "./axisState.js";
-import { axisLabel } from "./trustMetrics.js";
+import type { RubricContext } from "./rubric/types.js";
 import { AGENT, ANALYST, MARKET_SIGNAL, providerLabel } from "./vocab.js";
 
 export type ActivityKind = "enriched" | "conflict" | "abstained" | "rule_proposed" | "drift";
@@ -71,6 +72,8 @@ export interface ActivityDrift {
 }
 
 export interface ActivityInput {
+  /** The rubric and catalog that name the axes. */
+  rubric: RubricContext;
   firms: readonly ActivityFirm[];
   findings: readonly ActivityFinding[];
   proposedRules?: readonly ActivityRule[];
@@ -282,13 +285,13 @@ export function buildActivity(input: ActivityInput, limit = FEED_LIMIT): Activit
       latest,
       firmId,
       `${name(firmId)}: sources disagree`,
-      `${axisLabel(first.axis ?? undefined)}: ${side(first)} vs ${side(second)}${more}`,
+      `${axisLabel(input.rubric, first.axis ?? undefined)}: ${side(first)} vs ${side(second)}${more}`,
     );
   }
 
   // Abstained: one item per firm with an axis no source could fill.
   for (const [firmId, rows] of groupBy(standingAbstentions(input.findings), (a) => a.firmId)) {
-    const axes = [...new Set(rows.map((r) => axisLabel(r.axis)))].sort();
+    const axes = [...new Set(rows.map((r) => axisLabel(input.rubric, r.axis)))].sort();
     push(
       "abstained",
       Math.max(...rows.map((r) => r.at)),

@@ -12,7 +12,6 @@ import { buildOnFile } from "@/desk/firmDesk/onFile";
 import { belowCGloss, tierText } from "@/desk/firmDesk/tierMeter";
 import { rejectDecisionByFirm } from "@/desk/pipelineRows";
 import { type ActiveConfigRule, computeHardScreen } from "@/desk/queue";
-import { mirrorScore } from "@/desk/scoreMirror";
 import { firmFacts } from "@/pipeline/pipelineModel";
 import { axisLabel } from "../../shared/axisLabels";
 import { type AxisRow, authoritativeFinding, buildAxisRows } from "../../shared/axisRows";
@@ -20,8 +19,8 @@ import { type Citation, citationOf, nonEmpty } from "../../shared/citation";
 import {
   type FirmView,
   humanAxisValue,
-  mirrorLabelForEditKey,
-  toScoreInput,
+  previewScore,
+  traitKeyForAxis,
 } from "../../shared/deskModel";
 import { conflictSides } from "../../shared/evidenceModel";
 import { coerceFindingValue, displayFindingValue } from "../../shared/findingActions";
@@ -32,8 +31,9 @@ import {
   isApplied,
   kindLabel,
 } from "../../shared/marketSignals";
-import { MAX_POSSIBLE, TIER_THRESHOLDS } from "../../shared/scoreMirror";
-import { ENRICH_AXES, MARKET_SIGNAL } from "../../shared/vocab";
+import { resolveThesis } from "../../shared/rubric/engine";
+import type { RubricContext } from "../../shared/rubric/types";
+import { MARKET_SIGNAL } from "../../shared/vocab";
 
 /** A ReviewDecision as the sheet reads it. */
 export interface DecisionInput {
@@ -47,6 +47,7 @@ export interface DecisionInput {
 }
 
 export interface TearSheetInput {
+  rubric: RubricContext;
   firm: FirmView;
   findings: readonly FindingLike[];
   decisions: readonly DecisionInput[];
@@ -128,7 +129,7 @@ export interface TearSheet {
     tierText: string;
     /** What "Below C" means, for a tooltip; null for any other tier. */
     tierNote: string | null;
-    model: "CF" | "CS";
+    model: string;
     /** Why a screened firm is out; null otherwise. */
     screenedBecause: string | null;
   };
@@ -158,7 +159,7 @@ const decidedAtMs = (d: DecisionInput): number => {
 };
 
 /** The applied signals, newest first, worded for the sheet. */
-export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
+export function signalLines(rubric: RubricContext, signals: readonly SignalLike[]): SignalLine[] {
   const at = (s: SignalLike): number => {
     const t = new Date(s.effectiveDate as string | number).getTime();
     return Number.isNaN(t) ? 0 : t;
@@ -171,7 +172,7 @@ export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
       headline: nonEmpty(s.headline) ?? "No headline",
       kind: kindLabel(s.kind),
       date: at(s) === 0 ? "" : localDay(at(s)),
-      moved: axisMovedText(s),
+      moved: axisMovedText(rubric, s),
       label: SYNTHETIC_LABEL,
     }));
 }
@@ -182,30 +183,32 @@ export function signalLines(signals: readonly SignalLike[]): SignalLine[] {
  * say so. "Unknown" is left for an axis nobody has a value for.
  */
 function axisLine(
-  mirrorAxis: { axis: string; score: number; known: boolean },
+  rubric: RubricContext,
+  scored: { axis: string; score: number; known: boolean },
   firm: FirmView,
   rows: readonly AxisRow[],
-  model: "CF" | "CS",
+  thesis: string,
 ): AxisLine {
-  // The rubric mirror's own axis name keys the lookups; the sheet shows the shared label.
-  const a = mirrorAxis;
-  const shown = axisLabel(a.axis);
+  // The score's axis (its criterion's label) names the trait; the sheet shows the shared label.
+  const a = scored;
+  const traitKey = traitKeyForAxis(rubric, a.axis, thesis) ?? a.axis;
+  const shown = axisLabel(rubric, a.axis);
   if (a.known) {
     return {
       axis: shown,
-      value: humanAxisValue(a.axis, firm),
+      value: humanAxisValue(rubric, traitKey, firm),
       points: a.score,
       status: "on_file",
     };
   }
-  const row = rows.find((r) => mirrorLabelForEditKey(r.def.actionParam, model) === a.axis);
+  const row = rows.find((r) => r.axis === traitKey);
   if (row?.state === "proposed") {
-    const proposal = coerceFindingValue(row.def.actionParam, authoritativeFinding(row)?.value);
+    const proposal = coerceFindingValue(rubric, traitKey, authoritativeFinding(row)?.value);
     if (proposal !== undefined) {
-      const withProposal: FirmView = { ...firm, [row.def.firmField]: proposal };
+      const withProposal: FirmView = { ...firm, traits: { ...firm.traits, [traitKey]: proposal } };
       return {
         axis: shown,
-        value: humanAxisValue(a.axis, withProposal),
+        value: humanAxisValue(rubric, traitKey, withProposal),
         points: null,
         status: "proposed",
       };
@@ -214,18 +217,24 @@ function axisLine(
   if (row?.state === "conflict") {
     return { axis: shown, value: "Sources disagree", points: null, status: "conflict" };
   }
-  return { axis: shown, value: humanAxisValue(a.axis, firm), points: null, status: "unknown" };
+  return {
+    axis: shown,
+    value: humanAxisValue(rubric, traitKey, firm),
+    points: null,
+    status: "unknown",
+  };
 }
 
 export function buildTearSheet({
+  rubric,
   firm,
   findings,
   decisions,
   rules,
   signals = [],
 }: TearSheetInput): TearSheet {
-  const mirror = mirrorScore(toScoreInput(firm));
-  const verdict = computeHardScreen({ ...firm, firmId: firm.firmId ?? "" }, rules);
+  const mirror = previewScore(rubric, firm);
+  const verdict = computeHardScreen(rubric, { ...firm, firmId: firm.firmId ?? "" }, rules);
   const hard = mirror.hardRejected || verdict.hardScreened;
   // The stage is the firm's lifecycle stage, as the Desk header chip words it. A screen is shown
   // beside it (score.screenedBecause), never as a stage: a rule-screened firm nobody has passed
@@ -251,12 +260,8 @@ export function buildTearSheet({
       ? { total: rejected.scoreAtDecision, tier: rejected.tierAtDecision as string }
       : null;
 
-  const rows: AxisRow[] = buildAxisRows(
-    ENRICH_AXES.filter((a) => a.models.includes(mirror.model)),
-    undefined,
-    findings,
-  );
-  const onFile = buildOnFile(rows, firm, {}, mirror);
+  const rows: AxisRow[] = buildAxisRows(rubric, mirror.model, undefined, findings);
+  const onFile = buildOnFile(rubric, rows, firm, {}, mirror);
 
   const evidence: EvidenceItem[] = [];
   const conflicts: ConflictItem[] = [];
@@ -266,7 +271,7 @@ export function buildTearSheet({
       conflicts.push({
         axis: row.label,
         sides: conflictSides(row).map((f) => ({
-          value: displayFindingValue(row.axis, f.value),
+          value: displayFindingValue(rubric, row.axis, f.value),
           ...citationOf(f),
         })),
       });
@@ -277,7 +282,7 @@ export function buildTearSheet({
       if (f !== undefined) {
         evidence.push({
           axis: row.label,
-          value: displayFindingValue(row.axis, f.value),
+          value: displayFindingValue(rubric, row.axis, f.value),
           status: row.state,
           synthetic: (f.provider ?? "").trim().toLowerCase() === MARKET_SIGNAL,
           ...citationOf(f),
@@ -301,23 +306,28 @@ export function buildTearSheet({
       ...(nonEmpty(firm.hqCountry) === null
         ? []
         : [{ label: "HQ", value: firm.hqCountry as string }]),
-      ...firmFacts(firm),
+      ...firmFacts(rubric, firm),
     ],
     score: {
       total: mirror.weightedTotal,
-      max: MAX_POSSIBLE,
+      max: mirror.maxPossible,
       tier: mirror.tier,
       tierText: tierText(mirror.tier, hard),
-      tierNote: belowCGloss(mirror.tier, hard, TIER_THRESHOLDS[mirror.model].C, MAX_POSSIBLE),
+      tierNote: belowCGloss(
+        mirror.tier,
+        hard,
+        resolveThesis(rubric.definition, mirror.model).tiers.C,
+        mirror.maxPossible,
+      ),
       model: mirror.model,
       screenedBecause,
     },
     atDecision,
-    axes: mirror.axisScores.map((a) => axisLine(a, firm, rows, mirror.model)),
+    axes: mirror.axisScores.map((a) => axisLine(rubric, a, firm, rows, mirror.model)),
     evidence,
     conflicts,
     abstentions,
     decisions: firmDecisions(decisions),
-    signals: signalLines(signals),
+    signals: signalLines(rubric, signals),
   };
 }

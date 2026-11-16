@@ -4,6 +4,7 @@ import RouteError from "@/RouteError";
 import Titled from "@/Titled";
 import Loading from "@/components/Loading";
 import NotFound from "@/components/NotFound";
+import { RubricProvider } from "@/data/RubricProvider";
 import Home from "@/home/HomePage";
 import AppShell from "@/shell/AppShell";
 
@@ -26,7 +27,11 @@ export const router = createBrowserRouter(
     {
       // One layout route: the shell (sidebar, top bar, status bar) stays mounted while the
       // screens below it come and go.
-      element: <AppShell />,
+      element: (
+        <RubricProvider>
+          <AppShell />
+        </RubricProvider>
+      ),
       children: [
         {
           // Start-of-day operations page. Every card and number on it links to

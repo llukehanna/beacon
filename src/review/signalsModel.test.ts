@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ADVISORY } from "../../shared/rubric/__fixtures__/advisoryRubric";
 import { buildSignalsView } from "./signalsModel";
 
 const NOW = Date.parse("2026-11-06T12:00:00Z");
@@ -18,6 +19,7 @@ const firms = [{ firmId: "acme", firmName: "Acme Advisors" }];
 describe("buildSignalsView", () => {
   it("lists applied signals newest first with the firm, kind, axis moved and the synthetic label", () => {
     const view = buildSignalsView(
+      ADVISORY,
       [
         signal("old", { effectiveDate: "2026-10-20T00:00:00.000Z" }),
         signal("new"),
@@ -43,12 +45,13 @@ describe("buildSignalsView", () => {
   });
 
   it("shows a signal that was applied and changed nothing as No change", () => {
-    const view = buildSignalsView([signal("a", { effect: "unchanged" })], firms, NOW);
+    const view = buildSignalsView(ADVISORY, [signal("a", { effect: "unchanged" })], firms, NOW);
     expect(view.rows[0]).toMatchObject({ moved: "No change", label: "Synthetic market signal" });
   });
 
   it("leaves out a signal that has not come due yet", () => {
     const view = buildSignalsView(
+      ADVISORY,
       [signal("later", { effectiveDate: "2026-11-07T01:00:00.000Z", appliedAt: undefined })],
       firms,
       NOW,
@@ -62,13 +65,14 @@ describe("buildSignalsView", () => {
         effectiveDate: new Date(NOW - (i + 1) * 3_600_000).toISOString(),
       }),
     );
-    const view = buildSignalsView(many, firms, NOW, 5);
+    const view = buildSignalsView(ADVISORY, many, firms, NOW, 5);
     expect(view.total).toBe(12);
     expect(view.rows.map((r) => r.id)).toEqual(["s00", "s01", "s02", "s03", "s04"]);
   });
 
   it("falls back to the firm id when the firm is not loaded, and names an acquisition's outcome", () => {
     const view = buildSignalsView(
+      ADVISORY,
       [signal("a", { firmId: "ghost", kind: "acquisition", axis: undefined, newValue: undefined })],
       [],
       NOW,

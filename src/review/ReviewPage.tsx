@@ -3,6 +3,7 @@ import { Term } from "@/components/Term";
 import { errorMessage } from "@/data/adapter";
 import { useOsdkObjects } from "@/data/hooks";
 import { DriftEvent, Firm, MarketSignal, ReviewDecision } from "@/data/ontology";
+import { useRubric } from "@/data/rubricContext";
 import { useMediaQuery } from "@/desk/firmDesk/useMediaQuery";
 import { type Command, useCommands } from "@/shell/commands";
 import { EmptyState, SidePanel } from "@/ui";
@@ -19,6 +20,7 @@ import { buildSignalsView } from "./signalsModel";
  * under 1280 px.
  */
 export default function ReviewPage(): React.ReactElement {
+  const rubric = useRubric();
   const {
     data: driftData,
     isLoading: driftLoading,
@@ -52,7 +54,7 @@ export default function ReviewPage(): React.ReactElement {
 
   const now = Date.now();
   // A few dozen rows at most, so it is rebuilt on each render rather than memoised against `now`.
-  const signals = buildSignalsView(signalsData ?? [], firmsData ?? [], now);
+  const signals = buildSignalsView(rubric, signalsData ?? [], firmsData ?? [], now);
   const openRows = open.map((i) => driftRow(i, now));
   const resolvedRows = resolved.map((i) => driftRow(i, now));
 

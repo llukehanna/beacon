@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useDataAdapter } from "@/data/AdapterContext";
 import { errorMessage } from "@/data/adapter";
+import { useRubric } from "@/data/rubricContext";
 import { MenuButton, type MenuItem } from "@/ui";
 import { CRM_FORMATS, type CrmName } from "../../shared/crmFormats";
 import {
@@ -35,6 +36,7 @@ export function ExportMenu({
   /** The findings the page already holds; fetched when the export is asked for if it has none. */
   findings?: readonly FindingLike[];
 }) {
+  const rubric = useRubric();
   const qc = useQueryClient();
   const adapter = useDataAdapter();
   const [busy, setBusy] = useState(false);
@@ -45,13 +47,14 @@ export function ExportMenu({
     setError(null);
     try {
       const { rows, citations } = exportRows(
+        rubric,
         firms,
         findings ?? (await fetchAllFindings(qc, adapter)),
       );
       const now = new Date();
       if (kind === "xlsx") {
         const { buildWorkbook } = await import("./workbook");
-        saveBlob(await buildWorkbook(rows, citations), exportFileName(name, "xlsx", now));
+        saveBlob(await buildWorkbook(rubric, rows, citations), exportFileName(name, "xlsx", now));
       } else {
         const fmt = CRM_FORMATS[kind];
         const csv = toCsv(fmt.headers, rows.map(fmt.map));
