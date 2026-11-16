@@ -60,7 +60,7 @@ describe("rule-based extraction", () => {
 describe("groundExtraction", () => {
   it("rejects a quote altered by one character", () => {
     const { firm, docs, f } = firmWith("firm_age");
-    const quote = f.sentence.replace("The", "Tha");
+    const quote = f.sentence.replace(/[a-z]/, (c) => (c === "x" ? "y" : "x"));
     const out = {
       items: [{ provider: "dealdb" as const, axis: "firm_age", value: f.value, quote }],
     };
