@@ -69,7 +69,7 @@ test("tear sheet renders a showcase firm", async ({ page }) => {
 
 test("the score table shows an agent's proposed values, marked unverified", async ({ page }) => {
   await page.goto(tearSheetPath(TOUR_FIRM_ID));
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mallowick Partners");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Archdale & Pollard Advisors");
   const table = page.getByRole("region", { name: "Score and tier" }).getByRole("table");
   const row = (axis: string) =>
     table.getByRole("row").filter({ has: page.getByRole("rowheader", { name: axis }) });

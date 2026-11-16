@@ -43,6 +43,7 @@ Seven pull requests (#1 to #7) land on the day the repository goes public.
 
 - **Evaluation and operations (#20).** `npm run eval` scores the agent against the synthetic universe's hidden truth (provider and reconciled precision and coverage, conflict and abstention calibration, tier agreement, rule recovery), writes [evals.md](evals.md), and fails CI below its floors. It adds an [error analysis](error-analysis.md), an Operations tab built from logged action runs and model calls, ten [decision records](decisions/README.md) and a generated [ontology reference](ontology.md). The grounding check now also requires true/false answers to appear in their quote.
 - **Clustering re-recorded (#21).** The Claude rule-clustering fixture is re-recorded, at a cost of $0.04.
+- **Re-extraction on the rewritten data (Plan I).** The mock source records are now `doc-v2`, the firm names are new and the pass notes are paraphrased. Claude Haiku 4.5 re-extracted all 700 firms: 6,228 of 6,523 values passed the grounding check (95.5%), at a cost of $1.49. 266 of the 295 drops are web activity answers where the model quoted a trade-press line instead of the sentence that states the value. Clustering was re-recorded by `claude-opus-5` (4 proposals, $0.04). The figures in the README, the architecture notes and the error analysis are updated to match.
 
 ## 2026-11-06: the finance track and agent access
 

@@ -26,8 +26,8 @@ describe("fuzzyScore", () => {
   });
 
   it("prefers the shorter name when the match is otherwise the same", () => {
-    const short = fuzzyScore("ainsley advis", "Ainsley Advisors") as number;
-    const long = fuzzyScore("ainsley advis", "Ainsley & Carrow Advisory") as number;
+    const short = fuzzyScore("haslam advis", "Haslam Advisors") as number;
+    const long = fuzzyScore("haslam advis", "Haslam & Carrow Advisory") as number;
     expect(short).toBeGreaterThan(long);
   });
 
