@@ -6,9 +6,9 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 
 ## Data handling
 
-- Every firm is synthetic. Names are generated from invented words, and any resemblance to a real firm is coincidental. <!-- source: server/seed/universe.ts, README.md -->
+- Every firm is synthetic. Names are generated from common surnames, given names and coined place words, and any resemblance to a real firm is coincidental. <!-- source: server/seed/universe.ts, README.md -->
 - The universe is 700 firms. <!-- source: server/seed/universe.ts -->
-- The "source documents" the agent reads are generated records labelled "Mock source", and some contain deliberate errors. No real company data, licensed data or personal data is loaded. <!-- source: server/extraction/documents.ts, README.md -->
+- The "source documents" the agent reads are generated records labelled "mock source", and some contain deliberate errors. No real company data, licensed data or personal data is loaded. <!-- source: server/extraction/documents.ts, src/desk/firmDesk/SourceView.tsx, README.md -->
 - Text a visitor types (mandate descriptions, pass rationales, values entered by hand) is stored in the one shared database. Anyone using the demo can read it until the next reset, so do not enter anything real. <!-- source: api/objects.ts, server/actions/search.ts, server/actions/common.ts -->
 - The API has no authentication. Reads are open to anyone who can reach the site. <!-- source: worker/index.ts, api/objects.ts -->
 

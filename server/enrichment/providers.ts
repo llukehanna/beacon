@@ -1,8 +1,8 @@
 /**
  * Deterministic mock data providers. Each firm has a hidden "truth" per
  * axis, and each provider observes it with its own coverage and error rate.
- * Everything is a pure function of (provider, firmId, axis), so there is no
- * fixture table and firms discovered later still get data.
+ * Everything is a pure function of (provider, firm, axis), keyed by the firm's
+ * seed key, so there is no fixture table and firms discovered later still get data.
  */
 import {
   type AxisDef,
@@ -13,6 +13,7 @@ import {
   CS_SERVICES_LABELS,
   type Provider,
 } from "../../shared/vocab.js";
+import { seedKeyFor } from "../seed/universe.js";
 import { gaussian, pick, rng } from "./random.js";
 
 export interface Observation {
@@ -36,6 +37,8 @@ export interface FirmRef {
 }
 
 export const idOf = (f: FirmRef): string => f.$primaryKey ?? f.firmId ?? "";
+/** The key the firm's hidden values are drawn from (its id, unless it was renamed; see seedKeyFor). */
+const keyOf = (f: FirmRef): string => seedKeyFor(idOf(f));
 const isCs = (f: FirmRef): boolean => (f.firmType ?? "").toLowerCase() === "cs";
 
 export const PROVIDERS: Readonly<
@@ -99,7 +102,7 @@ export const PROVIDERS: Readonly<
 
 /** The firm's hidden true value for an axis (what a perfect analyst would find). */
 export function truthFor(firm: FirmRef, axis: AxisDef): string {
-  const r = rng(`truth|${idOf(firm)}|${axis.axis}`);
+  const r = rng(`truth|${keyOf(firm)}|${axis.axis}`);
   const cs = isCs(firm);
   switch (axis.axis) {
     case "services_fit":
@@ -166,7 +169,7 @@ function draw(
   if (!p.axes.includes(axis.axis)) {
     return null;
   }
-  const r = rng(`obs|${provider}|${idOf(firm)}|${axis.axis}`);
+  const r = rng(`obs|${provider}|${keyOf(firm)}|${axis.axis}`);
   if (r() > p.coverage) {
     return null;
   }
