@@ -165,7 +165,9 @@ describe("docs/error-analysis.md", () => {
       evals.providers.find((p) => p.provider === provider)!.precision;
     const wrong = evals.failures.find((f) => f.kind === "wrong-source-wins")!.count;
     const conflicts = evals.failures.find((f) => f.kind === "conflict-surfaced")!.count;
-    const abstained = evals.failures.find((f) => f.kind === "abstained-correctly")!.count;
+    const abstained =
+      evals.failures.find((f) => f.kind === "abstained-correctly")!.count +
+      evals.failures.find((f) => f.kind === "abstained-wrongly")!.count;
     // Shares of the evaluated axes, and the correct share.
     expect(doc).toContain(`(${pct(evals.slots.correct / evals.slots.total)}%)`);
     for (const f of evals.failures) {

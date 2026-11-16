@@ -1,7 +1,7 @@
 {
   "version": 1,
   "generatedFrom": {
-    "documents": "doc-v1",
+    "documents": "doc-v2",
     "prompt": "extract-v1",
     "fixtures": "claude-haiku-4-5"
   },
@@ -9,74 +9,74 @@
   "providers": [
     {
       "provider": "beacondb",
-      "coverage": 0.2575,
-      "precision": 0.9847
+      "coverage": 0.255,
+      "precision": 0.9846
     },
     {
       "provider": "dealdb",
-      "coverage": 0.7093,
-      "precision": 0.9711
+      "coverage": 0.6468,
+      "precision": 0.9715
     },
     {
       "provider": "filings",
-      "coverage": 0.5443,
-      "precision": 0.9515
+      "coverage": 0.5839,
+      "precision": 0.953
     },
     {
       "provider": "websearch",
-      "coverage": 0.5111,
-      "precision": 0.8232
+      "coverage": 0.4507,
+      "precision": 0.8106
     }
   ],
   "reconciled": {
-    "coverage": 0.6829,
-    "precision": 0.9319,
-    "conflictRate": 0.0283,
-    "higherTrustRight": 0.9078
+    "coverage": 0.6867,
+    "precision": 0.9327,
+    "conflictRate": 0.0166,
+    "higherTrustRight": 0.8659
   },
   "abstention": {
-    "rate": 0.2972,
-    "calibration": 1
+    "rate": 0.3017,
+    "calibration": 0.985
   },
-  "tierAgreement": 0.5243,
+  "tierAgreement": 0.5329,
   "slots": {
     "total": 7079,
-    "correct": 4505
+    "correct": 4534
   },
   "failures": [
     {
       "kind": "wrong-source-wins",
-      "count": 329,
+      "count": 327,
       "examples": [
         {
-          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
+          "firmId": "gillardsackville_unitedkingdom",
           "axis": "web_activity"
         },
         {
-          "firmId": "zephyrleasecurities_australia",
+          "firmId": "saxenagroup_australia",
           "axis": "md_pedigree"
         },
         {
-          "firmId": "rosalescallowaylindqvistpartners_unitedstates",
+          "firmId": "melvillewadsworthadvisors_unitedstates",
           "axis": "md_pedigree"
         }
       ]
     },
     {
       "kind": "conflict-surfaced",
-      "count": 141,
+      "count": 82,
       "examples": [
         {
-          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
-          "axis": "md_pedigree"
+          "firmId": "ulrichsalterpartners_unitedstates",
+          "axis": "firm_age"
         },
         {
-          "firmId": "penroseeskerabernathy_unitedstates",
-          "axis": "fee_generating_count"
-        },
-        {
-          "firmId": "stonewickgroup_japan",
+          "firmId": "dalrymplepartners_japan",
           "axis": "deals_per_md_l3y"
+        },
+        {
+          "firmId": "sharlandsturgessadvisory_singapore",
+          "axis": "md_pedigree"
         }
       ]
     },
@@ -85,28 +85,41 @@
       "count": 2104,
       "examples": [
         {
-          "firmId": "merriweatherfairbairnwinslow_unitedkingdom",
+          "firmId": "gillardsackville_unitedkingdom",
           "axis": "deals_per_md_l3y"
         },
         {
-          "firmId": "kowalskicapitalpartners_unitedkingdom",
+          "firmId": "bassettlarkin_unitedkingdom",
           "axis": "deal_size_usd_m"
         },
         {
-          "firmId": "eastwickbrandtiverson_unitedstates",
+          "firmId": "slatermerchantpartners_unitedstates",
           "axis": "md_pedigree"
         }
       ]
     },
     {
       "kind": "abstained-wrongly",
-      "count": 0,
-      "examples": []
+      "count": 32,
+      "examples": [
+        {
+          "firmId": "ferrersadvisory_unitedstates",
+          "axis": "services_fit"
+        },
+        {
+          "firmId": "carrowpartners_unitedstates",
+          "axis": "has_st_or_balance_sheet"
+        },
+        {
+          "firmId": "musgravemeredithsouthallpartnersllc_unitedstates",
+          "axis": "firm_age"
+        }
+      ]
     }
   ],
   "recordedRun": {
-    "values": 6472,
-    "grounded": 6455
+    "values": 6523,
+    "grounded": 6228
   },
   "ruleRecovery": {
     "planted": 4,
