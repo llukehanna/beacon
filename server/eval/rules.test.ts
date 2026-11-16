@@ -18,7 +18,9 @@ describe("plantRejections", () => {
     const small = planted[0];
     expect(small.decisionIds).toHaveLength(7);
     for (const id of small.decisionIds) {
-      expect(rows.find((r) => r.decisionId === id)!.rationale).toMatch(/^Too small/);
+      expect(rows.find((r) => r.decisionId === id)!.rationale).toMatch(
+        /\b(small|headcount|staff|employees|people)\b/i,
+      );
     }
   });
 });

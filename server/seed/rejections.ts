@@ -17,19 +17,65 @@ export const REJECTION_COUNTS = {
   misc: 4,
 } as const;
 
-export const smallFirmRationale = (employees: number | undefined): string =>
-  `Too small — ${employees} staff; can't absorb an integration.`;
+/**
+ * The analyst's notes, several wordings per reason: the n-th firm rejected for a reason gets the
+ * n-th wording, so no two firms carry the same note. Each still names its reason in words the
+ * clustering heuristic looks for (see `CANDIDATES` in clustering/heuristic.ts), and the noise
+ * notes name none.
+ */
+export const REJECTION_NOTES = {
+  small: [
+    (n: number) => `Too small — ${n} staff; can't absorb an integration.`,
+    (n: number) => `Only ${n} people on the payroll; an integration would swamp them.`,
+    (n: number) => `Headcount of ${n} is too thin to take on our process.`,
+    (n: number) => `${n} employees in total, which is too small a platform for us.`,
+    (n: number) => `Small shop of ${n} staff; key-person risk is too high.`,
+    (n: number) => `With ${n} people the team could not run a deal and an integration at once.`,
+    (n: number) => `Passing: ${n} staff is below the size we can integrate.`,
+    (n: number) => `Headcount is ${n}; too small to stand alone inside the group.`,
+  ],
+  generalist: [
+    "Generalist coverage with no sector depth; unfocused franchise.",
+    "Covers a bit of everything; a generalist book that doesn't fit the thesis.",
+    "Unfocused coverage, with no vertical where they lead.",
+    "Generalist shop. We want a sector specialist, not another all-rounder.",
+    "No sector depth to speak of; mandates are spread across too many industries.",
+    "Pitches as a generalist and the mandate list confirms it.",
+  ],
+  dealSize: [
+    (m: number) => `Deal size around $${m}m is below our floor; small deals.`,
+    (m: number) => `Typical deal size is about $${m}m, below our floor.`,
+    (m: number) => `Works on small deals, around $${m}m each; not worth the integration.`,
+    (m: number) => `$${m}m average deal size; we need bigger tickets.`,
+    (m: number) => `Deals average roughly $${m}m, well below our floor.`,
+    (m: number) => `Their deal size (around $${m}m) sits under our minimum.`,
+  ],
+  dealVolume: [
+    "Too few deals per MD over the last three years; weak deal volume.",
+    "Deal volume is thin: under two closings per MD a year.",
+    "Productivity per MD has been low for the last three years.",
+    "Too few deals closed for a team this size.",
+    "Weak deal volume; the MDs are not closing enough.",
+  ],
+  misc: [
+    "Weak MD experience for our franchise.",
+    "MD bench lacks the senior experience we need.",
+    "Partners' backgrounds don't fit how we run mandates.",
+    "Culture fit concerns after the partner meeting.",
+    "Senior bankers came across as inexperienced in the meeting.",
+  ],
+} as const;
 
-export const GENERALIST_RATIONALE =
-  "Generalist coverage with no sector depth; unfocused franchise.";
+const nth = <T>(notes: readonly T[], i: number): T => notes[i % notes.length];
 
-export const dealSizeRationale = (sizeMUsd: number): string =>
-  `Deal size around $${sizeMUsd}m is below our floor; small deals.`;
-
-export const DEAL_VOLUME_RATIONALE =
-  "Too few deals per MD over the last three years; weak deal volume.";
-
-export const MISC_RATIONALE = "Weak MD experience for our franchise.";
+/** The note for the `i`-th firm rejected for each reason. */
+export const smallFirmRationale = (employees: number | undefined, i = 0): string =>
+  nth(REJECTION_NOTES.small, i)(employees ?? 0);
+export const generalistRationale = (i = 0): string => nth(REJECTION_NOTES.generalist, i);
+export const dealSizeRationale = (sizeMUsd: number, i = 0): string =>
+  nth(REJECTION_NOTES.dealSize, i)(sizeMUsd);
+export const dealVolumeRationale = (i = 0): string => nth(REJECTION_NOTES.dealVolume, i);
+export const miscRationale = (i = 0): string => nth(REJECTION_NOTES.misc, i);
 
 /** The deal size ($m) the analyst records before rejecting a firm for small deals. One draw. */
 export const plantedDealSize = (r: Rng): number => 8 + Math.round(r() * 18);
@@ -94,41 +140,41 @@ export async function planRejections(
   const small = (await pool())
     .filter((f) => (f.employees ?? 99) < 10)
     .slice(0, REJECTION_COUNTS.small);
-  for (const f of small) {
-    await reject(f, smallFirmRationale(f.employees));
+  for (const [i, f] of small.entries()) {
+    await reject(f, smallFirmRationale(f.employees, i));
   }
   patterns.push({ key: "small", firmIds: small.map((f) => f.$primaryKey) });
 
   const generalists = (await pool()).filter(generalist).slice(0, REJECTION_COUNTS.generalist);
-  for (const f of generalists) {
-    await reject(f, GENERALIST_RATIONALE);
+  for (const [i, f] of generalists.entries()) {
+    await reject(f, generalistRationale(i));
   }
   patterns.push({ key: "generalist", firmIds: generalists.map((f) => f.$primaryKey) });
 
   const smallDeals = (await pool())
     .filter((f) => f.dealSizeMUsd === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
     .slice(0, REJECTION_COUNTS.dealSize);
-  for (const f of smallDeals) {
+  for (const [i, f] of smallDeals.entries()) {
     const size = plantedDealSize(fx.draw);
     await fx.record(f, { dealSizeMUsd: size });
-    await reject(f, dealSizeRationale(size));
+    await reject(f, dealSizeRationale(size, i));
   }
   patterns.push({ key: "dealSize", firmIds: smallDeals.map((f) => f.$primaryKey) });
 
   const lowVolume = (await pool())
     .filter((f) => f.dealsPerMdL3y === undefined && (f.employees ?? 0) >= 10 && !generalist(f))
     .slice(0, REJECTION_COUNTS.dealVolume);
-  for (const f of lowVolume) {
+  for (const [i, f] of lowVolume.entries()) {
     await fx.record(f, { dealsPerMdL3y: plantedDealVolume(fx.draw) });
-    await reject(f, DEAL_VOLUME_RATIONALE);
+    await reject(f, dealVolumeRationale(i));
   }
   patterns.push({ key: "dealVolume", firmIds: lowVolume.map((f) => f.$primaryKey) });
 
   const noise = (await pool())
     .filter((f) => (f.employees ?? 0) >= 10 && !generalist(f))
     .slice(0, REJECTION_COUNTS.misc);
-  for (const f of noise) {
-    await reject(f, MISC_RATIONALE);
+  for (const [i, f] of noise.entries()) {
+    await reject(f, miscRationale(i));
   }
   return { patterns, noise };
 }
