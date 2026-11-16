@@ -25,21 +25,17 @@ describe.skipIf(files.length === 0)(
         const records = parseFixtureLines(text);
         const lines = text.split("\n").filter((l) => l.trim() !== "");
         expect(records.length, "every line is a valid record").toBe(lines.length);
-        // The file is append-only: a re-recording adds lines after the ones it replaces, and the
-        // seed uses only records that are current. So every firm must have a current record, and
-        // superseded lines (old prompt, old documents, or a firm that no longer exists) are ignored.
-        const current = new Set<string>();
+        const stale: string[] = [];
         for (const record of records) {
           const firm = firms.get(record.firmId);
           if (
-            firm !== undefined &&
-            record.promptVersion === EXTRACTION_PROMPT_VERSION &&
-            record.documentsHash === documentsHash(firmDocuments(firm))
+            firm === undefined ||
+            record.promptVersion !== EXTRACTION_PROMPT_VERSION ||
+            record.documentsHash !== documentsHash(firmDocuments(firm))
           ) {
-            current.add(record.firmId);
+            stale.push(record.firmId);
           }
         }
-        const stale = [...firms.keys()].filter((id) => !current.has(id));
         expect(
           stale,
           `stale records (rerun \`npm run extract\`): ${stale.slice(0, 5).join(", ")}`,
