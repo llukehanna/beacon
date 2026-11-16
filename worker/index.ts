@@ -16,6 +16,7 @@ import { LATEST_MIGRATION, schemaVersion } from "../server/db/migrate.js";
 import { HttpError } from "../server/errors.js";
 import { json, jsonError } from "../server/http.js";
 import { rpcCodeForStatus, rpcFailureBody } from "../server/mcp/rpc.js";
+import { changedThenIdle } from "../server/seed/idle.js";
 import { applyDueSignals } from "../server/signals/run.js";
 import { HOURLY_CRON, NIGHTLY_CRON, NIGHTLY_HOUR_UTC } from "./crons.js";
 import { type RateLimit, checkRate } from "./rateLimit.js";
@@ -163,8 +164,9 @@ export default {
   /**
    * The Cron Triggers. The hourly run at 04:00 UTC, or the nightly-only trigger, is the nightly reset: it runs the same reset (and
    * throttle) as the demo bar's button, then applies the market signals that have come due. Every
-   * other run only applies them, a bounded batch per run. Only those two expressions reset: any other
-   * trigger (or none) applies the due signals and nothing more, the safe direction.
+   * other hourly run applies them, a bounded batch per run, after restoring the seeded world when a
+   * visitor changed the demo and then left it alone (server/seed/idle.ts). Any other trigger (or none)
+   * applies the due signals and nothing more, the safe direction.
    */
   async scheduled(controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const due = new Date(controller.scheduledTime ?? Date.now());
@@ -177,7 +179,15 @@ export default {
       await env.PRESENTER?.run();
       return;
     }
-    const res = await withDb(env, ctx, async () => json(await applyDueSignals(await getDb())));
+    const res = await withDb(env, ctx, async () => {
+      if (controller.cron === HOURLY_CRON && (await changedThenIdle(await getDb(), due))) {
+        const resetRes = await reset.POST();
+        if (!resetRes.ok) {
+          return resetRes;
+        }
+      }
+      return json(await applyDueSignals(await getDb()));
+    });
     if (!res.ok) {
       throw new Error(`Market signals failed: ${res.status} ${await res.text()}`);
     }
