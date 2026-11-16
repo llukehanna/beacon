@@ -28,7 +28,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 
 ## Retention
 
-- The demo is restored from a saved snapshot every night at 04:00 UTC by a Cloudflare Cron Trigger. The restore truncates every demo table and reloads the snapshot in one transaction, so anything entered since the last reset is deleted. <!-- source: wrangler.jsonc, worker/index.ts, server/seed/snapshot.ts -->
+- The demo is restored from a saved snapshot every night at 04:00 UTC by a Cloudflare Cron Trigger, and by the hourly run once a visitor has changed it and no action has run for 30 minutes. The restore truncates every demo table and reloads the snapshot in one transaction, so anything entered since the last reset is deleted. <!-- source: wrangler.jsonc, worker/index.ts, server/seed/idle.ts, server/seed/snapshot.ts -->
 - Anyone can also press the demo bar's Reset button. One reset is allowed per 5 minutes across all visitors. <!-- source: api/reset.ts -->
 - Within a demo day, history tables only grow (see Audit trail). A row ceiling of 10,000 activity rows stops a script from filling the database before the next reset. <!-- source: server/actions/apply.ts -->
 - Operations metrics (an action's name, start time, duration and outcome; a live model call's token counts and cost) are stored without parameters or visitor identity, up to 10,000 action runs, and are cleared by every reset. <!-- source: server/operations/record.ts, server/seed/snapshot.ts -->
