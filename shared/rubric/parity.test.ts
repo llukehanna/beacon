@@ -6,11 +6,11 @@ import { describe, expect, it } from "vitest";
 import { rng } from "../../server/enrichment/random.js";
 import { ADVISORY_ACQUISITIONS as WS } from "../workspaces/advisoryAcquisitions.js";
 import { ENRICH_AXES } from "../workspaces/advisoryVocab.js";
+import { columnTraits } from "./__fixtures__/advisoryRubric.js";
 import { type ScoreInput, axisPoints, mirrorScore } from "./__oracle__/legacyRubricV2.js";
 import { parseRubricDefinition } from "./definition.js";
 import { criterionPoints, maxPossible, scoreTraits } from "./engine.js";
 import { thesisOf } from "./firm.js";
-import { legacyTraits } from "./workspace.js";
 
 type Value = string | number | boolean | null;
 const DEF = WS.rubric;
@@ -35,7 +35,7 @@ const POOL: Readonly<Record<string, readonly Value[]>> = {
 const THESES: readonly Value[] = ["CF", "CS", "cs", " CS ", null, "other"];
 
 function same(firm: Record<string, Value>): void {
-  const engine = scoreTraits(DEF, thesisOf(firm), legacyTraits(WS, firm));
+  const engine = scoreTraits(DEF, thesisOf({ thesis: firm.firmType }), columnTraits(firm));
   expect(engine).toEqual(mirrorScore(firm as ScoreInput));
 }
 

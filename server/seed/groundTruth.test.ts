@@ -8,8 +8,11 @@ import { TEST_RUBRIC } from "../testing.js";
 import { generateUniverse } from "./universe.js";
 
 const AXES = evidenceTraits(TEST_RUBRIC.traits);
+/** Trait key → the firm column it had (the first alias; the second S&T spelling was a parameter). */
 const COLUMN_OF: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(ADVISORY_ACQUISITIONS.legacyFields).map(([column, key]) => [key, column]),
+  Object.entries(ADVISORY_ACQUISITIONS.legacyFieldAliases)
+    .reverse()
+    .map(([column, key]) => [key, column]),
 );
 
 /**

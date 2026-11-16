@@ -1,8 +1,7 @@
 /**
  * The engine, the screens and the server read traits and scoring as data. Only a few places may
  * know the advisory-acquisitions workspace by name: the workspace itself, the seed and the mock
- * agent paths that generate its demo data, the offline tooling, the one module that derives traits
- * from today's columns, and tests. This test fails when team vocabulary leaks anywhere else.
+ * agent paths that generate its demo data, the offline tooling, the test factory, and tests. This test fails when team vocabulary leaks anywhere else.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -17,7 +16,6 @@ const ALLOWED: readonly RegExp[] = [
   /^shared\/workspaces\//,
   /^shared\/rubric\/__fixtures__\//,
   /^shared\/rubric\/__oracle__\//,
-  /^server\/db\/traits\.ts$/,
   /^server\/seed\//,
   /^server\/enrichment\//,
   /^server\/extraction\//,
@@ -77,6 +75,40 @@ export function leaks(
   return found;
 }
 
+/**
+ * The firm columns migration 0006 dropped. A trait is read from the firm's trait values by its key;
+ * the old names survive only in the workspace's alias map, the frozen fixtures and oracle, the
+ * migrations, the test factory and tests. (employees, solvent and ownership are trait keys too.)
+ */
+const DROPPED_COLUMN =
+  /\b(firmType|servicesFit|mdPedigree|balanceSheetPrincipal|dealSizeMUsd|dealsPerMdL3y|firmAge|feeGeneratingCount|advisoryConflict|hasS[Tt]OrBalanceSheet|webActivity|coverageModel|geoScore|revenueBand|successionRisk)\b/;
+
+const COLUMN_ALLOWED: readonly RegExp[] = [
+  /^shared\/workspaces\//,
+  /^shared\/rubric\/__fixtures__\//,
+  /^shared\/rubric\/__oracle__\//,
+  /^server\/db\/migrations\.generated\.ts$/,
+  /^server\/db\/legacySchema\.fixture\.ts$/,
+  /^server\/testing\.ts$/,
+  /\.test\.tsx?$/,
+];
+
+/** Each line outside the allowed places that names a dropped firm column: `path:line: text`. */
+export function columnLeaks(files: readonly { path: string; text: string }[]): string[] {
+  const found: string[] = [];
+  for (const { path, text } of files) {
+    if (COLUMN_ALLOWED.some((r) => r.test(path))) {
+      continue;
+    }
+    text.split("\n").forEach((line, i) => {
+      if (DROPPED_COLUMN.test(line)) {
+        found.push(`${path}:${i + 1}: ${line.trim()}`);
+      }
+    });
+  }
+  return found;
+}
+
 describe("team vocabulary stays in the workspace", () => {
   const files = DIRS.flatMap(sources).map((path) => ({
     path,
@@ -115,6 +147,30 @@ describe("team vocabulary stays in the workspace", () => {
       "src/desk/x.ts",
       "shared/y.ts",
       "server/actions/x.ts",
+      "server/seed/x.ts",
+    ]);
+  });
+});
+
+describe("the dropped firm columns stay dropped", () => {
+  const files = DIRS.flatMap(sources).map((path) => ({
+    path,
+    text: readFileSync(join(ROOT, path), "utf8"),
+  }));
+
+  it("finds no dropped column name outside the allowed places", () => {
+    expect(columnLeaks(files)).toEqual([]);
+  });
+
+  it("would catch a read of a dropped column", () => {
+    const planted = [
+      { path: "src/desk/x.tsx", text: "const size = firm.dealSizeMUsd;" },
+      { path: "server/seed/x.ts", text: 'row.firmType = "CF";' },
+      { path: "server/functions/x.ts", text: "const n = firm.traits.employees;" },
+      { path: "shared/workspaces/x.ts", text: 'firmAge: "firm_age",' },
+    ];
+    expect(columnLeaks(planted).map((l) => l.split(":")[0])).toEqual([
+      "src/desk/x.tsx",
       "server/seed/x.ts",
     ]);
   });

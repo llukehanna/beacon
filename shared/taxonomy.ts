@@ -74,47 +74,47 @@ export interface CountryGeo {
   bucket: "US" | "EUR" | "Other";
   /** Firm.geographicFootprint: descriptive only in rubric v2. */
   footprint: string;
-  /** Rubric geo axis: US/UK = 2, developed = 1, else 0. */
-  geoScore: 0 | 1 | 2;
+  /** The geo_score trait it gives a firm: US/UK = 2, developed = 1, else 0. */
+  fit: 0 | 1 | 2;
 }
 
 export const COUNTRY_GEO: Readonly<Record<string, CountryGeo>> = {
-  "United States": { region: "Americas", bucket: "US", footprint: "US", geoScore: 2 },
-  Canada: { region: "Americas", bucket: "Other", footprint: "Developed", geoScore: 1 },
-  Mexico: { region: "Americas", bucket: "Other", footprint: "Emerging", geoScore: 0 },
-  Brazil: { region: "Americas", bucket: "Other", footprint: "Emerging", geoScore: 0 },
-  "United Kingdom": { region: "Europe", bucket: "EUR", footprint: "UK", geoScore: 2 },
-  Germany: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  France: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  Netherlands: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  Switzerland: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  Sweden: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  Spain: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
-  Italy: { region: "Europe", bucket: "EUR", footprint: "Developed", geoScore: 1 },
+  "United States": { region: "Americas", bucket: "US", footprint: "US", fit: 2 },
+  Canada: { region: "Americas", bucket: "Other", footprint: "Developed", fit: 1 },
+  Mexico: { region: "Americas", bucket: "Other", footprint: "Emerging", fit: 0 },
+  Brazil: { region: "Americas", bucket: "Other", footprint: "Emerging", fit: 0 },
+  "United Kingdom": { region: "Europe", bucket: "EUR", footprint: "UK", fit: 2 },
+  Germany: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  France: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  Netherlands: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  Switzerland: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  Sweden: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  Spain: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
+  Italy: { region: "Europe", bucket: "EUR", footprint: "Developed", fit: 1 },
   "United Arab Emirates": {
     region: "Middle East & Africa",
     bucket: "Other",
     footprint: "Emerging",
-    geoScore: 0,
+    fit: 0,
   },
   "Saudi Arabia": {
     region: "Middle East & Africa",
     bucket: "Other",
     footprint: "Emerging",
-    geoScore: 0,
+    fit: 0,
   },
   "South Africa": {
     region: "Middle East & Africa",
     bucket: "Other",
     footprint: "Emerging",
-    geoScore: 0,
+    fit: 0,
   },
-  Nigeria: { region: "Middle East & Africa", bucket: "Other", footprint: "Emerging", geoScore: 0 },
-  Australia: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", geoScore: 1 },
-  Japan: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", geoScore: 1 },
-  Singapore: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", geoScore: 1 },
-  India: { region: "Asia-Pacific", bucket: "Other", footprint: "Emerging", geoScore: 0 },
-  "Hong Kong": { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", geoScore: 1 },
+  Nigeria: { region: "Middle East & Africa", bucket: "Other", footprint: "Emerging", fit: 0 },
+  Australia: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", fit: 1 },
+  Japan: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", fit: 1 },
+  Singapore: { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", fit: 1 },
+  India: { region: "Asia-Pacific", bucket: "Other", footprint: "Emerging", fit: 0 },
+  "Hong Kong": { region: "Asia-Pacific", bucket: "Other", footprint: "Developed", fit: 1 },
 };
 
 /** ISO 3166-1 alpha-2 code for each country in COUNTRY_GEO, for compact HQ cells. */

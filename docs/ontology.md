@@ -8,37 +8,19 @@ The ontology has 21 object types, 2 traversed links and 18 actions. Each object 
 
 ### Firm
 
-Table `firm`, primary key `firmId`, 41 properties.
+Table `firm`, primary key `firmId`, 23 properties.
 
 | Property | Type | Note |
 | --- | --- | --- |
 | `firmId` | string | primary key |
 | `firmName` | string |  |
 | `source` | string |  |
-| `firmType` | string |  |
 | `thesis` | string |  |
 | `hqCountry` | string |  |
 | `geography` | string |  |
 | `geographicFootprint` | string |  |
-| `geoScore` | integer |  |
 | `sector` | string |  |
-| `employees` | integer |  |
 | `employeeGroup` | string |  |
-| `revenueBand` | string |  |
-| `ownership` | string |  |
-| `successionRisk` | string |  |
-| `firmAge` | integer |  |
-| `coverageModel` | string |  |
-| `servicesFit` | string |  |
-| `mdPedigree` | string |  |
-| `balanceSheetPrincipal` | string |  |
-| `dealSizeMUsd` | double |  |
-| `dealsPerMdL3y` | double |  |
-| `feeGeneratingCount` | integer |  |
-| `hasSTOrBalanceSheet` | boolean |  |
-| `advisoryConflict` | boolean |  |
-| `webActivity` | boolean |  |
-| `solvent` | boolean |  |
 | `lifecycleState` | string |  |
 | `currentStage` | string |  |
 | `currentStep` | string |  |
@@ -296,7 +278,7 @@ Table `restricted_firm`, primary key `firmId`, 3 properties.
 
 ### Trait
 
-Table `trait`, primary key `traitId`, 12 properties.
+Table `trait`, primary key `traitId`, 13 properties.
 
 | Property | Type | Note |
 | --- | --- | --- |
@@ -311,6 +293,7 @@ Table `trait`, primary key `traitId`, 12 properties.
 | `optionsJson` | string |  |
 | `passWhen` | boolean |  |
 | `thesesJson` | string |  |
+| `wholeNumber` | boolean | required |
 | `position` | integer | required |
 
 ### FirmTraitValue

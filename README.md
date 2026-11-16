@@ -20,7 +20,7 @@ A corporate development team buying advisory firms starts from a thesis ("sector
 
 - **From thesis to universe.** A mandate written in plain language is read back as filters (thesis, geography, product, sector), and the search returns the firms that fit.
 - **Evidence you can check.** An agent reads each firm's source records and proposes a value for every scoring axis, with the sentence that supports it. A value without a word-for-word quote is thrown away. When sources disagree the analyst sees both sides; when no source has the answer the agent says so rather than guessing.
-- **A score anyone can explain.** A rubric defined as data (18 points per thesis in the demo workspace) gives every firm a score and an A/B/C tier, with hard rejects. The same engine previews in the browser and records on the server, and another team's thesis is a new definition, not new code.
+- **A score anyone can explain.** A rubric defined as data (18 points per thesis in the demo workspace) gives every firm a score and an A/B/C tier, with hard rejects. The same engine previews in the browser and records on the server, and another team's thesis is a new definition, not new code, and a firm's values are append-only revisions rather than columns.
 - **Decisions that teach the next search.** The reasons analysts pass on firms are grouped into proposed screening rules, each showing how many firms it would screen out. A rule applies only after an analyst approves it.
 - **Nothing goes stale quietly.** When new evidence or a market event (a senior hire, a departure, an acquisition) moves a firm's tier, it comes back for review.
 - **Work that leaves the tool.** Excel workbooks with a citations sheet, CSVs in Salesforce, DealCloud and Affinity layouts, a printable one-page tear sheet per firm, and lookalike targets with the reasons they match.
@@ -31,7 +31,7 @@ A corporate development team buying advisory firms starts from a thesis ("sector
 flowchart LR
   M[Mandate<br/>a thesis in plain language] --> U[Universe<br/>firms that fit]
   U --> E[Cited evidence<br/>quotes, conflicts, abstentions]
-  E --> S[Score and tier<br/>fixed rubric]
+  E --> S[Score and tier<br/>versioned rubric]
   S --> D{Analyst decides}
   D -- advance --> P[Pipeline<br/>tear sheets, exports, CRM]
   D -- pass, with a reason --> R[Proposed rules]
@@ -68,7 +68,7 @@ Eleven short [decision records](docs/decisions/README.md) explain the choices th
 - [Claude extraction with a grounding check and recorded fixtures](docs/decisions/0002-claude-extraction-grounding-fixtures.md): every value quotes its source, and the demo, seed and CI need no API key.
 - [Human approval before rules apply](docs/decisions/0007-human-approval-before-rules-apply.md): the system proposes, an analyst decides.
 - [One rubric module on both sides](docs/decisions/0003-shared-rubric-module.md): the score previewed is the score recorded.
-- [Traits and the rubric are data](docs/decisions/0011-traits-and-rubric-as-data.md): another team's thesis is a new definition, not new code.
+- [Traits and the rubric are data](docs/decisions/0011-traits-and-rubric-as-data.md): another team's thesis is a new definition, not new code, and a firm's values are append-only revisions rather than columns.
 - [Workers and a snapshot reset](docs/decisions/0008-workers-and-snapshot-reset.md): a public demo that runs on a free plan and resets in one transaction.
 - [An OSDK-shaped data seam](docs/decisions/0001-osdk-shaped-data-seam.md): the frontend can move back to Foundry without changing its screens.
 

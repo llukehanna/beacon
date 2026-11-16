@@ -98,6 +98,7 @@ export const TOY_TRAITS: TraitDef[] = [
     options: ["Toxic", "Poor", "OK", "Great"],
     passWhen: null,
     theses: null,
+    wholeNumber: false,
   },
   {
     traitKey: "team_size",
@@ -109,6 +110,7 @@ export const TOY_TRAITS: TraitDef[] = [
     options: null,
     passWhen: null,
     theses: ["growth"],
+    wholeNumber: false,
   },
   {
     traitKey: "sanctioned",
@@ -120,6 +122,7 @@ export const TOY_TRAITS: TraitDef[] = [
     options: null,
     passWhen: false,
     theses: null,
+    wholeNumber: false,
   },
   {
     traitKey: "region_fit",
@@ -131,6 +134,7 @@ export const TOY_TRAITS: TraitDef[] = [
     options: null,
     passWhen: null,
     theses: null,
+    wholeNumber: false,
   },
   {
     traitKey: "stage",
@@ -142,6 +146,7 @@ export const TOY_TRAITS: TraitDef[] = [
     options: ["Seed", "Series A", "Series B"],
     passWhen: null,
     theses: null,
+    wholeNumber: false,
   },
 ];
 

@@ -1,6 +1,5 @@
 import type { WorkspaceDefinition } from "../workspaces/types.js";
 import { RubricError, parseRubricDefinition } from "./definition.js";
-import type { TraitValue } from "./types.js";
 
 /**
  * Check a workspace's rubric against its trait catalog. Profile fields are
@@ -22,6 +21,11 @@ export function validateWorkspace(ws: WorkspaceDefinition): void {
     }
     return t;
   };
+  for (const t of ws.traits) {
+    if (t.wholeNumber && t.kind !== "number") {
+      problems.push(`Trait "${t.traitKey}" counts whole numbers but is a ${t.kind} trait`);
+    }
+  }
   for (const thesis of ws.rubric.theses) {
     for (const c of thesis.criteria) {
       const t = scorable(`Thesis "${thesis.key}" criterion`, c.traitKey);
@@ -59,23 +63,4 @@ export function validateWorkspace(ws: WorkspaceDefinition): void {
   if (problems.length > 0) {
     throw new RubricError(`Invalid workspace "${ws.key}": ${problems.join("; ")}`);
   }
-}
-
-/** A firm row's non-empty legacy columns, keyed by trait. */
-export function legacyTraits(
-  ws: WorkspaceDefinition,
-  row: Readonly<Record<string, unknown>>,
-): Record<string, TraitValue> {
-  const out: Record<string, TraitValue> = {};
-  for (const [field, key] of Object.entries(ws.legacyFields)) {
-    const v = row[field];
-    if (
-      typeof v === "string" ||
-      typeof v === "boolean" ||
-      (typeof v === "number" && Number.isFinite(v))
-    ) {
-      out[key] = v;
-    }
-  }
-  return out;
 }

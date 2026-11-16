@@ -11,7 +11,7 @@ import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
 import { ANALYST, DECISION, type Provider, normalizeLifecycle } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
-import { appendTraitValues, isWholeNumberTrait } from "../db/traits.js";
+import { appendTraitValues } from "../db/traits.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
@@ -279,7 +279,7 @@ async function traitValuesParam(
  * case-insensitively, then stored as the catalog spells it).
  */
 function storable(trait: TraitDef, value: TraitValue): TraitValue {
-  if (typeof value === "number" && isWholeNumberTrait(trait.traitKey) && !Number.isInteger(value)) {
+  if (typeof value === "number" && trait.wholeNumber && !Number.isInteger(value)) {
     throw new ActionError(`${trait.traitKey} must be a whole number, got ${value}`);
   }
   if (trait.kind === "category" && typeof value === "string" && trait.options !== null) {

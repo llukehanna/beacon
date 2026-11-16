@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Props } from "../../shared/schema.js";
 import type { Db } from "../db/client.js";
 import { getObject, insertObject, listAll } from "../db/repo.js";
-import { STRONG_CF, T0, createTestDb, run, seedFirm } from "../testing.js";
+import { STRONG_CF, T0, type TestFirm, createTestDb, run, seedFirm } from "../testing.js";
 import { MAX_SIGNALS_PER_RUN, applyDueSignals } from "./run.js";
 
 const NOW = new Date(T0.getTime() + 3_600_000);
@@ -20,7 +20,7 @@ async function addSignal(db: Db, s: Props<"MarketSignal"> & { signalId: string }
 }
 
 /** A qualified firm on the tier A floor (14 points): losing a fee-earner band takes it to B. */
-const AT_THE_FLOOR: Props<"Firm"> = {
+const AT_THE_FLOOR: TestFirm = {
   ...STRONG_CF,
   dealsPerMdL3y: 2,
   firmAge: 8,
@@ -82,7 +82,6 @@ describe("applyDueSignals", () => {
 
     const moved = await getObject(db, "Firm", firm.$primaryKey);
     expect(moved?.traits?.fee_generating_count).toBe(3);
-    expect(moved?.feeGeneratingCount).toBeUndefined(); // stored as a trait value, not in the column
     expect(
       await db.query(
         `SELECT "setBy", "sourceFindingId" IS NOT NULL AS cited FROM firm_trait_current
@@ -140,7 +139,6 @@ describe("applyDueSignals", () => {
     expect(await listAll(db, "DriftEvent")).toHaveLength(0);
     const moved = await getObject(db, "Firm", firm.$primaryKey);
     expect(moved?.traits?.fee_generating_count).toBe(3);
-    expect(moved?.feeGeneratingCount).toBeUndefined(); // stored as a trait value, not in the column
     expect(
       await db.query(
         `SELECT "setBy", "sourceFindingId" IS NOT NULL AS cited FROM firm_trait_current

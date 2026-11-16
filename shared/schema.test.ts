@@ -35,17 +35,18 @@ describe("ontology schema", () => {
     expect(isActionName("dropTables")).toBe(false);
   });
 
-  it("keeps the Firm properties the rubric reads", () => {
-    const p = OBJECT_TYPES.Firm.properties;
-    expect(p.dealsPerMdL3y).toBe("double");
-    expect(p.hasSTOrBalanceSheet).toBe("boolean");
-    expect(p.geoScore).toBe("integer");
-  });
-
-  it("declares the profile fields as strings", () => {
-    const p = OBJECT_TYPES.Firm.properties;
-    expect(p.revenueBand).toBe("string");
-    expect(p.ownership).toBe("string");
-    expect(p.successionRisk).toBe("string");
+  it("keeps no trait as a Firm property: traits are trait values", () => {
+    const p: Readonly<Record<string, string>> = OBJECT_TYPES.Firm.properties;
+    expect(p.thesis).toBe("string");
+    for (const gone of [
+      "firmType",
+      "dealsPerMdL3y",
+      "hasSTOrBalanceSheet",
+      "employees",
+      "ownership",
+    ]) {
+      expect(p[gone]).toBeUndefined();
+    }
+    expect(OBJECT_TYPES.Trait.properties.wholeNumber).toBe("boolean");
   });
 });

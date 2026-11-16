@@ -354,7 +354,7 @@ describe("database integrity, on a seeded database", () => {
         const before = await fingerprint();
         // Dirty the demo the way a visitor would, then restore it.
         await db.query(
-          `UPDATE firm SET "employees" = 1 WHERE "firmId" = (SELECT min("firmId") FROM firm)`,
+          `UPDATE firm SET "firmName" = 'Dirtied Advisors' WHERE "firmId" = (SELECT min("firmId") FROM firm)`,
         );
         await db.query(`DELETE FROM drift_event`);
         await db.query(`DELETE FROM search_membership`);
