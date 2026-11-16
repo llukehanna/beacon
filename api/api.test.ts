@@ -153,6 +153,23 @@ describe("/api/reset", () => {
     await saveSnapshot(db, new Date());
     expect((await resetButton()).status).toBe(200);
   });
+
+  it("keeps the last good reset time when a reset fails, and says why until one succeeds", async () => {
+    type Ops = {
+      value: { windowStart: string | null; lastResetError: { message: string } | null };
+    };
+    const ops = async () =>
+      (await read<Ops>(await functions(req("/api/functions?name=operationsSummary")))).value;
+    const lastGood = new Date(Date.now() - 60 * 60_000).toISOString();
+    await setMeta(db, "lastResetAt", lastGood);
+    expect((await resetButton()).status).toBe(503); // no snapshot yet
+    expect((await ops()).windowStart).toBe(lastGood);
+    expect((await ops()).lastResetError?.message).toMatch(/snapshot is missing/);
+    await saveSnapshot(db, new Date());
+    expect((await resetButton()).status).toBe(200); // the failed attempt freed the throttle slot
+    expect((await ops()).windowStart).not.toBe(lastGood);
+    expect((await ops()).lastResetError).toBeNull();
+  });
 });
 
 describe("/api/functions", () => {
