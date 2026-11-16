@@ -8,7 +8,7 @@ import type { Clusterer, RejectionRow, RuleProposal } from "./types.js";
 
 export const CLUSTER_MODEL = "claude-opus-5";
 
-const SYSTEM = `You help a corporate development team learn from its own decisions.
+export const CLUSTER_SYSTEM = `You help a corporate development team learn from its own decisions.
 
 You will receive the rejections an analyst has made while screening advisory firms as acquisition targets. Each has the analyst's rationale in their own words and the firm's known facts.
 
@@ -21,7 +21,7 @@ A good proposal:
 
 Propose nothing when there is no clear pattern; an empty list is a good answer. Every proposal is checked against the data and reviewed by a human before it screens anything.`;
 
-const OUTPUT_SCHEMA = {
+export const CLUSTER_OUTPUT_SCHEMA = {
   type: "object",
   additionalProperties: false,
   required: ["rules"],
@@ -164,8 +164,8 @@ export function createClaudeClusterer(
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       thinking: { type: "adaptive" },
-      output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
-      system: SYSTEM,
+      output_config: { format: { type: "json_schema", schema: CLUSTER_OUTPUT_SCHEMA } },
+      system: CLUSTER_SYSTEM,
       messages: [{ role: "user", content: renderRejections(rows) }],
     });
     const call = modelCallOf(message, new Date());
