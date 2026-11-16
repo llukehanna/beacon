@@ -29,19 +29,24 @@ export function stepSearch(search: string, step: number | null): string {
   return text === "" ? "" : `?${text}`;
 }
 
+/** The query parameters a step needs: the Desk stops' firm, `firmId`. */
+export function stepParams(step: TourStep, firmId: string): Record<string, string> {
+  return step.onFirm === true ? { firmId } : {};
+}
+
 /** The search a step opens with when the tour arrives from another page: its params and its place. */
-export function arrivalSearch(step: TourStep, index: number): string {
-  return stepSearch(new URLSearchParams(step.params ?? {}).toString(), index);
+export function arrivalSearch(step: TourStep, index: number, firmId: string): string {
+  return stepSearch(new URLSearchParams(stepParams(step, firmId)).toString(), index);
 }
 
 /**
  * `search` with the step's params filled in where it lacks them, or null when none is missing. A
  * value already there is kept, so a link that names another firm still opens that firm.
  */
-export function withStepParams(search: string, step: TourStep): string | null {
+export function withStepParams(search: string, step: TourStep, firmId: string): string | null {
   const params = new URLSearchParams(search);
   let changed = false;
-  for (const [key, value] of Object.entries(step.params ?? {})) {
+  for (const [key, value] of Object.entries(stepParams(step, firmId))) {
     if (!params.has(key)) {
       params.set(key, value);
       changed = true;
