@@ -295,7 +295,7 @@ Table `restricted_firm`, primary key `firmId`, 3 properties.
 
 ### Trait
 
-Table `trait`, primary key `traitId`, 11 properties.
+Table `trait`, primary key `traitId`, 12 properties.
 
 | Property | Type | Note |
 | --- | --- | --- |
@@ -309,6 +309,7 @@ Table `trait`, primary key `traitId`, 11 properties.
 | `role` | string | required |
 | `optionsJson` | string |  |
 | `passWhen` | boolean |  |
+| `thesesJson` | string |  |
 | `position` | integer | required |
 
 ### Rubric

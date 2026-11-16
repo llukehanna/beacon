@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
+import type { RubricContext } from "../shared/rubric/types.js";
 import type { ActionName, ObjectOf, Props } from "../shared/schema.js";
+import { ADVISORY_ACQUISITIONS } from "../shared/workspaces/advisoryAcquisitions.js";
 import { NO_WALL } from "./access.js";
 import { type ApplyOptions, applyAction } from "./actions/apply.js";
 import type { ActionResult } from "./actions/types.js";
@@ -23,6 +25,12 @@ export const STRONG_CF: Props<"Firm"> = {
   firmAge: 15,
   employees: 20,
   feeGeneratingCount: 4,
+};
+
+/** The rubric and catalog every test database starts with (migration 0004 writes them). */
+export const TEST_RUBRIC: RubricContext = {
+  definition: ADVISORY_ACQUISITIONS.rubric,
+  traits: ADVISORY_ACQUISITIONS.traits,
 };
 
 /** Fresh in-memory Postgres with the full schema. One per test. */

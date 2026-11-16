@@ -335,6 +335,7 @@ export const OBJECT_TYPES = {
       role: "string",
       optionsJson: "string",
       passWhen: "boolean",
+      thesesJson: "string",
       position: "integer",
     },
   },

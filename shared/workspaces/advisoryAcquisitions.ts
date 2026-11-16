@@ -21,7 +21,7 @@ export const RUBRIC_ID = "advisory-acquisitions@1";
 
 const trait = (
   t: Pick<TraitDef, "traitKey" | "label" | "description" | "kind" | "role"> & Partial<TraitDef>,
-): TraitDef => ({ unit: null, options: null, passWhen: null, ...t });
+): TraitDef => ({ unit: null, options: null, passWhen: null, theses: null, ...t });
 
 const TRAITS: TraitDef[] = [
   trait({
@@ -47,6 +47,7 @@ const TRAITS: TraitDef[] = [
     kind: "category",
     role: "evidence",
     options: [...CS_BSP_LABELS],
+    theses: ["CS"],
   }),
   trait({
     traitKey: "deal_size_usd_m",

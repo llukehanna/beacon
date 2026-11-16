@@ -27,6 +27,8 @@ export interface TraitDef {
   options: string[] | null;
   /** For a yes/no trait: which stored value reads as Pass on the desk. */
   passWhen: boolean | null;
+  /** The theses whose firms this trait is researched for; null for every thesis. */
+  theses: string[] | null;
 }
 
 export interface Band {

@@ -1,6 +1,8 @@
 import { beforeAll, describe, expect, it } from "vitest";
-import { firmModel } from "../../shared/scoring.js";
-import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { evidenceTraits, researchedFor } from "../../shared/rubric/catalog.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { NO_WALL } from "../access.js";
 import type { Db } from "../db/client.js";
 import { listAll } from "../db/repo.js";
@@ -11,6 +13,8 @@ import { resetDemo } from "../seed/reset.js";
 import { createTestDb } from "../testing.js";
 import { type FirmObservations, observeFirm } from "./firmObservations.js";
 import { runFunction } from "./index.js";
+
+const EVIDENCE = evidenceTraits(WS.traits);
 
 const runFn = (db: Db, name: string, params: Record<string, unknown> = {}) =>
   runFunction(db, name, params, NO_WALL);
@@ -52,8 +56,8 @@ describe("firmObservations", () => {
   it("returns one entry per rubric axis and provider", async () => {
     const [firm] = await listAll(db, "Firm", { where: { firmId: { $eq: firmId } } });
     const obs = await observationsFor(firmId);
-    const expected = ENRICH_AXES.filter((a) => a.models.includes(firmModel(firm))).map(
-      (a) => a.axis,
+    const expected = EVIDENCE.filter((a) => researchedFor(WS.rubric, a, thesisOf(firm))).map(
+      (a) => a.traitKey,
     );
     expect(obs.firmId).toBe(firmId);
     expect(obs.axes.map((a) => a.axis)).toEqual(expected);
@@ -76,7 +80,7 @@ describe("firmObservations", () => {
     expect(findings.some((f) => f.findingStatus === "abstained")).toBe(true);
     let conflicts = 0;
     for (const { axis, providers } of obs.axes) {
-      const def = ENRICH_AXES.find((a) => a.axis === axis);
+      const def = EVIDENCE.find((a) => a.traitKey === axis);
       if (!def) {
         throw new Error(`unknown axis ${axis}`);
       }
@@ -142,7 +146,7 @@ describe("observeFirm", () => {
       promptVersion: EXTRACTION_PROMPT_VERSION,
       documentsHash: documentsHash(docs),
     } as Parameters<typeof observeFirm>[1][number];
-    const obs = observeFirm(firm, [row]);
+    const obs = observeFirm(firm, [row], { definition: WS.rubric, traits: WS.traits });
     expect(obs.model).toBe("test-model");
     const cell = obs.axes
       .find((a) => a.axis === "firm_age")

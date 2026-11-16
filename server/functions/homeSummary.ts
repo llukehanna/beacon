@@ -31,7 +31,7 @@ import {
 } from "../../shared/queue.js";
 import { summarizePredicate } from "../../shared/rulePredicate.js";
 import { OBJECT_TYPES } from "../../shared/schema.js";
-import { mirrorScore } from "../../shared/scoreMirror.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import type {
   DriftNeedsYou,
   HomeSummary,
@@ -47,6 +47,7 @@ import { MARKET_SIGNAL } from "../../shared/vocab.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { notIn, toWire } from "../db/repo.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { findingTotals } from "./findings.js";
 import { outcomeGroups } from "./outcomes.js";
 
@@ -373,8 +374,9 @@ export async function homeSummary(q: Queryable, access: Access): Promise<HomeSum
 
   // Funnel: one bucket per firm, hard-reject verdict included.
   const funnel = emptyBucketCounts();
+  const { definition } = await loadActiveRubric(q);
   for (const f of firms) {
-    funnel[bucketOf(f, mirrorScore(f))] += 1;
+    funnel[bucketOf(f, scoreFirm(definition, f))] += 1;
   }
 
   const abstainedSince = abstainedSinceByFirm(timedFindings);

@@ -17,17 +17,6 @@ export interface Predicate {
   model?: string | null;
 }
 
-/** TEMP(plan-h task 5): the Claude clusterer's axis enum moves to predicateAxes(catalog). */
-export const PREDICATE_AXES: readonly string[] = [
-  "employees",
-  "deal_size_usd_m",
-  "deals_per_md_l3y",
-  "firm_age",
-  "fee_generating_count",
-  "geo_score",
-  "coverage_model",
-];
-
 export function ruleKey(
   axis?: string | null,
   operator?: string | null,
@@ -105,10 +94,17 @@ export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Pre
   return compareValue(traitsOf(firm)[p.axis.trim().toLowerCase()], p.operator, p.threshold);
 }
 
-/** The traits a screening rule may test: any number or category trait that is not a profile field. */
+/**
+ * The traits a screening rule may test: numbers, and category facts. Evidence labels (a firm's
+ * services, its MDs' backgrounds) are the rubric's to judge, and profile fields are never screened.
+ */
 export function predicateAxes(traits: readonly TraitDef[]): string[] {
   return traits
-    .filter((t) => t.role !== "profile" && (t.kind === "number" || t.kind === "category"))
+    .filter(
+      (t) =>
+        t.role !== "profile" &&
+        (t.kind === "number" || (t.kind === "category" && t.role === "fact")),
+    )
     .map((t) => t.traitKey);
 }
 

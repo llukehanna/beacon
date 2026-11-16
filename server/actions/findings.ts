@@ -1,23 +1,22 @@
-import { TraitValueError, checkTraitValue } from "../../shared/rubric/traitValue.js";
-import type { TraitValue } from "../../shared/rubric/types.js";
-import type { Props } from "../../shared/schema.js";
-import { axisPoints, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
+import { evidenceTraits, traitFor } from "../../shared/rubric/catalog.js";
+import { criterionPoints } from "../../shared/rubric/engine.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
 import {
-  ANALYST,
-  type AxisDef,
-  DECISION,
-  ENRICH_AXES,
-  type Provider,
-  axisByName,
-  normalizeLifecycle,
-} from "../../shared/vocab.js";
+  TraitValueError,
+  checkTraitValue,
+  formatTraitValue,
+  parseTraitValue,
+} from "../../shared/rubric/traitValue.js";
+import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
+import type { Props } from "../../shared/schema.js";
+import { ANALYST, DECISION, type Provider, normalizeLifecycle } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
-import { traitColumn } from "../db/traits.js";
+import { traitColumn, traitKeyFor } from "../db/traits.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
 import { planFirmAxes } from "../extraction/plan.js";
-import { loadTraits } from "../rubric/load.js";
+import { loadActiveRubric, loadTraits } from "../rubric/load.js";
 import { type FirmObj, iso, logDecision, requireObject, snapshotScore } from "./common.js";
 import { computeDriftForFirm } from "./drift.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -27,10 +26,26 @@ const moveToScreening = (firm: FirmObj): Props<"Firm"> =>
     ? { lifecycleState: "Screening", currentStage: "Screening" }
     : {};
 
+/** The points a lone value earns on its criterion under the active rubric (null when unscored). */
+async function pointsFor(
+  ctx: ActionContext,
+  firm: FirmObj,
+  axis: TraitDef,
+  value: string,
+): Promise<number | null> {
+  const { definition } = await loadActiveRubric(ctx.tx);
+  return criterionPoints(definition, thesisOf(firm), axis.traitKey, parseTraitValue(axis, value));
+}
+
+/** The evidence trait a finding's axis names, or null when the catalog has none. */
+async function evidenceTrait(ctx: ActionContext, name: string): Promise<TraitDef | null> {
+  return traitFor(evidenceTraits(await loadTraits(ctx.tx)), name) ?? null;
+}
+
 async function insertAnalystFinding(
   ctx: ActionContext,
   firm: FirmObj,
-  axis: AxisDef,
+  axis: TraitDef,
   value: string,
   excerpt: string,
   normalizedScore?: number | null,
@@ -39,7 +54,7 @@ async function insertAnalystFinding(
   await insertObject(ctx.tx, "ResearchFinding", {
     findingId,
     firmId: firm.$primaryKey,
-    axis: axis.axis,
+    axis: axis.traitKey,
     value,
     provider: ANALYST,
     sourceType: "analyst",
@@ -51,7 +66,7 @@ async function insertAnalystFinding(
     verifiedByHuman: false,
     verifiedBy: ctx.user,
     verifiedAt: iso(ctx.now),
-    normalizedScore: normalizedScore ?? axisPoints(firm, axis, parseAxisValue(axis, value)),
+    normalizedScore: normalizedScore ?? (await pointsFor(ctx, firm, axis, value)),
     retrievedAt: iso(ctx.now),
   });
   return findingId;
@@ -73,8 +88,8 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
-    const settled = (axis: AxisDef) =>
-      existing.some((f) => f.axis === axis.axis && f.findingStatus === "verified"); // settled by a human
+    const settled = (axis: TraitDef) =>
+      existing.some((f) => f.axis === axis.traitKey && f.findingStatus === "verified"); // settled by a human
     for (const { axis, plans } of planFirmAxes(
       firm,
       stored,
@@ -83,7 +98,7 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
     )) {
       for (const stale of existing.filter(
         (f) =>
-          f.axis === axis.axis &&
+          f.axis === axis.traitKey &&
           (f.findingStatus === "proposed" || f.findingStatus === "abstained"),
       )) {
         await updateObject(ctx.tx, "ResearchFinding", stale.$primaryKey, {
@@ -97,7 +112,7 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
           firmId: firm.$primaryKey,
           ...plan,
           normalizedScore:
-            plan.value === null ? null : axisPoints(firm, axis, parseAxisValue(axis, plan.value)),
+            plan.value === null ? null : await pointsFor(ctx, firm, axis, plan.value),
           verifiedByHuman: false,
           retrievedAt: iso(ctx.now),
         });
@@ -122,7 +137,7 @@ export const verifyFinding = defineAction("verifyFinding", {
         409,
       );
     }
-    const axis = axisByName(finding.axis ?? "");
+    const axis = await evidenceTrait(ctx, finding.axis ?? "");
     if (!axis) {
       throw new ActionError(`Unknown axis "${finding.axis ?? ""}"`);
     }
@@ -259,31 +274,21 @@ async function traitValuesParam(
 export const enrichFirm = defineAction("enrichFirm", {
   async run(ctx, p) {
     const { firm } = p;
-    const values: Record<string, unknown> = { ...p };
+    // Every value as trait key → value: the legacy per-field params, then traitValues.
+    const incoming: Record<string, TraitValue | null> = {};
+    for (const [name, v] of Object.entries(p)) {
+      const key = traitKeyFor(name);
+      if (key !== undefined && v !== undefined) {
+        incoming[key] = v as TraitValue | null;
+      }
+    }
+    Object.assign(incoming, await traitValuesParam(ctx, p.traitValues));
     const patch: Record<string, unknown> = {};
-    // Values keyed by trait: evidence axes join the per-axis path below, the rest land directly.
-    for (const [key, v] of Object.entries(await traitValuesParam(ctx, p.traitValues))) {
-      const axis = ENRICH_AXES.find((a) => a.axis === key);
-      if (axis) {
-        values[axis.actionParam] = v;
-      } else {
-        patch[traitColumn(key)!] = v;
-      }
+    for (const [key, v] of Object.entries(incoming)) {
+      patch[traitColumn(key)!] = v;
     }
-    const written: AxisDef[] = [];
-    for (const axis of ENRICH_AXES) {
-      const v = values[axis.actionParam];
-      if (v !== undefined) {
-        patch[axis.firmField] = v;
-        written.push(axis);
-      }
-    }
-    if (p.employees !== undefined) {
-      patch.employees = p.employees;
-    }
-    if (p.coverageModel !== undefined) {
-      patch.coverageModel = p.coverageModel;
-    }
+    const catalog = await loadTraits(ctx.tx);
+    const written = evidenceTraits(catalog).filter((t) => incoming[t.traitKey] !== undefined);
     if (Object.keys(patch).length === 0) {
       throw new ActionError("Nothing to enrich; pass at least one field");
     }
@@ -299,18 +304,21 @@ export const enrichFirm = defineAction("enrichFirm", {
 
     // Record analyst evidence only for manual values no existing finding backs;
     // accepted agent findings are verified separately by the desk's flush.
-    const manual = parseKeyList(p.fieldsEnteredManually);
+    // Old clients name fields by column; new ones by trait key.
+    const manual = new Set(
+      [...parseKeyList(p.fieldsEnteredManually)].map((n) => traitKeyFor(n) ?? n),
+    );
     const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
     for (const axis of written.filter(
-      (a) => (manual.has(a.actionParam) || manual.has(a.axis)) && values[a.actionParam] !== null,
+      (a) => manual.has(a.traitKey) && incoming[a.traitKey] !== null,
     )) {
-      const value = formatAxisValue(values[axis.actionParam] as string | number | boolean);
+      const value = formatTraitValue(incoming[axis.traitKey]!);
       const backed = existing.some(
         (f) =>
-          f.axis === axis.axis &&
+          f.axis === axis.traitKey &&
           f.value !== undefined &&
           (f.findingStatus === "proposed" || f.findingStatus === "verified") &&
           sameValue(axis, f.value, value),

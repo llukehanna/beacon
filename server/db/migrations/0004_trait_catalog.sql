@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS trait (
   "role" text NOT NULL,
   "optionsJson" text,
   "passWhen" boolean,
+  "thesesJson" text,
   "position" integer NOT NULL
 );
 CREATE UNIQUE INDEX IF NOT EXISTS trait_workspace_key ON trait ("workspaceKey", "traitKey");
@@ -57,24 +58,24 @@ CREATE TRIGGER rubric_append_only BEFORE UPDATE OR DELETE ON rubric
 
 -- The advisory-acquisitions catalog and rubric v1, frozen here so a migrated database scores before
 -- the next reseed. A later change to the workspace is a new rubric version, never an edit here.
-INSERT INTO trait ("traitId", "workspaceKey", "traitKey", "label", "description", "unit", "kind", "role", "optionsJson", "passWhen", "position") VALUES
-  ('advisory-acquisitions:services_fit', 'advisory-acquisitions', 'services_fit', 'Services fit', 'Service offering', NULL, 'category', 'evidence', '["Conflicted: trading, lending or research","Adjacent advisory services","Full advisory suite","No private-capital products","Some private-capital products","Full private-capital suite"]', NULL, 0),
-  ('advisory-acquisitions:md_pedigree', 'advisory-acquisitions', 'md_pedigree', 'MD pedigree', 'Managing directors'' backgrounds', NULL, 'category', 'evidence', '["Operator / non-finance backgrounds","Mixed: industry or boutique banking","Bulge-bracket or elite-boutique alumni","Non-finance backgrounds","Some credit or banking experience","Senior credit / capital-markets pedigree"]', NULL, 1),
-  ('advisory-acquisitions:balance_sheet_principal', 'advisory-acquisitions', 'balance_sheet_principal', 'Balance sheet / principal', 'Principal / balance-sheet activity', NULL, 'category', 'evidence', '["Invests its own balance sheet","Occasional co-investment","Advisory only"]', NULL, 2),
-  ('advisory-acquisitions:deal_size_usd_m', 'advisory-acquisitions', 'deal_size_usd_m', 'Avg deal size', 'Typical deal size, in US$ millions', '$m USD', 'number', 'evidence', NULL, NULL, 3),
-  ('advisory-acquisitions:deals_per_md_l3y', 'advisory-acquisitions', 'deals_per_md_l3y', 'Deals per MD (last 3 years)', 'Closed deals per managing director per year, last three years', 'per MD, last 3 years', 'number', 'evidence', NULL, NULL, 4),
-  ('advisory-acquisitions:firm_age', 'advisory-acquisitions', 'firm_age', 'Firm age', 'Firm age, in years', 'yrs', 'number', 'evidence', NULL, NULL, 5),
-  ('advisory-acquisitions:fee_generating_count', 'advisory-acquisitions', 'fee_generating_count', 'Fee-earning heads', 'Number of fee-generating professionals', 'MDs', 'number', 'evidence', NULL, NULL, 6),
-  ('advisory-acquisitions:advisory_conflict', 'advisory-acquisitions', 'advisory_conflict', 'Advisory conflict', 'Has a conflicting advisory relationship', NULL, 'yesno', 'evidence', NULL, false, 7),
-  ('advisory-acquisitions:has_st_or_balance_sheet', 'advisory-acquisitions', 'has_st_or_balance_sheet', 'Sales & trading / balance sheet', 'Runs a sales-and-trading desk or a balance sheet', NULL, 'yesno', 'evidence', NULL, false, 8),
-  ('advisory-acquisitions:web_activity', 'advisory-acquisitions', 'web_activity', 'Web activity', 'Shows recent public web activity', NULL, 'yesno', 'evidence', NULL, true, 9),
-  ('advisory-acquisitions:solvent', 'advisory-acquisitions', 'solvent', 'Solvent', 'Is solvent', NULL, 'yesno', 'evidence', NULL, true, 10),
-  ('advisory-acquisitions:coverage_model', 'advisory-acquisitions', 'coverage_model', 'Sector coverage', 'How many sectors the firm covers', NULL, 'category', 'fact', '["Generalist","Multi-sector","Single-sector focus"]', NULL, 11),
-  ('advisory-acquisitions:geo_score', 'advisory-acquisitions', 'geo_score', 'Geographic fit', 'Fit of the firm''s headquarters geography, 0 to 2', NULL, 'number', 'fact', NULL, NULL, 12),
-  ('advisory-acquisitions:employees', 'advisory-acquisitions', 'employees', 'Headcount', 'Total employees', 'people', 'number', 'fact', NULL, NULL, 13),
-  ('advisory-acquisitions:revenue_band', 'advisory-acquisitions', 'revenue_band', 'Revenue band', 'Annual revenue band', NULL, 'category', 'profile', '["<$10M","$10–25M","$25–50M","$50–100M",">$100M"]', NULL, 14),
-  ('advisory-acquisitions:ownership', 'advisory-acquisitions', 'ownership', 'Ownership', 'Who owns the firm', NULL, 'category', 'profile', '["Founder-owned","Partnership","PE-backed","Subsidiary"]', NULL, 15),
-  ('advisory-acquisitions:succession_risk', 'advisory-acquisitions', 'succession_risk', 'Succession risk', 'How exposed the firm is to a leadership transition', NULL, 'category', 'profile', '["Low","Medium","High"]', NULL, 16)
+INSERT INTO trait ("traitId", "workspaceKey", "traitKey", "label", "description", "unit", "kind", "role", "optionsJson", "passWhen", "thesesJson", "position") VALUES
+  ('advisory-acquisitions:services_fit', 'advisory-acquisitions', 'services_fit', 'Services fit', 'Service offering', NULL, 'category', 'evidence', '["Conflicted: trading, lending or research","Adjacent advisory services","Full advisory suite","No private-capital products","Some private-capital products","Full private-capital suite"]', NULL, NULL, 0),
+  ('advisory-acquisitions:md_pedigree', 'advisory-acquisitions', 'md_pedigree', 'MD pedigree', 'Managing directors'' backgrounds', NULL, 'category', 'evidence', '["Operator / non-finance backgrounds","Mixed: industry or boutique banking","Bulge-bracket or elite-boutique alumni","Non-finance backgrounds","Some credit or banking experience","Senior credit / capital-markets pedigree"]', NULL, NULL, 1),
+  ('advisory-acquisitions:balance_sheet_principal', 'advisory-acquisitions', 'balance_sheet_principal', 'Balance sheet / principal', 'Principal / balance-sheet activity', NULL, 'category', 'evidence', '["Invests its own balance sheet","Occasional co-investment","Advisory only"]', NULL, '["CS"]', 2),
+  ('advisory-acquisitions:deal_size_usd_m', 'advisory-acquisitions', 'deal_size_usd_m', 'Avg deal size', 'Typical deal size, in US$ millions', '$m USD', 'number', 'evidence', NULL, NULL, NULL, 3),
+  ('advisory-acquisitions:deals_per_md_l3y', 'advisory-acquisitions', 'deals_per_md_l3y', 'Deals per MD (last 3 years)', 'Closed deals per managing director per year, last three years', 'per MD, last 3 years', 'number', 'evidence', NULL, NULL, NULL, 4),
+  ('advisory-acquisitions:firm_age', 'advisory-acquisitions', 'firm_age', 'Firm age', 'Firm age, in years', 'yrs', 'number', 'evidence', NULL, NULL, NULL, 5),
+  ('advisory-acquisitions:fee_generating_count', 'advisory-acquisitions', 'fee_generating_count', 'Fee-earning heads', 'Number of fee-generating professionals', 'MDs', 'number', 'evidence', NULL, NULL, NULL, 6),
+  ('advisory-acquisitions:advisory_conflict', 'advisory-acquisitions', 'advisory_conflict', 'Advisory conflict', 'Has a conflicting advisory relationship', NULL, 'yesno', 'evidence', NULL, false, NULL, 7),
+  ('advisory-acquisitions:has_st_or_balance_sheet', 'advisory-acquisitions', 'has_st_or_balance_sheet', 'Sales & trading / balance sheet', 'Runs a sales-and-trading desk or a balance sheet', NULL, 'yesno', 'evidence', NULL, false, NULL, 8),
+  ('advisory-acquisitions:web_activity', 'advisory-acquisitions', 'web_activity', 'Web activity', 'Shows recent public web activity', NULL, 'yesno', 'evidence', NULL, true, NULL, 9),
+  ('advisory-acquisitions:solvent', 'advisory-acquisitions', 'solvent', 'Solvent', 'Is solvent', NULL, 'yesno', 'evidence', NULL, true, NULL, 10),
+  ('advisory-acquisitions:coverage_model', 'advisory-acquisitions', 'coverage_model', 'Sector coverage', 'How many sectors the firm covers', NULL, 'category', 'fact', '["Generalist","Multi-sector","Single-sector focus"]', NULL, NULL, 11),
+  ('advisory-acquisitions:geo_score', 'advisory-acquisitions', 'geo_score', 'Geographic fit', 'Fit of the firm''s headquarters geography, 0 to 2', NULL, 'number', 'fact', NULL, NULL, NULL, 12),
+  ('advisory-acquisitions:employees', 'advisory-acquisitions', 'employees', 'Headcount', 'Total employees', 'people', 'number', 'fact', NULL, NULL, NULL, 13),
+  ('advisory-acquisitions:revenue_band', 'advisory-acquisitions', 'revenue_band', 'Revenue band', 'Annual revenue band', NULL, 'category', 'profile', '["<$10M","$10–25M","$25–50M","$50–100M",">$100M"]', NULL, NULL, 14),
+  ('advisory-acquisitions:ownership', 'advisory-acquisitions', 'ownership', 'Ownership', 'Who owns the firm', NULL, 'category', 'profile', '["Founder-owned","Partnership","PE-backed","Subsidiary"]', NULL, NULL, 15),
+  ('advisory-acquisitions:succession_risk', 'advisory-acquisitions', 'succession_risk', 'Succession risk', 'How exposed the firm is to a leadership transition', NULL, 'category', 'profile', '["Low","Medium","High"]', NULL, NULL, 16)
 ON CONFLICT ("traitId") DO NOTHING;
 
 INSERT INTO rubric ("rubricId", "workspaceKey", "version", "name", "active", "definitionJson", "createdBy", "createdAt") VALUES

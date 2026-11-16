@@ -5,16 +5,9 @@
  * plus a verbatim quote; `grounding.ts` rejects anything the documents do not support.
  */
 import { z } from "zod";
-import {
-  CF_MD_LABELS,
-  CF_SERVICES_LABELS,
-  CS_BSP_LABELS,
-  CS_MD_LABELS,
-  CS_SERVICES_LABELS,
-  ENRICH_AXES,
-  PROVIDER_TRUST,
-  type Provider,
-} from "../../shared/vocab.js";
+import { evidenceTraits, optionsFor } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST, type Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import type { SourceDocument } from "./documents.js";
 
 /** Bump when the prompt or output shape changes: stored extractions become stale. */
@@ -34,32 +27,39 @@ export interface ExtractionOutput {
   items: ExtractedItem[];
 }
 
-const AXIS_NAMES: Readonly<Record<string, string>> = {
-  services_fit: "Service offering",
-  md_pedigree: "Managing directors' backgrounds",
-  balance_sheet_principal: "Principal / balance-sheet activity",
-  deal_size_usd_m: "Typical deal size, in US$ millions",
-  deals_per_md_l3y: "Closed deals per managing director per year, last three years",
-  firm_age: "Firm age, in years",
-  fee_generating_count: "Number of fee-generating professionals",
-  advisory_conflict: "Has a conflicting advisory relationship",
-  has_st_or_balance_sheet: "Runs a sales-and-trading desk or a balance sheet",
-  web_activity: "Shows recent public web activity",
-  solvent: "Is solvent",
-};
+const EVIDENCE = evidenceTraits(WS.traits);
 
 const list = (labels: readonly string[]): string => labels.map((l) => `    - ${l}`).join("\n");
 
 const axisLines = (): string =>
-  ENRICH_AXES.map((a) => {
+  EVIDENCE.map((a) => {
     const kind =
       a.kind === "number"
         ? "a number, as plain digits (for example 12 or 4.3)"
-        : a.kind === "gate"
+        : a.kind === "yesno"
           ? "the word true or false"
           : "one of the allowed labels below";
-    return `- ${a.axis}: ${AXIS_NAMES[a.axis]}. Value: ${kind}.`;
+    return `- ${a.traitKey}: ${a.description}. Value: ${kind}.`;
   }).join("\n");
+
+/** Each categorical axis's labels: one list when every thesis uses the same, else one per thesis. */
+const labelLines = (): string =>
+  EVIDENCE.filter((a) => a.kind === "category")
+    .map((a) => {
+      const perThesis = WS.rubric.theses.map((t) => ({
+        key: t.key,
+        labels: optionsFor(WS.rubric, t.key, a),
+      }));
+      const shared = perThesis.every(
+        (x) => JSON.stringify(x.labels) === JSON.stringify(perThesis[0].labels),
+      );
+      return shared
+        ? `${a.traitKey} (all firms):\n${list(perThesis[0].labels)}`
+        : `${a.traitKey}:\n${perThesis.map((x) => `  ${x.key} firms:\n${list(x.labels)}`).join("\n")}`;
+    })
+    .join("\n");
+
+const modelLines = WS.rubric.theses.map((t) => `"Firm model: ${t.key}"`).join(" or ");
 
 export const SYSTEM_PROMPT = `You extract structured facts about an advisory firm from up to four mock source documents. Each document comes from a different provider and is wrapped in a <document provider="..."> tag. Provider ids: ${PROVIDER_TRUST.join(", ")}.
 
@@ -68,19 +68,8 @@ For every document, report each axis it states. Report only what the document it
 Axes:
 ${axisLines()}
 
-Allowed labels for the categorical axes. The user message may begin with a line "Firm model: CF" or "Firm model: CS"; use the list for that model. Always use a label exactly as it appears in the document.
-services_fit:
-  CF firms:
-${list(CF_SERVICES_LABELS)}
-  CS firms:
-${list(CS_SERVICES_LABELS)}
-md_pedigree:
-  CF firms:
-${list(CF_MD_LABELS)}
-  CS firms:
-${list(CS_MD_LABELS)}
-balance_sheet_principal (all firms):
-${list(CS_BSP_LABELS)}
+Allowed labels for the categorical axes. The user message may begin with a line ${modelLines}; use the list for that model. Always use a label exactly as it appears in the document.
+${labelLines()}
 
 Rules:
 - "quote" must be copied exactly from that document, character for character: one sentence that states the value. Never paraphrase, shorten inside a sentence, or merge sentences.
@@ -95,7 +84,7 @@ Reply with JSON only, in this shape:
  * Each document fenced with its provider id, in the order given. When the firm's
  * model is known it leads the message, so the model picks the matching label list.
  */
-export function buildUserMessage(docs: readonly SourceDocument[], firmModel?: "CF" | "CS"): string {
+export function buildUserMessage(docs: readonly SourceDocument[], firmModel?: string): string {
   const body = docs
     .map((d) => `<document provider="${d.provider}">\n${d.title}\n${d.body}\n</document>`)
     .join("\n\n");
@@ -103,7 +92,7 @@ export function buildUserMessage(docs: readonly SourceDocument[], firmModel?: "C
 }
 
 const PROVIDER_IDS: ReadonlySet<string> = new Set(PROVIDER_TRUST);
-const AXIS_IDS: ReadonlySet<string> = new Set(ENRICH_AXES.map((a) => a.axis));
+const AXIS_IDS: ReadonlySet<string> = new Set(EVIDENCE.map((a) => a.traitKey));
 
 const nullableText = z
   .union([z.string(), z.number(), z.boolean(), z.null()])

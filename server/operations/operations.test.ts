@@ -7,7 +7,7 @@ import { createClaudeClusterer, modelCallOf } from "../clustering/claude.js";
 import { operationsSummary } from "../functions/operationsSummary.js";
 import { resetDemo } from "../seed/reset.js";
 import { resetFromSnapshot, saveSnapshot } from "../seed/snapshot.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { MAX_ACTION_RUNS, recordActionRun, recordModelCall } from "./record.js";
 
 const NOW = new Date("2026-11-06T12:00:00.000Z");
@@ -170,8 +170,10 @@ describe("ModelCall recording", () => {
   it("records a live call, also when its reply turns out unusable", async () => {
     const db = await createTestDb();
     const onCall = (call: Parameters<typeof recordModelCall>[1]) => recordModelCall(db, call);
-    await createClaudeClusterer(client(JSON.stringify({ rules: [] })), onCall)(rows);
-    await expect(createClaudeClusterer(client("not json"), onCall)(rows)).rejects.toThrow();
+    await createClaudeClusterer(client(JSON.stringify({ rules: [] })), onCall)(rows, TEST_RUBRIC);
+    await expect(
+      createClaudeClusterer(client("not json"), onCall)(rows, TEST_RUBRIC),
+    ).rejects.toThrow();
     const stored = await db.query<{ inputTokens: number; costUsd: number }>(
       `SELECT "inputTokens", "costUsd" FROM model_call`,
     );
@@ -184,7 +186,7 @@ describe("ModelCall recording", () => {
     vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const out = await createClaudeClusterer(client(JSON.stringify({ rules: [] })), () =>
       Promise.reject(new Error("down")),
-    )(rows);
+    )(rows, TEST_RUBRIC);
     expect(out).toEqual({ proposals: [], source: "claude" });
   });
 });

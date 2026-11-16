@@ -4,7 +4,9 @@
  * for the firm (coverage gaps and errors included). Extraction reads these
  * documents, never the hidden truth. Pure: no DB, network, or crypto.
  */
-import { ENRICH_AXES, PROVIDER_TRUST, type Provider } from "../../shared/vocab.js";
+import { evidenceTraits } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST, type Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { type FirmRef, PROVIDERS, idOf, observe } from "../enrichment/providers.js";
 import { hash32, pick, rng } from "../enrichment/random.js";
 
@@ -121,10 +123,14 @@ export function sourceDocument(provider: Provider, firm: FirmRef): SourceDocumen
   const r = rng(`doc|${provider}|${firmId}`);
 
   const fields: DocumentField[] = [];
-  for (const axis of ENRICH_AXES) {
+  for (const axis of evidenceTraits(WS.traits)) {
     const o = observe(provider, firm, axis);
     if (o) {
-      fields.push({ axis: axis.axis, value: o.value, sentence: SENTENCES[axis.axis](o.value) });
+      fields.push({
+        axis: axis.traitKey,
+        value: o.value,
+        sentence: SENTENCES[axis.traitKey](o.value),
+      });
     }
   }
 

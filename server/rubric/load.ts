@@ -36,12 +36,14 @@ interface TraitRow {
   role: TraitDef["role"];
   optionsJson: string | null;
   passWhen: boolean | null;
+  thesesJson: string | null;
 }
 
 /** The trait catalog, in catalog order. */
 export async function loadTraits(q: Queryable): Promise<TraitDef[]> {
   const rows = await q.query<TraitRow>(
-    `SELECT "traitKey", "label", "description", "unit", "kind", "role", "optionsJson", "passWhen"
+    `SELECT "traitKey", "label", "description", "unit", "kind", "role", "optionsJson", "passWhen",
+            "thesesJson"
        FROM trait ORDER BY "position"`,
   );
   return rows.map((r) => ({
@@ -53,5 +55,6 @@ export async function loadTraits(q: Queryable): Promise<TraitDef[]> {
     role: r.role,
     options: r.optionsJson === null ? null : (JSON.parse(r.optionsJson) as string[]),
     passWhen: r.passWhen,
+    theses: r.thesesJson === null ? null : (JSON.parse(r.thesesJson) as string[]),
   }));
 }

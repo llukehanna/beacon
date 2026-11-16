@@ -225,7 +225,12 @@ export const clusterRejections = defineAction<"clusterRejections", ClusterPrep>(
       if (rows.length === 0) {
         return { rows, clustered: null };
       }
-      return { rows, clustered: await (ctx.clusterer ?? heuristicClusterer)(rows) };
+      // The rubric and catalog are read outside the transaction, like the rows they ground.
+      const [{ definition }, traits] = await Promise.all([loadActiveRubric(db), loadTraits(db)]);
+      return {
+        rows,
+        clustered: await (ctx.clusterer ?? heuristicClusterer)(rows, { definition, traits }),
+      };
     },
     // Writes only. The queue and the existing-proposal set are read here, inside the transaction, so
     // a rule that was already committed is not proposed again. A rule another request commits after

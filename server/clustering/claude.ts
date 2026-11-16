@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
-import { PREDICATE_AXES } from "../../shared/predicate.js";
+import { predicateAxes } from "../../shared/predicate.js";
+import type { RubricContext } from "../../shared/rubric/types.js";
 import { OPERATORS } from "../../shared/vocab.js";
 import { costFromUsage, hasPrice } from "../extraction/pricing.js";
 import type { ModelCallInput } from "../operations/record.js";
@@ -21,36 +22,41 @@ A good proposal:
 
 Propose nothing when there is no clear pattern; an empty list is a good answer. Every proposal is checked against the data and reviewed by a human before it screens anything.`;
 
-export const CLUSTER_OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["rules"],
-  properties: {
-    rules: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: [
-          "predicateAxis",
-          "ruleOperator",
-          "ruleThreshold",
-          "ruleModel",
-          "summary",
-          "supportingDecisionIds",
-        ],
-        properties: {
-          predicateAxis: { type: "string", enum: [...PREDICATE_AXES] },
-          ruleOperator: { type: "string", enum: [...OPERATORS] },
-          ruleThreshold: { type: "string" },
-          ruleModel: { type: "string", enum: ["CF", "CS", "both"] },
-          summary: { type: "string" },
-          supportingDecisionIds: { type: "array", items: { type: "string" } },
+/** The structured output Claude must return, with the axes and theses this rubric screens on. */
+export const clusterOutputSchema = (rubric: RubricContext) =>
+  ({
+    type: "object",
+    additionalProperties: false,
+    required: ["rules"],
+    properties: {
+      rules: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "predicateAxis",
+            "ruleOperator",
+            "ruleThreshold",
+            "ruleModel",
+            "summary",
+            "supportingDecisionIds",
+          ],
+          properties: {
+            predicateAxis: { type: "string", enum: predicateAxes(rubric.traits) },
+            ruleOperator: { type: "string", enum: [...OPERATORS] },
+            ruleThreshold: { type: "string" },
+            ruleModel: {
+              type: "string",
+              enum: [...rubric.definition.theses.map((t) => t.key), "both"],
+            },
+            summary: { type: "string" },
+            supportingDecisionIds: { type: "array", items: { type: "string" } },
+          },
         },
       },
     },
-  },
-} as const;
+  }) as const;
 
 const ProposalsSchema = z.object({
   rules: z.array(
@@ -157,14 +163,14 @@ export function createClaudeClusterer(
   client: Anthropic = new Anthropic({ timeout: 30_000, maxRetries: 1 }),
   onCall?: (call: ModelCallInput) => Promise<void>,
 ): Clusterer {
-  return async (rows) => {
+  return async (rows, rubric) => {
     const message = await client.beta.messages.create({
       model: CLUSTER_MODEL,
       max_tokens: 16000,
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       thinking: { type: "adaptive" },
-      output_config: { format: { type: "json_schema", schema: CLUSTER_OUTPUT_SCHEMA } },
+      output_config: { format: { type: "json_schema", schema: clusterOutputSchema(rubric) } },
       system: CLUSTER_SYSTEM,
       messages: [{ role: "user", content: renderRejections(rows) }],
     });

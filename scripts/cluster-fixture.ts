@@ -47,11 +47,11 @@ export async function recordClustering(): Promise<void> {
   } as unknown as Anthropic; // a recording stand-in for the one method the clusterer calls
 
   const claude = createClaudeClusterer(client);
-  const clusterer: Clusterer = async (rows) => {
+  const clusterer: Clusterer = async (rows, rubric) => {
     if (state.recorded !== null) {
       throw new Error("Clustering ran twice; it is meant to be one call.");
     }
-    const out = await claude(rows);
+    const out = await claude(rows, rubric);
     state.recorded = { inputHash: hashRejections(rows), proposals: out.proposals };
     return out;
   };

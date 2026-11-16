@@ -23,7 +23,7 @@ import { insertObject, insertObjects } from "./db/repo.js";
 import { HttpError } from "./errors.js";
 import { prepareCall, runCall } from "./mcp/tools.js";
 import { resetFromSnapshot, saveSnapshot } from "./seed/snapshot.js";
-import { STRONG_CF, createTestDb, run, seedFirm } from "./testing.js";
+import { STRONG_CF, TEST_RUBRIC, createTestDb, run, seedFirm } from "./testing.js";
 
 const SECRET = "firm-secret";
 const SECRET_NAME = "Hush Partners";
@@ -1039,7 +1039,7 @@ describe("clusterRejections under the wall", () => {
     const asked: string[][] = [];
     const clusterer: Clusterer = (rows) => {
       asked.push(rows.map((r) => r.firmId));
-      return heuristicClusterer(rows);
+      return heuristicClusterer(rows, TEST_RUBRIC);
     };
     const analyst = buildAccess("analyst", [{ k: "r", a: SECRET, b: "Conflict" }]);
     const compliance = buildAccess("compliance", [{ k: "r", a: SECRET, b: "Conflict" }]);

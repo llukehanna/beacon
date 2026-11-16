@@ -40,6 +40,7 @@ export function useActiveRubric(): ActiveRubric | undefined {
         role: t.role as TraitDef["role"],
         options: t.optionsJson === undefined ? null : (JSON.parse(t.optionsJson) as string[]),
         passWhen: t.passWhen ?? null,
+        theses: t.thesesJson === undefined ? null : (JSON.parse(t.thesesJson) as string[]),
       }));
     return { rubricId: row.rubricId, definition, traits: catalog };
   }, [row, traitRows]);
