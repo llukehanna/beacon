@@ -34,9 +34,13 @@ check "extractions carry their quotes" '(.data | length) > 0 and ((.data[0].quot
   "$(get '/api/objects?type=Extraction&pageSize=1')"
 check "home summary answers" '.value | type == "object"' "$(get '/api/functions?name=homeSummary')"
 
+# windowStart is the last reset that succeeded (nightly, idle or the button); a failed reset keeps
+# it and records lastResetError, printed here so the cause is in the run log, not only in Workers Logs.
 ops=$(get '/api/functions?name=operationsSummary')
 check "nightly reset ran in the last 26 hours" \
   '((now - (.value.windowStart | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601)) < 93600)' "$ops"
+reset_error=$(printf '%s' "$ops" | jq -r '.value.lastResetError // empty | "\(.at): \(.message)"' 2>/dev/null || true)
+[ -n "$reset_error" ] && printf '      last reset failed at %s\n' "$reset_error"
 
 tools=$(mcp '{"jsonrpc":"2.0","id":1,"method":"tools/list"}')
 check "MCP lists its tools" '(.result.tools | map(.name) | sort) == ["get_firm_evidence","list_rules","search_firms"]' "$tools"
