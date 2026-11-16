@@ -16,15 +16,57 @@ describe("sourceDocument", () => {
     }
   });
 
-  it("carries identity, a visible mock label, and one document per provider in trust order", () => {
+  it("carries identity and one document per provider in trust order", () => {
     const docs = firmDocuments(firm);
     expect(docs.map((d) => d.provider)).toEqual([...PROVIDER_TRUST]);
     for (const d of docs) {
       expect(d.documentId).toBe(`${d.provider}:${firm.firmId}`);
       expect(d.firmId).toBe(firm.firmId);
-      expect(d.body).toContain("Mock source");
       expect(d.body).toContain(firm.firmName);
     }
+  });
+
+  it("leaves the mock label to the UI, and never doubles a full stop after a name", () => {
+    const dotted = generateUniverse().filter((f) => f.firmName!.endsWith("."));
+    expect(dotted.length).toBeGreaterThan(0);
+    for (const f of [...firms, ...dotted]) {
+      for (const d of firmDocuments(f)) {
+        expect(d.body).not.toMatch(/mock source/i);
+        expect(d.body).not.toMatch(/\.\./);
+      }
+    }
+  });
+
+  it("words each value in a sentence of at least four words, several ways per axis", () => {
+    const wordings = new Map<string, Set<string>>();
+    for (const f of generateUniverse(300)) {
+      for (const d of firmDocuments(f)) {
+        for (const field of d.fields) {
+          expect((field.sentence.match(/[\p{L}\p{N}]+/gu) ?? []).length).toBeGreaterThanOrEqual(4);
+          // The sentence with its value blanked out is the wording.
+          const key = `${d.provider}|${field.axis}`;
+          wordings.set(
+            key,
+            (wordings.get(key) ?? new Set()).add(field.sentence.replace(field.value, "#")),
+          );
+        }
+      }
+    }
+    for (const [key, set] of wordings) {
+      expect(set.size, key).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it("gives each provider its own format", () => {
+    const [crm, deals, filing, web] = firmDocuments(
+      firms.find((f) => firmDocuments(f).every((d) => d.fields.length > 0))!,
+    );
+    expect(crm.body).toMatch(/^Relationship profile: /);
+    expect(deals.body).toMatch(/^Deal DB · /);
+    expect(deals.body).toMatch(/Recent deal lines/);
+    expect(filing.body).toMatch(/^Regulatory filing excerpt: /);
+    expect(filing.body).toMatch(/^Item \d\. /m);
+    expect(web.body).toMatch(/^Web search: "/);
   });
 
   it("puts every field sentence verbatim in the body, with its value inside", () => {
@@ -83,7 +125,7 @@ describe("documentsHash", () => {
   });
 
   it("is pinned to the document version", () => {
-    expect(DOCUMENT_VERSION).toBe("doc-v1");
+    expect(DOCUMENT_VERSION).toBe("doc-v2");
   });
 });
 
