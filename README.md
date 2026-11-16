@@ -109,7 +109,7 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 | `server/mcp/`        | The read-only MCP server's tools                                                                      |
 | `server/seed/`       | 700-firm synthetic universe and a history built by the real actions                                   |
 | `api/`               | Thin HTTP adapters (`Request` → `Response`)                                                           |
-| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly reset and hourly signals   |
+| `worker/`            | Cloudflare Worker: serves the built app, routes `/api/*`, runs the nightly and idle resets and hourly signals  |
 | `src/`               | The React app; `src/data/` is the typed data layer                                                    |
 
 ## Data

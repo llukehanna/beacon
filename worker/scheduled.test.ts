@@ -5,7 +5,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const applyDueSignals = vi.fn(async () => ({ applied: ["s1"], drifts: [] }));
 const resetPost = vi.fn(async () => Response.json({ firms: 700 }));
 
+const changedThenIdle = vi.fn(async () => false);
+
 vi.mock("../server/signals/run.js", () => ({ applyDueSignals }));
+vi.mock("../server/seed/idle.js", () => ({ changedThenIdle }));
 vi.mock("../api/reset.js", () => ({ POST: resetPost }));
 vi.mock("../server/db/migrate.js", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../server/db/migrate.js")>()),
@@ -27,6 +30,8 @@ const at = (iso: string) => Date.parse(iso);
 beforeEach(() => {
   applyDueSignals.mockClear();
   resetPost.mockClear();
+  changedThenIdle.mockReset();
+  changedThenIdle.mockImplementation(async () => false);
   resetPost.mockImplementation(async () => Response.json({ firms: 700 }));
 });
 
@@ -39,6 +44,32 @@ describe("worker scheduled", () => {
     );
     expect(applyDueSignals).toHaveBeenCalledOnce();
     expect(resetPost).not.toHaveBeenCalled();
+  });
+
+  it("an hourly run restores a demo a visitor changed and left, then applies the signals", async () => {
+    const order: string[] = [];
+    changedThenIdle.mockImplementation(async () => true);
+    resetPost.mockImplementation(async () => (order.push("reset"), Response.json({ firms: 700 })));
+    applyDueSignals.mockImplementationOnce(
+      async () => (order.push("signals"), { applied: [], drifts: [] }),
+    );
+    await worker.scheduled(
+      { cron: HOURLY_CRON, scheduledTime: at("2026-11-07T09:00:00Z") },
+      env,
+      ctx,
+    );
+    expect(order).toEqual(["reset", "signals"]);
+  });
+
+  it("a trigger it does not know never idle-resets", async () => {
+    changedThenIdle.mockImplementation(async () => true);
+    await worker.scheduled(
+      { cron: "30 4 * * *", scheduledTime: at("2026-11-07T04:30:00Z") },
+      env,
+      ctx,
+    );
+    expect(resetPost).not.toHaveBeenCalled();
+    expect(applyDueSignals).toHaveBeenCalledOnce();
   });
 
   it("the 04:00 run resets first, then applies the signals that are due", async () => {
