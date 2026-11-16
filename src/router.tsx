@@ -34,7 +34,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/",
           element: (
-            <Titled title="Beacon — Home">
+            <Titled title="Beacon — Acquisition target sourcing">
               <Home />
             </Titled>
           ),
@@ -43,7 +43,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/desk",
           element: (
-            <Titled title="Beacon — Enrichment Desk">
+            <Titled title="Desk — Beacon">
               <Suspense fallback={<Loading />}>
                 <Desk />
               </Suspense>
@@ -54,7 +54,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/pipeline",
           element: (
-            <Titled title="Beacon — Pipeline">
+            <Titled title="Pipeline — Beacon">
               <Suspense fallback={<Loading />}>
                 <Pipeline />
               </Suspense>
@@ -65,7 +65,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/review",
           element: (
-            <Titled title="Beacon — Review">
+            <Titled title="Review — Beacon">
               <Suspense fallback={<Loading />}>
                 <Review />
               </Suspense>
@@ -76,7 +76,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/rules",
           element: (
-            <Titled title="Beacon — Rules">
+            <Titled title="Rules — Beacon">
               <Suspense fallback={<Loading />}>
                 <Rules />
               </Suspense>
@@ -87,7 +87,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/accuracy",
           element: (
-            <Titled title="Beacon — Accuracy">
+            <Titled title="Accuracy — Beacon">
               <Suspense fallback={<Loading />}>
                 <Accuracy />
               </Suspense>
@@ -98,7 +98,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/mandate",
           element: (
-            <Titled title="Beacon — Mandates">
+            <Titled title="Mandates — Beacon">
               <Suspense fallback={<Loading />}>
                 <MandatePage />
               </Suspense>
@@ -112,7 +112,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/search/:mandateId",
           element: (
-            <Titled title="Beacon — Run search">
+            <Titled title="Run search — Beacon">
               <Suspense fallback={<Loading />}>
                 <SearchPage />
               </Suspense>
@@ -125,7 +125,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/firm/:firmId/tear-sheet",
           element: (
-            <Titled title="Beacon — Tear sheet">
+            <Titled title="Tear sheet — Beacon">
               <Suspense fallback={<Loading />}>
                 <TearSheet />
               </Suspense>
@@ -138,7 +138,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/about",
           element: (
-            <Titled title="Beacon — About">
+            <Titled title="About — Beacon">
               <Suspense fallback={<Loading />}>
                 <About />
               </Suspense>
@@ -149,7 +149,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/trust",
           element: (
-            <Titled title="Beacon — Trust and security">
+            <Titled title="Trust and security — Beacon">
               <Suspense fallback={<Loading />}>
                 <Trust />
               </Suspense>
@@ -162,7 +162,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "/compliance",
           element: (
-            <Titled title="Beacon — Information barriers">
+            <Titled title="Information barriers — Beacon">
               <Suspense fallback={<Loading />}>
                 <Compliance />
               </Suspense>
@@ -174,7 +174,7 @@ export const router = createBrowserRouter(
           errorElement: <RouteError />,
           path: "*",
           element: (
-            <Titled title="Beacon — Not found">
+            <Titled title="Not found — Beacon">
               <NotFound />
             </Titled>
           ),

@@ -2,6 +2,10 @@
   "name": "beacon",
   "private": true,
   "version": "1.0.0",
+  "description": "An AI-assisted workbench for sourcing acquisition targets, with cited evidence and analyst-approved screening rules.",
+  "homepage": "https://beacon.lukeghanna.com",
+  "repository": "github:llukehanna/beacon",
+  "license": "MIT",
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -27,7 +31,8 @@
     "cf:dev": "npm run build && wrangler dev --env presenter",
     "e2e": "playwright test --grep-invert @shots",
     "shots": "playwright test --grep @shots",
-    "media:record": "tsx scripts/record-demo.ts"
+    "media:record": "tsx scripts/record-demo.ts",
+    "media:brand": "tsx scripts/brand-assets.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
