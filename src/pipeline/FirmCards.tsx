@@ -54,7 +54,7 @@ function FirmCard({
         <StageChip stage={bucket} />
       </div>
       <div className={styles.meta}>
-        {firm.firmType && <Chip>{firm.firmType}</Chip>}
+        {firm.thesis && <Chip>{firm.thesis}</Chip>}
         <span className={styles.where}>{where.join(" · ")}</span>
         {typeof traitOn(firm, "employees") === "number" && (
           <span className={styles.staff}>{traitOn(firm, "employees")} staff</span>

@@ -20,7 +20,7 @@ What can be known about a firm, and how it is scored, are versioned data read by
 - **Every firm carries a `traits` map.** Screens, exports, lookalikes, the MCP tools and the agent paths read traits by key and take their labels, options, units and gate polarity from the catalog. A score stamps the rubric id it came from.
 - **The advisory-acquisitions workspace** (`shared/workspaces/advisoryAcquisitions.ts`) is the first configured workspace. Its rubric reproduces rubric v2 exactly; a parity test checks it against a frozen copy of the old module on every input the catalog allows. Its vocabulary may appear only in the workspace, the seed and mock agent paths, the offline tooling and tests, and `shared/rubric/leak.test.ts` fails when it leaks anywhere else.
 
-The change ships in two phases. In phase A (this record) the catalog and rubric are tables and the `traits` map is derived from today's firm columns in one place (`server/db/traits.ts`). Phase B moves trait storage to append-only trait-value rows behind the same map, then drops the columns.
+The change ships in two phases. In phase A the catalog and rubric became tables and the `traits` map was derived from the firm's columns in one place (`server/db/traits.ts`). In phase B (migration 0005) each value is an append-only `firm_trait_value` row: revision 1, 2, ... per firm and trait, with who set it, when, and the finding behind it. A firm's `traits` are its latest revisions (`firm_trait_current`), and every writer appends through `appendTraitValues`. The firm's thesis moved from `firmType` to `thesis`. The old columns stay, unread and unwritten, until a later migration drops them.
 
 ## Consequences
 
@@ -31,4 +31,4 @@ The change ships in two phases. In phase A (this record) the catalog and rubric 
 
 ## Code
 
-`shared/rubric/` (types, definition, engine, catalog, trait values, leak test), `shared/workspaces/`, `server/db/migrations/0004_trait_catalog.sql`, `server/db/traits.ts`, `server/rubric/load.ts`, `src/data/rubric.ts`, `src/data/RubricProvider.tsx`. See [architecture.md](../architecture.md#scoring-as-shared-code).
+`shared/rubric/` (types, definition, engine, catalog, trait values, leak test), `shared/workspaces/`, `server/db/migrations/0004_trait_catalog.sql`, `server/db/migrations/0005_firm_trait_value.sql`, `server/db/traits.ts`, `server/rubric/load.ts`, `src/data/rubric.ts`, `src/data/RubricProvider.tsx`. See [architecture.md](../architecture.md#scoring-as-shared-code).

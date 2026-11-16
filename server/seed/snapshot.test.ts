@@ -21,7 +21,7 @@ function oneFixture(takenAt: Date): FixtureRecord {
   const firm = generateUniverse()[0];
   const docs = firmDocuments(firm);
   return {
-    firmId: firm.firmId!,
+    firmId: firm.firmId,
     model: "claude-haiku-4-5",
     promptVersion: EXTRACTION_PROMPT_VERSION,
     documentsHash: documentsHash(docs),

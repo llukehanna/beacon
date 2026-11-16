@@ -8,7 +8,7 @@ import {
 } from "../../shared/schema.js";
 import { HttpError } from "../errors.js";
 import type { Queryable } from "./client.js";
-import { withTraits } from "./traits.js";
+import { traitsSql, withTraits } from "./traits.js";
 
 export interface ListOptions {
   where?: Record<string, { $eq: unknown }>;
@@ -31,6 +31,10 @@ export const notIn = (expr: string, n: number): string =>
 
 // Column names only ever come from the schema (checked below), never from input.
 const col = (name: string): string => `"${name}"`;
+
+/** What a read selects from `alias`: the row, and for a firm its current traits too. */
+const selectList = (type: ObjectTypeName, alias: string): string =>
+  type === "Firm" ? `${alias}.*, ${traitsSql(alias)}` : `${alias}.*`;
 
 function assertProps(type: ObjectTypeName, keys: readonly string[]): void {
   const props = OBJECT_TYPES[type].properties as Readonly<Record<string, unknown>>;
@@ -161,9 +165,13 @@ export async function getObject<N extends ObjectTypeName>(
   opts: { forUpdate?: boolean } = {},
 ): Promise<ObjectOf<N> | null> {
   const def = OBJECT_TYPES[type];
-  const lock = opts.forUpdate ? " FOR UPDATE" : "";
+  if (opts.forUpdate) {
+    // Lock first, then read in a new statement. A statement that waited for the lock re-reads only
+    // the locked row; a subquery in it (a firm's traits) would keep the snapshot from before the wait.
+    await q.query(`SELECT 1 FROM ${def.table} WHERE ${col(def.primaryKey)} = $1 FOR UPDATE`, [pk]);
+  }
   const rows = await q.query(
-    `SELECT * FROM ${def.table} WHERE ${col(def.primaryKey)} = $1${lock}`,
+    `SELECT ${selectList(type, def.table)} FROM ${def.table} WHERE ${col(def.primaryKey)} = $1`,
     [pk],
   );
   return rows[0] ? toWire(type, rows[0]) : null;
@@ -290,7 +298,7 @@ export async function listObjects<N extends ObjectTypeName>(
   );
   params.push(pageSize);
   const rows = await q.query(
-    `SELECT * FROM ${def.table}${whereSql} ORDER BY ${orderSql.join(", ")} LIMIT $${params.length}`,
+    `SELECT ${selectList(type, def.table)} FROM ${def.table}${whereSql} ORDER BY ${orderSql.join(", ")} LIMIT $${params.length}`,
     params,
   );
   const last = rows[rows.length - 1];
@@ -349,7 +357,7 @@ export async function listLinked(
       ? ` AND ${notIn(`t.${col(firmColumn)}`, 2)}`
       : "";
   const rows = await q.query(
-    `SELECT j.${col(link.sourceColumn)} AS "__source", t.* FROM ${link.joinTable} j
+    `SELECT j.${col(link.sourceColumn)} AS "__source", ${selectList(link.target, "t")} FROM ${link.joinTable} j
        JOIN ${target.table} t ON t.${col(target.primaryKey)} = j.${col(link.targetColumn)}
       WHERE j.${col(link.sourceColumn)} = ANY($1)${hide}
       ORDER BY t.${col(target.primaryKey)}`,

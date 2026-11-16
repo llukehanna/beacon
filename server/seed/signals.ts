@@ -18,6 +18,7 @@
  * enriched firm after its last enrichment, so the findings a signal writes are the newest on file.
  */
 import type { SignalKind } from "../../shared/marketSignals.js";
+import { traitsOf } from "../../shared/rubric/firm.js";
 import type { ObjectOf, Props } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
@@ -26,7 +27,6 @@ import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisiti
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
 import { insertObjects, listAll } from "../db/repo.js";
-import { withTraits } from "../db/traits.js";
 import { type Rng, pick, rng } from "../enrichment/random.js";
 import { applyDueSignals } from "../signals/run.js";
 
@@ -51,8 +51,7 @@ const FUTURE_ACQUISITIONS = 1;
 const FUTURE_BACKGROUND = 3;
 
 const TIER_RANK: Readonly<Record<string, number>> = { Rejected: 0, C: 1, B: 2, A: 3 };
-const tierRank = (firm: Props<"Firm">): number =>
-  TIER_RANK[scoreFirm(RUBRIC, withTraits(firm)).tier] ?? 0;
+const tierRank = (firm: Props<"Firm">): number => TIER_RANK[scoreFirm(RUBRIC, firm).tier] ?? 0;
 
 type FirmObj = ObjectOf<"Firm">;
 
@@ -60,7 +59,6 @@ type FirmObj = ObjectOf<"Firm">;
 interface Step {
   kind: SignalKind;
   axis: string | null;
-  field: keyof Props<"Firm"> | null;
   value: number | null;
 }
 
@@ -83,55 +81,51 @@ const round1 = (v: number): number => Math.round(v * 10) / 10;
  * for the axis there is nothing to adjust, so the move is null and no signal is made.
  */
 const hire = (f: Props<"Firm">): Step | null => {
-  const cur = num(f.feeGeneratingCount);
+  const cur = num(traitsOf(f).fee_generating_count);
   return cur === null
     ? null
     : {
         kind: "senior_hire",
         axis: "fee_generating_count",
-        field: "feeGeneratingCount",
         value: cur + 1,
       };
 };
 
 const departure = (f: Props<"Firm">): Step | null => {
-  const cur = num(f.feeGeneratingCount);
+  const cur = num(traitsOf(f).fee_generating_count);
   return cur === null || cur < 1
     ? null
     : {
         kind: "departure",
         axis: "fee_generating_count",
-        field: "feeGeneratingCount",
         value: cur - 1,
       };
 };
 
 const largerDeal = (f: Props<"Firm">): Step | null => {
-  const cur = num(f.dealSizeMUsd);
+  const cur = num(traitsOf(f).deal_size_usd_m);
   return cur === null
     ? null
     : {
         kind: "deal_announcement",
         axis: "deal_size_usd_m",
-        field: "dealSizeMUsd",
         value: Math.max(Math.round(cur * 1.5), Math.round(cur) + 15),
       };
 };
 
 const fasterPace = (f: Props<"Firm">): Step | null => {
-  const cur = num(f.dealsPerMdL3y);
+  const cur = num(traitsOf(f).deals_per_md_l3y);
   return cur === null
     ? null
     : {
         kind: "deal_announcement",
         axis: "deals_per_md_l3y",
-        field: "dealsPerMdL3y",
         value: round1(cur + 1),
       };
 };
 
 const applyStep = (f: FirmObj, s: Step): FirmObj =>
-  s.field === null || s.value === null ? f : { ...f, [s.field]: s.value };
+  s.axis === null || s.value === null ? f : { ...f, traits: { ...traitsOf(f), [s.axis]: s.value } };
 
 /**
  * Raise a firm's score step by step, each time taking the move that gains most (a hire when none
@@ -140,7 +134,7 @@ const applyStep = (f: FirmObj, s: Step): FirmObj =>
  */
 function raisingChain(firm: FirmObj, maxSteps = 4): Step[] | null {
   const start = tierRank(firm);
-  if (scoreFirm(RUBRIC, withTraits(firm)).hardRejected) {
+  if (scoreFirm(RUBRIC, firm).hardRejected) {
     return null;
   }
   const steps: Step[] = [];
@@ -153,8 +147,7 @@ function raisingChain(firm: FirmObj, maxSteps = 4): Step[] | null {
       return null;
     }
     const gain = (s: Step): number =>
-      scoreFirm(RUBRIC, withTraits(applyStep(cur, s))).weightedTotal -
-      scoreFirm(RUBRIC, withTraits(cur)).weightedTotal;
+      scoreFirm(RUBRIC, applyStep(cur, s)).weightedTotal - scoreFirm(RUBRIC, cur).weightedTotal;
     const best = options.reduce((a, b) => (gain(b) > gain(a) ? b : a));
     steps.push(best);
     cur = applyStep(cur, best);
@@ -338,11 +331,7 @@ export function generateSignals(input: SignalInputs): Props<"MarketSignal">[] {
     firms.filter((x) => stateOf(x) === PASSED && free(x) && (x.outcome ?? "") === ""),
   ).slice(0, ACQUISITIONS);
   acquirable.forEach((f, i) =>
-    take(
-      f,
-      [{ kind: "acquisition", axis: null, field: null, value: null }],
-      i < FUTURE_ACQUISITIONS,
-    ),
+    take(f, [{ kind: "acquisition", axis: null, value: null }], i < FUTURE_ACQUISITIONS),
   );
 
   // Background news on firms that have been enriched and are still being screened. Not the strong
@@ -353,9 +342,9 @@ export function generateSignals(input: SignalInputs): Props<"MarketSignal">[] {
         stateOf(x) === "Screening" &&
         free(x) &&
         !SHOWCASE.has(x.$primaryKey) &&
-        (num(x.feeGeneratingCount) !== null ||
-          num(x.dealSizeMUsd) !== null ||
-          num(x.dealsPerMdL3y) !== null),
+        (num(traitsOf(x).fee_generating_count) !== null ||
+          num(traitsOf(x).deal_size_usd_m) !== null ||
+          num(traitsOf(x).deals_per_md_l3y) !== null),
     ),
   );
   const planned = chains.reduce((n, c) => n + c.steps.length, 0);

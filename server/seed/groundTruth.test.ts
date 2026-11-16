@@ -2,11 +2,15 @@ import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { evidenceTraits } from "../../shared/rubric/catalog.js";
 import { PROVIDER_TRUST } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { observe, truthFor } from "../enrichment/providers.js";
 import { TEST_RUBRIC } from "../testing.js";
 import { generateUniverse } from "./universe.js";
 
 const AXES = evidenceTraits(TEST_RUBRIC.traits);
+const COLUMN_OF: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(ADVISORY_ACQUISITIONS.legacyFields).map(([column, key]) => [key, column]),
+);
 
 /**
  * Every generated firm, by its place in the universe, with everything about it except its name and
@@ -15,7 +19,13 @@ const AXES = evidenceTraits(TEST_RUBRIC.traits);
  */
 function groundTruthLines(): string[] {
   return generateUniverse().map((firm, i) => {
-    const profile: Record<string, unknown> = { ...firm };
+    // Spelled as the firm was before traits moved out of columns, so the hash still compares.
+    const { traits, thesis, ...rest } = firm;
+    const profile: Record<string, unknown> = {
+      ...rest,
+      firmType: thesis,
+      ...Object.fromEntries(Object.entries(traits).map(([k, v]) => [COLUMN_OF[k], v])),
+    };
     delete profile.firmId;
     delete profile.firmName;
     const truth = AXES.map((a) => `${a.traitKey}=${truthFor(firm, a)}`);

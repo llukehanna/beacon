@@ -4,6 +4,7 @@
  * was recorded for; anything else goes to the fallback clusterer.
  */
 import { z } from "zod";
+import type { RubricContext } from "../../shared/rubric/types.js";
 import { hash32 } from "../enrichment/random.js";
 import { renderRejections } from "./claude.js";
 import type { Clusterer, RejectionRow, RuleProposal } from "./types.js";
@@ -16,8 +17,8 @@ export interface ClusteringFixture {
   createdAt: string;
 }
 
-export const hashRejections = (rows: readonly RejectionRow[]): string =>
-  hash32(renderRejections(rows)).toString(16).padStart(8, "0");
+export const hashRejections = (rows: readonly RejectionRow[], rubric: RubricContext): string =>
+  hash32(renderRejections(rows, rubric)).toString(16).padStart(8, "0");
 
 const fixtureSchema = z.object({
   inputHash: z.string(),
@@ -51,7 +52,7 @@ export function fixtureClusterer(
   fallback: Clusterer,
 ): Clusterer {
   return async (rows, rubric) =>
-    fixture !== null && hashRejections(rows) === fixture.inputHash
+    fixture !== null && hashRejections(rows, rubric) === fixture.inputHash
       ? { proposals: fixture.proposals, source: "claude" }
       : fallback(rows, rubric);
 }

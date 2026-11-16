@@ -28,7 +28,7 @@ describe("what the agent paths send", () => {
 
   it("keeps each firm's user message, for both theses", () => {
     const messages = sample
-      .map((f) => buildUserMessage(firmDocuments(f), f.firmType === "CS" ? "CS" : "CF"))
+      .map((f) => buildUserMessage(firmDocuments(f), f.thesis === "CS" ? "CS" : "CF"))
       .join("\n---\n");
     expect(digest(messages)).toBe(
       "9b1915f5e225e1a063167cb72a265723469c61564dea15f631b2c3e6b04ef81f",
@@ -43,8 +43,10 @@ describe("what the agent paths send", () => {
 
   it("keeps the clustering prompt and tool", async () => {
     const { rows } = await plantRejections(universe.map(asFirmObject));
-    expect(digest(renderRejections(rows))).toBe(
-      "9c2096eb04f9f9075c7c5f502d366320a780b476ac68e2b425a6a806c6314faa",
+    // Re-pinned in phase B: facts are keyed by axis (trait key) instead of firm column, so the
+    // clustering fixture was re-recorded against this text.
+    expect(digest(renderRejections(rows, TEST_RUBRIC))).toBe(
+      "4bb924f4f6a694f15339822a7d1535df013579824966c56777964153d459c4a9",
     );
     // Re-pinned once in task 5: the axis enum now follows catalog order (the same seven axes).
     expect(digest(CLUSTER_SYSTEM + JSON.stringify(clusterOutputSchema(TEST_RUBRIC)))).toBe(

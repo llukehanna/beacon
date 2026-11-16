@@ -147,7 +147,7 @@ describe("ModelCall recording", () => {
     const unlisted = modelCallOf({ model: "claude-future-9", usage }, NOW)!;
     expect(unlisted.model).toBe("claude-future-9");
     expect(unlisted.costUsd).toBeCloseTo(
-      modelCallOf({ model: "claude-opus-5", usage }, NOW)!.costUsd,
+      modelCallOf({ model: "claude-opus-5-5", usage }, NOW)!.costUsd,
       10,
     );
   });

@@ -1,13 +1,13 @@
 {
-  "inputHash": "f2d29104",
-  "model": "claude-opus-5",
+  "inputHash": "8d2184f2",
+  "model": "claude-opus-5-5",
   "proposals": [
     {
       "predicateAxis": "employees",
       "ruleOperator": "<",
       "ruleThreshold": "10",
       "ruleModel": "CF",
-      "summary": "Screen out firms with fewer than 10 employees — too thin a platform to absorb an integration.",
+      "summary": "Firms with fewer than 10 employees are too small to absorb an integration and carry high key-person risk.",
       "supportingDecisionIds": [
         "rd-seed-00909",
         "rd-seed-00911",
@@ -23,7 +23,7 @@
       "ruleOperator": "==",
       "ruleThreshold": "Generalist",
       "ruleModel": "CF",
-      "summary": "Screen out generalist firms — the thesis requires sector depth, not an all-rounder book.",
+      "summary": "Generalist firms lack the sector depth the thesis requires; we want sector specialists.",
       "supportingDecisionIds": [
         "rd-seed-00923",
         "rd-seed-00925",
@@ -37,7 +37,7 @@
       "ruleOperator": "<",
       "ruleThreshold": "25",
       "ruleModel": "CF",
-      "summary": "Screen out firms whose typical deal size is under $25m — below the ticket-size floor.",
+      "summary": "Typical deal size under $25m is below our floor.",
       "supportingDecisionIds": [
         "rd-seed-00936",
         "rd-seed-00941",
@@ -48,10 +48,10 @@
     },
     {
       "predicateAxis": "deals_per_md_l3y",
-      "ruleOperator": "<",
-      "ruleThreshold": "2",
+      "ruleOperator": "<=",
+      "ruleThreshold": "1",
       "ruleModel": "CF",
-      "summary": "Screen out firms averaging fewer than 2 deals per MD over the last three years — weak banker productivity.",
+      "summary": "One or fewer deals per MD over the last three years signals weak deal volume.",
       "supportingDecisionIds": [
         "rd-seed-00961",
         "rd-seed-00966",
@@ -60,5 +60,5 @@
       ]
     }
   ],
-  "createdAt": "2026-11-16T01:17:22.523Z"
+  "createdAt": "2026-11-16T09:19:57.153Z"
 }

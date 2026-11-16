@@ -23,6 +23,7 @@ import { computeDriftForFirm, openOutcomeDivergence } from "../actions/drift.js"
 import type { ActionContext } from "../actions/types.js";
 import type { Db, Queryable } from "../db/client.js";
 import { getObject, insertObject, toWire, updateObject } from "../db/repo.js";
+import { appendTraitValues, traitsSql } from "../db/traits.js";
 import { loadActiveRubric } from "../rubric/load.js";
 import { type FirmState, type SignalPlan, type SignalRow, planSignals } from "./apply.js";
 
@@ -70,8 +71,16 @@ async function write(
     if (plan.firmPatch !== null) {
       await updateObject(tx, "Firm", plan.firmId, plan.firmPatch);
     }
+    const findingId = plan.finding !== null ? newId("rf") : undefined;
     if (plan.finding !== null) {
-      await insertObject(tx, "ResearchFinding", { ...plan.finding, findingId: newId("rf") });
+      await insertObject(tx, "ResearchFinding", { ...plan.finding, findingId });
+    }
+    if (plan.traitPatch !== null) {
+      await appendTraitValues(tx, plan.firmId, plan.traitPatch, {
+        setBy: SIGNAL_USER,
+        setAt: plan.at,
+        sourceFindingId: findingId,
+      });
     }
     if (plan.after.total !== plan.before.total) {
       const firm = (await getObject(tx, "Firm", plan.firmId))!;
@@ -115,8 +124,15 @@ export async function applyDueSignals(
     }
     const signals = rows.map((r) => toWire("MarketSignal", r));
     const firmIds = [...new Set(signals.map((s) => s.firmId))].sort();
+    // Lock the firms, then read them with their traits in a new statement, so a run that waited
+    // for a lock sees the traits the holder committed (a subquery in the locking statement would not).
+    await tx.query(
+      `SELECT 1 FROM ${OBJECT_TYPES.Firm.table} WHERE "firmId" = ANY($1::text[]) ORDER BY "firmId" FOR UPDATE`,
+      [firmIds],
+    );
     const firmRows = await tx.query<Record<string, unknown>>(
-      `SELECT * FROM ${OBJECT_TYPES.Firm.table} WHERE "firmId" = ANY($1::text[]) ORDER BY "firmId" FOR UPDATE`,
+      `SELECT f.*, ${traitsSql("f")} FROM ${OBJECT_TYPES.Firm.table} f
+        WHERE f."firmId" = ANY($1::text[]) ORDER BY f."firmId"`,
       [firmIds],
     );
     const firms = new Map<string, FirmState>(

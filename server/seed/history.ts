@@ -7,6 +7,7 @@
  */
 import { toScreeningRules } from "../../shared/activeScreening.js";
 import { traitFor } from "../../shared/rubric/catalog.js";
+import { traitsOf } from "../../shared/rubric/firm.js";
 import { parseTraitValue } from "../../shared/rubric/traitValue.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
@@ -21,7 +22,6 @@ import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
 import { sortedRows } from "../db/ordering.js";
 import { getObject, listAll } from "../db/repo.js";
-import { withTraits } from "../db/traits.js";
 import { truthFor } from "../enrichment/providers.js";
 import { rng } from "../enrichment/random.js";
 import { sameValue } from "../enrichment/reconcile.js";
@@ -58,12 +58,12 @@ export const SEED_MANDATES = [
 ];
 
 const STRONG_VALUES = {
-  servicesFit: "Full advisory suite",
-  mdPedigree: "Bulge-bracket or elite-boutique alumni",
-  dealSizeMUsd: 180,
-  dealsPerMdL3y: 5.2,
-  firmAge: 15,
-  feeGeneratingCount: 5,
+  services_fit: "Full advisory suite",
+  md_pedigree: "Bulge-bracket or elite-boutique alumni",
+  deal_size_usd_m: 180,
+  deals_per_md_l3y: 5.2,
+  firm_age: 15,
+  fee_generating_count: 5,
 };
 
 /**
@@ -141,7 +141,7 @@ export async function seedHistory(
         rejectedFinding: wrong.$primaryKey,
         chosenValue: right.value,
       });
-      accepted[axis.actionParam] = parseTraitValue(trait, right.value!);
+      accepted[axis.axis] = parseTraitValue(trait, right.value!);
     }
 
     for (const f of open.filter((x) => !x.conflictGroupId)) {
@@ -151,8 +151,8 @@ export async function seedHistory(
       if (f.findingStatus === "abstained") {
         if (r() < 0.6) {
           await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
-          accepted[axis.actionParam] = parseTraitValue(trait, truth);
-          manual.push(axis.actionParam);
+          accepted[axis.axis] = parseTraitValue(trait, truth);
+          manual.push(axis.axis);
         }
         continue;
       }
@@ -163,14 +163,14 @@ export async function seedHistory(
         await act("verifyFinding", { finding: f.$primaryKey });
       } else {
         await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
-        overridden.push(axis.actionParam);
+        overridden.push(axis.axis);
       }
-      accepted[axis.actionParam] = parseTraitValue(trait, truth);
+      accepted[axis.axis] = parseTraitValue(trait, truth);
     }
     if (Object.keys(accepted).length > 0) {
       await act("enrichFirm", {
         firm: id,
-        ...accepted,
+        traitValues: JSON.stringify(accepted),
         fieldsEnteredManually: JSON.stringify(manual),
         agentValuesOverridden: JSON.stringify(overridden),
       });
@@ -201,7 +201,7 @@ export async function seedHistory(
     const fields: Record<string, unknown> = {};
     const overridden: string[] = [];
     for (const f of scored) {
-      const live = scoreFirm(RUBRIC, withTraits({ ...firm, ...fields }));
+      const live = scoreFirm(RUBRIC, { ...firm, traits: { ...traitsOf(firm), ...fields } });
       if (!live.hardRejected && (live.tier === "A" || live.tier === "B")) {
         break;
       }
@@ -212,15 +212,15 @@ export async function seedHistory(
         await act("verifyFinding", { finding: f.$primaryKey });
       } else {
         await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
-        overridden.push(axis.actionParam);
+        overridden.push(axis.axis);
       }
-      accepted[axis.actionParam] = parseTraitValue(trait, truth);
-      fields[axis.firmField] = accepted[axis.actionParam];
+      accepted[axis.axis] = parseTraitValue(trait, truth);
+      fields[axis.axis] = accepted[axis.axis];
     }
     if (Object.keys(accepted).length > 0) {
       await act("enrichFirm", {
         firm: id,
-        ...accepted,
+        traitValues: JSON.stringify(accepted),
         fieldsEnteredManually: "[]",
         agentValuesOverridden: JSON.stringify(overridden),
       });
@@ -249,7 +249,7 @@ export async function seedHistory(
   const members = (await all(db, "SearchMembership")).map((m) => m.firmId);
   const csFirms = (
     await all(db, "Firm", {
-      where: { firmType: { $eq: "CS" } },
+      where: { thesis: { $eq: "CS" } },
       orderBy: ["firmName"],
     })
   )
@@ -263,7 +263,7 @@ export async function seedHistory(
   // 3. Qualify the strongest; move a few through the pipeline.
   const ranked = (await all(db, "Firm"))
     .filter((f) => f.enrichedBy === USER)
-    .map((f) => ({ f, s: scoreFirm(RUBRIC, withTraits(f)) }))
+    .map((f) => ({ f, s: scoreFirm(RUBRIC, f) }))
     .sort((a, b) => b.s.weightedTotal - a.s.weightedTotal);
   const qualified = ranked
     .filter((x) => !x.s.hardRejected && (x.s.tier === "A" || x.s.tier === "B"))
@@ -288,7 +288,7 @@ export async function seedHistory(
       record: async (firm, facts) => {
         await act("enrichFirm", {
           firm: firm.$primaryKey,
-          ...facts,
+          traitValues: JSON.stringify(facts),
           fieldsEnteredManually: JSON.stringify(Object.keys(facts)),
         });
       },
@@ -351,16 +351,14 @@ export async function seedHistory(
   for (const id of qualified.slice(4, 8)) {
     await act("enrichFirm", {
       firm: id,
-      dealSizeMUsd: 12,
-      dealsPerMdL3y: 0.8,
-      firmAge: 2,
-      fieldsEnteredManually: JSON.stringify(["dealSizeMUsd", "dealsPerMdL3y", "firmAge"]),
+      traitValues: JSON.stringify({ deal_size_usd_m: 12, deals_per_md_l3y: 0.8, firm_age: 2 }),
+      fieldsEnteredManually: JSON.stringify(["deal_size_usd_m", "deals_per_md_l3y", "firm_age"]),
     });
   }
   if (misc[0]) {
     await act("enrichFirm", {
       firm: misc[0].$primaryKey,
-      ...STRONG_VALUES,
+      traitValues: JSON.stringify(STRONG_VALUES),
       fieldsEnteredManually: JSON.stringify(Object.keys(STRONG_VALUES)),
     });
   }

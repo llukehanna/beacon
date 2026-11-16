@@ -33,9 +33,9 @@
 import { signalOutranksCheck } from "../../shared/axisState.js";
 import { SIGNAL_AXES, isApplied, isSignalKind } from "../../shared/marketSignals.js";
 import { criterionPoints } from "../../shared/rubric/engine.js";
-import { thesisOf } from "../../shared/rubric/firm.js";
+import { thesisOf, traitsOf } from "../../shared/rubric/firm.js";
 import { formatTraitValue } from "../../shared/rubric/traitValue.js";
-import type { RubricDefinition } from "../../shared/rubric/types.js";
+import type { RubricDefinition, TraitValue } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import {
@@ -44,7 +44,6 @@ import {
   PASSED,
   normalizeLifecycle,
 } from "../../shared/vocab.js";
-import { traitColumn, withTraits } from "../db/traits.js";
 
 /** A MarketSignal as the apply step reads it (timestamps as ISO strings). */
 export interface SignalRow {
@@ -58,8 +57,8 @@ export interface SignalRow {
   appliedAt?: string | null;
 }
 
-/** The Firm fields the plan reads. */
-export type FirmState = Props<"Firm">;
+/** The Firm fields the plan reads, with its current traits. */
+export type FirmState = Props<"Firm"> & { traits?: Readonly<Record<string, TraitValue>> };
 
 export type SkipReason =
   | "already_applied"
@@ -81,6 +80,8 @@ export interface SignalPlan {
   effect: "moved" | "unchanged";
   /** Fields to change on the firm; null when none change. */
   firmPatch: Props<"Firm"> | null;
+  /** Trait values to append (trait key to its new value); null when no trait moves. */
+  traitPatch: Readonly<Record<string, number>> | null;
   /** The finding that records the move, without its id; null when the signal moves no axis. */
   finding: Props<"ResearchFinding"> | null;
   /** The firm's score before and after, so the run can tell whether to write a new version. */
@@ -114,9 +115,8 @@ const numberOf = (v: unknown): number | null =>
   typeof v === "number" && Number.isFinite(v) ? v : null;
 
 interface AxisMove {
-  field: string;
   axis: string;
-  /** The value the firm field takes. */
+  /** The value the trait takes. */
   next: number;
   /** The firm's value before the signal; null when none was on file. */
   current: number | null;
@@ -128,22 +128,21 @@ function axisMove(signal: SignalRow, firm: FirmState): AxisMove | SkipReason {
   if (!SIGNAL_AXES[signal.kind as keyof typeof SIGNAL_AXES]?.includes(axis)) {
     return "unsupported_axis";
   }
-  const field = traitColumn(axis);
   const target = Number(signal.newValue);
-  if (field === undefined || signal.newValue === null || signal.newValue === undefined) {
+  if (signal.newValue === null || signal.newValue === undefined) {
     return "bad_value";
   }
   if (!Number.isFinite(target) || (axis === HIRE_DEPART_AXIS && !Number.isInteger(target))) {
     return "bad_value";
   }
-  const current = numberOf((firm as Record<string, unknown>)[field]);
+  const current = numberOf(traitsOf(firm)[axis]);
   let next = target;
   if (signal.kind === "departure" && current !== null) {
     next = Math.min(target, current);
   } else if (signal.kind === "senior_hire" && current !== null) {
     next = Math.max(target, current);
   }
-  return { field, axis, next: Math.max(0, next), current };
+  return { axis, next: Math.max(0, next), current };
 }
 
 /**
@@ -169,6 +168,7 @@ export function planSignals(
       skipped,
       effect: "unchanged",
       firmPatch: null,
+      traitPatch: null,
       finding: null,
       before: score ?? { total: 0, tier: "" },
       after: score ?? { total: 0, tier: "" },
@@ -184,7 +184,7 @@ export function planSignals(
     if (!isSignalKind(signal.kind)) {
       return skip("unknown_kind");
     }
-    const beforeScore = scoreFirm(rubric, withTraits(firm));
+    const beforeScore = scoreFirm(rubric, firm);
     const before = { total: beforeScore.weightedTotal, tier: beforeScore.tier };
 
     if (signal.kind === "acquisition") {
@@ -199,6 +199,7 @@ export function planSignals(
         skipped: null,
         effect: "moved",
         firmPatch,
+        traitPatch: null,
         finding: null,
         before,
         after: before,
@@ -229,6 +230,7 @@ export function planSignals(
         skipped: null,
         effect: "unchanged",
         firmPatch: null,
+        traitPatch: null,
         finding: null,
         before,
         after: before,
@@ -236,15 +238,16 @@ export function planSignals(
         openOutcomeDrift: false,
       };
     }
-    const patch = { [move.field]: move.next } as Props<"Firm">;
-    const moved = { ...firm, ...patch };
-    const afterScore = scoreFirm(rubric, withTraits(moved));
+    const traitPatch = { [move.axis]: move.next };
+    const moved: FirmState = { ...firm, traits: { ...traitsOf(firm), ...traitPatch } };
+    const afterScore = scoreFirm(rubric, moved);
     working.set(signal.firmId, moved);
     return {
       ...base,
       skipped: null,
       effect: "moved",
-      firmPatch: patch,
+      firmPatch: null,
+      traitPatch,
       finding: {
         firmId: signal.firmId,
         axis: move.axis,

@@ -15,7 +15,6 @@ import { coerceFindingValue, traitOfAxis } from "../../shared/findingActions.js"
 import { computeHardScreen, toQueueFirm } from "../../shared/queue.js";
 import { thesisOf, traitsOf } from "../../shared/rubric/firm.js";
 import type { RubricContext, ScoreResult } from "../../shared/rubric/types.js";
-import { legacyTraits } from "../../shared/rubric/workspace.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { normalizeLifecycle } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
@@ -28,10 +27,6 @@ const RUBRIC: RubricContext = {
   definition: ADVISORY_ACQUISITIONS.rubric,
   traits: ADVISORY_ACQUISITIONS.traits,
 };
-
-/** A firm with its traits: a generated firm has only columns until the repo derives them. */
-const withTraits = (firm: FirmObj): FirmObj =>
-  firm.traits !== undefined ? firm : { ...firm, traits: legacyTraits(ADVISORY_ACQUISITIONS, firm) };
 
 export const SHOWCASE_COUNT = 12;
 /** At least this many CS firms are included when that many are eligible. */
@@ -54,7 +49,7 @@ function rank(firm: FirmObj, plans: readonly FindingPlan[]): Ranked | null {
   }
   return {
     firmId: firm.$primaryKey,
-    cs: (firm.firmType ?? "").toLowerCase() === "cs",
+    cs: (firm.thesis ?? "").toLowerCase() === "cs",
     conflicts: new Set(plans.flatMap((p) => (p.conflictGroupId ? [p.conflictGroupId] : []))).size,
     providers: new Set(plans.filter((p) => p.sourceQuote).flatMap((p) => p.provider.split("+")))
       .size,
@@ -80,7 +75,7 @@ export function pickShowcaseFirms(
       (f) =>
         normalizeLifecycle(f.lifecycleState) === "Discovered" &&
         f.enrichedBy == null &&
-        Number(traitsOf(withTraits(f)).employees ?? 0) >= MIN_EMPLOYEES &&
+        Number(traitsOf(f).employees ?? 0) >= MIN_EMPLOYEES &&
         !isScreened(f, rules),
     )
     .flatMap((f) => rank(f, plansFor(f)) ?? [])
@@ -105,7 +100,7 @@ export function pickShowcaseFirms(
 
 /** The desk's verdicts: the queue's hard-screen (base rules and approved rules) and its sidebar screen. */
 export function isScreened(firm: FirmObj, rules: readonly ScreeningRule[]): boolean {
-  const f = withTraits(firm);
+  const f = firm;
   return (
     computeHardScreen(RUBRIC, toQueueFirm(f), rules).hardScreened ||
     screenFirm(RUBRIC, f, rules).screened
@@ -123,7 +118,7 @@ export function runProfile(
   firm: FirmObj,
   findings: readonly ObjectOf<"ResearchFinding">[],
 ): RowCounts & { projected: ScoreResult; failingGates: string[] } {
-  const f0 = withTraits(firm);
+  const f0 = firm;
   const rows = buildAxisRows(
     RUBRIC,
     thesisOf(f0),

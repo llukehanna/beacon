@@ -70,7 +70,7 @@ const round1 = (n: number): string => String(Math.round(n * 10) / 10);
 /** The firm-level fields every workspace has. The sub-sector is the heaviest signal: firms that cover the same space compete for the same deals. */
 const FIRM_FEATURES: readonly Omit<TextFeature, "show">[] = [
   { key: "sector", weight: 6, label: "Same sub-sector" },
-  { key: "firmType", weight: 4, label: "Same model" },
+  { key: "thesis", weight: 4, label: "Same model" },
   { key: "hqCountry", weight: 4, label: "Same HQ country" },
 ];
 
@@ -107,7 +107,7 @@ function textFeatures(rubric: RubricContext): TextFeature[] {
       ?.label ?? value.trim();
   const firm = (key: string): TextFeature => {
     const f = FIRM_FEATURES.find((x) => x.key === key) as Omit<TextFeature, "show">;
-    return { ...f, show: key === "firmType" ? thesisName : same };
+    return { ...f, show: key === "thesis" ? thesisName : same };
   };
   const traits = rubric.traits
     .filter((t) => t.kind === "category" && t.role !== "evidence")
@@ -126,7 +126,7 @@ function textFeatures(rubric: RubricContext): TextFeature[] {
     (t) => rubric.traits.find((x) => x.traitKey === t.key)?.role === "fact",
   );
   const profile = traits.filter((t) => !facts.includes(t));
-  return [firm("sector"), ...facts, firm("firmType"), firm("hqCountry"), ...profile];
+  return [firm("sector"), ...facts, firm("thesis"), firm("hqCountry"), ...profile];
 }
 
 function numberFeatures(rubric: RubricContext): NumberFeature[] {

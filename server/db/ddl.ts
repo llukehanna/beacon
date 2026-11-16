@@ -41,6 +41,9 @@ export function ddl(): string {
     // One active rubric per workspace, and one row per published version.
     `CREATE UNIQUE INDEX IF NOT EXISTS rubric_one_active ON rubric ("workspaceKey") WHERE "active";`,
     `CREATE UNIQUE INDEX IF NOT EXISTS rubric_workspace_version ON rubric ("workspaceKey", "version");`,
+    `CREATE UNIQUE INDEX IF NOT EXISTS firm_trait_value_revision ON firm_trait_value ("firmId", "traitKey", "revision");`,
+    // Each firm's current value per trait: its highest revision.
+    `CREATE OR REPLACE VIEW firm_trait_current AS SELECT DISTINCT ON ("firmId", "traitKey") * FROM firm_trait_value ORDER BY "firmId", "traitKey", "revision" DESC;`,
     // The hourly run asks only for what is unapplied and due; the partial index keeps that one cheap lookup.
     `CREATE INDEX IF NOT EXISTS market_signal_due ON market_signal ("effectiveDate") WHERE "appliedAt" IS NULL;`,
   ].join("\n");

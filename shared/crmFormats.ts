@@ -63,7 +63,7 @@ export const CRM_FORMATS: Record<CrmName, CrmFormat> = {
     ],
     map: (r) => [
       r.firmName,
-      str(r.firmType),
+      str(r.thesis),
       str(r.hqCountry),
       str(r.sector),
       str(r.employees),

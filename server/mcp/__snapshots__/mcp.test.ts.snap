@@ -14,14 +14,6 @@ exports[`tools > lists exactly three read-only tools, with their schemas 1`] = `
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "additionalProperties": false,
       "properties": {
-        "firmType": {
-          "description": "Scoring model: CF (corporate finance) or CS (capital solutions).",
-          "enum": [
-            "CF",
-            "CS",
-          ],
-          "type": "string",
-        },
         "hqCountry": {
           "description": "Headquarters country (case-insensitive, exact).",
           "maxLength": 100,
@@ -57,6 +49,14 @@ exports[`tools > lists exactly three read-only tools, with their schemas 1`] = `
             "LOI",
             "Closed",
             "Passed",
+          ],
+          "type": "string",
+        },
+        "thesis": {
+          "description": "Scoring model: CF (corporate finance) or CS (capital solutions).",
+          "enum": [
+            "CF",
+            "CS",
           ],
           "type": "string",
         },

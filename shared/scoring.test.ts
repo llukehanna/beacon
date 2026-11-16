@@ -9,7 +9,7 @@ const score = (f: Record<string, unknown>) =>
   scoreFirm(WS.rubric, { ...f, traits: legacyTraits(WS, f) });
 
 const STRONG_CF = {
-  firmType: "CF",
+  thesis: "CF",
   coverageModel: "Single-sector focus",
   servicesFit: "Full advisory suite",
   mdPedigree: "Bulge-bracket or elite-boutique alumni",
@@ -30,7 +30,7 @@ describe("scoreFirm (rubric v2 eval suite)", () => {
   it("CS fully enriched → A, 18", () => {
     const r = score({
       ...STRONG_CF,
-      firmType: "CS",
+      thesis: "CS",
       balanceSheetPrincipal: "Advisory only",
       servicesFit: "Full private-capital suite",
       mdPedigree: "Senior credit / capital-markets pedigree",
@@ -42,7 +42,7 @@ describe("scoreFirm (rubric v2 eval suite)", () => {
     expect(
       score({
         ...STRONG_CF,
-        firmType: "CS",
+        thesis: "CS",
         balanceSheetPrincipal: "Invests its own balance sheet",
       }).hardRejected,
     ).toBe(true);
@@ -65,7 +65,7 @@ describe("scoreFirm (rubric v2 eval suite)", () => {
   });
 
   it("CS advisory conflict → hard reject", () => {
-    expect(score({ ...STRONG_CF, firmType: "CS", advisoryConflict: true }).hardRejected).toBe(true);
+    expect(score({ ...STRONG_CF, thesis: "CS", advisoryConflict: true }).hardRejected).toBe(true);
   });
 
   it("CF B tier at the outreach floor → B, 12, Outreach; one point lower → Follow", () => {
@@ -84,7 +84,7 @@ describe("scoreFirm (rubric v2 eval suite)", () => {
   });
 
   it("unknown values score 0", () => {
-    const r = score({ firmType: "CS" });
+    const r = score({ thesis: "CS" });
     expect([r.weightedTotal, r.tier, r.confidence]).toEqual([0, "Rejected", 0]);
   });
 });

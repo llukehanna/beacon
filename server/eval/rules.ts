@@ -5,11 +5,11 @@
  * call; the default clusterer is the deterministic heuristic.
  */
 import type { EvalReport } from "../../shared/evalReport.js";
+import { traitsOf } from "../../shared/rubric/firm.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
-import { withTraits } from "../db/traits.js";
 import { rng } from "../enrichment/random.js";
 import { PLANTED_PREDICATES, planRejections } from "../seed/rejections.js";
 
@@ -38,7 +38,7 @@ export async function plantRejections(universe: readonly FirmObj[]): Promise<{
     {
       firms: () => [...firms.values()],
       record: (firm, facts) => {
-        firms.set(firm.$primaryKey, { ...firm, ...facts });
+        firms.set(firm.$primaryKey, { ...firm, traits: { ...traitsOf(firm), ...facts } });
       },
       reject: (firm, rationale) => {
         const decisionId = `eval-rejection-${String(rows.length + 1).padStart(3, "0")}`;
@@ -47,8 +47,7 @@ export async function plantRejections(universe: readonly FirmObj[]): Promise<{
           decisionId,
           firmId: firm.$primaryKey,
           rationale,
-          // Planted facts land as columns; the clusterer reads traits.
-          firm: withTraits(firms.get(firm.$primaryKey) ?? firm),
+          firm: firms.get(firm.$primaryKey) ?? firm,
         });
       },
       draw: rng("beacon-eval-rule-recovery"),

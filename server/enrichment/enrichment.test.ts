@@ -8,7 +8,7 @@ import { type FindingPlan, reconcileAxis } from "./reconcile.js";
 
 const T = (key: string) => traitFor(WS.traits, key)!;
 
-const firm = { firmId: "acme_unitedstates", firmName: "Acme", firmType: "CF" };
+const firm = { firmId: "acme_unitedstates", firmName: "Acme", thesis: "CF" };
 const dealSize = T("deal_size_usd_m");
 const obs = (provider: Observation["provider"], value: string, confidence = 0.85): Observation => ({
   provider,

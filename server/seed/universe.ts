@@ -1,4 +1,5 @@
 /** 700 synthetic advisory firms. Names combine plausible surnames, given names and coined place words; any resemblance to a real firm is coincidental. */
+import type { TraitValue } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
 import { ALL_SECTORS, COUNTRY_GEO } from "../../shared/taxonomy.js";
 import { firmIdFor } from "../../shared/vocab.js";
@@ -377,7 +378,7 @@ export function profileFor(
   seed: string,
   key: string,
   employees: number,
-): Pick<Props<"Firm">, "revenueBand" | "ownership" | "successionRisk"> {
+): { revenue_band: string; ownership: string; succession_risk: string } {
   const r = rng(`${seed}:profile:${key}`);
   const revenueM = employees * 0.45 * Math.exp(0.35 * gaussian(r));
   const band = BAND_CEILINGS.findIndex((ceiling) => revenueM < ceiling);
@@ -399,15 +400,21 @@ export function profileFor(
         ? [0.4, 0.4, 0.2]
         : [0.7, 0.25, 0.05],
   );
-  return { revenueBand, ownership, successionRisk };
+  return { revenue_band: revenueBand, ownership, succession_risk: successionRisk };
 }
 
-export function generateUniverse(size = UNIVERSE_SIZE, seed = UNIVERSE_SEED): Props<"Firm">[] {
+/** A generated firm: its record, and the trait values the seed stores for it. */
+export type UniverseFirm = Props<"Firm"> & {
+  firmId: string;
+  traits: Record<string, TraitValue>;
+};
+
+export function generateUniverse(size = UNIVERSE_SIZE, seed = UNIVERSE_SEED): UniverseFirm[] {
   const r = rng(seed);
   // Names draw from a stream of their own so they never shift the country, headcount and coverage
   // draws. The namer never repeats a name.
   const nameFor = firmNamer(rng(`${seed}:names:v2`));
-  const firms: Props<"Firm">[] = [];
+  const firms: UniverseFirm[] = [];
   while (firms.length < size) {
     const country = pick(
       r,
@@ -423,22 +430,28 @@ export function generateUniverse(size = UNIVERSE_SIZE, seed = UNIVERSE_SEED): Pr
     const firmId = firmIdFor(name, country);
     // The profile is drawn from the firm's seed key, so renaming a firm leaves it where it was.
     const key = seed === UNIVERSE_SEED ? (SEED_KEYS[firms.length] ?? firmId) : firmId;
+    // The draws keep their original order (thesis, sector, coverage), so every firm stays as it was.
+    const thesis = r() < 0.1 ? "CS" : "CF";
+    const sector = pick(r, ALL_SECTORS);
+    const coverage = pick(r, COVERAGE_LABELS, [0.15, 0.4, 0.45]);
     firms.push({
       firmId,
       firmName: name,
       source: "synthetic",
-      firmType: r() < 0.1 ? "CS" : "CF",
+      thesis,
       hqCountry: country,
       geography: geo.bucket,
       geographicFootprint: geo.footprint,
-      geoScore: geo.geoScore,
-      sector: pick(r, ALL_SECTORS),
-      employees,
+      sector,
       employeeGroup: employeeGroup(employees),
-      ...profileFor(seed, key, employees),
-      coverageModel: pick(r, COVERAGE_LABELS, [0.15, 0.4, 0.45]),
       lifecycleState: "Discovered",
       currentStage: "Discovered",
+      traits: {
+        geo_score: geo.geoScore,
+        employees,
+        ...profileFor(seed, key, employees),
+        coverage_model: coverage,
+      },
     });
   }
   return firms;
@@ -451,6 +464,6 @@ let seedKeys: ReadonlyMap<string, string> | undefined;
  * before the firms were renamed (see seedKeys.ts); for any other firm, its own id.
  */
 export function seedKeyFor(firmId: string): string {
-  seedKeys ??= new Map(generateUniverse().map((f, i) => [f.firmId!, SEED_KEYS[i]]));
+  seedKeys ??= new Map(generateUniverse().map((f, i) => [f.firmId, SEED_KEYS[i]]));
   return seedKeys.get(firmId) ?? firmId;
 }

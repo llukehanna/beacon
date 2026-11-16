@@ -20,7 +20,7 @@ const rows: RejectionRow[] = [
     decisionId: "d1",
     firmId: "f1",
     rationale: "Too small — 6 staff.",
-    firm: { firmType: "CF", employees: 6 },
+    firm: { thesis: "CF", traits: { employees: 6, revenue_band: "<$10M" } },
   },
 ];
 
@@ -44,10 +44,12 @@ const goodJson = JSON.stringify({
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Claude clusterer", () => {
-  it("renders rejections with their decision ids and firm facts", () => {
-    const text = renderRejections(rows);
+  it("renders rejections with their decision ids and the facts a predicate can use, by axis", () => {
+    const text = renderRejections(rows, TEST_RUBRIC);
     expect(text).toContain('"decisionId":"d1"');
-    expect(text).toContain('"employees":6');
+    // The thesis and the predicate axes only: a profile trait is never a rule's axis.
+    expect(text).toContain('"facts":{"thesis":"CF","employees":6}');
+    expect(text).not.toContain("revenue_band");
   });
 
   it("parses structured output and refuses anything else", () => {
@@ -57,15 +59,18 @@ describe("Claude clusterer", () => {
     expect(() => parseClusterResponse(reply(JSON.stringify({ rules: [{ nope: 1 }] })))).toThrow();
   });
 
-  it("calls claude-opus-5 with a JSON schema and refusal fallbacks", async () => {
+  it("calls claude-opus-5-5 at high effort with a JSON schema and refusal fallbacks", async () => {
     const create = vi.fn(async (_req: unknown) => reply(goodJson));
     const client = { beta: { messages: { create } } } as unknown as Anthropic;
     const out = await createClaudeClusterer(client)(rows, TEST_RUBRIC);
     expect(out.source).toBe("claude");
     const req = create.mock.calls[0][0] as Record<string, unknown>;
-    expect(req.model).toBe("claude-opus-5");
+    expect(req.model).toBe("claude-opus-5-5");
     expect(req.fallbacks).toBe("default");
-    expect((req.output_config as { format: { type: string } }).format.type).toBe("json_schema");
+    const config = req.output_config as { effort: string; format: { type: string } };
+    // Opus 5.5 defaults to medium; the clustering keeps the high effort it ran at on Opus 5.
+    expect(config.effort).toBe("high");
+    expect(config.format.type).toBe("json_schema");
   });
 });
 
@@ -125,7 +130,7 @@ describe("chooseClusterer", () => {
 
 describe("fixtureClusterer", () => {
   const fixture: ClusteringFixture = {
-    inputHash: hashRejections(rows),
+    inputHash: hashRejections(rows, TEST_RUBRIC),
     model: "claude-opus-5",
     proposals: (JSON.parse(goodJson) as { rules: ClusteringFixture["proposals"] }).rules,
     createdAt: "2026-11-04T00:00:00.000Z",
@@ -148,8 +153,10 @@ describe("fixtureClusterer", () => {
   });
 
   it("hashes the rendered rejections, so a different decision id does not match", () => {
-    expect(hashRejections(rows)).toBe(hashRejections([...rows]));
-    expect(hashRejections([{ ...rows[0], decisionId: "d2" }])).not.toBe(hashRejections(rows));
+    expect(hashRejections(rows, TEST_RUBRIC)).toBe(hashRejections([...rows], TEST_RUBRIC));
+    expect(hashRejections([{ ...rows[0], decisionId: "d2" }], TEST_RUBRIC)).not.toBe(
+      hashRejections(rows, TEST_RUBRIC),
+    );
   });
 
   it("reads a fixture file and rejects a malformed one", () => {

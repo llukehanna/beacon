@@ -40,7 +40,7 @@ describe("generateUniverse", () => {
     const a = generateUniverse();
     expect(a).toEqual(generateUniverse());
     expect(new Set(a.map((f) => f.firmId)).size).toBe(700);
-    const cs = a.filter((f) => f.firmType === "CS").length;
+    const cs = a.filter((f) => f.thesis === "CS").length;
     expect(cs).toBeGreaterThan(40);
     expect(cs).toBeLessThan(110);
   });
@@ -165,28 +165,28 @@ describe("generateUniverse profile fields", () => {
 
   it("gives every firm a revenue band, ownership type and succession risk from the vocab", () => {
     for (const f of firms) {
-      expect(REVENUE_BANDS).toContain(f.revenueBand);
-      expect(OWNERSHIP_TYPES).toContain(f.ownership);
-      expect(SUCCESSION_RISKS).toContain(f.successionRisk);
+      expect(REVENUE_BANDS).toContain(f.traits.revenue_band);
+      expect(OWNERSHIP_TYPES).toContain(f.traits.ownership);
+      expect(SUCCESSION_RISKS).toContain(f.traits.succession_risk);
     }
   });
 
   it("spreads ownership across all types, with subsidiaries rare", () => {
     for (const o of OWNERSHIP_TYPES) {
       expect(
-        firms.some((f) => f.ownership === o),
+        firms.some((f) => f.traits.ownership === o),
         o,
       ).toBe(true);
     }
-    const subs = firms.filter((f) => f.ownership === "Subsidiary").length;
+    const subs = firms.filter((f) => f.traits.ownership === "Subsidiary").length;
     expect(subs / firms.length).toBeLessThanOrEqual(0.1);
   });
 
   it("puts larger firms in higher revenue bands", () => {
-    const large = firms.filter((f) => (f.employees ?? 0) > 200);
+    const large = firms.filter((f) => Number(f.traits.employees ?? 0) > 200);
     expect(large.length).toBeGreaterThanOrEqual(3);
     const top = large.filter(
-      (f) => f.revenueBand === "$50–100M" || f.revenueBand === ">$100M",
+      (f) => f.traits.revenue_band === "$50–100M" || f.traits.revenue_band === ">$100M",
     ).length;
     expect(top / large.length).toBeGreaterThanOrEqual(0.6);
   });
@@ -200,6 +200,16 @@ describe("resetDemo", () => {
     const n = async (sql: string) => (await db.query<{ n: number }>(sql))[0].n;
 
     expect(await n(`SELECT count(*)::int AS n FROM firm`)).toBe(700);
+    // Every firm keeps its traits as trait values and its thesis in `thesis`: the seed writes none
+    // of the legacy trait columns, nor firmType.
+    const legacy = [...Object.keys(ADVISORY_ACQUISITIONS.legacyFields), "firmType"].map(
+      (c) => `"${c}"`,
+    );
+    expect(
+      await n(`SELECT count(*)::int AS n FROM firm WHERE num_nonnulls(${legacy.join(", ")}) > 0`),
+    ).toBe(0);
+    expect(await n(`SELECT count(*)::int AS n FROM firm WHERE "thesis" IS NULL`)).toBe(0);
+    expect(await n(`SELECT count(DISTINCT "firmId")::int AS n FROM firm_trait_value`)).toBe(700);
     expect(
       await n(
         `SELECT count(*)::int AS n FROM firm WHERE "lifecycleState" IN ('Qualified','Outreach','NDA','IOI','LOI','Closed')`,
@@ -368,7 +378,7 @@ describe("showcase seed", () => {
       ).toBe(true);
     }
     const [{ cs }] = await db.query<{ cs: number }>(
-      `SELECT count(*)::int AS cs FROM firm WHERE "firmId" = ANY($1) AND "firmType" = 'CS'`,
+      `SELECT count(*)::int AS cs FROM firm WHERE "firmId" = ANY($1) AND "thesis" = 'CS'`,
       [[...byFirm.keys()]],
     );
     expect(cs).toBeGreaterThanOrEqual(3);
@@ -445,10 +455,10 @@ describe("showcase seed", () => {
     const second = await seed(new Date("2031-03-05T08:30:00.000Z"));
     expect(first.length).toBeGreaterThan(0);
     expect(first.map((r) => r.decisionId)).toEqual(second.map((r) => r.decisionId));
-    expect(hashRejections(second)).toBe(hashRejections(first));
+    expect(hashRejections(second, TEST_RUBRIC)).toBe(hashRejections(first, TEST_RUBRIC));
 
     const recorded: ClusteringFixture = {
-      inputHash: hashRejections(first),
+      inputHash: hashRejections(first, TEST_RUBRIC),
       model: "claude-opus-5",
       proposals: [],
       createdAt: "2026-11-04T00:00:00.000Z",
@@ -463,9 +473,9 @@ describe("pickShowcaseFirms", () => {
     $apiName: "Firm",
     $primaryKey: id,
     firmId: id,
-    firmType: "CF",
+    thesis: "CF",
     lifecycleState: "Discovered",
-    employees: 30,
+    traits: { employees: 30 },
     ...over,
   });
   const plan = (over: Partial<FindingPlan>): FindingPlan => ({
@@ -506,7 +516,7 @@ describe("pickShowcaseFirms", () => {
     const both = [plan({}), abstain];
     const candidates = [
       firm("ok"),
-      firm("small", { employees: 9 }),
+      firm("small", { traits: { employees: 9 } }),
       firm("advanced", { lifecycleState: "Qualified" }),
       firm("touched", { enrichedBy: "agent" }),
       firm("only-values"),
@@ -536,9 +546,9 @@ describe("pickShowcaseFirms", () => {
       },
     ];
     const candidates = [
-      firm("ok", { employees: 50 }),
-      firm("rule-screened", { employees: 20 }),
-      firm("generalist", { employees: 50, coverageModel: "Generalist" }),
+      firm("ok", { traits: { employees: 50 } }),
+      firm("rule-screened", { traits: { employees: 20 } }),
+      firm("generalist", { traits: { employees: 50, coverage_model: "Generalist" } }),
     ];
     const pick = (r: typeof rules) => pickShowcaseFirms(candidates, () => both, 12, r);
     expect(pick(rules)).toEqual(["ok"]);
@@ -548,9 +558,9 @@ describe("pickShowcaseFirms", () => {
 
   it("includes at least three CS firms when that many are eligible", () => {
     const richCf = Array.from({ length: 5 }, (_, i) => firm(`cf${i}`));
-    const cs = Array.from({ length: 4 }, (_, i) => firm(`cs${i}`, { firmType: "CS" }));
+    const cs = Array.from({ length: 4 }, (_, i) => firm(`cs${i}`, { thesis: "CS" }));
     const plans = (f: ObjectOf<"Firm">) =>
-      f.firmType === "CS" ? [plan({}), abstain] : [...conflicts(2), abstain];
+      f.thesis === "CS" ? [plan({}), abstain] : [...conflicts(2), abstain];
     const picked = pickShowcaseFirms([...richCf, ...cs], plans, 5);
     expect(picked).toHaveLength(5);
     expect(picked.filter((id) => id.startsWith("cs"))).toEqual(["cs0", "cs1", "cs2"]);

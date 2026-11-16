@@ -14,7 +14,7 @@ const files = existsSync(dir)
       .filter((f) => f.endsWith(".jsonl"))
       .sort()
   : [];
-const firms = new Map(generateUniverse().map((f) => [f.firmId!, f]));
+const firms = new Map(generateUniverse().map((f) => [f.firmId, f]));
 
 describe.skipIf(files.length === 0)(
   "committed extraction fixtures (skipped: no fixtures/extraction/*.jsonl committed yet)",

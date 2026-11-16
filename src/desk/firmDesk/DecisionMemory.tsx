@@ -6,7 +6,7 @@ import styles from "./DecisionMemory.module.css";
 import { type FirmView, describeCohort, truncateAtWord } from "./deskModel";
 
 // ─── Decision memory banner ─────────────────────────────────────────────
-// Aggregates ReviewDecisions across the current firm's COHORT (same firmType
+// Aggregates ReviewDecisions across the current firm's COHORT (same thesis
 // + employeeGroup, excluding the current firm) — surfaces the pattern so the
 // analyst can spot repeat rejections. Never renders raw actor UUIDs.
 export function DecisionMemory({
@@ -28,7 +28,7 @@ export function DecisionMemory({
 
   const cohortIds = React.useMemo(() => {
     const s = new Set<string>();
-    const t = firm.firmType ?? null;
+    const t = firm.thesis ?? null;
     const g = firm.employeeGroup ?? null;
     if (t === null && g === null) {
       return s;
@@ -37,7 +37,7 @@ export function DecisionMemory({
       if (f.firmId === firm.firmId) {
         continue;
       }
-      if (t !== null && f.firmType !== t) {
+      if (t !== null && f.thesis !== t) {
         continue;
       }
       if (g !== null && f.employeeGroup !== g) {
@@ -48,7 +48,7 @@ export function DecisionMemory({
       }
     }
     return s;
-  }, [allFirms, firm.firmId, firm.firmType, firm.employeeGroup]);
+  }, [allFirms, firm.firmId, firm.thesis, firm.employeeGroup]);
 
   // Both queries feed the prose — decisions AND the firm cohort come from
   // separate Firm / ReviewDecision streams that finish independently. If
@@ -59,7 +59,7 @@ export function DecisionMemory({
     firmsLoading ||
     decisionsLoading ||
     decisionData === undefined ||
-    // firmType is our cohort key — no cohort key means allFirms is still
+    // thesis is our cohort key — no cohort key means allFirms is still
     // hydrating (or this firm genuinely has no cohort; either way, wait).
     (firmsLoading && allFirms.length === 0);
 

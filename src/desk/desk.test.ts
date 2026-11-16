@@ -79,7 +79,7 @@ const liveQ = (f: Cols, rules: readonly ScreeningRule[], open: boolean) =>
 describe("the advisory rubric (rubric v2, /18)", () => {
   it("Baseline: Single + geo2 + 30 emp -> 6/18, C, Follow", () => {
     const r = score({
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 30,
@@ -93,7 +93,7 @@ describe("the advisory rubric (rubric v2, /18)", () => {
 
   it("Sparse firm: Multi + geo1 + 8 emp -> 4/18, soft Rejected, Enrich", () => {
     const r = score({
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Multi-sector",
       geoScore: 1,
       employees: 8,
@@ -106,7 +106,7 @@ describe("the advisory rubric (rubric v2, /18)", () => {
 
   it("Generalist -> hard reject", () => {
     const r = score({
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Generalist",
       geoScore: 0,
       employees: 3,
@@ -118,7 +118,7 @@ describe("the advisory rubric (rubric v2, /18)", () => {
 
   it("fully enriched CF -> 18/18, A, Outreach (C->A money shot)", () => {
     const r = score({
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       servicesFit: "Full advisory suite",
       mdPedigree: "Bulge-bracket or elite-boutique alumni",
@@ -140,7 +140,7 @@ describe("queue ranking under another workspace's rubric", () => {
   it("counts headroom from the thesis's researched criteria and screens on its hard rejects", () => {
     const toy = (firmId: string, traits: Record<string, string | number | boolean>) => ({
       firmId,
-      firmType: "growth",
+      thesis: "growth",
       traits,
     });
     const ranked = orderEnrichmentQueue(TOY_RUBRIC, [
@@ -168,7 +168,7 @@ describe("orderEnrichmentQueue", () => {
       {
         // Tier C — 9/18 with headroom of 8 across dealSize/dealsPerMd/firmAge/feeGen.
         firmId: "high-gain-b",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -178,7 +178,7 @@ describe("orderEnrichmentQueue", () => {
       {
         // Tier B — 13/18, only feeGen missing (headroom 2).
         firmId: "low-gain-a",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -204,7 +204,7 @@ describe("orderEnrichmentQueue", () => {
     // table would have produced.
     const r = rank({
       firmId: "missing-only-feegen",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       servicesFit: "Full advisory suite",
       mdPedigree: "Bulge-bracket or elite-boutique alumni",
@@ -229,14 +229,14 @@ describe("orderEnrichmentQueue", () => {
     const q = queueOf([
       {
         firmId: "low-score-workable",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Multi-sector",
         geoScore: 1,
         employees: 5, // → tier Rejected via low score, but no screen tripped
       },
       {
         firmId: "workable-c",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // → Rejected tier (soft), 5/18
@@ -258,7 +258,7 @@ describe("orderEnrichmentQueue", () => {
     const q = queueOf([
       {
         firmId: "hard-screened-discovered",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -268,7 +268,7 @@ describe("orderEnrichmentQueue", () => {
       },
       {
         firmId: "workable-c",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // Rejected tier (soft), 5/18
@@ -295,14 +295,14 @@ describe("orderEnrichmentQueue", () => {
       [
         {
           firmId: "small-cf",
-          firmType: "CF",
+          thesis: "CF",
           coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 4,
         },
         {
           firmId: "workable-c",
-          firmType: "CF",
+          thesis: "CF",
           coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 100,
@@ -329,7 +329,7 @@ describe("orderEnrichmentQueue", () => {
       [
         {
           firmId: "small-cf",
-          firmType: "CF",
+          thesis: "CF",
           coverageModel: "Single-sector focus",
           geoScore: 2,
           employees: 4,
@@ -345,7 +345,7 @@ describe("orderEnrichmentQueue", () => {
     const v = hardScreen(
       {
         firmId: "gen",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Generalist",
         geoScore: 2,
         employees: 100,
@@ -361,7 +361,7 @@ describe("orderEnrichmentQueue", () => {
     const v = hardScreen(
       {
         firmId: "safe",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -377,7 +377,7 @@ describe("orderEnrichmentQueue", () => {
     const q = queueOf([
       {
         firmId: "qualified-high",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -390,14 +390,14 @@ describe("orderEnrichmentQueue", () => {
       },
       {
         firmId: "workable-c",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100, // Rejected tier (soft), 5/18, non-terminal, non-hard-screened
       },
       {
         firmId: "hard-screened",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Generalist", // client hard-reject
         geoScore: 2,
         employees: 100,
@@ -414,7 +414,7 @@ describe("orderEnrichmentQueue", () => {
   });
 
   it("treats Qualified and every later deal stage, and Passed, as decided", () => {
-    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
+    const base = { thesis: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const q = queueOf(
       ["Discovered", "Screening", "Qualified", "NDA", "Closed", "Passed"].map((lifecycleState) => ({
         ...base,
@@ -443,7 +443,7 @@ describe("orderEnrichmentQueue", () => {
     const q = queueOf([
       {
         firmId: "in-review-snake",
-        firmType: "CF",
+        thesis: "CF",
         coverageModel: "Single-sector focus",
         geoScore: 2,
         employees: 100,
@@ -758,14 +758,14 @@ describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   const mirrorOf = (input: Cols) => score(input);
 
   it("hard-rejected firms land in Passed regardless of lifecycle", () => {
-    const firm = { firmType: "CF", coverageModel: "Generalist", lifecycleState: "NDA" };
+    const firm = { thesis: "CF", coverageModel: "Generalist", lifecycleState: "NDA" };
     const m = mirrorOf(firm);
     expect(m.hardRejected).toBe(true);
     expect(bucketOf(firm, m)).toBe("Passed");
   });
 
   it("snake_case and hyphenated lifecycle values fold into the tracked stage", () => {
-    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
+    const base = { thesis: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     expect(bucketOf({ ...base, lifecycleState: "in_review" }, m)).toBe("Screening");
     expect(bucketOf({ ...base, lifecycleState: "In-Talks" }, m)).toBe("Outreach");
@@ -773,7 +773,7 @@ describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   });
 
   it("files each deal stage under its own bucket, and legacy names under their successors", () => {
-    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
+    const base = { thesis: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     for (const stage of ["Qualified", "Outreach", "NDA", "IOI", "LOI", "Closed", "Passed"]) {
       expect(bucketOf({ ...base, lifecycleState: stage }, m)).toBe(stage);
@@ -783,7 +783,7 @@ describe("pipelineBuckets — eight-stage funnel plus Passed", () => {
   });
 
   it("currentStage wins over lifecycleState, and disposition is the last resort", () => {
-    const base = { firmType: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
+    const base = { thesis: "CF", coverageModel: "Single-sector focus", geoScore: 2 };
     const m = mirrorOf(base);
     expect(bucketOf({ ...base, currentStage: "Qualified", lifecycleState: "Discovered" }, m)).toBe(
       "Qualified",
@@ -1000,8 +1000,8 @@ describe("activeScreening — approved rules screen the desk queue", () => {
 
   it("honours a rule's model scope", () => {
     const cfOnly: ScreeningRule = { ...employeesRule, model: "CF" };
-    expect(screen({ firmType: "CF", employees: 4 }, [cfOnly]).screened).toBe(true);
-    expect(screen({ firmType: "CS", employees: 4 }, [cfOnly]).screened).toBe(false);
+    expect(screen({ thesis: "CF", employees: 4 }, [cfOnly]).screened).toBe(true);
+    expect(screen({ thesis: "CS", employees: 4 }, [cfOnly]).screened).toBe(false);
   });
 
   // ── The invariant ──
@@ -1166,7 +1166,7 @@ describe("isLiveQueueFirm — the desk's default view", () => {
     const summit = {
       firmId: "F-summit",
       firmName: "Ravenmere Credit Advisors",
-      firmType: "CS",
+      thesis: "CS",
       lifecycleState: "Discovered",
       discoveredViaSearchId: "S-1",
       employees: null,
@@ -1284,7 +1284,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     // Open by both readings.
     {
       firmId: "1",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1292,7 +1292,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     },
     {
       firmId: "2",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1300,7 +1300,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     },
     {
       firmId: "3",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1310,7 +1310,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     // The funnel calls this Passed; the desk must agree.
     {
       firmId: "4",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Generalist",
       geoScore: 2,
       employees: 40,
@@ -1318,7 +1318,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     },
     {
       firmId: "5",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Generalist",
       geoScore: 0,
       employees: 3,
@@ -1327,7 +1327,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     // currentStage outranks lifecycleState — decided.
     {
       firmId: "6",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1337,7 +1337,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     // Genuinely terminal.
     {
       firmId: "7",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1345,7 +1345,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     },
     {
       firmId: "8",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1354,7 +1354,7 @@ describe("desk open === pipeline Discovered + Screening", () => {
     // Server-flagged via disposition.
     {
       firmId: "9",
-      firmType: "CF",
+      thesis: "CF",
       coverageModel: "Single-sector focus",
       geoScore: 2,
       employees: 40,
@@ -1688,7 +1688,7 @@ describe("formatScore — one 18-point scale everywhere", () => {
   });
 
   it("reads a hard reject as 0/18 · Rejected", () => {
-    const r = score({ firmType: "CS", advisoryConflict: true });
+    const r = score({ thesis: "CS", advisoryConflict: true });
     expect(r.hardRejected).toBe(true);
     expect(formatScore(r.weightedTotal, 18, r.tier)).toBe("0/18 · Rejected");
   });

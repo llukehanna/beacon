@@ -4,18 +4,18 @@
  * deterministic rubric. Pure: no DB, no network, no clock.
  */
 import { resolveThesis } from "../../shared/rubric/engine.js";
-import { thesisOf } from "../../shared/rubric/firm.js";
+import { thesisOf, traitsOf } from "../../shared/rubric/firm.js";
 import { parseTraitValue } from "../../shared/rubric/traitValue.js";
 import type { Tier, TraitDef } from "../../shared/rubric/types.js";
-import type { ObjectOf, Props } from "../../shared/schema.js";
+import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import type { Provider } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
-import { traitColumn, withTraits } from "../db/traits.js";
 import { truthFor } from "../enrichment/providers.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { planFirm } from "../extraction/plan.js";
+import type { UniverseFirm } from "../seed/universe.js";
 
 /** A thesis key of the advisory workspace (the eval runs on its seed). */
 type Model = string;
@@ -54,7 +54,7 @@ export interface FirmEvaluation {
 const FIXTURE_ROW_TIME = new Date("2026-01-01T00:00:00.000Z");
 
 /** A generated firm as the agent reads it. */
-export const asFirmObject = (firm: Props<"Firm">): ObjectOf<"Firm"> =>
+export const asFirmObject = (firm: UniverseFirm): ObjectOf<"Firm"> =>
   ({ ...firm, $apiName: "Firm", $primaryKey: firm.firmId }) as ObjectOf<"Firm">;
 
 /** The firm with each axis set to the given value, as the desk would after accepting it. */
@@ -62,11 +62,11 @@ function withValues(
   firm: ObjectOf<"Firm">,
   values: ReadonlyMap<TraitDef, string>,
 ): Record<string, unknown> {
-  const out: Record<string, unknown> = { ...firm };
+  const traits: Record<string, unknown> = { ...traitsOf(firm) };
   for (const [axis, value] of values) {
-    out[traitColumn(axis.traitKey)!] = parseTraitValue(axis, value);
+    traits[axis.traitKey] = parseTraitValue(axis, value);
   }
-  return out;
+  return { ...firm, traits };
 }
 
 export function evaluateFirm(
@@ -107,8 +107,8 @@ export function evaluateFirm(
     model,
     extractionModel: extraction.model,
     slots,
-    truthTier: scoreFirm(RUBRIC, withTraits(withValues(firm, truths))).tier,
-    agentTier: scoreFirm(RUBRIC, withTraits(withValues(firm, settled))).tier,
+    truthTier: scoreFirm(RUBRIC, withValues(firm, truths)).tier,
+    agentTier: scoreFirm(RUBRIC, withValues(firm, settled)).tier,
   };
 }
 

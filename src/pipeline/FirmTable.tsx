@@ -89,7 +89,7 @@ function FirmRow({
           </div>
         )}
       </td>
-      <td className={styles.colType}>{firm.firmType && <Chip>{firm.firmType}</Chip>}</td>
+      <td className={styles.colType}>{firm.thesis && <Chip>{firm.thesis}</Chip>}</td>
       <td className={`${styles.sector} ${styles.colSector}`} title={firm.sector ?? undefined}>
         {firm.sector || <span className={styles.none}>—</span>}
       </td>

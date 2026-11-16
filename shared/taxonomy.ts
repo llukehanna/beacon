@@ -189,13 +189,13 @@ export function expandSelections(def: RubricDefinition, values: readonly string[
 
 export function matchesSelection(
   def: RubricDefinition,
-  firm: { hqCountry?: string | null; firmType?: string | null; sector?: string | null },
+  firm: { hqCountry?: string | null; thesis?: string | null; sector?: string | null },
   sel: Selection,
 ): boolean {
   if (sel.countries.size > 0 && !sel.countries.has(firm.hqCountry ?? "")) {
     return false;
   }
-  if (sel.firmTypes.size > 0 && !sel.firmTypes.has(resolveThesis(def, firm.firmType).key)) {
+  if (sel.firmTypes.size > 0 && !sel.firmTypes.has(resolveThesis(def, firm.thesis).key)) {
     return false;
   }
   if (sel.sectors.size > 0 && !sel.sectors.has(firm.sector ?? "")) {
