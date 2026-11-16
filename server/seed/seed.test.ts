@@ -17,7 +17,18 @@ import { createTestDb } from "../testing.js";
 import { RESTRICTED_FIRM_COUNT, RESTRICTION_REASONS, WALLED_MANDATE } from "./barriers.js";
 import { resetDemo } from "./reset.js";
 import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms, runProfile } from "./showcase.js";
-import { PLACES, RESERVED_WORDS, SURNAMES, generateUniverse } from "./universe.js";
+import {
+  GIVEN_NAMES,
+  LEGAL_FORMS,
+  MAX_STEM_USES,
+  NAME_STYLES,
+  NAME_SUFFIXES,
+  PLACES,
+  RESERVED_WORDS,
+  SURNAMES,
+  generateUniverse,
+  stemsOf,
+} from "./universe.js";
 
 describe("generateUniverse", () => {
   it("is deterministic, unique, and roughly 10% CS", () => {
@@ -44,9 +55,14 @@ const RETIRED_STEMS = [
 describe("firm names", () => {
   const names = generateUniverse().map((f) => f.firmName!);
 
-  it("draws on at least 60 surnames and 30 place words", () => {
-    expect(new Set(SURNAMES).size).toBeGreaterThanOrEqual(60);
-    expect(new Set(PLACES).size).toBeGreaterThanOrEqual(30);
+  const stems = new Set([...SURNAMES, ...GIVEN_NAMES, ...PLACES]);
+
+  it("draws on wide word lists", () => {
+    expect(new Set(SURNAMES).size).toBeGreaterThanOrEqual(500);
+    expect(new Set(GIVEN_NAMES).size).toBeGreaterThanOrEqual(80);
+    expect(new Set(PLACES).size).toBeGreaterThanOrEqual(180);
+    // No word is in two lists, so each stem is counted once.
+    expect(stems.size).toBe(SURNAMES.length + GIVEN_NAMES.length + PLACES.length);
   });
 
   it("is unique across the universe", () => {
@@ -54,18 +70,40 @@ describe("firm names", () => {
     expect(new Set(names).size).toBe(700);
   });
 
-  it("builds every name in exactly one of the four house styles", () => {
-    const surname = `(?:${SURNAMES.join("|")})`;
-    const place = `(?:${PLACES.join("|")})`;
+  it("uses no stem in more than two names, and never leads two names with the same word", () => {
+    const uses = new Map<string, number>();
+    const firstWords = new Set<string>();
+    for (const n of names) {
+      const own = stemsOf(n, stems);
+      expect(own.length, n).toBeGreaterThanOrEqual(1);
+      expect(n.startsWith(own[0]), n).toBe(true);
+      for (const s of own) {
+        uses.set(s, (uses.get(s) ?? 0) + 1);
+      }
+      // So no two names differ only by suffix ("Bramblemoor Group", "Bramblemoor Capital").
+      expect(firstWords.has(own[0]), n).toBe(false);
+      firstWords.add(own[0]);
+    }
+    for (const [stem, count] of uses) {
+      expect(count, stem).toBeLessThanOrEqual(MAX_STEM_USES);
+    }
+  });
+
+  it("builds every name in exactly one of the five house styles", () => {
+    const alt = (xs: readonly string[]) =>
+      `(?:${[...xs]
+        .sort((a, b) => b.length - a.length)
+        .map((x) => x.replace(/[.&]/g, "\\$&"))
+        .join("|")})`;
+    const surname = alt(SURNAMES);
+    const tail = (style: keyof typeof NAME_SUFFIXES) =>
+      `(?: ${alt(NAME_SUFFIXES[style].filter(Boolean))})?(?: ${alt(Object.values(LEGAL_FORMS))})?$`;
     const styles: Record<string, RegExp> = {
-      partnership: new RegExp(`^${surname} & ${surname}(?: Partners| Advisory| Advisors)?$`),
-      trio: new RegExp(`^${surname}, ${surname} & ${surname}(?: Partners)?$`),
-      surname: new RegExp(
-        `^${surname} (?:Advisory|Advisors|Partners|Capital Partners|& Co\\.|Group|Corporate Finance|Securities)$`,
-      ),
-      place: new RegExp(
-        `^${place} (?:Capital Partners|Capital|Advisors|Advisory|Partners|Group|Securities)$`,
-      ),
+      partnership: new RegExp(`^${surname} & ${surname}${tail("partnership")}`),
+      trio: new RegExp(`^${surname}, ${surname} & ${surname}${tail("trio")}`),
+      surname: new RegExp(`^${surname}${tail("surname")}`),
+      founder: new RegExp(`^${alt(GIVEN_NAMES)} ${surname}${tail("founder")}`),
+      place: new RegExp(`^${alt(PLACES)}${tail("place")}`),
     };
     const counts: Record<string, number> = {};
     for (const n of names) {
@@ -73,16 +111,16 @@ describe("firm names", () => {
       expect(matching, n).toHaveLength(1);
       counts[matching[0]] = (counts[matching[0]] ?? 0) + 1;
     }
-    expect(Object.keys(counts).sort()).toEqual(["partnership", "place", "surname", "trio"]);
+    expect(Object.keys(counts).sort()).toEqual([...NAME_STYLES].sort());
     for (const [style, count] of Object.entries(counts)) {
-      expect(count, style).toBeGreaterThanOrEqual(70);
+      expect(count, style).toBeGreaterThanOrEqual(40);
     }
   });
 
   it("never uses a name belonging to a well-known bank, broker or adviser", () => {
     const reserved = new Set(RESERVED_WORDS.map((w) => w.toLowerCase()));
     expect(reserved.size).toBeGreaterThanOrEqual(60);
-    for (const w of [...SURNAMES, ...PLACES]) {
+    for (const w of stems) {
       expect(reserved.has(w.toLowerCase()), w).toBe(false);
     }
     for (const n of names) {
@@ -90,16 +128,6 @@ describe("firm names", () => {
         expect(reserved.has(w.toLowerCase()), `${n} / ${w}`).toBe(false);
       }
     }
-  });
-
-  it("does not let any one first word dominate", () => {
-    const counts = new Map<string, number>();
-    for (const n of names) {
-      const first = n.split(" ")[0];
-      counts.set(first, (counts.get(first) ?? 0) + 1);
-    }
-    const [word, most] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0];
-    expect(most / names.length, word).toBeLessThanOrEqual(0.03);
   });
 
   it("no longer contains the retired invented stems", () => {

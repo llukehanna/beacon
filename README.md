@@ -114,4 +114,4 @@ Rule clustering uses a keyword heuristic by default. To use Claude, set `CLAUDE_
 
 ## Data
 
-Everything is synthetic. Firm names are generated from invented words, and any resemblance to a real firm is coincidental. Enrichment sources are generated records, labelled "Mock source" in the app, and some contain deliberate errors. Market signals are invented news and are labelled "Synthetic market signal" wherever they appear.
+Everything is synthetic. Firm names are generated from common surnames, given names and coined place words, and any resemblance to a real firm is coincidental. Enrichment sources are generated records (a CRM note, a league-table entry, a filing excerpt, search results), labelled "mock source" in the app, and some contain deliberate errors. Market signals are invented news and are labelled "Synthetic market signal" wherever they appear.

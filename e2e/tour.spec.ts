@@ -110,7 +110,9 @@ test("the Desk stops open on a strong firm, not on whichever leads the queue", a
   const card = page.locator("[data-tour-card]");
   await card.getByRole("button", { name: /^Next/ }).click();
   await expect(page).toHaveURL(new RegExp(`/desk\\?firmId=${TOUR_FIRM_ID}&tour=2$`));
-  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText("Mallowick Partners");
+  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(
+    "Archdale & Pollard Advisors",
+  );
 
   // Mostly filled in: one conflict, at most two abstentions, and already in tier B or better.
   const summary = page.getByText(/\d+ conflicts? · \d+ proposed · \d+ abstained · \d+ verified/);
@@ -137,7 +139,9 @@ test("the Desk stops open on a strong firm, not on whichever leads the queue", a
   // A stop reached without a firm in the URL is given the tour's.
   await page.goto("/desk?tour=3");
   await expect(page).toHaveURL(new RegExp(`firmId=${TOUR_FIRM_ID}`));
-  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText("Mallowick Partners");
+  await expect(page.getByRole("heading", { level: 1 }).first()).toHaveText(
+    "Archdale & Pollard Advisors",
+  );
 });
 
 test("tour writes nothing", async ({ page }) => {

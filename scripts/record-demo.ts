@@ -109,10 +109,10 @@ async function main(): Promise<void> {
     await page.waitForLoadState("networkidle");
     await sleep(800);
     await glideClick(page, 'input[aria-label="Search firms"]');
-    await page.keyboard.type("Mallowick", { delay: 90 });
+    await page.keyboard.type("Archdale", { delay: 90 });
     await sleep(500);
-    await glideClick(page, 'button[data-row="mallowickpartners_unitedstates"]');
-    await page.waitForURL(/firmId=mallowickpartners_unitedstates/);
+    await glideClick(page, 'button[data-row="archdalepollardadvisors_unitedstates"]');
+    await page.waitForURL(/firmId=archdalepollardadvisors_unitedstates/);
     await page.locator('tr[data-state="conflict"]').first().waitFor();
     await page.waitForLoadState("networkidle");
     await sleep(2000);
