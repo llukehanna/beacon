@@ -1,6 +1,6 @@
 # 0003. One rubric module for the browser and the server
 
-Status: Accepted
+Status: Superseded in part by [0011](0011-traits-and-rubric-as-data.md). One scoring implementation still serves the browser and the server; the rubric it runs is now data, scored by `shared/rubric/engine.ts`, and `shared/scoreMirror.ts` is gone (a frozen copy remains as the parity test's oracle).
 
 ## Context
 

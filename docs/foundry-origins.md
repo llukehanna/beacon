@@ -52,9 +52,9 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### The Functions-backed rubric becomes one shared module
 
-- **Here.** `shared/scoreMirror.ts` is the rubric (version 2, redesigned for the public demo). The desk imports it for live score previews and the server imports it when it writes a score, so there is nothing to keep in step.
-- **Gained.** No parity test, because there is one implementation. Each stored score names the rubric version that produced it.
-- **Why.** See [0003](decisions/0003-shared-rubric-module.md).
+- **Here.** The rubric is data (a trait catalog and a versioned rubric definition) scored by one engine, `shared/rubric/engine.ts`. The desk imports the engine for live score previews and the server imports it when it writes a score, so there is nothing to keep in step.
+- **Gained.** No client/server parity test, because there is one implementation. Each stored score names the rubric version that produced it, and another team's thesis is a new definition rather than new code.
+- **Why.** See [0003](decisions/0003-shared-rubric-module.md) and [0011](decisions/0011-traits-and-rubric-as-data.md).
 
 ### AIP Logic becomes offline Claude extraction and a grounding contract
 

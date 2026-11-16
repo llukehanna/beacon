@@ -1,13 +1,14 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { pickAuthoritative } from "../../shared/axisState.js";
 import { SIGNAL_KINDS } from "../../shared/marketSignals.js";
+import { traitFor } from "../../shared/rubric/catalog.js";
+import { traitsOf } from "../../shared/rubric/firm.js";
+import { parseTraitValue } from "../../shared/rubric/traitValue.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { parseAxisValue } from "../../shared/scoring.js";
-import { ENRICH_AXES } from "../../shared/vocab.js";
 import type { Db } from "../db/client.js";
 import { getObject, listAll } from "../db/repo.js";
 import { MAX_SIGNALS_PER_RUN, applyDueSignals } from "../signals/run.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { resetDemo } from "./reset.js";
 import {
   LOOKAHEAD_MS,
@@ -264,13 +265,12 @@ describe("the seeded demo's signals", () => {
   });
 
   it("shows, as each firm's authoritative value, the value its score uses", async () => {
-    const axes = new Map(ENRICH_AXES.map((a) => [a.axis, a]));
     const applied = (await listAll(db, "MarketSignal")).filter(
       (s) => s.appliedAt !== undefined && s.axis !== undefined,
     );
     expect(applied.length).toBeGreaterThan(10);
     for (const s of applied) {
-      const def = axes.get(s.axis!)!;
+      const trait = traitFor(TEST_RUBRIC.traits, s.axis!)!;
       const firm = (await getObject(db, "Firm", s.firmId))!;
       const findings = (
         await listAll(db, "ResearchFinding", { where: { firmId: { $eq: s.firmId } } })
@@ -280,8 +280,8 @@ describe("the seeded demo's signals", () => {
       );
       const shown = pickAuthoritative(findings.map((f) => ({ ...f, findingId: f.$primaryKey })));
       // The newest signal on this firm and axis is the one whose value the firm carries.
-      expect(parseAxisValue(def, shown.value ?? ""), `${s.signalId} on ${s.firmId}`).toBe(
-        (firm as Record<string, unknown>)[def.firmField],
+      expect(parseTraitValue(trait, shown.value ?? ""), `${s.signalId} on ${s.firmId}`).toBe(
+        traitsOf(firm)[trait.traitKey],
       );
     }
   });

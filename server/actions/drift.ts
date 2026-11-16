@@ -1,5 +1,5 @@
+import type { AxisScore } from "../../shared/rubric/types.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import type { AxisScore } from "../../shared/scoreMirror.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import {
   ACQUIRED_BY_COMPETITOR,

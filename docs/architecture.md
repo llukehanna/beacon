@@ -1,12 +1,12 @@
 # Architecture
 
-Beacon is a React app over a small TypeScript backend. One schema file describes the whole data model, every write goes through a named action, and the rubric is one module that both the browser and the server import.
+Beacon is a React app over a small TypeScript backend. One schema file describes the whole data model, every write goes through a named action, and the rubric is data that one scoring engine, imported by both the browser and the server, interprets.
 
 ```mermaid
 flowchart LR
   UI[React app<br/>8 screens] -- "useOsdkObjects / useOsdkAction<br/>(TanStack Query)" --> API[/api/objects · links · actions · functions · reset/]
   API --> Actions[Action handlers<br/>one transaction each]
-  Actions --> Rubric[Shared rubric<br/>shared/scoreMirror.ts]
+  Actions --> Rubric[Rubric engine<br/>shared/rubric/engine.ts]
   UI --> Rubric
   Actions --> Agent[Enrichment agent<br/>mock providers + reconciliation]
   Actions --> Cluster[Rule clustering<br/>Claude → heuristic fallback]
@@ -87,7 +87,9 @@ Each finding stores the record id, the exact quote, and the extraction model. On
 
 ## Scoring as shared code
 
-`shared/scoreMirror.ts` is the rubric: nine scored axes, each 0, 1, or 2 (18 points), recorded beside four pass or fail gates that earn no points (the desk lists six or seven scored axes with the gates, and scores the rest from the firm record), separate tables for the corporate-finance and capital-solutions theses, hard rejects, and A/B/C tiers. The desk imports it to preview a firm's score as the analyst accepts findings. The server imports the same module when it writes a score snapshot. There is one implementation, so the preview and the record can't disagree.
+What can be known about a firm, and how it is scored, are data ([0011](decisions/0011-traits-and-rubric-as-data.md)). The `Trait` catalog lists each trait with its kind, unit, vocabulary and role (evidence the agent researches, a fact on the record, or a profile field that is never scored). The active `Rubric` is a validated JSON definition: theses with weighted criteria, hard rejects, tier cuts and actions. `shared/rubric/engine.ts` scores any definition. The desk loads the active rubric and catalog once to preview a firm's score as the analyst accepts findings, and the server runs the same engine on the same rows when it writes a score snapshot, so the preview and the record can't disagree.
+
+The advisory-acquisitions workspace (`shared/workspaces/`) is the configured example: nine scored axes, each 0, 1, or 2 (18 points), recorded beside four pass or fail gates that earn no points, separate theses for corporate finance and capital solutions, hard rejects, and A/B/C tiers. A parity test holds it to the hand-written rubric it replaced, and a leak test keeps its vocabulary out of the engine, the screens and the server.
 
 ## Run agent → Accept → Commit
 

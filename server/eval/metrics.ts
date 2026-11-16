@@ -30,12 +30,14 @@ import type { EvalReport } from "../../shared/evalReport.js";
 import { criterionPoints } from "../../shared/rubric/engine.js";
 import { parseTraitValue } from "../../shared/rubric/traitValue.js";
 import type { TraitDef } from "../../shared/rubric/types.js";
-import type { Model } from "../../shared/scoreMirror.js";
 import { PROVIDER_TRUST } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import type { FirmEvaluation, SlotResult } from "./pipeline.js";
+
+/** A thesis key. */
+type Model = string;
 
 /** num / den to four places, or null when there is nothing to divide by. */
 export function rate(num: number, den: number): number | null {

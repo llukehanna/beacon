@@ -54,7 +54,7 @@ The [Trust page](https://beacon.lukeghanna.com/trust) in the app summarises this
 - The check shows that an answer quotes its record faithfully. It does not show that the value is true: the mock records carry deliberate errors, which reconciliation and analyst review are there to catch. <!-- source: docs/architecture.md, server/enrichment/providers.ts -->
 - **Abstention.** When no source supports an axis, the agent records an abstention instead of guessing, and the Accuracy page reports the abstention rate. <!-- source: server/enrichment/reconcile.ts, docs/architecture.md -->
 - **Conflicts are surfaced, not hidden.** When sources disagree, the two most trusted positions are shown as a pair and the agent never picks a winner. The analyst resolves it. <!-- source: server/enrichment/reconcile.ts, server/actions/findings.ts -->
-- **Scores are not model output.** The rubric is plain code, shared by the browser and the server. <!-- source: shared/scoreMirror.ts -->
+- **Scores are not model output.** The rubric is plain code, shared by the browser and the server. <!-- source: shared/rubric/engine.ts -->
 - **Rules need a human.** A proposed rule needs at least four distinct firms behind it, is checked against the data, and screens nothing until an analyst approves it. Approval writes a versioned config. <!-- source: server/actions/rules.ts -->
 - **Findings are not final.** An accepted value is marked verified only by an analyst action, and an analyst override creates a new finding rather than editing the agent's. <!-- source: server/actions/findings.ts, docs/architecture.md -->
 

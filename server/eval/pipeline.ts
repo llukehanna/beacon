@@ -6,9 +6,8 @@
 import { resolveThesis } from "../../shared/rubric/engine.js";
 import { thesisOf } from "../../shared/rubric/firm.js";
 import { parseTraitValue } from "../../shared/rubric/traitValue.js";
-import type { TraitDef } from "../../shared/rubric/types.js";
+import type { Tier, TraitDef } from "../../shared/rubric/types.js";
 import type { ObjectOf, Props } from "../../shared/schema.js";
-import type { Model, Tier } from "../../shared/scoreMirror.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import type { Provider } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
@@ -17,6 +16,9 @@ import { truthFor } from "../enrichment/providers.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { type FixtureRecord, fixtureToExtractionRows } from "../extraction/fixtures.js";
 import { planFirm } from "../extraction/plan.js";
+
+/** A thesis key of the advisory workspace (the eval runs on its seed). */
+type Model = string;
 
 /** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
 const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
@@ -71,7 +73,7 @@ export function evaluateFirm(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
 ): FirmEvaluation {
-  const model = resolveThesis(RUBRIC, thesisOf(firm)).key as Model;
+  const model = resolveThesis(RUBRIC, thesisOf(firm)).key;
   const { docs, extraction, grounded, axes } = planFirm(
     firm,
     rows,
