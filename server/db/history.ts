@@ -8,6 +8,7 @@ export const APPEND_ONLY_TABLES = [
   "review_decision",
   "research_finding",
   "rubric",
+  "firm_trait_value",
 ] as const;
 
 export type AppendOnlyTable = (typeof APPEND_ONLY_TABLES)[number];
@@ -19,4 +20,6 @@ export const MUTABLE_COLUMNS: Readonly<Record<AppendOnlyTable, readonly string[]
   research_finding: ["findingStatus", "verifiedByHuman", "verifiedBy", "verifiedAt"],
   // A published rubric version never changes; only which version is active does.
   rubric: ["active"],
+  // A trait's new value is a new revision; a stored one never changes.
+  firm_trait_value: [],
 };
