@@ -4,10 +4,9 @@
  */
 import { describe, expect, it } from "vitest";
 import { rng } from "../../server/enrichment/random.js";
-import { axisPoints } from "../scoring.js";
-import { ENRICH_AXES } from "../vocab.js";
 import { ADVISORY_ACQUISITIONS as WS } from "../workspaces/advisoryAcquisitions.js";
-import { type ScoreInput, mirrorScore } from "./__oracle__/legacyRubricV2.js";
+import { ENRICH_AXES } from "../workspaces/advisoryVocab.js";
+import { type ScoreInput, axisPoints, mirrorScore } from "./__oracle__/legacyRubricV2.js";
 import { parseRubricDefinition } from "./definition.js";
 import { criterionPoints, maxPossible, scoreTraits } from "./engine.js";
 import { thesisOf } from "./firm.js";
@@ -98,9 +97,7 @@ describe("rubric v1 as data matches rubric v2 in code", () => {
       for (const axis of ENRICH_AXES) {
         const values: Value[] = [null, ...(POOL[axis.firmField] ?? [true, false])];
         for (const v of values) {
-          expect(criterionPoints(DEF, thesis, axis.axis, v)).toBe(
-            axisPoints({ firmType: thesis }, axis, v),
-          );
+          expect(criterionPoints(DEF, thesis, axis.axis, v)).toBe(axisPoints(thesis, axis, v));
         }
       }
     }

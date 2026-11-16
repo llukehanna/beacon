@@ -7,8 +7,12 @@ import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS, TOUR_FIRM_ID } from "../../shared/showcaseFirms.js";
-import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import {
+  OWNERSHIP_TYPES,
+  REVENUE_BANDS,
+  SUCCESSION_RISKS,
+} from "../../shared/workspaces/advisoryVocab.js";
 import { type ClusteringFixture, fixtureClusterer, hashRejections } from "../clustering/fixture.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";

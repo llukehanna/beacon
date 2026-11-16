@@ -14,7 +14,7 @@ import {
   OWNERSHIP_TYPES,
   REVENUE_BANDS,
   SUCCESSION_RISKS,
-} from "../vocab.js";
+} from "./advisoryVocab.js";
 import type { WorkspaceDefinition } from "./types.js";
 
 export const RUBRIC_ID = "advisory-acquisitions@1";

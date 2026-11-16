@@ -1,4 +1,6 @@
 import { uniqueCodename } from "../../shared/accessPolicy.js";
+import { resolveThesis } from "../../shared/rubric/engine.js";
+import type { RubricDefinition } from "../../shared/rubric/types.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { type Selection, expandSelections, matchesSelection } from "../../shared/taxonomy.js";
 import { PASSED, firmIdFor, normalizeLifecycle } from "../../shared/vocab.js";
@@ -39,8 +41,8 @@ async function assertRoom(
   }
 }
 
-function selectionOrThrow(values: readonly string[]): Selection {
-  const sel = expandSelections(values);
+function selectionOrThrow(def: RubricDefinition, values: readonly string[]): Selection {
+  const sel = expandSelections(def, values);
   if (sel.unknown.length > 0) {
     throw new ActionError(`Unknown filter value(s): ${sel.unknown.join(", ")}`);
   }
@@ -56,8 +58,9 @@ export const runSearch = defineAction("runSearch", {
         `Unknown breadth "${breadth}"; use ${Object.keys(BREADTH_CAP).join(", ")}`,
       );
     }
-    const sel = selectionOrThrow([...(p.geographies ?? []), ...(p.industries ?? [])]);
-    const archetype = p.mandate.archetype === "CS" ? "CS" : "CF";
+    const { definition } = await loadActiveRubric(ctx.tx);
+    const sel = selectionOrThrow(definition, [...(p.geographies ?? []), ...(p.industries ?? [])]);
+    const archetype = resolveThesis(definition, p.mandate.archetype).key;
     if (sel.firmTypes.size === 0) {
       sel.firmTypes.add(archetype);
     }
@@ -93,14 +96,13 @@ export const runSearch = defineAction("runSearch", {
     }
 
     const excluded = new Set((p.exclusions ?? []).map(norm));
-    const { definition } = await loadActiveRubric(ctx.tx);
     const matches = all
       .filter(
         (f) =>
           normalizeLifecycle(f.lifecycleState) !== PASSED &&
           !excluded.has(norm(f.firmName)) &&
           !excluded.has(norm(f.$primaryKey)) &&
-          matchesSelection(f, sel),
+          matchesSelection(definition, f, sel),
       )
       .map((f) => ({ f, s: scoreFirm(definition, withTraits(f)).weightedTotal }))
       // Ties break by code unit, not localeCompare: the seed's results must not depend on the machine's locale.
@@ -144,11 +146,13 @@ export const runMandateSearch = defineAction("runMandateSearch", {
     if (title === "") {
       throw new ActionError("A mandate needs a title");
     }
-    const archetype = p.archetype.trim().toUpperCase();
-    if (archetype !== "CF" && archetype !== "CS") {
-      throw new ActionError("Archetype must be CF or CS");
+    const { definition } = await loadActiveRubric(ctx.tx);
+    const keys = definition.theses.map((t) => t.key);
+    const archetype = keys.find((k) => k.toLowerCase() === p.archetype.trim().toLowerCase());
+    if (archetype === undefined) {
+      throw new ActionError(`Archetype must be ${keys.join(" or ")}`);
     }
-    const sel = selectionOrThrow(p.geographies ?? []);
+    const sel = selectionOrThrow(definition, p.geographies ?? []);
     sel.firmTypes.add(archetype);
 
     await assertRoom(ctx, "mandate", MAX_MANDATES, "mandates");
@@ -178,7 +182,7 @@ export const runMandateSearch = defineAction("runMandateSearch", {
       (f) =>
         !hidden.has(f.$primaryKey) &&
         normalizeLifecycle(f.lifecycleState) !== PASSED &&
-        matchesSelection(f, sel),
+        matchesSelection(definition, f, sel),
     );
     const listId = ctx.newId("list");
     await insertObject(ctx.tx, "SearchList", {

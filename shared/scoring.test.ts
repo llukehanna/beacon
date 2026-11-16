@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { parseTraitValue } from "./rubric/traitValue.js";
 import { legacyTraits } from "./rubric/workspace.js";
-import { axisPoints, formatAxisValue, parseAxisValue, scoreFirm } from "./scoring.js";
-import { axisByName } from "./vocab.js";
+import { scoreFirm } from "./scoring.js";
 import { ADVISORY_ACQUISITIONS as WS } from "./workspaces/advisoryAcquisitions.js";
 
 /** Score a firm written with column names, the way the server sees it. */
@@ -89,28 +89,16 @@ describe("scoreFirm (rubric v2 eval suite)", () => {
   });
 });
 
-describe("axis helpers", () => {
-  const services = axisByName("services_fit")!;
-  const dealSize = axisByName("deal_size_usd_m")!;
-  const solvent = axisByName("solvent")!;
+describe("trait values", () => {
+  const trait = (traitKey: string) => WS.traits.find((t) => t.traitKey === traitKey)!;
 
-  it("parses values by axis kind", () => {
-    expect(parseAxisValue(dealSize, "42.5")).toBe(42.5);
-    expect(parseAxisValue(dealSize, "n/a")).toBeNull();
-    expect(parseAxisValue(solvent, "Yes")).toBe(true);
-    expect(parseAxisValue(solvent, "0")).toBe(false);
-    expect(parseAxisValue(services, "  Full advisory suite ")).toBe("Full advisory suite");
-    expect(formatAxisValue(true)).toBe("true");
-  });
-
-  it("scores one axis in isolation", () => {
-    expect(axisPoints({ firmType: "CF" }, services, "Full advisory suite")).toBe(2);
-    expect(
-      axisPoints({ firmType: "CF" }, services, "Conflicted: trading, lending or research"),
-    ).toBe(0);
-    expect(axisPoints({ firmType: "CF" }, dealSize, 200)).toBe(2);
-    expect(axisPoints({ firmType: "CF" }, dealSize, 150)).toBe(1);
-    expect(axisPoints({ firmType: "CF" }, solvent, true)).toBeNull();
-    expect(axisPoints({ firmType: "CF" }, services, "Something else")).toBeNull();
+  it("parses a finding's value by the trait's kind", () => {
+    expect(parseTraitValue(trait("deal_size_usd_m"), "42.5")).toBe(42.5);
+    expect(parseTraitValue(trait("deal_size_usd_m"), "n/a")).toBeNull();
+    expect(parseTraitValue(trait("solvent"), "Yes")).toBe(true);
+    expect(parseTraitValue(trait("solvent"), "0")).toBe(false);
+    expect(parseTraitValue(trait("services_fit"), "  Full advisory suite ")).toBe(
+      "Full advisory suite",
+    );
   });
 });

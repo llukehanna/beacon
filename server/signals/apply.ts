@@ -6,7 +6,7 @@
  * transaction and stamps `appliedAt`.
  *
  * Every signal is synthetic (see shared/marketSignals.ts). How each kind moves the rubric
- * (shared/scoreMirror.ts):
+ * (the advisory workspace's rubric, shared/workspaces/advisoryAcquisitions.ts):
  *
  * A signal only adjusts an axis that already has a value, and never one an analyst has verified
  * since the signal's date: that value outranks the news, the signal is still listed, and nothing

@@ -1,13 +1,13 @@
 /** 700 synthetic advisory firms. Names combine plausible surnames and coined place words; any resemblance to a real firm is coincidental. */
 import type { Props } from "../../shared/schema.js";
 import { ALL_SECTORS, COUNTRY_GEO } from "../../shared/taxonomy.js";
+import { firmIdFor } from "../../shared/vocab.js";
 import {
   COVERAGE_LABELS,
   OWNERSHIP_TYPES,
   REVENUE_BANDS,
   SUCCESSION_RISKS,
-  firmIdFor,
-} from "../../shared/vocab.js";
+} from "../../shared/workspaces/advisoryVocab.js";
 import { type Rng, gaussian, pick, rng } from "../enrichment/random.js";
 
 export const UNIVERSE_SIZE = 700;
