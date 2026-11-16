@@ -110,13 +110,20 @@ export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Pre
   if (field === null || !(OPERATORS as readonly string[]).includes(p.operator.trim())) {
     return false;
   }
-  const value = firm[field];
+  return compareValue(firm[field], p.operator, p.threshold);
+}
+
+/**
+ * The comparison behind every predicate and hard reject: numeric when both
+ * sides parse, case-insensitive string equality otherwise. A missing value
+ * never matches.
+ */
+export function compareValue(value: unknown, operator: string, threshold: string): boolean {
   if (value === null || value === undefined || value === "") {
     return false;
   }
-
-  const op = p.operator.trim();
-  const t = p.threshold.trim();
+  const op = operator.trim();
+  const t = threshold.trim();
   const a = typeof value === "number" ? value : Number(value);
   const b = Number(t);
   if (Number.isFinite(a) && Number.isFinite(b) && t !== "") {
