@@ -15,6 +15,7 @@ import type {
   OperationsSummary,
   ShellCounts,
   SourceDocumentView,
+  TourFirm,
 } from "../../shared/summaries";
 import { apiFetch } from "./persona";
 import type { WireObject } from "./wire";
@@ -63,6 +64,7 @@ export type FunctionSignatures = EveryFunction<{
   shellCounts: { params: NoParams; result: ShellCounts };
   firmObservations: { params: { firmId: string }; result: FirmObservations };
   sourceDocument: { params: { provider: string; firmId: string }; result: SourceDocumentView };
+  tourFirm: { params: NoParams; result: TourFirm };
 }>;
 
 export type { FunctionName };

@@ -45,7 +45,7 @@ This page maps each Foundry concept to what it became here, what was lost or gai
 
 ### Functions become query functions and pure modules
 
-- **Here.** Read-only server computations are query functions in `server/functions/` (`homeSummary`, `accuracySummary`, `sourceDocument`, `firmObservations`, `operationsSummary`, `shellCounts`), called through `useOsdkQuery`. Logic that needs no database is kept in pure modules with unit tests: the rubric, predicates, queue ranking and trend arithmetic in `shared/`, and extraction, grounding, reconciliation and the evaluation metrics in `server/`.
+- **Here.** Read-only server computations are query functions in `server/functions/` (`homeSummary`, `accuracySummary`, `sourceDocument`, `firmObservations`, `operationsSummary`, `shellCounts`, `tourFirm`), called through `useOsdkQuery`. Logic that needs no database is kept in pure modules with unit tests: the rubric, predicates, queue ranking and trend arithmetic in `shared/`, and extraction, grounding, reconciliation and the evaluation metrics in `server/`.
 - **Kept.** The split between "compute near the data" and "compute anywhere", and the tests that came with the pure modules.
 - **Gained.** Pure modules import nothing that touches a database or the network, so they can be lifted into another runtime, a hosted function included, without taking the database along.
 - **Why.** The pure/impure line is what keeps a port possible in either direction.
