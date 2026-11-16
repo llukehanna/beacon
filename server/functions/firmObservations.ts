@@ -3,14 +3,16 @@
  * Stored findings keep only the reconciled result, so this recomputes the readings with the same
  * code the agent runs (`groundFirm`): same documents, same extraction, same grounding. Read-only.
  */
+import { evidenceTraits, researchedFor } from "../../shared/rubric/catalog.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import type { RubricContext, TraitDef } from "../../shared/rubric/types.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { firmModel } from "../../shared/scoring.js";
 import type {
   FirmObservations,
   GroundingChecks,
   ProviderObservation,
 } from "../../shared/summaries.js";
-import { ENRICH_AXES, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
 import { type Access, isHidden } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { getObject, listAll } from "../db/repo.js";
@@ -19,13 +21,14 @@ import { HttpError } from "../errors.js";
 import { type SourceDocument } from "../extraction/documents.js";
 import { quoteWordCount, valueInQuote } from "../extraction/grounding.js";
 import { groundFirm } from "../extraction/plan.js";
+import { loadActiveRubric, loadTraits } from "../rubric/load.js";
 
 export type { FirmObservations, GroundingChecks, ProviderObservation };
 
 /** Where the quote sits in the document and whether it supports the value; null when not found. */
 function checksFor(
   doc: SourceDocument | undefined,
-  axis: (typeof ENRICH_AXES)[number],
+  axis: TraitDef,
   value: string,
   quote: string | null,
 ): GroundingChecks | null {
@@ -51,17 +54,21 @@ function checksFor(
 export function observeFirm(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
+  rubric: RubricContext,
 ): FirmObservations {
   const { docs, extraction, grounded } = groundFirm(firm, rows);
-  const model = firmModel(firm);
+  const thesis = thesisOf(firm);
   const hitsByProvider: Record<string, number> = Object.fromEntries(
     PROVIDER_TRUST.map((p) => [p, 0]),
   );
-  const axes = ENRICH_AXES.filter((a) => a.models.includes(model)).map((axis) => {
+  const researched = evidenceTraits(rubric.traits).filter((a) =>
+    researchedFor(rubric.definition, a, thesis),
+  );
+  const axes = researched.map((axis) => {
     const providers = PROVIDER_TRUST.map((provider): ProviderObservation => {
       const doc = docs.find((d) => d.provider === provider);
       const kept = grounded.observations.find(
-        (o) => o.provider === provider && o.axis === axis.axis,
+        (o) => o.provider === provider && o.axis === axis.traitKey,
       );
       if (kept) {
         hitsByProvider[provider] += 1;
@@ -77,10 +84,10 @@ export function observeFirm(
         };
       }
       const rejection = grounded.rejected.find(
-        (r) => r.provider === provider && r.axis === axis.axis,
+        (r) => r.provider === provider && r.axis === axis.traitKey,
       );
       const said = extraction.output.items.find(
-        (i) => i.provider === provider && i.axis === axis.axis && i.value !== null,
+        (i) => i.provider === provider && i.axis === axis.traitKey && i.value !== null,
       );
       if (rejection && said) {
         return {
@@ -105,7 +112,7 @@ export function observeFirm(
         checks: null,
       };
     });
-    return { axis: axis.axis, providers };
+    return { axis: axis.traitKey, providers };
   });
   return { firmId: firm.$primaryKey, model: extraction.model, axes, hitsByProvider };
 }
@@ -125,5 +132,6 @@ export async function firmObservations(
     throw new HttpError(`Firm ${firmId} not found`, 404);
   }
   const rows = await listAll(q, "Extraction", { where: { firmId: { $eq: firmId } } });
-  return observeFirm(firm, rows);
+  const [{ definition }, traits] = await Promise.all([loadActiveRubric(q), loadTraits(q)]);
+  return observeFirm(firm, rows, { definition, traits });
 }

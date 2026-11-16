@@ -6,12 +6,13 @@
  */
 import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { CLUSTER_OUTPUT_SCHEMA, CLUSTER_SYSTEM, renderRejections } from "./clustering/claude.js";
+import { CLUSTER_SYSTEM, clusterOutputSchema, renderRejections } from "./clustering/claude.js";
 import { asFirmObject } from "./eval/pipeline.js";
 import { plantRejections } from "./eval/rules.js";
 import { SYSTEM_PROMPT, buildUserMessage } from "./extraction/contract.js";
 import { documentsHash, firmDocuments } from "./extraction/documents.js";
 import { generateUniverse } from "./seed/universe.js";
+import { TEST_RUBRIC } from "./testing.js";
 
 const digest = (s: string): string => createHash("sha256").update(s).digest("hex");
 const universe = generateUniverse();
@@ -44,8 +45,9 @@ describe("what the agent paths send", () => {
     expect(digest(renderRejections(rows))).toBe(
       "f5a1de09961b455dcbaadaecf2158e3e62b67492ea7fcbc2f0a984ca1fe7cea1",
     );
-    expect(digest(CLUSTER_SYSTEM + JSON.stringify(CLUSTER_OUTPUT_SCHEMA))).toBe(
-      "4f4fdf69f57cdb437230d88bc5bf3140342508fece5d50488b6e6d1519815908",
+    // Re-pinned once in task 5: the axis enum now follows catalog order (the same seven axes).
+    expect(digest(CLUSTER_SYSTEM + JSON.stringify(clusterOutputSchema(TEST_RUBRIC)))).toBe(
+      "8856fceec8d17e3d9a9bd85ed6b48273f8c21701d5449b239499f72fb9d51ff4",
     );
   });
 });

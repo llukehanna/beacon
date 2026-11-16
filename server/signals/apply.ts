@@ -32,17 +32,19 @@
  */
 import { signalOutranksCheck } from "../../shared/axisState.js";
 import { SIGNAL_AXES, isApplied, isSignalKind } from "../../shared/marketSignals.js";
+import { criterionPoints } from "../../shared/rubric/engine.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import { formatTraitValue } from "../../shared/rubric/traitValue.js";
 import type { RubricDefinition } from "../../shared/rubric/types.js";
 import type { Props } from "../../shared/schema.js";
-import { axisPoints, formatAxisValue, scoreFirm } from "../../shared/scoring.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import {
   ACQUIRED_BY_COMPETITOR,
   MARKET_SIGNAL,
   PASSED,
-  axisByName,
   normalizeLifecycle,
 } from "../../shared/vocab.js";
-import { withTraits } from "../db/traits.js";
+import { traitColumn, withTraits } from "../db/traits.js";
 
 /** A MarketSignal as the apply step reads it (timestamps as ISO strings). */
 export interface SignalRow {
@@ -126,22 +128,22 @@ function axisMove(signal: SignalRow, firm: FirmState): AxisMove | SkipReason {
   if (!SIGNAL_AXES[signal.kind as keyof typeof SIGNAL_AXES]?.includes(axis)) {
     return "unsupported_axis";
   }
-  const def = axisByName(axis);
+  const field = traitColumn(axis);
   const target = Number(signal.newValue);
-  if (def === undefined || signal.newValue === null || signal.newValue === undefined) {
+  if (field === undefined || signal.newValue === null || signal.newValue === undefined) {
     return "bad_value";
   }
   if (!Number.isFinite(target) || (axis === HIRE_DEPART_AXIS && !Number.isInteger(target))) {
     return "bad_value";
   }
-  const current = numberOf((firm as Record<string, unknown>)[def.firmField]);
+  const current = numberOf((firm as Record<string, unknown>)[field]);
   let next = target;
   if (signal.kind === "departure" && current !== null) {
     next = Math.min(target, current);
   } else if (signal.kind === "senior_hire" && current !== null) {
     next = Math.max(target, current);
   }
-  return { field: def.firmField, axis, next: Math.max(0, next), current };
+  return { field, axis, next: Math.max(0, next), current };
 }
 
 /**
@@ -234,7 +236,6 @@ export function planSignals(
         openOutcomeDrift: false,
       };
     }
-    const def = axisByName(move.axis)!;
     const patch = { [move.field]: move.next } as Props<"Firm">;
     const moved = { ...firm, ...patch };
     const afterScore = scoreFirm(rubric, withTraits(moved));
@@ -247,8 +248,8 @@ export function planSignals(
       finding: {
         firmId: signal.firmId,
         axis: move.axis,
-        value: formatAxisValue(move.next),
-        normalizedScore: axisPoints(moved, def, move.next),
+        value: formatTraitValue(move.next),
+        normalizedScore: criterionPoints(rubric, thesisOf(moved), move.axis, move.next),
         provider: MARKET_SIGNAL,
         sourceType: MARKET_SIGNAL,
         // A note, not a quotation: the signal has no source document, so nothing cites it.

@@ -1,4 +1,6 @@
 /** One rejection the clusterer may group: the analyst's words plus the firm's facts. */
+import type { RubricContext } from "../../shared/rubric/types.js";
+
 export interface RejectionRow {
   decisionId: string;
   firmId: string;
@@ -11,11 +13,13 @@ export interface RuleProposal {
   predicateAxis: string;
   ruleOperator: string;
   ruleThreshold: string;
-  ruleModel: "CF" | "CS" | "both";
+  /** A thesis key, or "both" for every thesis. */
+  ruleModel: string;
   summary: string;
   supportingDecisionIds: string[];
 }
 
 export type Clusterer = (
   rows: readonly RejectionRow[],
+  rubric: RubricContext,
 ) => Promise<{ proposals: RuleProposal[]; source: "claude" | "heuristic" }>;

@@ -6,6 +6,7 @@
  */
 import type { EvalReport } from "../../shared/evalReport.js";
 import type { ObjectOf } from "../../shared/schema.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { withTraits } from "../db/traits.js";
@@ -80,7 +81,7 @@ export async function evaluateRuleRecovery(
   clusterer: Clusterer = heuristicClusterer,
 ): Promise<EvalReport["ruleRecovery"]> {
   const { rows, planted } = await plantRejections(universe);
-  const { proposals } = await clusterer(rows);
+  const { proposals } = await clusterer(rows, { definition: WS.rubric, traits: WS.traits });
   const recovered = planted.filter((p) =>
     proposals.some(
       (x) =>

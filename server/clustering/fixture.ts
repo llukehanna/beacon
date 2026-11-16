@@ -50,8 +50,8 @@ export function fixtureClusterer(
   fixture: ClusteringFixture | null,
   fallback: Clusterer,
 ): Clusterer {
-  return async (rows) =>
+  return async (rows, rubric) =>
     fixture !== null && hashRejections(rows) === fixture.inputHash
       ? { proposals: fixture.proposals, source: "claude" }
-      : fallback(rows);
+      : fallback(rows, rubric);
 }

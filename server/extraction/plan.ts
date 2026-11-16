@@ -2,9 +2,12 @@
  * The agent's findings for one firm, planned from the firm and that firm's own stored extraction
  * rows. Pure: no DB, no network, so the seed can preview the plans before it writes anything.
  */
+import { evidenceTraits, researchedFor } from "../../shared/rubric/catalog.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import type { TraitDef } from "../../shared/rubric/types.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import { firmModel } from "../../shared/scoring.js";
-import { type AxisDef, ENRICH_AXES, type Provider } from "../../shared/vocab.js";
+import type { Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { type FindingPlan, reconcileAxis } from "../enrichment/reconcile.js";
 import {
   EXTRACTION_PROMPT_VERSION,
@@ -75,22 +78,22 @@ export function planFirm(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
   newConflictId: () => string,
-  include: (axis: AxisDef) => boolean = () => true,
-): ReturnType<typeof groundFirm> & { axes: { axis: AxisDef; plans: FindingPlan[] }[] } {
-  const model = firmModel(firm);
+  include: (axis: TraitDef) => boolean = () => true,
+): ReturnType<typeof groundFirm> & { axes: { axis: TraitDef; plans: FindingPlan[] }[] } {
+  const thesis = thesisOf(firm);
   const read = groundFirm(firm, rows);
   const { grounded } = read;
-  const axes = ENRICH_AXES.filter((axis) => axis.models.includes(model) && include(axis)).map(
-    (axis) => ({
+  const axes = evidenceTraits(WS.traits)
+    .filter((axis) => researchedFor(WS.rubric, axis, thesis) && include(axis))
+    .map((axis) => ({
       axis,
       plans: reconcileAxis(
         axis,
-        grounded.observations.filter((o) => o.axis === axis.axis),
+        grounded.observations.filter((o) => o.axis === axis.traitKey),
         newConflictId,
-        { groundingRejected: grounded.rejected.some((r) => r.axis === axis.axis) },
+        { groundingRejected: grounded.rejected.some((r) => r.axis === axis.traitKey) },
       ),
-    }),
-  );
+    }));
   return { ...read, axes };
 }
 
@@ -99,7 +102,7 @@ export function planFirmAxes(
   firm: ObjectOf<"Firm">,
   rows: readonly ObjectOf<"Extraction">[],
   newConflictId: () => string,
-  include: (axis: AxisDef) => boolean = () => true,
-): { axis: AxisDef; plans: FindingPlan[] }[] {
+  include: (axis: TraitDef) => boolean = () => true,
+): { axis: TraitDef; plans: FindingPlan[] }[] {
   return planFirm(firm, rows, newConflictId, include).axes;
 }

@@ -4,15 +4,11 @@
  * Everything is a pure function of (provider, firmId, axis), so there is no
  * fixture table and firms discovered later still get data.
  */
-import {
-  type AxisDef,
-  CF_MD_LABELS,
-  CF_SERVICES_LABELS,
-  CS_BSP_LABELS,
-  CS_MD_LABELS,
-  CS_SERVICES_LABELS,
-  type Provider,
-} from "../../shared/vocab.js";
+import { type EvidenceTrait, optionsFor } from "../../shared/rubric/catalog.js";
+import { resolveThesis } from "../../shared/rubric/engine.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
+import { type Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { gaussian, pick, rng } from "./random.js";
 
 export interface Observation {
@@ -36,7 +32,17 @@ export interface FirmRef {
 }
 
 export const idOf = (f: FirmRef): string => f.$primaryKey ?? f.firmId ?? "";
-const isCs = (f: FirmRef): boolean => (f.firmType ?? "").toLowerCase() === "cs";
+const isCs = (f: FirmRef): boolean => thesisKey(f) === "CS";
+/** The firm's thesis under the workspace these mocks describe. */
+const thesisKey = (f: FirmRef): string =>
+  resolveThesis(WS.rubric, thesisOf(f as Readonly<Record<string, unknown>>)).key;
+/** A category trait's labels for the firm's thesis, in rubric order. */
+const labels = (f: FirmRef, key: string): readonly string[] =>
+  optionsFor(
+    WS.rubric,
+    thesisOf(f as Readonly<Record<string, unknown>>),
+    WS.traits.find((t) => t.traitKey === key)!,
+  );
 
 export const PROVIDERS: Readonly<
   Record<
@@ -98,18 +104,16 @@ export const PROVIDERS: Readonly<
 };
 
 /** The firm's hidden true value for an axis (what a perfect analyst would find). */
-export function truthFor(firm: FirmRef, axis: AxisDef): string {
-  const r = rng(`truth|${idOf(firm)}|${axis.axis}`);
+export function truthFor(firm: FirmRef, axis: EvidenceTrait): string {
+  const r = rng(`truth|${idOf(firm)}|${axis.traitKey}`);
   const cs = isCs(firm);
-  switch (axis.axis) {
+  switch (axis.traitKey) {
     case "services_fit":
-      return cs
-        ? pick(r, CS_SERVICES_LABELS, [0.15, 0.45, 0.4])
-        : pick(r, CF_SERVICES_LABELS, [0.1, 0.5, 0.4]);
+      return pick(r, labels(firm, "services_fit"), cs ? [0.15, 0.45, 0.4] : [0.1, 0.5, 0.4]);
     case "md_pedigree":
-      return pick(r, cs ? CS_MD_LABELS : CF_MD_LABELS, [0.15, 0.5, 0.35]);
+      return pick(r, labels(firm, "md_pedigree"), [0.15, 0.5, 0.35]);
     case "balance_sheet_principal":
-      return pick(r, CS_BSP_LABELS, [0.2, 0.4, 0.4]);
+      return pick(r, labels(firm, "balance_sheet_principal"), [0.2, 0.4, 0.4]);
     case "deal_size_usd_m":
       return String(Math.max(5, Math.round(Math.exp(Math.log(60) + 0.8 * gaussian(r)))));
     case "deals_per_md_l3y":
@@ -127,32 +131,22 @@ export function truthFor(firm: FirmRef, axis: AxisDef): string {
     case "solvent":
       return r() < 0.95 ? "true" : "false";
     default:
-      throw new Error(`No truth model for axis ${axis.axis}`);
+      throw new Error(`No truth model for axis ${axis.traitKey}`);
   }
 }
 
-function wrongValue(firm: FirmRef, axis: AxisDef, truth: string, r: () => number): string {
-  if (axis.kind === "gate") {
+function wrongValue(firm: FirmRef, axis: EvidenceTrait, truth: string, r: () => number): string {
+  if (axis.kind === "yesno") {
     return truth === "true" ? "false" : "true";
   }
   if (axis.kind === "number") {
     const n = Number(truth) * (r() < 0.5 ? 0.4 + r() * 0.4 : 1.3 + r() * 0.6);
-    return axis.axis === "deals_per_md_l3y" ? n.toFixed(1) : String(Math.max(1, Math.round(n)));
+    return axis.traitKey === "deals_per_md_l3y" ? n.toFixed(1) : String(Math.max(1, Math.round(n)));
   }
-  const cs = isCs(firm);
-  const labels: readonly string[] =
-    axis.axis === "services_fit"
-      ? cs
-        ? CS_SERVICES_LABELS
-        : CF_SERVICES_LABELS
-      : axis.axis === "md_pedigree"
-        ? cs
-          ? CS_MD_LABELS
-          : CF_MD_LABELS
-        : CS_BSP_LABELS;
+  const options = labels(firm, axis.traitKey);
   return pick(
     r,
-    labels.filter((l) => l !== truth),
+    options.filter((l) => l !== truth),
   );
 }
 
@@ -160,13 +154,13 @@ function wrongValue(firm: FirmRef, axis: AxisDef, truth: string, r: () => number
 function draw(
   provider: Provider,
   firm: FirmRef,
-  axis: AxisDef,
+  axis: EvidenceTrait,
 ): { value: string; confidence: number } | null {
   const p = PROVIDERS[provider];
-  if (!p.axes.includes(axis.axis)) {
+  if (!p.axes.includes(axis.traitKey)) {
     return null;
   }
-  const r = rng(`obs|${provider}|${idOf(firm)}|${axis.axis}`);
+  const r = rng(`obs|${provider}|${idOf(firm)}|${axis.traitKey}`);
   if (r() > p.coverage) {
     return null;
   }
@@ -177,7 +171,11 @@ function draw(
 }
 
 /** What one provider reports for one firm and axis, or null if it has nothing. */
-export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Observation | null {
+export function observe(
+  provider: Provider,
+  firm: FirmRef,
+  axis: EvidenceTrait,
+): Observation | null {
   const d = draw(provider, firm, axis);
   if (!d) {
     return null;
@@ -185,11 +183,11 @@ export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Obser
   const p = PROVIDERS[provider];
   return {
     provider,
-    axis: axis.axis,
+    axis: axis.traitKey,
     value: d.value,
     confidence: d.confidence,
-    sourceUrl: `https://${p.host}/firms/${encodeURIComponent(idOf(firm))}#${axis.axis}`,
-    sourceExcerpt: `${p.label} lists ${axis.axis.replace(/_/g, " ")} for ${firm.firmName ?? "this firm"} as "${d.value}".`,
+    sourceUrl: `https://${p.host}/firms/${encodeURIComponent(idOf(firm))}#${axis.traitKey}`,
+    sourceExcerpt: `${p.label} lists ${axis.traitKey.replace(/_/g, " ")} for ${firm.firmName ?? "this firm"} as "${d.value}".`,
   };
 }
 
@@ -197,7 +195,7 @@ export function observe(provider: Provider, firm: FirmRef, axis: AxisDef): Obser
  * The confidence `observe` assigns to this provider's answer. Where the
  * provider has nothing for the firm and axis, its midpoint confidence.
  */
-export function confidenceFor(provider: Provider, firm: FirmRef, axis: AxisDef): number {
+export function confidenceFor(provider: Provider, firm: FirmRef, axis: EvidenceTrait): number {
   const d = draw(provider, firm, axis);
   if (d) {
     return d.confidence;

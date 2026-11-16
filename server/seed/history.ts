@@ -6,8 +6,10 @@
  * whose agent runs are left open for the analyst.
  */
 import { toScreeningRules } from "../../shared/activeScreening.js";
+import { traitFor } from "../../shared/rubric/catalog.js";
+import { parseTraitValue } from "../../shared/rubric/traitValue.js";
 import type { ActionName, ObjectOf, ObjectTypeName } from "../../shared/schema.js";
-import { parseAxisValue, scoreFirm } from "../../shared/scoring.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS } from "../../shared/showcaseFirms.js";
 import { ENRICH_AXES, USER, axisByName, normalizeLifecycle } from "../../shared/vocab.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
@@ -25,6 +27,8 @@ import { sameValue } from "../enrichment/reconcile.js";
 import { planFirmAxes } from "../extraction/plan.js";
 import { planRejections } from "./rejections.js";
 import { pickShowcaseFirms } from "./showcase.js";
+
+const WS = ADVISORY_ACQUISITIONS;
 
 /** Offline code scores with the workspace it seeds; live actions load the stored rubric. */
 const RUBRIC = ADVISORY_ACQUISITIONS.rubric;
@@ -127,24 +131,26 @@ export async function seedHistory(
         continue;
       }
       const axis = axisByName(pair[0].axis!)!;
-      const truth = truthFor(firm, axis);
-      const right = pair.find((f) => sameValue(axis, f.value ?? "", truth)) ?? pair[0];
+      const trait = traitFor(WS.traits, axis.axis)!;
+      const truth = truthFor(firm, trait);
+      const right = pair.find((f) => sameValue(trait, f.value ?? "", truth)) ?? pair[0];
       const wrong = pair.find((f) => f !== right)!;
       await act("resolveConflict", {
         chosenFinding: right.$primaryKey,
         rejectedFinding: wrong.$primaryKey,
         chosenValue: right.value,
       });
-      accepted[axis.actionParam] = parseAxisValue(axis, right.value!);
+      accepted[axis.actionParam] = parseTraitValue(trait, right.value!);
     }
 
     for (const f of open.filter((x) => !x.conflictGroupId)) {
       const axis = axisByName(f.axis!)!;
-      const truth = truthFor(firm, axis);
+      const trait = traitFor(WS.traits, axis.axis)!;
+      const truth = truthFor(firm, trait);
       if (f.findingStatus === "abstained") {
         if (r() < 0.6) {
           await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
-          accepted[axis.actionParam] = parseAxisValue(axis, truth);
+          accepted[axis.actionParam] = parseTraitValue(trait, truth);
           manual.push(axis.actionParam);
         }
         continue;
@@ -152,13 +158,13 @@ export async function seedHistory(
       if (r() < 0.15) {
         continue;
       } // left for the analyst: keeps real work on the desk
-      if (sameValue(axis, f.value!, truth)) {
+      if (sameValue(trait, f.value!, truth)) {
         await act("verifyFinding", { finding: f.$primaryKey });
       } else {
         await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
         overridden.push(axis.actionParam);
       }
-      accepted[axis.actionParam] = parseAxisValue(axis, truth);
+      accepted[axis.actionParam] = parseTraitValue(trait, truth);
     }
     if (Object.keys(accepted).length > 0) {
       await act("enrichFirm", {
@@ -199,14 +205,15 @@ export async function seedHistory(
         break;
       }
       const axis = axisByName(f.axis!)!;
-      const truth = truthFor(firm, axis);
-      if (sameValue(axis, f.value!, truth)) {
+      const trait = traitFor(WS.traits, axis.axis)!;
+      const truth = truthFor(firm, trait);
+      if (sameValue(trait, f.value!, truth)) {
         await act("verifyFinding", { finding: f.$primaryKey });
       } else {
         await act("verifyFinding", { finding: f.$primaryKey, overrideValue: truth });
         overridden.push(axis.actionParam);
       }
-      accepted[axis.actionParam] = parseAxisValue(axis, truth);
+      accepted[axis.actionParam] = parseTraitValue(trait, truth);
       fields[axis.firmField] = accepted[axis.actionParam];
     }
     if (Object.keys(accepted).length > 0) {

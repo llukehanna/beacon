@@ -45,6 +45,14 @@ export function validateWorkspace(ws: WorkspaceDefinition): void {
       scorable(`Thesis "${thesis.key}" hard reject`, r.traitKey);
     }
   }
+  const thesisKeys = new Set(ws.rubric.theses.map((t) => t.key));
+  for (const t of ws.traits) {
+    for (const k of t.theses ?? []) {
+      if (!thesisKeys.has(k)) {
+        problems.push(`Trait "${t.traitKey}" names undeclared thesis "${k}"`);
+      }
+    }
+  }
   for (const s of ws.rubric.candidateScreens) {
     scorable("Candidate screen", s.axis);
   }
