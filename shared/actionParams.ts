@@ -61,6 +61,8 @@ export const ACTION_PARAMS = {
     solvent: optional("boolean"),
     employees: optional("integer"),
     coverageModel: optional("string"),
+    /** JSON object of trait key → value (null clears it); the catalog checks each. */
+    traitValues: optional("string"),
     fieldsEnteredManually: optional("string"),
     agentValuesOverridden: optional("string"),
   },

@@ -6,8 +6,7 @@
  * the header/badge label read from it, so the two can't disagree.
  *
  * The verdict combines three sources, in this order:
- *   1. Client base rules (from scoreMirror) — generalist coverage / S&T
- *      services for CF, principal investing / advisoryConflict for CS.
+ *   1. The rubric's own hard rejects, for the firm's thesis.
  *   2. Active approved HardScreenConfig rows — learned rules an analyst
  *      has approved via /rules. Filtered to configActive === true before
  *      being passed in, so pending / dismissed proposals never screen.
@@ -20,23 +19,29 @@
  *   • workable → gain desc, fewer-missing tiebreak
  */
 import { looseText } from "./looseText.js";
-import { type Model, type ScoreInput, mirrorScore } from "./scoreMirror.js";
+import { researchedFor } from "./rubric/catalog.js";
+import { criterionMax, resolveThesis, scoreTraits } from "./rubric/engine.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import type { RubricContext, TraitValue } from "./rubric/types.js";
 import { PASSED, isQualifiedOrLater, normalizeLifecycle } from "./vocab.js";
 
-export type QueueFirm = ScoreInput & {
+export interface QueueFirm {
   firmId: string;
   firmName?: string | null;
+  /** The thesis the firm is scored under (today's column is firmType). */
+  firmType?: string | null;
+  /** The firm's trait values by trait key. */
+  traits?: Record<string, TraitValue>;
   // Lifecycle carried through so the ranker can push Qualified-or-later / Passed
   // firms to the bottom — the desk is a to-do list, not a leaderboard.
   lifecycleState?: string | null;
   currentStage?: string | null;
-  // Disposition captures the server's judgement — the client mirror only
-  // knows a subset of hard-screen rules (coverage/services/geo/conflict);
-  // the server may have flagged the firm through a HardScreenConfig row
-  // the client can't reconstruct. Reading disposition lets us honour the
-  // server's decision even when the mirror sees the firm as workable.
+  // Disposition captures the server's judgement — the server may have
+  // flagged the firm through a mechanism the client can't reconstruct.
+  // Reading disposition lets us honour the server's decision even when the
+  // rubric sees the firm as workable.
   disposition?: string | null;
-};
+}
 
 export interface RankedFirm {
   firm: QueueFirm;
@@ -51,6 +56,8 @@ export interface RankedFirm {
   terminal: boolean;
   currentScore: number;
   ceiling: number;
+  /** The most points the firm's thesis can award. */
+  maxPossible: number;
   gain: number;
   missingCount: number;
   tier: string;
@@ -60,93 +67,23 @@ export interface RankedFirm {
 
 export interface ActiveConfigRule {
   ruleId: string;
-  axis: string; // backend vocab (e.g. "deal_size_usd_m", "employees")
+  axis: string; // a trait key (e.g. "deal_size_usd_m", "employees")
   operator: string; // <, <=, >, >=, ==, !=, =, in
   threshold: string; // stringified value; parsed at compare-time
-  model: string; // "CF" | "CS" | "both" — case-insensitive
+  model: string; // a thesis key or "both" — case-insensitive
 }
-
-// Backend axis vocab → firm field name. Kept close to the finding-axis
-// map so a single canonical vocabulary drives all three surfaces
-// (findings, rules, hard-screen). Values are stringly-typed so this map
-// can include hard-gate fields (hasSTOrBalanceSheet, webActivity, solvent)
-// that live on the Firm object but aren't part of the ScoreInput used
-// by mirrorScore.
-const AXIS_TO_FIRM_FIELD: Record<string, string> = {
-  services_fit: "servicesFit",
-  md_pedigree: "mdPedigree",
-  balance_sheet_principal: "balanceSheetPrincipal",
-  deal_size: "dealSizeMUsd",
-  deal_size_usd_m: "dealSizeMUsd",
-  deals_per_md: "dealsPerMdL3y",
-  deals_per_md_l3y: "dealsPerMdL3y",
-  firm_age: "firmAge",
-  firm_age_years: "firmAge",
-  fee_generating_count: "feeGeneratingCount",
-  employees: "employees",
-  coverage_model: "coverageModel",
-  geographic_footprint: "geographicFootprint",
-  geo_score: "geoScore",
-  // The rule engine emits `geography` for geo-fit predicates ("geography
-  // < 2"). Firm also has a literal `geography` STRING property ("Italy"),
-  // and pointing a numeric predicate at it yields NaN — the rule silently
-  // screens nobody. Numeric geo predicates mean the 0-2 geo score, so route
-  // this axis there.
-  geography: "geoScore",
-  advisory_conflict: "advisoryConflict",
-  has_st_or_balance_sheet: "hasSTOrBalanceSheet",
-  web_activity: "webActivity",
-  solvent: "solvent",
-};
 
 /**
- * Backend axis vocab → firm field name, or null when the axis is one we
- * can't resolve. Exported so ./activeScreening screens on the SAME
- * vocabulary this module ranks on — two axis maps would be two chances for
- * the desk and /rules to disagree about what a rule targets.
- */
-export function firmFieldFor(axis: string): string | null {
-  const key = axis.trim().toLowerCase();
-  return AXIS_TO_FIRM_FIELD[key] ?? null;
-}
-
-/** Every firm property a rule axis can name: the columns a rule evaluator has to be given. */
-export function firmFieldNames(): string[] {
-  return [...new Set(Object.values(AXIS_TO_FIRM_FIELD))];
-}
-
-/** The Firm properties mirrorScore reads. */
-export const SCORE_INPUT_FIELDS = [
-  "firmType",
-  "coverageModel",
-  "servicesFit",
-  "mdPedigree",
-  "balanceSheetPrincipal",
-  "geoScore",
-  "dealSizeMUsd",
-  "dealsPerMdL3y",
-  "firmAge",
-  "employees",
-  "feeGeneratingCount",
-  "geographicFootprint",
-  "advisoryConflict",
-] as const;
-
-/**
- * Every Firm property the queue reads: identity and lifecycle, the score
- * inputs, and whatever a hard-screen rule axis can name (the gate fields
- * solvent / webActivity / hasSTOrBalanceSheet included).
+ * The firm properties the queue reads besides its traits: identity, thesis and lifecycle. The
+ * server selects these plus the trait storage; the client loads whole firms.
  */
 export const QUEUE_FIELDS: readonly string[] = [
-  ...new Set([
-    "firmId",
-    "firmName",
-    "lifecycleState",
-    "currentStage",
-    "disposition",
-    ...SCORE_INPUT_FIELDS,
-    ...firmFieldNames(),
-  ]),
+  "firmId",
+  "firmName",
+  "firmType",
+  "lifecycleState",
+  "currentStage",
+  "disposition",
 ];
 
 /**
@@ -154,7 +91,7 @@ export const QUEUE_FIELDS: readonly string[] = [
  * and the server's homeSummary all rank through this, so a hard-screen rule on
  * a gate axis screens the same firms everywhere.
  */
-export function toQueueFirm(firm: object): QueueFirm & Record<string, unknown> {
+export function toQueueFirm(firm: object): QueueFirm {
   const f = firm as Record<string, unknown>;
   const out: Record<string, unknown> = {};
   for (const k of QUEUE_FIELDS) {
@@ -162,19 +99,20 @@ export function toQueueFirm(firm: object): QueueFirm & Record<string, unknown> {
   }
   out.firmId = f.firmId ?? "";
   out.disposition = f.disposition ?? null;
-  return out as QueueFirm & Record<string, unknown>;
+  out.traits = { ...traitsOf(f) };
+  return out as unknown as QueueFirm;
 }
 
-function firmModel(firm: QueueFirm): "cf" | "cs" {
-  return (firm.firmType ?? "").trim().toLowerCase() === "cs" ? "cs" : "cf";
-}
-
-function ruleAppliesToFirm(rule: ActiveConfigRule, firm: QueueFirm): boolean {
+function ruleAppliesToFirm(
+  rubric: RubricContext,
+  rule: ActiveConfigRule,
+  firm: QueueFirm,
+): boolean {
   const rm = (rule.model ?? "").trim().toLowerCase();
   if (rm === "" || rm === "both") {
     return true;
   }
-  return rm === firmModel(firm);
+  return rm === resolveThesis(rubric.definition, thesisOf(firm as never)).key.toLowerCase();
 }
 
 // Numeric comparison when both sides parse as numbers; otherwise
@@ -275,26 +213,27 @@ export interface HardScreenVerdict {
  * never screen.
  */
 export function computeHardScreen(
+  rubric: RubricContext,
   firm: QueueFirm,
   activeConfigs: readonly ActiveConfigRule[],
 ): HardScreenVerdict {
-  // 1. Client base rules (mirrorScore captures them).
-  const mirror = mirrorScore(firm);
-  if (mirror.hardRejected) {
-    return { hardScreened: true, reason: mirror.rejectReason, source: "base" };
+  // 1. The rubric's own hard rejects.
+  const score = scoreFirmTraits(rubric, firm);
+  if (score.hardRejected) {
+    return { hardScreened: true, reason: score.rejectReason, source: "base" };
   }
-  // 2. Active approved HardScreenConfig rows — evaluate per firm type.
+  // 2. Active approved HardScreenConfig rows — evaluate per thesis.
   for (const rule of activeConfigs) {
-    if (!ruleAppliesToFirm(rule, firm)) {
+    if (!ruleAppliesToFirm(rubric, rule, firm)) {
       continue;
     }
-    const field = firmFieldFor(rule.axis);
-    if (field === null) {
-      // Rule targets an axis we can't resolve — safest to skip rather
+    const key = rule.axis.trim().toLowerCase();
+    if (!rubric.traits.some((t) => t.traitKey === key)) {
+      // Rule targets an axis the catalog doesn't know — safest to skip rather
       // than false-positive the firm.
       continue;
     }
-    const value: unknown = Reflect.get(firm, field);
+    const value: unknown = traitsOf(firm as never)[key];
     if (ruleMatches(value, rule.operator, rule.threshold)) {
       return {
         hardScreened: true,
@@ -315,15 +254,9 @@ export function computeHardScreen(
   return { hardScreened: false, reason: null, source: null };
 }
 
-const ENRICHABLE: { field: keyof ScoreInput; max: number; csOnly?: boolean }[] = [
-  { field: "servicesFit", max: 2 },
-  { field: "mdPedigree", max: 2 },
-  { field: "balanceSheetPrincipal", max: 2, csOnly: true },
-  { field: "dealSizeMUsd", max: 2 },
-  { field: "dealsPerMdL3y", max: 2 },
-  { field: "firmAge", max: 2 },
-  { field: "feeGeneratingCount", max: 2 },
-];
+function scoreFirmTraits(rubric: RubricContext, firm: QueueFirm) {
+  return scoreTraits(rubric.definition, thesisOf(firm as never), traitsOf(firm as never));
+}
 
 // Disposition strings that indicate the firm was blocked by a hard-screen
 // rule, however encoded server-side. Matched case-insensitively as a
@@ -353,26 +286,30 @@ export function dispositionMarksHardScreen(disposition: string | null | undefine
 }
 
 export function rankFirm(
+  rubric: RubricContext,
   firm: QueueFirm,
   activeConfigs: readonly ActiveConfigRule[] = [],
 ): RankedFirm {
-  const res = mirrorScore(firm);
-  const model: Model = res.model;
+  const res = scoreFirmTraits(rubric, firm);
+  const traits = traitsOf(firm as never);
+  // The headroom is what researching the firm could still add: every criterion on a researched
+  // trait the firm has no value for, at its full points.
   let missingCount = 0;
   let headroom = 0;
-  for (const { field, max, csOnly } of ENRICHABLE) {
-    if (csOnly && model !== "CS") {
+  for (const c of resolveThesis(rubric.definition, res.model).criteria) {
+    const trait = rubric.traits.find((t) => t.traitKey === c.traitKey);
+    if (trait?.role !== "evidence" || !researchedFor(rubric.definition, trait, res.model)) {
       continue;
     }
-    if (isMissing(firm[field])) {
+    if (isMissing(traits[c.traitKey])) {
       missingCount++;
-      headroom += max;
+      headroom += criterionMax(c) * c.weight;
     }
   }
   const currentScore = res.hardRejected ? 0 : res.weightedTotal;
   const ceiling = res.hardRejected ? 0 : Math.min(res.maxPossible, currentScore + headroom);
   const gain = Math.max(0, ceiling - currentScore);
-  const verdict = computeHardScreen(firm, activeConfigs);
+  const verdict = computeHardScreen(rubric, firm, activeConfigs);
   return {
     firm,
     hardRejected: res.hardRejected,
@@ -381,6 +318,7 @@ export function rankFirm(
     terminal: isTerminal(firm),
     currentScore,
     ceiling,
+    maxPossible: res.maxPossible,
     gain,
     missingCount,
     tier: res.tier,
@@ -388,11 +326,12 @@ export function rankFirm(
 }
 
 export function orderEnrichmentQueue(
+  rubric: RubricContext,
   firms: QueueFirm[],
   activeConfigs: readonly ActiveConfigRule[] = [],
 ): RankedFirm[] {
   return firms
-    .map((f) => rankFirm(f, activeConfigs))
+    .map((f) => rankFirm(rubric, f, activeConfigs))
     .sort((a, b) => {
       // 1. Hard-screened firms (any lifecycle) sink to the very bottom —
       //    enrichment is worthless because the screen already made the call.

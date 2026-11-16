@@ -1,7 +1,6 @@
 import React from "react";
 import { Drawer } from "@blueprintjs/core";
 import { type FindingLike } from "../axisState";
-import { type Model } from "../scoreMirror";
 import { EvidenceBody } from "./EvidenceBody";
 import styles from "./EvidencePanel.module.css";
 import { HistoryTab } from "./HistoryTab";
@@ -19,7 +18,7 @@ export interface EvidenceProps {
   firm: FirmView;
   allFirms: FirmView[];
   firmsLoading: boolean;
-  model: Model;
+  model: string;
   edits: EditMap;
   onFile: Record<string, OnFile>;
   getCurrent: (editKey: string) => Staged | null | undefined;

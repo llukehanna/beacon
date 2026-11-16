@@ -1,19 +1,22 @@
-import type { Props } from "../../shared/schema.js";
-import { axisPoints, formatAxisValue, parseAxisValue } from "../../shared/scoring.js";
+import { evidenceTraits, traitFor } from "../../shared/rubric/catalog.js";
+import { criterionPoints } from "../../shared/rubric/engine.js";
+import { thesisOf } from "../../shared/rubric/firm.js";
 import {
-  ANALYST,
-  type AxisDef,
-  DECISION,
-  ENRICH_AXES,
-  type Provider,
-  axisByName,
-  normalizeLifecycle,
-} from "../../shared/vocab.js";
+  TraitValueError,
+  checkTraitValue,
+  formatTraitValue,
+  parseTraitValue,
+} from "../../shared/rubric/traitValue.js";
+import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
+import { OBJECT_TYPES, type Props } from "../../shared/schema.js";
+import { ANALYST, DECISION, type Provider, normalizeLifecycle } from "../../shared/vocab.js";
 import { insertObject, listAll, updateObject } from "../db/repo.js";
+import { traitColumn, traitKeyFor } from "../db/traits.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import { ActionError } from "../errors.js";
 import { planFirmAxes } from "../extraction/plan.js";
+import { loadActiveRubric, loadTraits } from "../rubric/load.js";
 import { type FirmObj, iso, logDecision, requireObject, snapshotScore } from "./common.js";
 import { computeDriftForFirm } from "./drift.js";
 import { type ActionContext, defineAction } from "./types.js";
@@ -23,10 +26,26 @@ const moveToScreening = (firm: FirmObj): Props<"Firm"> =>
     ? { lifecycleState: "Screening", currentStage: "Screening" }
     : {};
 
+/** The points a lone value earns on its criterion under the active rubric (null when unscored). */
+async function pointsFor(
+  ctx: ActionContext,
+  firm: FirmObj,
+  axis: TraitDef,
+  value: string,
+): Promise<number | null> {
+  const { definition } = await loadActiveRubric(ctx.tx);
+  return criterionPoints(definition, thesisOf(firm), axis.traitKey, parseTraitValue(axis, value));
+}
+
+/** The evidence trait a finding's axis names, or null when the catalog has none. */
+async function evidenceTrait(ctx: ActionContext, name: string): Promise<TraitDef | null> {
+  return traitFor(evidenceTraits(await loadTraits(ctx.tx)), name) ?? null;
+}
+
 async function insertAnalystFinding(
   ctx: ActionContext,
   firm: FirmObj,
-  axis: AxisDef,
+  axis: TraitDef,
   value: string,
   excerpt: string,
   normalizedScore?: number | null,
@@ -35,7 +54,7 @@ async function insertAnalystFinding(
   await insertObject(ctx.tx, "ResearchFinding", {
     findingId,
     firmId: firm.$primaryKey,
-    axis: axis.axis,
+    axis: axis.traitKey,
     value,
     provider: ANALYST,
     sourceType: "analyst",
@@ -47,7 +66,7 @@ async function insertAnalystFinding(
     verifiedByHuman: false,
     verifiedBy: ctx.user,
     verifiedAt: iso(ctx.now),
-    normalizedScore: normalizedScore ?? axisPoints(firm, axis, parseAxisValue(axis, value)),
+    normalizedScore: normalizedScore ?? (await pointsFor(ctx, firm, axis, value)),
     retrievedAt: iso(ctx.now),
   });
   return findingId;
@@ -69,8 +88,8 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
-    const settled = (axis: AxisDef) =>
-      existing.some((f) => f.axis === axis.axis && f.findingStatus === "verified"); // settled by a human
+    const settled = (axis: TraitDef) =>
+      existing.some((f) => f.axis === axis.traitKey && f.findingStatus === "verified"); // settled by a human
     for (const { axis, plans } of planFirmAxes(
       firm,
       stored,
@@ -79,7 +98,7 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
     )) {
       for (const stale of existing.filter(
         (f) =>
-          f.axis === axis.axis &&
+          f.axis === axis.traitKey &&
           (f.findingStatus === "proposed" || f.findingStatus === "abstained"),
       )) {
         await updateObject(ctx.tx, "ResearchFinding", stale.$primaryKey, {
@@ -93,7 +112,7 @@ export const runAgentEnrichment = defineAction("runAgentEnrichment", {
           firmId: firm.$primaryKey,
           ...plan,
           normalizedScore:
-            plan.value === null ? null : axisPoints(firm, axis, parseAxisValue(axis, plan.value)),
+            plan.value === null ? null : await pointsFor(ctx, firm, axis, plan.value),
           verifiedByHuman: false,
           retrievedAt: iso(ctx.now),
         });
@@ -118,7 +137,7 @@ export const verifyFinding = defineAction("verifyFinding", {
         409,
       );
     }
-    const axis = axisByName(finding.axis ?? "");
+    const axis = await evidenceTrait(ctx, finding.axis ?? "");
     if (!axis) {
       throw new ActionError(`Unknown axis "${finding.axis ?? ""}"`);
     }
@@ -219,25 +238,84 @@ function parseKeyList(raw: string | undefined): Set<string> {
   );
 }
 
+/** Parse and check enrichFirm's `traitValues` against the stored catalog. */
+async function traitValuesParam(
+  ctx: ActionContext,
+  raw: string | undefined,
+): Promise<Record<string, TraitValue | null>> {
+  if (raw === undefined) {
+    return {};
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    parsed = undefined;
+  }
+  if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new ActionError("traitValues must be a JSON object of trait key to value");
+  }
+  const catalog = new Map((await loadTraits(ctx.tx)).map((t) => [t.traitKey, t]));
+  const out: Record<string, TraitValue | null> = {};
+  for (const [key, v] of Object.entries(parsed)) {
+    const trait = catalog.get(key);
+    if (!trait || traitColumn(key) === undefined) {
+      throw new ActionError(`Unknown trait "${key}"`);
+    }
+    let value: TraitValue | null;
+    try {
+      value = checkTraitValue(trait, v);
+    } catch (e) {
+      throw new ActionError(e instanceof TraitValueError ? e.message : String(e));
+    }
+    out[key] = value === null ? null : storable(trait, value);
+  }
+  return out;
+}
+
+/**
+ * A checked value as its column stores it, refused by trait name when it cannot be: a fraction
+ * for a whole-number trait, or a label outside a category trait's vocabulary (matched trimmed and
+ * case-insensitively, then stored as the catalog spells it).
+ */
+function storable(trait: TraitDef, value: TraitValue): TraitValue {
+  const column = traitColumn(trait.traitKey) as keyof (typeof OBJECT_TYPES)["Firm"]["properties"];
+  if (
+    typeof value === "number" &&
+    OBJECT_TYPES.Firm.properties[column] === "integer" &&
+    !Number.isInteger(value)
+  ) {
+    throw new ActionError(`${trait.traitKey} must be a whole number, got ${value}`);
+  }
+  if (trait.kind === "category" && typeof value === "string" && trait.options !== null) {
+    const want = value.trim().toLowerCase();
+    const label = trait.options.find((o) => o.toLowerCase() === want);
+    if (label === undefined) {
+      throw new ActionError(`${trait.traitKey} must be one of: ${trait.options.join(", ")}`);
+    }
+    return label;
+  }
+  return value;
+}
+
 export const enrichFirm = defineAction("enrichFirm", {
   async run(ctx, p) {
     const { firm } = p;
-    const values: Record<string, unknown> = p;
-    const patch: Record<string, unknown> = {};
-    const written: AxisDef[] = [];
-    for (const axis of ENRICH_AXES) {
-      const v = values[axis.actionParam];
-      if (v !== undefined) {
-        patch[axis.firmField] = v;
-        written.push(axis);
+    // Every value as trait key → value: the legacy per-field params, then traitValues.
+    const incoming: Record<string, TraitValue | null> = {};
+    for (const [name, v] of Object.entries(p)) {
+      const key = traitKeyFor(name);
+      if (key !== undefined && v !== undefined) {
+        incoming[key] = v as TraitValue | null;
       }
     }
-    if (p.employees !== undefined) {
-      patch.employees = p.employees;
+    Object.assign(incoming, await traitValuesParam(ctx, p.traitValues));
+    const patch: Record<string, unknown> = {};
+    for (const [key, v] of Object.entries(incoming)) {
+      patch[traitColumn(key)!] = v;
     }
-    if (p.coverageModel !== undefined) {
-      patch.coverageModel = p.coverageModel;
-    }
+    const catalog = await loadTraits(ctx.tx);
+    const written = evidenceTraits(catalog).filter((t) => incoming[t.traitKey] !== undefined);
     if (Object.keys(patch).length === 0) {
       throw new ActionError("Nothing to enrich; pass at least one field");
     }
@@ -253,16 +331,21 @@ export const enrichFirm = defineAction("enrichFirm", {
 
     // Record analyst evidence only for manual values no existing finding backs;
     // accepted agent findings are verified separately by the desk's flush.
-    const manual = parseKeyList(p.fieldsEnteredManually);
+    // Old clients name fields by column; new ones by trait key.
+    const manual = new Set(
+      [...parseKeyList(p.fieldsEnteredManually)].map((n) => traitKeyFor(n) ?? n),
+    );
     const existing = await listAll(ctx.tx, "ResearchFinding", {
       where: { firmId: { $eq: firm.$primaryKey } },
     });
     const created: string[] = [];
-    for (const axis of written.filter((a) => manual.has(a.actionParam))) {
-      const value = formatAxisValue(values[axis.actionParam] as string | number | boolean);
+    for (const axis of written.filter(
+      (a) => manual.has(a.traitKey) && incoming[a.traitKey] !== null,
+    )) {
+      const value = formatTraitValue(incoming[axis.traitKey]!);
       const backed = existing.some(
         (f) =>
-          f.axis === axis.axis &&
+          f.axis === axis.traitKey &&
           f.value !== undefined &&
           (f.findingStatus === "proposed" || f.findingStatus === "verified") &&
           sameValue(axis, f.value, value),

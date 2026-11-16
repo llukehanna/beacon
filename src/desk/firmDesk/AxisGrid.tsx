@@ -1,5 +1,7 @@
 import React from "react";
+import { useRubric } from "@/data/rubricContext";
 import { ConfidenceBars, Skeleton, StatusPill } from "@/ui";
+import type { RubricContext } from "../../../shared/rubric/types";
 import { PROVIDER_TRUST, providerLabel } from "../../../shared/vocab";
 import { formatAxisValue } from "../findingActions";
 import styles from "./AxisGrid.module.css";
@@ -8,6 +10,7 @@ import {
   type RowCounts,
   type RowState,
   compositionText,
+  maxPointsFor,
   summaryText,
 } from "./axisRows";
 import { type EditMap } from "./deskModel";
@@ -15,9 +18,9 @@ import { rejectReasonText } from "./evidenceModel";
 import { type OnFile } from "./onFile";
 
 /** The pending value an analyst has staged for an axis, as the row shows it. */
-function stagedText(row: AxisRow, edits: EditMap): string | null {
-  const v = edits[row.def.actionParam];
-  return v === undefined || v === "" ? null : formatAxisValue(row.def.actionParam, v);
+function stagedText(rubric: RubricContext, row: AxisRow, edits: EditMap): string | null {
+  const v = edits[row.axis];
+  return v === undefined || v === "" ? null : formatAxisValue(rubric, row.axis, v);
 }
 
 /**
@@ -33,7 +36,7 @@ function fileLine(row: AxisRow, file: OnFile | undefined, noteShowsIt: boolean):
   ) {
     return null;
   }
-  return `on file: ${file.text}${file.band === null ? "" : ` · ${file.band}/2`}`;
+  return `on file: ${file.text}${file.band === null ? "" : ` · ${file.band}/${file.bandMax}`}`;
 }
 
 function RowStatus({ state }: { state: RowState }): React.ReactElement {
@@ -50,7 +53,7 @@ function ProviderCell({ row, provider }: { row: AxisRow; provider: string }): Re
   const name = providerLabel(provider);
   if (cell.value !== null) {
     return (
-      <span className={`${styles.val} ${row.def.kind === "enum" ? styles.words : ""}`}>
+      <span className={`${styles.val} ${row.trait.kind === "category" ? styles.words : ""}`}>
         <span className={styles.valText}>{cell.value}</span>
         <ConfidenceBars level={cell.confidence} />
       </span>
@@ -81,6 +84,7 @@ function ProviderCell({ row, provider }: { row: AxisRow; provider: string }): Re
  */
 export function AxisGrid({
   rows,
+  thesis,
   counts,
   edits,
   onFile,
@@ -89,6 +93,8 @@ export function AxisGrid({
   loading,
 }: {
   rows: AxisRow[];
+  /** The thesis the firm is scored under. */
+  thesis: string | null;
   counts: RowCounts;
   edits: EditMap;
   /** What the firm record holds per axis (see onFile.ts). */
@@ -98,6 +104,8 @@ export function AxisGrid({
   /** True while the findings load. */
   loading: boolean;
 }): React.ReactElement {
+  const rubric = useRubric();
+  const maxTotal = maxPointsFor(rubric, thesis);
   const tbodyRef = React.useRef<HTMLTableSectionElement>(null);
   const tabStop = selected ?? rows[0]?.axis;
 
@@ -137,7 +145,7 @@ export function AxisGrid({
         <span className={styles.summary}>{summaryText(counts)}</span>
       </div>
       <p className={styles.composition}>
-        {compositionText(rows)} A gate is pass or fail and earns no points.
+        {compositionText(rubric, thesis, rows)} A gate is pass or fail and earns no points.
       </p>
       {noFindings && (
         <p className={styles.note} role="status">
@@ -161,7 +169,7 @@ export function AxisGrid({
           </thead>
           <tbody ref={tbodyRef}>
             {rows.map((row) => {
-              const staged = stagedText(row, edits);
+              const staged = stagedText(rubric, row, edits);
               const noSource =
                 row.state === "abstained" &&
                 row.readings.length > 0 &&
@@ -208,9 +216,11 @@ export function AxisGrid({
                   <td
                     className={styles.w}
                     title={
-                      row.def.kind === "gate"
+                      row.trait.kind === "yesno"
                         ? "A gate: pass or fail, no points"
-                        : "A scored axis: 0 to 2 of the 18 points"
+                        : row.maxPoints === null
+                          ? "Not scored"
+                          : `A scored axis: 0 to ${row.maxPoints} of the ${maxTotal} points`
                     }
                   >
                     {row.weight}

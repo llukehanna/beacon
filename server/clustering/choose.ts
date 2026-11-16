@@ -27,14 +27,14 @@ export async function chooseClusterer(
   if (!(await claimDailyQuota(q, DAILY_CALLS, now, CLAUDE_DAILY_MAX))) {
     return heuristicClusterer;
   }
-  return async (rows) => {
+  return async (rows, rubric) => {
     try {
-      return await create()(rows);
+      return await create()(rows, rubric);
     } catch (e) {
       // Operational signal for the server log: the fallback is silent to the visitor.
       // eslint-disable-next-line no-console
       console.warn("Claude clustering unavailable; using the heuristic clusterer.", e);
-      return heuristicClusterer(rows);
+      return heuristicClusterer(rows, rubric);
     }
   };
 }

@@ -1,10 +1,10 @@
 import React from "react";
 import { useOsdkObjects } from "@/data/hooks";
 import { QualificationScore, ReviewDecision } from "@/data/ontology";
-import { MAX_POSSIBLE } from "../../../shared/scoreMirror";
+import { useRubric } from "@/data/rubricContext";
 import { DecisionMemory } from "./DecisionMemory";
 import styles from "./HistoryTab.module.css";
-import { type FirmView } from "./deskModel";
+import { type FirmView, previewScore } from "./deskModel";
 import { firmDecisions } from "./firmDecisions";
 import { scoreHistory } from "./scoreHistory";
 
@@ -22,6 +22,7 @@ export function HistoryTab({
   allFirms: FirmView[];
   firmsLoading: boolean;
 }): React.ReactElement {
+  const max = previewScore(useRubric(), firm).maxPossible;
   const firmId = firm.firmId ?? "";
   const { data, isLoading } = useOsdkObjects(QualificationScore, {
     where: { firmId: { $eq: firmId } },
@@ -67,7 +68,7 @@ export function HistoryTab({
                   </span>
                   {d.score !== null && (
                     <span className={styles.total}>
-                      {d.score} / {MAX_POSSIBLE}
+                      {d.score} / {max}
                     </span>
                   )}
                   <span className={styles.when}>{stamp(d.at)}</span>
@@ -90,7 +91,7 @@ export function HistoryTab({
               <li key={s.id || s.at}>
                 <span className={styles.when}>{stamp(s.at)}</span>
                 <span className={styles.total}>
-                  {s.total} / {MAX_POSSIBLE}
+                  {s.total} / {max}
                 </span>
                 {s.change !== null && s.change !== 0 && (
                   <span className={s.change > 0 ? styles.up : styles.down}>{signed(s.change)}</span>

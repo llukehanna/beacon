@@ -1,14 +1,14 @@
 import React from "react";
+import { useRubric } from "@/data/rubricContext";
 import {
   type ScreenableFirm,
   countScreened,
   isEvaluable,
   toScreeningRules,
 } from "@/desk/activeScreening";
-import { mirrorScore } from "@/desk/scoreMirror";
-import { type FirmView, toScoreInput } from "../../shared/deskModel";
+import { type FirmView } from "../../shared/deskModel";
 import { isOpenFirm } from "../../shared/pipelineBuckets";
-import { firmFieldFor } from "../../shared/queue";
+import { scoreFirm } from "../../shared/scoring";
 import { type RuleLike, type RuleVersions } from "./rulesModel";
 
 export interface RuleScreen {
@@ -37,6 +37,7 @@ export function useRuleScreen(
   versions: RuleVersions,
   firms: readonly (ScreenableFirm & FirmView)[],
 ): RuleScreen {
+  const rubric = useRubric();
   const effective = versions.activeLatest;
   const screenRules = React.useMemo(
     () =>
@@ -58,24 +59,31 @@ export function useRuleScreen(
     [rule, effective],
   );
   const first = screenRules[0];
-  const unavailable = first !== undefined && !isEvaluable(first);
+  const unavailable = first !== undefined && !isEvaluable(rubric, first);
   const countable = first !== undefined && !unavailable;
   const projectedOpen = React.useMemo(
     () =>
       countable
         ? countScreened(
-            firms.filter((f) => isOpenFirm(f, mirrorScore(toScoreInput(f)).hardRejected)),
+            rubric,
+            firms.filter((f) =>
+              isOpenFirm(
+                f,
+                scoreFirm(rubric.definition, f as Record<string, unknown>).hardRejected,
+              ),
+            ),
             screenRules,
           )
         : null,
-    [countable, firms, screenRules],
+    [rubric, countable, firms, screenRules],
   );
   return {
-    projected: countable ? countScreened(firms, screenRules) : null,
+    projected: countable ? countScreened(rubric, firms, screenRules) : null,
     projectedOpen,
     unavailable,
     // A rule on a resolvable axis with a string operator (=, in, contains) is matched by the
     // queue's own matcher even though this page cannot count it.
-    textRule: unavailable && firmFieldFor(first.axis) !== null,
+    textRule:
+      unavailable && rubric.traits.some((t) => t.traitKey === first.axis.trim().toLowerCase()),
   };
 }

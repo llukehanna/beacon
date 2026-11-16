@@ -4,11 +4,13 @@
  * the same definition homeSummary does, so a badge never disagrees with the page it links to.
  */
 import { bucketOf, isOpenBucket } from "../../shared/pipelineBuckets.js";
-import { mirrorScore } from "../../shared/scoreMirror.js";
+import { scoreFirm } from "../../shared/scoring.js";
 import type { ShellCounts } from "../../shared/summaries.js";
 import type { Access } from "../access.js";
 import type { Queryable } from "../db/client.js";
 import { notIn } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { ACTIVE_MANDATE_WHERE, OPEN_DRIFT_WHERE } from "./homeSummary.js";
 
 interface FirmGroup {
@@ -39,8 +41,11 @@ async function openFirmCount(q: Queryable, hidden: readonly string[]): Promise<n
                "servicesFit", "balanceSheetPrincipal", "advisoryConflict"`,
     [hidden],
   );
+  // Only the hard-reject inputs vary per group, which is all the open buckets read from a score.
+  const { definition } = await loadActiveRubric(q);
   return groups.reduce(
-    (sum, g) => (isOpenBucket(bucketOf(g, mirrorScore(g))) ? sum + g.n : sum),
+    (sum, g) =>
+      isOpenBucket(bucketOf(g, scoreFirm(definition, withTraits({ ...g })))) ? sum + g.n : sum,
     0,
   );
 }

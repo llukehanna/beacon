@@ -4,6 +4,7 @@
  * API validation, and the frontend's typed hooks all derive from this one
  * declaration — the role Foundry's Ontology Manager played in the original.
  */
+import type { TraitValue } from "./rubric/types.js";
 
 export type PropType = "string" | "integer" | "double" | "boolean" | "timestamp" | "string[]";
 
@@ -318,6 +319,50 @@ export const OBJECT_TYPES = {
       addedAt: "timestamp",
     },
   },
+  Trait: {
+    apiName: "Trait",
+    table: "trait",
+    primaryKey: "traitId",
+    required: ["workspaceKey", "traitKey", "label", "kind", "role", "position"],
+    properties: {
+      traitId: "string",
+      workspaceKey: "string",
+      traitKey: "string",
+      label: "string",
+      description: "string",
+      unit: "string",
+      kind: "string",
+      role: "string",
+      optionsJson: "string",
+      passWhen: "boolean",
+      thesesJson: "string",
+      position: "integer",
+    },
+  },
+  Rubric: {
+    apiName: "Rubric",
+    table: "rubric",
+    primaryKey: "rubricId",
+    required: [
+      "workspaceKey",
+      "version",
+      "name",
+      "active",
+      "definitionJson",
+      "createdBy",
+      "createdAt",
+    ],
+    properties: {
+      rubricId: "string",
+      workspaceKey: "string",
+      version: "integer",
+      name: "string",
+      active: "boolean",
+      definitionJson: "string",
+      createdBy: "string",
+      createdAt: "timestamp",
+    },
+  },
   AccessLogEntry: {
     apiName: "AccessLogEntry",
     table: "access_log_entry",
@@ -390,7 +435,12 @@ export type ObjectOf<N extends ObjectTypeName> = {
   -readonly [K in Extract<keyof PropsOf<N>, PresentKeys<N>>]: TsOf<PropsOf<N>[K]>;
 } & {
   -readonly [K in Exclude<keyof PropsOf<N>, PresentKeys<N>>]?: TsOf<PropsOf<N>[K]>;
-} & { $apiName: N; $primaryKey: string };
+} & { $apiName: N; $primaryKey: string } & (N extends "Firm"
+    ? {
+        /** Derived, read-only: the firm's current value per trait (never a column, never a filter). */
+        traits?: Record<string, TraitValue>;
+      }
+    : unknown);
 
 /**
  * Operations metrics: measurements of the running app, not demo data. They are written outside

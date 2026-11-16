@@ -3,7 +3,7 @@ import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer } from "../clustering/types.js";
 import type { Db } from "../db/client.js";
 import { getObject, insertObject, listAll } from "../db/repo.js";
-import { T0, createTestDb, run, seedFirm } from "../testing.js";
+import { T0, TEST_RUBRIC, createTestDb, run, seedFirm } from "../testing.js";
 
 async function pendingRule(db: Db, id = "r1") {
   await insertObject(db, "ProposedRule", {
@@ -236,8 +236,8 @@ describe("clusterRejections", () => {
     const twice: Clusterer = async (rows) => ({
       source: "claude",
       proposals: [
-        ...(await proposing("employees", "<", "10")(rows)).proposals,
-        ...(await proposing("employees", "<", "12")(rows)).proposals,
+        ...(await proposing("employees", "<", "10")(rows, TEST_RUBRIC)).proposals,
+        ...(await proposing("employees", "<", "12")(rows, TEST_RUBRIC)).proposals,
       ],
     });
     const result = await run(db, "clusterRejections", {}, { clusterer: twice });
@@ -297,7 +297,7 @@ describe("clusterRejections", () => {
     const seen: boolean[] = [];
     const spy: Clusterer = async (rows) => {
       seen.push(inTx);
-      return heuristicClusterer(rows);
+      return heuristicClusterer(rows, TEST_RUBRIC);
     };
     await run(db, "clusterRejections", {}, { clusterer: spy });
     expect(seen).toEqual([false]);
@@ -308,7 +308,7 @@ describe("clusterRejections", () => {
     const real = await createTestDb();
     await rejectedSmallFirms(real);
     const racing: Clusterer = async (rows) => {
-      const out = await heuristicClusterer(rows);
+      const out = await heuristicClusterer(rows, TEST_RUBRIC);
       // A concurrent request lands the same rule before this run's transaction opens.
       await run(real, "clusterRejections", {}, { clusterer: heuristicClusterer });
       return out;

@@ -43,8 +43,8 @@ const replay = fixtureClusterer(
   clustering.status === "valid" ? clustering.fixture : null,
   heuristicClusterer,
 );
-const clusterer: Clusterer = async (rows) => {
-  const out = await replay(rows);
+const clusterer: Clusterer = async (rows, rubric) => {
+  const out = await replay(rows, rubric);
   clusteredBy = out.source;
   return out;
 };

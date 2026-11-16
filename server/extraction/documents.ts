@@ -6,7 +6,9 @@
  * own, worded one of several ways, that a reader has to read to find it. Extraction reads these
  * documents, never the hidden truth. Pure: no DB, network, or crypto.
  */
-import { ENRICH_AXES, PROVIDER_TRUST, type Provider } from "../../shared/vocab.js";
+import { evidenceTraits } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST, type Provider } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { type FirmRef, PROVIDERS, idOf, observe } from "../enrichment/providers.js";
 import { type Rng, hash32, pick, rng } from "../enrichment/random.js";
 
@@ -358,11 +360,11 @@ export function sourceDocument(provider: Provider, firm: FirmRef): SourceDocumen
   const r = rng(`doc|${DOCUMENT_VERSION}|${provider}|${firmId}`);
 
   const fields: DocumentField[] = [];
-  for (const axis of ENRICH_AXES) {
+  for (const axis of evidenceTraits(WS.traits)) {
     const o = observe(provider, firm, axis);
     if (o) {
-      const say = pick(r, style.sentences[axis.axis]);
-      fields.push({ axis: axis.axis, value: o.value, sentence: say(o.value) });
+      const say = pick(r, style.sentences[axis.traitKey]);
+      fields.push({ axis: axis.traitKey, value: o.value, sentence: say(o.value) });
     }
   }
 

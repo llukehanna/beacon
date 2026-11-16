@@ -7,13 +7,18 @@ import { toScreeningRules } from "../../shared/activeScreening.js";
 import type { ObjectOf } from "../../shared/schema.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { STRONG_SHOWCASE_FIRM_IDS, TOUR_FIRM_ID } from "../../shared/showcaseFirms.js";
-import { OWNERSHIP_TYPES, REVENUE_BANDS, SUCCESSION_RISKS } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
+import {
+  OWNERSHIP_TYPES,
+  REVENUE_BANDS,
+  SUCCESSION_RISKS,
+} from "../../shared/workspaces/advisoryVocab.js";
 import { type ClusteringFixture, fixtureClusterer, hashRejections } from "../clustering/fixture.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
 import { listAll } from "../db/repo.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { RESTRICTED_FIRM_COUNT, RESTRICTION_REASONS, WALLED_MANDATE } from "./barriers.js";
 import { resetDemo } from "./reset.js";
 import { SHOWCASE_COUNT, isScreened, pickShowcaseFirms, runProfile } from "./showcase.js";
@@ -403,7 +408,7 @@ describe("showcase seed", () => {
       expect(run.verified, `${id} verified`).toBeGreaterThanOrEqual(3);
       expect(run.proposed + run.verified, `${id} values`).toBeGreaterThanOrEqual(6);
       expect(run.failingGates, `${id} failing gates`).toEqual([]);
-      const live = scoreFirm(firm);
+      const live = scoreFirm(ADVISORY_ACQUISITIONS.rubric, firm);
       expect(live.hardRejected, `${id} rejected`).toBe(false);
       expect(["A", "B"], `${id} tier`).toContain(live.tier);
       expect(["A", "B"], `${id} tier if verified`).toContain(run.projected.tier);
@@ -413,7 +418,7 @@ describe("showcase seed", () => {
   it("approves the best-supported rule when the clusterer proposes no employees rule", async () => {
     const db = await createTestDb();
     const noEmployees: Clusterer = async (rows) => {
-      const out = await heuristicClusterer(rows);
+      const out = await heuristicClusterer(rows, TEST_RUBRIC);
       return { ...out, proposals: out.proposals.filter((p) => p.predicateAxis !== "employees") };
     };
     await resetDemo(db, new Date("2026-09-22T12:00:00.000Z"), { clusterer: noEmployees });
@@ -431,7 +436,7 @@ describe("showcase seed", () => {
       let captured: RejectionRow[] = [];
       const capture: Clusterer = async (rows) => {
         captured = [...rows];
-        return heuristicClusterer(rows);
+        return heuristicClusterer(rows, TEST_RUBRIC);
       };
       await resetDemo(db, now, { clusterer: capture });
       return captured;
@@ -449,7 +454,7 @@ describe("showcase seed", () => {
       createdAt: "2026-11-04T00:00:00.000Z",
     };
     const replay = fixtureClusterer(recorded, heuristicClusterer);
-    expect((await replay(second)).source).toBe("claude");
+    expect((await replay(second, TEST_RUBRIC)).source).toBe("claude");
   }, 300_000);
 });
 

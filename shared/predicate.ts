@@ -5,7 +5,9 @@
  * string equality otherwise, and a missing value never screens a firm.
  */
 import { looseText } from "./looseText.js";
-import { type Model, type ScoreInput, mirrorScore } from "./scoreMirror.js";
+import { scoreTraits } from "./rubric/engine.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import type { RubricDefinition, TraitDef } from "./rubric/types.js";
 import { OPERATORS } from "./vocab.js";
 
 export interface Predicate {
@@ -13,22 +15,6 @@ export interface Predicate {
   operator: string;
   threshold: string;
   model?: string | null;
-}
-
-const AXIS_FIELD: Readonly<Record<string, string>> = {
-  employees: "employees",
-  deal_size_usd_m: "dealSizeMUsd",
-  deals_per_md_l3y: "dealsPerMdL3y",
-  firm_age: "firmAge",
-  fee_generating_count: "feeGeneratingCount",
-  geo_score: "geoScore",
-  coverage_model: "coverageModel",
-};
-
-export const PREDICATE_AXES = Object.keys(AXIS_FIELD) as readonly string[];
-
-export function predicateField(axis: string): string | null {
-  return AXIS_FIELD[axis.trim().toLowerCase()] ?? null;
 }
 
 export function ruleKey(
@@ -73,20 +59,22 @@ export function overlappingPatternKeys(
 
 /**
  * The rubric's own hard-reject this predicate repeats, or null. Only an equality can repeat one: a
- * firm whose field holds the threshold is then hard-rejected by the rubric (`mirrorScore`) whatever
- * else is true of it. A rule scoped to both models repeats a gate when either model's rubric
- * rejects on it (the generalist gate is a CF gate; the CS rubric does not score coverage at all).
+ * firm whose trait holds the threshold is then hard-rejected by the rubric whatever else is true of
+ * it. A rule scoped to both theses repeats a gate when either thesis rejects on it (the generalist
+ * gate is a CF gate; the CS rubric does not score coverage at all).
  */
-export function rubricGateFor(p: Predicate): string | null {
-  const field = predicateField(p.axis);
-  if (field === null || p.operator.trim() !== "==" || p.threshold.trim() === "") {
+export function rubricGateFor(def: RubricDefinition, p: Predicate): string | null {
+  const axis = p.axis.trim().toLowerCase();
+  if (p.operator.trim() !== "==" || p.threshold.trim() === "") {
     return null;
   }
-  const scope = (p.model ?? "").trim().toUpperCase();
-  const models: Model[] = scope === "CF" ? ["CF"] : scope === "CS" ? ["CS"] : ["CF", "CS"];
-  for (const model of models) {
-    const input: ScoreInput = { firmType: model, [field]: p.threshold.trim() };
-    const result = mirrorScore(input);
+  const scope = (p.model ?? "").trim().toLowerCase();
+  const theses =
+    scope === "" || scope === "both"
+      ? def.theses
+      : def.theses.filter((t) => t.key.trim().toLowerCase() === scope);
+  for (const thesis of theses) {
+    const result = scoreTraits(def, thesis.key, { [axis]: p.threshold.trim() });
     if (result.hardRejected) {
       return result.rejectReason;
     }
@@ -96,27 +84,41 @@ export function rubricGateFor(p: Predicate): string | null {
 
 export function matchesPredicate(firm: Readonly<Record<string, unknown>>, p: Predicate): boolean {
   const scope = (p.model ?? "").trim().toLowerCase();
-  const firmScope =
-    looseText(firm.firmType ?? "")
-      .trim()
-      .toLowerCase() === "cs"
-      ? "cs"
-      : "cf";
+  const firmScope = (thesisOf(firm) ?? "").trim().toLowerCase();
   if (scope !== "" && scope !== "both" && scope !== firmScope) {
     return false;
   }
-
-  const field = predicateField(p.axis);
-  if (field === null || !(OPERATORS as readonly string[]).includes(p.operator.trim())) {
+  if (!(OPERATORS as readonly string[]).includes(p.operator.trim())) {
     return false;
   }
-  const value = firm[field];
+  return compareValue(traitsOf(firm)[p.axis.trim().toLowerCase()], p.operator, p.threshold);
+}
+
+/**
+ * The traits a screening rule may test: numbers, and category facts. Evidence labels (a firm's
+ * services, its MDs' backgrounds) are the rubric's to judge, and profile fields are never screened.
+ */
+export function predicateAxes(traits: readonly TraitDef[]): string[] {
+  return traits
+    .filter(
+      (t) =>
+        t.role !== "profile" &&
+        (t.kind === "number" || (t.kind === "category" && t.role === "fact")),
+    )
+    .map((t) => t.traitKey);
+}
+
+/**
+ * The comparison behind every predicate and hard reject: numeric when both
+ * sides parse, case-insensitive string equality otherwise. A missing value
+ * never matches.
+ */
+export function compareValue(value: unknown, operator: string, threshold: string): boolean {
   if (value === null || value === undefined || value === "") {
     return false;
   }
-
-  const op = p.operator.trim();
-  const t = p.threshold.trim();
+  const op = operator.trim();
+  const t = threshold.trim();
   const a = typeof value === "number" ? value : Number(value);
   const b = Number(t);
   if (Number.isFinite(a) && Number.isFinite(b) && t !== "") {

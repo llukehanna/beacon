@@ -9,10 +9,13 @@ import {
   summaryText,
 } from "./axisRows.js";
 import { type FindingLike } from "./axisState.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
+import { TOY_RUBRIC } from "./rubric/__fixtures__/toyRubric.js";
+import { researchedTraits } from "./rubric/catalog.js";
 import type { FirmObservations, ProviderObservation } from "./summaries.js";
-import { ENRICH_AXES, PROVIDER_TRUST } from "./vocab.js";
+import { PROVIDER_TRUST } from "./vocab.js";
 
-const CF_AXES = ENRICH_AXES.filter((a) => a.models.includes("CF"));
+const CF_AXES = researchedTraits(ADVISORY, "CF").map((t) => ({ axis: t.traitKey }));
 
 const nothing = (provider: string): ProviderObservation => ({
   provider,
@@ -64,20 +67,21 @@ const finding = (over: Partial<FindingLike>): FindingLike => ({
 
 describe("buildAxisRows", () => {
   it("gives one row per axis in rubric order", () => {
-    const rows = buildAxisRows(CF_AXES, obs({}), []);
+    const rows = buildAxisRows(ADVISORY, "CF", obs({}), []);
     expect(rows.map((r) => r.axis)).toEqual(CF_AXES.map((a) => a.axis));
     expect(rows.every((r) => r.state === "empty")).toBe(true);
   });
 
   it("weights scored axes by their share of the rubric and marks gates", () => {
-    const rows = buildAxisRows(CF_AXES, undefined, []);
+    const rows = buildAxisRows(ADVISORY, "CF", undefined, []);
     expect(rows.find((r) => r.axis === "fee_generating_count")?.weight).toBe("×1");
     expect(rows.find((r) => r.axis === "solvent")?.weight).toBe("gate");
   });
 
   it("fills cells from observations and leaves null where a provider had nothing", () => {
     const rows = buildAxisRows(
-      CF_AXES,
+      ADVISORY,
+      "CF",
       obs({ fee_generating_count: { dealdb: said("dealdb", "12", "high") } }),
       [],
     );
@@ -89,7 +93,8 @@ describe("buildAxisRows", () => {
 
   it("shows gate values as Pass or Fail", () => {
     const rows = buildAxisRows(
-      CF_AXES,
+      ADVISORY,
+      "CF",
       obs({ solvent: { filings: said("filings", "true", "high") } }),
       [],
     );
@@ -104,7 +109,7 @@ describe("buildAxisRows", () => {
       rejectReason: "value_not_in_quote",
       quote: "A short line",
     };
-    const rows = buildAxisRows(CF_AXES, obs({ firm_age: { websearch: rejected } }), []);
+    const rows = buildAxisRows(ADVISORY, "CF", obs({ firm_age: { websearch: rejected } }), []);
     const age = rows.find((r) => r.axis === "firm_age");
     expect(age?.cells.websearch.value).toBeNull();
     expect(age?.rejections).toEqual([
@@ -113,7 +118,7 @@ describe("buildAxisRows", () => {
   });
 
   it("copes with observations that have not loaded yet", () => {
-    const rows = buildAxisRows(CF_AXES, undefined, []);
+    const rows = buildAxisRows(ADVISORY, "CF", undefined, []);
     expect(rows).toHaveLength(CF_AXES.length);
     for (const row of rows) {
       expect(Object.values(row.cells).every((c) => c.value === null && c.confidence === null)).toBe(
@@ -122,20 +127,23 @@ describe("buildAxisRows", () => {
     }
   });
 
-  it("routes findings to their axis through the finding vocabulary aliases", () => {
-    const f = finding({ axis: "deal_size", value: "40" });
-    const rows = buildAxisRows(CF_AXES, undefined, [f]);
+  it("routes findings to their axis by trait key, whatever its case", () => {
+    const f = finding({ axis: " Deal_Size_USD_M ", value: "40" });
+    const rows = buildAxisRows(ADVISORY, "CF", undefined, [f]);
     expect(rows.find((r) => r.axis === "deal_size_usd_m")?.findings).toEqual([f]);
   });
 
   it("ignores superseded findings", () => {
-    const rows = buildAxisRows(CF_AXES, undefined, [finding({ findingStatus: "superseded" })]);
+    const rows = buildAxisRows(ADVISORY, "CF", undefined, [
+      finding({ findingStatus: "superseded" }),
+    ]);
     expect(rows.find((r) => r.axis === "fee_generating_count")?.state).toBe("empty");
   });
 
   describe("state", () => {
     const state = (fs: FindingLike[]) =>
-      buildAxisRows(CF_AXES, undefined, fs).find((r) => r.axis === "fee_generating_count")?.state;
+      buildAxisRows(ADVISORY, "CF", undefined, fs).find((r) => r.axis === "fee_generating_count")
+        ?.state;
 
     it("is conflict when two sources disagree and neither is resolved", () => {
       expect(
@@ -194,7 +202,7 @@ describe("buildAxisRows", () => {
 describe("row findings", () => {
   const a = finding({ findingId: "a", provider: "dealdb", value: "12", conflictGroupId: "g" });
   const b = finding({ findingId: "b", provider: "websearch", value: "9", conflictGroupId: "g" });
-  const rows = buildAxisRows(CF_AXES, undefined, [a, b]);
+  const rows = buildAxisRows(ADVISORY, "CF", undefined, [a, b]);
   const row = rows.find((r) => r.axis === "fee_generating_count");
 
   it("lists the two sides of an open conflict", () => {
@@ -208,7 +216,7 @@ describe("row findings", () => {
   it("picks the human-verified finding as authoritative", () => {
     const verified = finding({ findingId: "v", findingStatus: "verified", verifiedByHuman: true });
     const proposed = finding({ findingId: "p" });
-    const r = buildAxisRows(CF_AXES, undefined, [proposed, verified]).find(
+    const r = buildAxisRows(ADVISORY, "CF", undefined, [proposed, verified]).find(
       (x) => x.axis === "fee_generating_count",
     );
     expect(r && authoritativeFinding(r)?.findingId).toBe("v");
@@ -217,7 +225,7 @@ describe("row findings", () => {
 
 describe("summarizeRows", () => {
   it("counts rows by state, with one conflict per axis", () => {
-    const rows = buildAxisRows(CF_AXES, undefined, [
+    const rows = buildAxisRows(ADVISORY, "CF", undefined, [
       finding({ findingId: "a", conflictGroupId: "g" }),
       finding({ findingId: "b", conflictGroupId: "g", provider: "filings" }),
       finding({ findingId: "c", axis: "firm_age" }),
@@ -245,7 +253,8 @@ describe("summaryText", () => {
 });
 
 describe("an axis a market signal alone has spoken for", () => {
-  const def = ENRICH_AXES.find((a) => a.axis === "fee_generating_count")!;
+  const feeRows = (fs: FindingLike[]) =>
+    buildAxisRows(ADVISORY, "CF", undefined, fs).filter((r) => r.axis === "fee_generating_count");
   const signal: FindingLike = {
     findingId: "s1",
     axis: "fee_generating_count",
@@ -256,7 +265,7 @@ describe("an axis a market signal alone has spoken for", () => {
   };
 
   it("is the signal state, not verified", () => {
-    const [row] = buildAxisRows([def], undefined, [signal]);
+    const [row] = feeRows([signal]);
     expect(row.state).toBe("signal");
     expect(authoritativeFinding(row)?.findingId).toBe("s1");
   });
@@ -273,36 +282,65 @@ describe("an axis a market signal alone has spoken for", () => {
   });
 
   it("gives way to a human check made after it", () => {
-    const [row] = buildAxisRows([def], undefined, [signal, checked("2026-07-01T00:00:00Z")]);
+    const [row] = feeRows([signal, checked("2026-07-01T00:00:00Z")]);
     expect(row.state).toBe("verified");
     expect(authoritativeFinding(row)?.findingId).toBe("m1");
   });
 
   it("outranks an older human check: the row shows the value the score uses", () => {
-    const [row] = buildAxisRows([def], undefined, [checked("2026-01-01T00:00:00Z"), signal]);
+    const [row] = feeRows([checked("2026-01-01T00:00:00Z"), signal]);
     expect(row.state).toBe("signal");
     expect(authoritativeFinding(row)?.value).toBe("3");
   });
 });
 
 describe("gridComposition", () => {
-  const CS_AXES = ENRICH_AXES.filter((a) => a.models.includes("CS"));
-  const rowsOf = (axes: typeof CF_AXES) => buildAxisRows(axes, undefined, []);
+  const rowsOf = (thesis: string) => buildAxisRows(ADVISORY, thesis, undefined, []);
 
   it("splits the rows into scored axes and gates, so they add up to the rubric's nine", () => {
     // CF: six scored axes in the grid plus the three the firm record scores alone.
-    expect(gridComposition(rowsOf(CF_AXES))).toEqual({ scored: 6, gates: 4, fromRecord: 3 });
+    expect(gridComposition(ADVISORY, "CF", rowsOf("CF"))).toEqual({
+      scored: 6,
+      gates: 4,
+      fromRecord: 3,
+    });
     // CS: seven in the grid, two from the record.
-    expect(gridComposition(rowsOf(CS_AXES))).toEqual({ scored: 7, gates: 4, fromRecord: 2 });
-    for (const axes of [CF_AXES, CS_AXES]) {
-      const c = gridComposition(rowsOf(axes));
+    expect(gridComposition(ADVISORY, "CS", rowsOf("CS"))).toEqual({
+      scored: 7,
+      gates: 4,
+      fromRecord: 2,
+    });
+    for (const thesis of ["CF", "CS"]) {
+      const c = gridComposition(ADVISORY, thesis, rowsOf(thesis));
       expect(c.scored + c.fromRecord).toBe(9);
     }
   });
 
   it("words the split for the grid", () => {
-    expect(compositionText(rowsOf(CS_AXES))).toBe(
+    expect(compositionText(ADVISORY, "CS", rowsOf("CS"))).toBe(
       "7 scored axes + 4 gates. 2 more of the 9 scored axes come from the firm record, below.",
+    );
+  });
+});
+
+describe("rows under another workspace's rubric", () => {
+  it("lists the thesis's researched traits, weights its criteria and marks its gates", () => {
+    const rows = buildAxisRows(TOY_RUBRIC, "growth", undefined, [
+      { findingId: "t1", axis: "team_size", value: "12", findingStatus: "proposed" },
+    ]);
+    expect(rows.map((r) => [r.axis, r.weight, r.maxPoints])).toEqual([
+      ["product_quality", "×3", 6],
+      ["team_size", "×1", 2],
+      ["sanctioned", "gate", null],
+    ]);
+    expect(rows.find((r) => r.axis === "team_size")?.state).toBe("proposed");
+    // The value thesis does not research team size.
+    expect(buildAxisRows(TOY_RUBRIC, "value", undefined, []).map((r) => r.axis)).toEqual([
+      "product_quality",
+      "sanctioned",
+    ]);
+    expect(compositionText(TOY_RUBRIC, "growth", rows)).toBe(
+      "2 scored axes + 1 gate. 1 more of the 3 scored axes comes from the firm record, below.",
     );
   });
 });

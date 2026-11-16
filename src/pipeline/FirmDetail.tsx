@@ -1,11 +1,11 @@
 import React from "react";
 import { Term } from "@/components/Term";
+import { useRubric } from "@/data/rubricContext";
 import { formatObservedDate } from "@/desk/firmDesk/deskModel";
 import { scoreFraction } from "@/desk/scoreFormat";
 import { TIER_COLOR, TIER_LABEL, outcomeChipStyle, outcomeLabel } from "@/desk/tokens";
 import { Button, ButtonLink, Chip } from "@/ui";
 import { SYNTHETIC_LABEL } from "../../shared/marketSignals";
-import { MAX_POSSIBLE } from "../../shared/scoreMirror";
 import { LIFECYCLE_STAGES, MARKET_SIGNAL } from "../../shared/vocab";
 import styles from "./FirmDetail.module.css";
 import { StageChip } from "./chips";
@@ -61,7 +61,7 @@ export function FirmDetail({
     : score.tier === "Rejected"
       ? "Below the C threshold"
       : (TIER_LABEL[score.tier] ?? "");
-  const facts = firmFacts(firm);
+  const facts = firmFacts(useRubric(), firm);
   const stageIndex = (LIFECYCLE_STAGES as readonly string[]).indexOf(bucket);
 
   return (
@@ -116,13 +116,18 @@ export function FirmDetail({
           <span className={styles.big} style={{ color: tierColor }}>
             {score.total}
           </span>
-          <span className={styles.of}>/ {MAX_POSSIBLE}</span>
+          <span className={styles.of}>/ {mirror.maxPossible}</span>
           <span className={styles.tier} style={{ color: tierColor }}>
             Tier {score.tier === "Rejected" ? "below C" : score.tier}
           </span>
         </div>
         <span className={styles.bar} aria-hidden="true">
-          <span style={{ width: `${scoreFraction(score.total) * 100}%`, background: tierColor }} />
+          <span
+            style={{
+              width: `${scoreFraction(score.total, mirror.maxPossible) * 100}%`,
+              background: tierColor,
+            }}
+          />
         </span>
         <span className={styles.note}>{tierNote}</span>
       </section>

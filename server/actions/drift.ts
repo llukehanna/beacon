@@ -1,5 +1,5 @@
+import type { AxisScore } from "../../shared/rubric/types.js";
 import type { ObjectOf } from "../../shared/schema.js";
-import type { AxisScore } from "../../shared/scoreMirror.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import {
   ACQUIRED_BY_COMPETITOR,
@@ -10,7 +10,9 @@ import {
   normalizeLifecycle,
 } from "../../shared/vocab.js";
 import { insertObject, updateObject } from "../db/repo.js";
+import { withTraits } from "../db/traits.js";
 import { ActionError } from "../errors.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { type FirmObj, iso, logDecision, requireObject } from "./common.js";
 import { type ActionContext, defineAction } from "./types.js";
 
@@ -86,7 +88,7 @@ export async function computeDriftForFirm(
   if (!snap) {
     return null;
   }
-  const live = scoreFirm(firm);
+  const live = scoreFirm((await loadActiveRubric(ctx.tx)).definition, withTraits(firm));
   if (live.tier === snap.tier) {
     return null;
   }
@@ -135,7 +137,7 @@ export async function openOutcomeDivergence(
     return null;
   }
   const snap = await terminalSnapshot(ctx, firm);
-  const live = scoreFirm(firm);
+  const live = scoreFirm((await loadActiveRubric(ctx.tx)).definition, withTraits(firm));
   const driftEventId = ctx.newId("drift");
   await insertObject(ctx.tx, "DriftEvent", {
     driftEventId,

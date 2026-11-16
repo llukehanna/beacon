@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { TIER_THRESHOLDS } from "../../shared/scoreMirror";
+import { TIER_THRESHOLDS } from "../../shared/rubric/__oracle__/legacyRubricV2";
 import { GLOSSARY } from "./glossary";
 import { type EvidenceDecision, buildRejectionNotes } from "./ruleEvidence";
 

@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { axisByName } from "../../shared/vocab.js";
+import { traitFor } from "../../shared/rubric/catalog.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import type { FindingPlan } from "../enrichment/reconcile.js";
 import { computeMetrics, matchesTruth, rate } from "./metrics.js";
 import type { FirmEvaluation, SlotResult } from "./pipeline.js";
 
-const dealSize = axisByName("deal_size_usd_m")!;
-const services = axisByName("services_fit")!;
-const solvent = axisByName("solvent")!;
+const T = (key: string) => traitFor(WS.traits, key)!;
+
+const dealSize = T("deal_size_usd_m");
+const services = T("services_fit");
+const solvent = T("solvent");
 
 const plan = (value: string | null, conflictGroupId: string | null = null): FindingPlan => ({
   axis: "x",

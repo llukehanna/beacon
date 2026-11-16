@@ -2,15 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   matchesPredicate,
   overlappingPatternKeys,
-  predicateField,
+  predicateAxes,
   rubricGateFor,
   ruleKey,
   rulePatternKey,
 } from "./predicate.js";
+import { ADVISORY } from "./rubric/__fixtures__/advisoryRubric.js";
 import { describePredicate } from "./rulePredicate.js";
+import { ADVISORY_ACQUISITIONS } from "./workspaces/advisoryAcquisitions.js";
 
 describe("matchesPredicate", () => {
-  const firm = { firmType: "CF", employees: 6, coverageModel: "Generalist", geoScore: 1 };
+  const firm = {
+    firmType: "CF",
+    traits: { employees: 6, coverage_model: "Generalist", geo_score: 1 },
+  };
 
   it("compares numerically when both sides are numbers", () => {
     expect(matchesPredicate(firm, { axis: "employees", operator: "<", threshold: "10" })).toBe(
@@ -44,7 +49,7 @@ describe("matchesPredicate", () => {
   });
 
   it("rejects unknown axes and operators", () => {
-    expect(predicateField("vibes")).toBeNull();
+    expect(matchesPredicate(firm, { axis: "vibes", operator: "<", threshold: "10" })).toBe(false);
     expect(matchesPredicate(firm, { axis: "employees", operator: "~", threshold: "10" })).toBe(
       false,
     );
@@ -91,37 +96,84 @@ describe("overlappingPatternKeys", () => {
 describe("rubricGateFor", () => {
   it("names the rubric's hard-reject an equality repeats", () => {
     const generalist = { axis: "coverage_model", operator: "==", threshold: "Generalist" };
-    expect(rubricGateFor({ ...generalist, model: "CF" })).toMatch(/Generalist coverage model/);
-    expect(rubricGateFor({ ...generalist, model: "both" })).toMatch(/Generalist coverage model/);
+    expect(rubricGateFor(ADVISORY_ACQUISITIONS.rubric, { ...generalist, model: "CF" })).toMatch(
+      /Generalist coverage model/,
+    );
+    expect(rubricGateFor(ADVISORY_ACQUISITIONS.rubric, { ...generalist, model: "both" })).toMatch(
+      /Generalist coverage model/,
+    );
     // The CS rubric does not reject on coverage.
-    expect(rubricGateFor({ ...generalist, model: "CS" })).toBeNull();
+    expect(rubricGateFor(ADVISORY_ACQUISITIONS.rubric, { ...generalist, model: "CS" })).toBeNull();
   });
 
   it("finds nothing in thresholds and other values", () => {
-    expect(rubricGateFor({ axis: "employees", operator: "<", threshold: "10" })).toBeNull();
     expect(
-      rubricGateFor({ axis: "coverage_model", operator: "==", threshold: "Multi-sector" }),
+      rubricGateFor(ADVISORY_ACQUISITIONS.rubric, {
+        axis: "employees",
+        operator: "<",
+        threshold: "10",
+      }),
     ).toBeNull();
     expect(
-      rubricGateFor({ axis: "coverage_model", operator: "!=", threshold: "Generalist" }),
+      rubricGateFor(ADVISORY_ACQUISITIONS.rubric, {
+        axis: "coverage_model",
+        operator: "==",
+        threshold: "Multi-sector",
+      }),
+    ).toBeNull();
+    expect(
+      rubricGateFor(ADVISORY_ACQUISITIONS.rubric, {
+        axis: "coverage_model",
+        operator: "!=",
+        threshold: "Generalist",
+      }),
     ).toBeNull();
   });
 });
 
 describe("describePredicate", () => {
   it("says a predicate in the shared axis words, with plain operators and the deal size unit", () => {
-    expect(describePredicate("deal_size_usd_m", "<", "20")).toBe("Avg deal size below $20m");
-    expect(describePredicate("employees", ">=", "10")).toBe("Headcount at least 10");
-    expect(describePredicate("coverage_model", "==", "Generalist Focus")).toBe(
+    expect(describePredicate(ADVISORY, "deal_size_usd_m", "<", "20")).toBe(
+      "Avg deal size below $20m",
+    );
+    expect(describePredicate(ADVISORY, "employees", ">=", "10")).toBe("Headcount at least 10");
+    expect(describePredicate(ADVISORY, "coverage_model", "==", "Generalist Focus")).toBe(
       "Sector coverage is Generalist Focus",
     );
-    expect(describePredicate("firm_age", "!=", "3")).toBe("Firm age is not 3");
+    expect(describePredicate(ADVISORY, "firm_age", "!=", "3")).toBe("Firm age is not 3");
   });
 
   it("never shows the machine names", () => {
-    const said = describePredicate("deals_per_md_l3y", "<=", "2");
+    const said = describePredicate(ADVISORY, "deals_per_md_l3y", "<=", "2");
     expect(said).toBe("Deals per MD (last 3 years) at most 2");
     expect(said).not.toMatch(/_|<|>|=/);
-    expect(describePredicate("", "<", "1")).toBe("a rule with no condition");
+    expect(describePredicate(ADVISORY, "", "<", "1")).toBe("a rule with no condition");
+  });
+});
+
+describe("predicateAxes", () => {
+  it("offers every scorable number or category trait, never a profile field or a yes/no gate", () => {
+    const axes = predicateAxes(ADVISORY_ACQUISITIONS.traits);
+    expect(axes).toContain("deal_size_usd_m");
+    expect(axes).toContain("coverage_model");
+    expect(axes).not.toContain("revenue_band");
+    expect(axes).not.toContain("solvent");
+  });
+});
+
+describe("matchesPredicate on traits", () => {
+  it("reads the derived traits map and the thesis", () => {
+    const firm = { thesis: "CS", traits: { deal_size_usd_m: 10 } };
+    expect(
+      matchesPredicate(firm, { axis: "deal_size_usd_m", operator: "<", threshold: "30" }),
+    ).toBe(true);
+    expect(
+      matchesPredicate(firm, {
+        axis: "deal_size_usd_m",
+        operator: "<",
+        threshold: "30",
+        model: "CF",
+      }),
+    ).toBe(false);
   });
 });

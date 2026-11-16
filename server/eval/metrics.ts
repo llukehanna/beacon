@@ -27,12 +27,17 @@
  * from the true values.
  */
 import type { EvalReport } from "../../shared/evalReport.js";
-import type { Model } from "../../shared/scoreMirror.js";
-import { axisPoints, parseAxisValue } from "../../shared/scoring.js";
-import { type AxisDef, PROVIDER_TRUST } from "../../shared/vocab.js";
+import { criterionPoints } from "../../shared/rubric/engine.js";
+import { parseTraitValue } from "../../shared/rubric/traitValue.js";
+import type { TraitDef } from "../../shared/rubric/types.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { PROVIDERS } from "../enrichment/providers.js";
 import { sameValue } from "../enrichment/reconcile.js";
 import type { FirmEvaluation, SlotResult } from "./pipeline.js";
+
+/** A thesis key. */
+type Model = string;
 
 /** num / den to four places, or null when there is nothing to divide by. */
 export function rate(num: number, den: number): number | null {
@@ -40,13 +45,14 @@ export function rate(num: number, den: number): number | null {
 }
 
 /** Whether a value matches the truth under the rule at the top of this file. */
-export function matchesTruth(model: Model, axis: AxisDef, value: string, truth: string): boolean {
+export function matchesTruth(model: Model, axis: TraitDef, value: string, truth: string): boolean {
   if (axis.kind !== "number") {
     return sameValue(axis, value, truth);
   }
-  const firm = { firmType: model };
-  const a = axisPoints(firm, axis, parseAxisValue(axis, value));
-  const b = axisPoints(firm, axis, parseAxisValue(axis, truth));
+  const points = (v: string) =>
+    criterionPoints(WS.rubric, model, axis.traitKey, parseTraitValue(axis, v));
+  const a = points(value);
+  const b = points(truth);
   return a !== null && b !== null ? a === b : sameValue(axis, value, truth);
 }
 
@@ -63,7 +69,7 @@ export function computeMetrics(evals: readonly FirmEvaluation[]): Measured {
   const slots = evals.flatMap((e) => e.slots);
 
   const providers = PROVIDER_TRUST.map((provider) => {
-    const covered = slots.filter((s) => PROVIDERS[provider].axes.includes(s.axis.axis));
+    const covered = slots.filter((s) => PROVIDERS[provider].axes.includes(s.axis.traitKey));
     const readings = covered.flatMap((s) => {
       const k = s.kept.find((x) => x.provider === provider);
       return k ? [{ slot: s, value: k.value }] : [];

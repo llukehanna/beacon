@@ -7,7 +7,7 @@
  * about the same firm, which is exactly the failure the "every number links"
  * rule exists to prevent.
  */
-import { type MirrorResult } from "./scoreMirror.js";
+import type { ScoreResult } from "./rubric/types.js";
 import { LIFECYCLE_STAGES, type LifecycleState, PASSED, normalizeLifecycle } from "./vocab.js";
 
 export const LIFECYCLE_BUCKETS = [...LIFECYCLE_STAGES, PASSED] as const;
@@ -30,7 +30,7 @@ export interface BucketFirm {
  * - disposition says rejected → "Passed"
  * - else → "Discovered"
  */
-export function bucketOf(firm: BucketFirm, mirror: MirrorResult): Lifecycle {
+export function bucketOf(firm: BucketFirm, mirror: ScoreResult): Lifecycle {
   return bucketOfHardRejected(firm, mirror.hardRejected);
 }
 

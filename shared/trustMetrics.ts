@@ -17,7 +17,8 @@
  *   abstention%  = abstain / all-findings        (denominator = everything
  *                                                 in the group)
  */
-import { axisLabel } from "./axisLabels.js";
+import { axisLabel, traitOfAnyAxis } from "./axisLabels.js";
+import type { RubricContext } from "./rubric/types.js";
 import {
   ACQUIRED_BY_COMPETITOR,
   AGENT,
@@ -203,9 +204,9 @@ export function tallyOutcomes(firms: readonly FirmOutcomeLike[]): OutcomeTally {
 
 export { axisLabel };
 
-/** One key per axis whatever its spelling, so a legacy row lands in the same bucket. */
-function canonicalAxisKey(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+/** One key per axis whatever its spelling: the trait's key, else the folded spelling. */
+function canonicalAxisKey(rubric: RubricContext, raw: string): string {
+  return traitOfAnyAxis(rubric, raw)?.traitKey ?? raw.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // Provider strings that name no data source at all. Findings carrying them
@@ -220,15 +221,11 @@ const PSEUDO_PROVIDERS = new Set([AGENT, ANALYST]);
 /** Key of the BY PROVIDER row that counts abstentions no real source produced. */
 export const NO_SOURCE_KEY = "__none__";
 
-// Hard-gate axes are yes/no facts captured through Beacon's gate UI, not the
-// rubric. Aggregating agreement / override on binary gates with tiny sample
+// Yes/no gates are facts captured through Beacon's gate UI, not graded
+// values. Aggregating agreement / override on binary gates with tiny sample
 // sizes carries no signal, so they are dropped from BY AXIS.
-const HARD_GATE_AXIS_KEYS = new Set([
-  "hasstorbalancesheet",
-  "advisoryconflict",
-  "webactivity",
-  "solvent",
-]);
+const isGateAxis = (rubric: RubricContext, raw: string): boolean =>
+  traitOfAnyAxis(rubric, raw)?.kind === "yesno";
 
 /**
  * Findings of one (provider, axis) pair, tallied by `classify`. Provider and
@@ -291,7 +288,10 @@ function byLabel(a: RateRow, b: RateRow): number {
   return a.label.localeCompare(b.label) || a.key.localeCompare(b.key);
 }
 
-export function accuracyTables(cells: readonly FindingCell[]): AccuracyTables {
+export function accuracyTables(
+  rubric: RubricContext,
+  cells: readonly FindingCell[],
+): AccuracyTables {
   const providers = new Map<string, FindingCell[]>();
   const noSource: FindingCell[] = [];
   for (const c of cells) {
@@ -331,13 +331,13 @@ export function accuracyTables(cells: readonly FindingCell[]): AccuracyTables {
   // after the first variant in sort order.
   const axes = new Map<string, { key: string; label: string; cells: FindingCell[] }>();
   for (const c of [...cells].sort((a, b) => a.axis.localeCompare(b.axis))) {
-    const slot = c.axis === "" ? "__unknown__" : canonicalAxisKey(c.axis);
-    if (HARD_GATE_AXIS_KEYS.has(slot)) {
+    const slot = c.axis === "" ? "__unknown__" : canonicalAxisKey(rubric, c.axis);
+    if (c.axis !== "" && isGateAxis(rubric, c.axis)) {
       continue;
     }
     const entry = axes.get(slot) ?? {
       key: c.axis === "" ? slot : c.axis,
-      label: c.axis === "" ? "unknown axis" : axisLabel(c.axis),
+      label: c.axis === "" ? "unknown axis" : axisLabel(rubric, c.axis),
       cells: [],
     };
     entry.cells.push(c);

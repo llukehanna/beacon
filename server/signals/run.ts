@@ -23,6 +23,7 @@ import { computeDriftForFirm, openOutcomeDivergence } from "../actions/drift.js"
 import type { ActionContext } from "../actions/types.js";
 import type { Db, Queryable } from "../db/client.js";
 import { getObject, insertObject, toWire, updateObject } from "../db/repo.js";
+import { loadActiveRubric } from "../rubric/load.js";
 import { type FirmState, type SignalPlan, type SignalRow, planSignals } from "./apply.js";
 
 /** The most signals one run applies, so a backlog never makes one cron run heavy. */
@@ -137,6 +138,7 @@ export async function applyDueSignals(
     );
     const at = (s: SignalRow): string => (opts.backfill ? s.effectiveDate : now.toISOString());
     const plans = planSignals(
+      (await loadActiveRubric(tx)).definition,
       signals,
       firms,
       at,

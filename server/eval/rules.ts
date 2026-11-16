@@ -6,8 +6,10 @@
  */
 import type { EvalReport } from "../../shared/evalReport.js";
 import type { ObjectOf } from "../../shared/schema.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { heuristicClusterer } from "../clustering/heuristic.js";
 import type { Clusterer, RejectionRow } from "../clustering/types.js";
+import { withTraits } from "../db/traits.js";
 import { rng } from "../enrichment/random.js";
 import { PLANTED_PREDICATES, planRejections } from "../seed/rejections.js";
 
@@ -45,7 +47,8 @@ export async function plantRejections(universe: readonly FirmObj[]): Promise<{
           decisionId,
           firmId: firm.$primaryKey,
           rationale,
-          firm: firms.get(firm.$primaryKey) ?? firm,
+          // Planted facts land as columns; the clusterer reads traits.
+          firm: withTraits(firms.get(firm.$primaryKey) ?? firm),
         });
       },
       draw: rng("beacon-eval-rule-recovery"),
@@ -78,7 +81,7 @@ export async function evaluateRuleRecovery(
   clusterer: Clusterer = heuristicClusterer,
 ): Promise<EvalReport["ruleRecovery"]> {
   const { rows, planted } = await plantRejections(universe);
-  const { proposals } = await clusterer(rows);
+  const { proposals } = await clusterer(rows, { definition: WS.rubric, traits: WS.traits });
   const recovered = planted.filter((p) =>
     proposals.some(
       (x) =>

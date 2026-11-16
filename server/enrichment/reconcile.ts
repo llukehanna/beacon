@@ -1,4 +1,5 @@
-import { type AxisDef, PROVIDER_TRUST } from "../../shared/vocab.js";
+import type { EvidenceTrait } from "../../shared/rubric/catalog.js";
+import { PROVIDER_TRUST } from "../../shared/vocab.js";
 import type { Observation } from "./providers.js";
 
 export interface FindingPlan {
@@ -31,7 +32,7 @@ export const UNGROUNDED_EXCERPT =
 /** A single source at or above this confidence is "high" without corroboration. */
 export const HIGH_CONFIDENCE = 0.8;
 
-export function sameValue(axis: AxisDef, a: string, b: string): boolean {
+export function sameValue(axis: EvidenceTrait, a: string, b: string): boolean {
   if (axis.kind === "number") {
     return Number(a) === Number(b);
   }
@@ -44,7 +45,7 @@ export function sameValue(axis: AxisDef, a: string, b: string): boolean {
  * trusted positions) when they don't. Never picks a winner in a conflict.
  */
 export function reconcileAxis(
-  axis: AxisDef,
+  axis: EvidenceTrait,
   observations: readonly Observation[],
   newConflictId: () => string,
   opts: { groundingRejected?: boolean } = {},
@@ -52,7 +53,7 @@ export function reconcileAxis(
   if (observations.length === 0) {
     return [
       {
-        axis: axis.axis,
+        axis: axis.traitKey,
         value: null,
         provider: "agent",
         sourceType: "agent",
@@ -86,7 +87,7 @@ export function reconcileAxis(
     const lead = g[0];
     const confidence = Math.max(...g.map((o) => o.confidence));
     return {
-      axis: axis.axis,
+      axis: axis.traitKey,
       value: lead.value,
       provider: g.map((o) => o.provider).join("+"),
       sourceType: SOURCE_TYPE[lead.provider],

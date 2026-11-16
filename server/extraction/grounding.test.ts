@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ENRICH_AXES } from "../../shared/vocab.js";
+import { evidenceTraits } from "../../shared/rubric/catalog.js";
+import { ADVISORY_ACQUISITIONS as WS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { observe } from "../enrichment/providers.js";
 import { generateUniverse } from "../seed/universe.js";
 import {
@@ -11,6 +12,8 @@ import {
 } from "./contract.js";
 import { type SourceDocument, firmDocuments } from "./documents.js";
 import { groundExtraction } from "./grounding.js";
+
+const EVIDENCE = evidenceTraits(WS.traits);
 
 const firms = generateUniverse(50);
 
@@ -40,7 +43,7 @@ describe("rule-based extraction", () => {
       const got = result.observations.map((o) => `${o.provider}|${o.axis}|${o.value}`).sort();
       const expected = docs
         .flatMap((d) =>
-          ENRICH_AXES.flatMap((a) => {
+          EVIDENCE.flatMap((a) => {
             const o = observe(d.provider, firm, a);
             return o ? [`${o.provider}|${o.axis}|${o.value}`] : [];
           }),
@@ -501,8 +504,8 @@ describe("parseExtraction", () => {
 
 describe("prompt", () => {
   it("names every axis and label list, and fences each document", () => {
-    for (const a of ENRICH_AXES) {
-      expect(SYSTEM_PROMPT).toContain(a.axis);
+    for (const a of EVIDENCE) {
+      expect(SYSTEM_PROMPT).toContain(a.traitKey);
     }
     expect(SYSTEM_PROMPT).toContain("Full advisory suite");
     expect(SYSTEM_PROMPT).toContain("Advisory only");

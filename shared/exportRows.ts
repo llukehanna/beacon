@@ -8,17 +8,20 @@
  * empty value and a citation made of nulls. The files print that as "no source", never as a blank
  * that could be read as a value, and never as the word "undefined".
  */
+import { axisLabel } from "./axisLabels.js";
 import { buildAxisRows } from "./axisRows.js";
 import { type FindingLike as AxisFinding, classifyAxis, pickAuthoritative } from "./axisState.js";
 import { citationOf } from "./citation.js";
 import { conflictSides } from "./evidenceModel.js";
 import { displayFindingValue } from "./findingActions.js";
 import { bucketOf } from "./pipelineBuckets.js";
+import { evidenceTraits } from "./rubric/catalog.js";
+import { thesisOf, traitsOf } from "./rubric/firm.js";
+import { parseTraitValue } from "./rubric/traitValue.js";
+import type { RubricContext, TraitDef, TraitValue } from "./rubric/types.js";
 import type { ObjectOf } from "./schema.js";
-import { MAX_POSSIBLE, mirrorScore } from "./scoreMirror.js";
-import { parseAxisValue, scoreInputFromFirm } from "./scoring.js";
-import { axisLabel } from "./trustMetrics.js";
-import { type AxisDef, ENRICH_AXES, providerLabel } from "./vocab.js";
+import { scoreFirm } from "./scoring.js";
+import { providerLabel } from "./vocab.js";
 
 type Nullable<T> = { [K in keyof T]?: T[K] | null };
 
@@ -31,30 +34,13 @@ export type FirmLike = Nullable<
     | "firmType"
     | "hqCountry"
     | "sector"
-    | "employees"
-    | "revenueBand"
-    | "ownership"
-    | "successionRisk"
-    | "coverageModel"
     | "lifecycleState"
     | "currentStage"
     | "disposition"
-    // The axis values and score inputs live on the firm as well.
-    | "servicesFit"
-    | "mdPedigree"
-    | "balanceSheetPrincipal"
-    | "geoScore"
-    | "dealSizeMUsd"
-    | "dealsPerMdL3y"
-    | "firmAge"
-    | "feeGeneratingCount"
-    | "geographicFootprint"
-    | "advisoryConflict"
-    | "hasSTOrBalanceSheet"
-    | "webActivity"
-    | "solvent"
   >
 > & {
+  /** The firm's trait values by trait key. */
+  traits?: Record<string, TraitValue> | null;
   /** The score and tier the page shows for this firm, when that differs from the live score (a passed firm). */
   score?: number | null;
   tier?: string | null;
@@ -87,6 +73,8 @@ export interface ExportRow {
   firmName: string;
   tier: string;
   score: number;
+  /** The most points the firm's thesis can award. */
+  maxScore: number;
   [axis: string]: string | number | null;
 }
 
@@ -106,39 +94,34 @@ export interface Citation {
 /** What an empty axis or citation cell reads in a file. */
 export const NO_SOURCE = "no source";
 
-/** Profile columns after the score, in file order. Keys are Firm properties. */
-export const PROFILE_COLUMNS = [
+/**
+ * Profile columns after the score, in file order. A key is a Firm property, or a trait key when
+ * `trait` is set (read from the firm's traits; a trait the catalog lacks exports as empty).
+ */
+export const PROFILE_COLUMNS: readonly { key: string; header: string; trait?: true }[] = [
   { key: "stage", header: "Stage" },
   { key: "firmType", header: "Firm type" },
   { key: "hqCountry", header: "HQ country" },
   { key: "sector", header: "Sector" },
-  { key: "employees", header: "Employees" },
-  { key: "revenueBand", header: "Revenue band" },
-  { key: "ownership", header: "Ownership" },
-  { key: "successionRisk", header: "Succession risk" },
-  { key: "coverageModel", header: "Coverage" },
-] as const;
+  { key: "employees", header: "Employees", trait: true },
+  { key: "revenue_band", header: "Revenue band", trait: true },
+  { key: "ownership", header: "Ownership", trait: true },
+  { key: "succession_risk", header: "Succession risk", trait: true },
+  { key: "coverage_model", header: "Coverage", trait: true },
+];
 
-const PROFILE_TEXT_KEYS = [
-  "firmType",
-  "hqCountry",
-  "sector",
-  "revenueBand",
-  "ownership",
-  "successionRisk",
-  "coverageModel",
-] as const;
+const FIRM_TEXT_KEYS = ["firmType", "hqCountry", "sector"] as const;
 
 function text(v: string | null | undefined): string | null {
   const s = (v ?? "").trim();
   return s === "" ? null : s;
 }
 
-function axisValue(def: AxisDef, raw: string | number | boolean | null | undefined) {
+function axisValue(trait: TraitDef, raw: string | number | boolean | null | undefined) {
   if (raw === null || raw === undefined) {
     return null;
   }
-  const v = typeof raw === "string" ? parseAxisValue(def, raw) : raw;
+  const v = typeof raw === "string" ? parseTraitValue(trait, raw) : raw;
   if (v === null) {
     return typeof raw === "string" ? text(raw) : null;
   }
@@ -196,7 +179,12 @@ function findingsByFirmAxis(findings: readonly FindingLike[]): Map<string, AxisF
  * findings, one still proposed; the two most trusted sources). Only a firm with a grouped finding
  * is looked at, so an export of firms without conflicts does no extra work.
  */
-function openConflicts(findings: readonly FindingLike[]): Map<string, Map<string, AxisFinding[]>> {
+function openConflicts(
+  rubric: RubricContext,
+  firms: readonly FirmLike[],
+  findings: readonly FindingLike[],
+): Map<string, Map<string, AxisFinding[]>> {
+  const thesisById = new Map(firms.map((f) => [text(f.firmId) ?? "", thesisOf(f)]));
   const byFirm = new Map<string, AxisFinding[]>();
   const withGroup = new Set<string>();
   for (const f of findings) {
@@ -211,7 +199,8 @@ function openConflicts(findings: readonly FindingLike[]): Map<string, Map<string
   const out = new Map<string, Map<string, AxisFinding[]>>();
   for (const firmId of withGroup) {
     const axes = new Map<string, AxisFinding[]>();
-    for (const row of buildAxisRows(ENRICH_AXES, undefined, byFirm.get(firmId) ?? [])) {
+    const rows = buildAxisRows(rubric, thesisById.get(firmId), undefined, byFirm.get(firmId) ?? []);
+    for (const row of rows) {
       if (row.state === "conflict") {
         axes.set(row.axis, conflictSides(row));
       }
@@ -233,59 +222,71 @@ const EMPTY_CITATION = (axis: string): Citation => ({
  * found (an abstained finding found nothing), else what is already on the firm, else null.
  */
 export function exportRows(
+  rubric: RubricContext,
   firms: readonly FirmLike[],
   findings: readonly FindingLike[],
 ): { rows: ExportRow[]; citations: Citation[][] } {
   const byFirmAxis = findingsByFirmAxis(findings);
-  const conflicts = openConflicts(findings);
+  const conflicts = openConflicts(rubric, firms, findings);
+  const axes = evidenceTraits(rubric.traits);
   const rows: ExportRow[] = [];
   const citations: Citation[][] = [];
 
   for (const firm of firms) {
     const firmId = text(firm.firmId) ?? "";
-    const mirror = mirrorScore(scoreInputFromFirm(firm));
+    const traits = traitsOf(firm);
+    const live = scoreFirm(rubric.definition, firm);
     const row: ExportRow = {
       firmId,
       firmName: text(firm.firmName) ?? firmId,
-      tier: text(firm.tier) ?? mirror.tier,
-      score: typeof firm.score === "number" ? firm.score : mirror.weightedTotal,
-      stage: bucketOf(firm, mirror),
+      tier: text(firm.tier) ?? live.tier,
+      score: typeof firm.score === "number" ? firm.score : live.weightedTotal,
+      maxScore: live.maxPossible,
+      stage: bucketOf(firm, live),
     };
-    for (const key of PROFILE_TEXT_KEYS) {
+    for (const key of FIRM_TEXT_KEYS) {
       row[key] = text(firm[key]);
     }
-    row.employees = typeof firm.employees === "number" ? firm.employees : null;
+    for (const c of PROFILE_COLUMNS) {
+      if (c.trait) {
+        const v = traits[c.key];
+        row[c.key] = typeof v === "number" ? v : typeof v === "string" ? text(v) : null;
+      }
+    }
 
     const cites: Citation[] = [];
-    for (const def of ENRICH_AXES) {
+    for (const trait of axes) {
+      const axis = trait.traitKey;
       // An open conflict is shown as one, with both sides cited, as on the Desk: neither value is
       // the firm's value until an analyst decides.
-      const sides = conflicts.get(firmId)?.get(def.axis);
+      const sides = conflicts.get(firmId)?.get(axis);
       if (sides !== undefined) {
-        const shown = sides.map((f) => displayFindingValue(def.axis, f.value, { units: false }));
-        row[def.axis] = `Conflict: ${shown.join(" vs ")}`;
-        sides.forEach((f, i) => cites.push({ axis: def.axis, value: shown[i], ...citationOf(f) }));
+        const shown = sides.map((f) =>
+          displayFindingValue(rubric, axis, f.value, { units: false }),
+        );
+        row[axis] = `Conflict: ${shown.join(" vs ")}`;
+        sides.forEach((f, i) => cites.push({ axis, value: shown[i], ...citationOf(f) }));
         continue;
       }
-      const own = axisValue(def, firm[def.firmField as keyof FirmLike]);
-      const found = byFirmAxis.get(`${firmId}\u0000${def.axis}`);
+      const own = axisValue(trait, traits[axis]);
+      const found = byFirmAxis.get(`${firmId}\u0000${axis}`);
       const auth = found === undefined ? undefined : pickAuthoritative(found);
       if (auth === undefined || classifyAxis(auth) === "abstained") {
-        row[def.axis] = own;
-        cites.push(EMPTY_CITATION(def.axis));
+        row[axis] = own;
+        cites.push(EMPTY_CITATION(axis));
         continue;
       }
-      const fromFinding = axisValue(def, auth.value);
+      const fromFinding = axisValue(trait, auth.value);
       if (fromFinding === null) {
         // The finding has no usable value: use the firm's own value, uncited.
-        row[def.axis] = own;
-        cites.push(EMPTY_CITATION(def.axis));
+        row[axis] = own;
+        cites.push(EMPTY_CITATION(axis));
         continue;
       }
-      row[def.axis] = fromFinding;
+      row[axis] = fromFinding;
       const provider = text(auth.provider);
       cites.push({
-        axis: def.axis,
+        axis,
         provider: provider === null ? null : providerLabel(provider),
         // Only a finding read from a source document has a source sentence. An analyst's entry
         // keeps a note in sourceExcerpt, which is not a quotation, so it is never cited.
@@ -327,25 +328,21 @@ export interface Table {
   rows: Cell[][];
 }
 
-const AXIS_KEYS = ENRICH_AXES.map((a) => a.axis);
-
-function columnLabel(axis: string): string {
-  return axisLabel(axis);
-}
-
 function orNoSource(cell: Cell): Cell {
   return cell === null ? NO_SOURCE : cell;
 }
 
 /** The workbook's Targets sheet: the firm, its tier and score, then profile, each axis and the id. */
-export function targetsTable(rows: readonly ExportRow[]): Table {
+export function targetsTable(rubric: RubricContext, rows: readonly ExportRow[]): Table {
+  const axisKeys = evidenceTraits(rubric.traits).map((t) => t.traitKey);
+  const columnLabel = (axis: string): string => axisLabel(rubric, axis);
   return {
     headers: [
       "Firm",
       "Tier",
       "Score",
       ...PROFILE_COLUMNS.map((c) => c.header),
-      ...AXIS_KEYS.map(columnLabel),
+      ...axisKeys.map(columnLabel),
       "Firm ID",
     ],
     rows: rows.map((r) => [
@@ -353,7 +350,7 @@ export function targetsTable(rows: readonly ExportRow[]): Table {
       r.tier,
       r.score,
       ...PROFILE_COLUMNS.map((c) => r[c.key] ?? null),
-      ...AXIS_KEYS.map((a) => orNoSource(r[a] ?? null)),
+      ...axisKeys.map((a) => orNoSource(r[a] ?? null)),
       r.firmId,
     ]),
   };
@@ -361,9 +358,11 @@ export function targetsTable(rows: readonly ExportRow[]): Table {
 
 /** The workbook's Citations sheet: one line per firm and axis, two for an axis in open conflict. */
 export function citationsTable(
+  rubric: RubricContext,
   rows: readonly ExportRow[],
   citations: readonly Citation[][],
 ): Table {
+  const columnLabel = (axis: string): string => axisLabel(rubric, axis);
   const out: Cell[][] = [];
   rows.forEach((r, i) => {
     for (const c of citations[i] ?? []) {
@@ -382,8 +381,8 @@ export function citationsTable(
 }
 
 /** The tier and score as one line, for a CRM's free-text field. */
-export function scoreLine(r: Pick<ExportRow, "tier" | "score">): string {
-  return `Tier ${r.tier}, score ${r.score}/${MAX_POSSIBLE}`;
+export function scoreLine(r: Pick<ExportRow, "tier" | "score" | "maxScore">): string {
+  return `Tier ${r.tier}, score ${r.score}/${r.maxScore}`;
 }
 
 // ─── File names ──────────────────────────────────────────────────────────

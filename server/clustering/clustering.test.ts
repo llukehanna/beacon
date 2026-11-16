@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NO_WALL } from "../access.js";
 import { applyAction } from "../actions/apply.js";
 import { getMeta } from "../db/meta.js";
-import { createTestDb } from "../testing.js";
+import { TEST_RUBRIC, createTestDb } from "../testing.js";
 import { CLAUDE_COOLDOWN_MS, chooseClusterer } from "./choose.js";
 import { createClaudeClusterer, parseClusterResponse, renderRejections } from "./claude.js";
 import {
@@ -60,7 +60,7 @@ describe("Claude clusterer", () => {
   it("calls claude-opus-5 with a JSON schema and refusal fallbacks", async () => {
     const create = vi.fn(async (_req: unknown) => reply(goodJson));
     const client = { beta: { messages: { create } } } as unknown as Anthropic;
-    const out = await createClaudeClusterer(client)(rows);
+    const out = await createClaudeClusterer(client)(rows, TEST_RUBRIC);
     expect(out.source).toBe("claude");
     const req = create.mock.calls[0][0] as Record<string, unknown>;
     expect(req.model).toBe("claude-opus-5");
@@ -80,7 +80,9 @@ describe("chooseClusterer", () => {
     const db = await createTestDb();
     const fake: Clusterer = async () => ({ proposals: [], source: "claude" });
     const t = new Date("2026-09-22T12:00:00Z");
-    expect((await (await chooseClusterer(db, t, () => fake))(rows)).source).toBe("claude");
+    expect((await (await chooseClusterer(db, t, () => fake))(rows, TEST_RUBRIC)).source).toBe(
+      "claude",
+    );
     expect(await chooseClusterer(db, new Date(t.getTime() + 60_000), () => fake)).toBe(
       heuristicClusterer,
     );
@@ -93,7 +95,7 @@ describe("chooseClusterer", () => {
       throw new Error("no credentials");
     };
     const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
-    const out = await (await chooseClusterer(db, new Date(), () => broken))(rows);
+    const out = await (await chooseClusterer(db, new Date(), () => broken))(rows, TEST_RUBRIC);
     expect(out.source).toBe("heuristic");
     expect(warn).toHaveBeenCalled();
   });
@@ -133,15 +135,15 @@ describe("fixtureClusterer", () => {
     const fallback = vi.fn<Clusterer>(async () => ({ proposals: [], source: "heuristic" }));
     const clusterer = fixtureClusterer(fixture, fallback);
 
-    const replayed = await clusterer(rows);
+    const replayed = await clusterer(rows, TEST_RUBRIC);
     expect(replayed).toEqual({ proposals: fixture.proposals, source: "claude" });
     expect(fallback).not.toHaveBeenCalled();
 
     const changed = [{ ...rows[0], rationale: "Too small, 5 staff." }];
-    expect((await clusterer(changed)).source).toBe("heuristic");
+    expect((await clusterer(changed, TEST_RUBRIC)).source).toBe("heuristic");
     expect(fallback).toHaveBeenCalledTimes(1);
 
-    expect((await fixtureClusterer(null, fallback)(rows)).source).toBe("heuristic");
+    expect((await fixtureClusterer(null, fallback)(rows, TEST_RUBRIC)).source).toBe("heuristic");
     expect(fallback).toHaveBeenCalledTimes(2);
   });
 

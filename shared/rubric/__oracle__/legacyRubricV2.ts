@@ -1,4 +1,8 @@
 /**
+ * FROZEN ORACLE: a verbatim copy of shared/scoreMirror.ts as of rubric v2, kept so parity tests
+ * can prove the data-driven rubric scores identically. App code must never import this file.
+ */
+/**
  * The qualification rubric (v2): nine axes scored 0–2 (max 18), tiers A/B/C/Rejected.
  * Single source of truth. The server persists QualificationScores with it
  * and the Enrichment Desk previews scores with it, so they cannot drift.
@@ -276,4 +280,38 @@ export function mirrorScore(input: ScoreInput): MirrorResult {
     confidence: axes.filter((a) => a.known).length / axes.length,
     axisScores: axes,
   };
+}
+
+// Finding axis → rubric axis label per model (null = not scored for that model).
+const RUBRIC_AXIS: Readonly<Record<string, { CF: string | null; CS: string | null }>> = {
+  services_fit: { CF: "Services", CS: "CS Services Fit" },
+  md_pedigree: { CF: "MD Experience", CS: "MD Experience" },
+  balance_sheet_principal: { CF: null, CS: "Balance Sheet / Principal" },
+  deal_size_usd_m: { CF: "Deal Size", CS: "Deal Size" },
+  deals_per_md_l3y: { CF: "Deals per MD", CS: "Deals per MD" },
+  firm_age: { CF: "Firm Age", CS: "Firm Age" },
+  fee_generating_count: { CF: "Fee-Generating", CS: "Fee-Generating" },
+};
+
+/**
+ * Points (0–2) a single value earned on its rubric axis, scored in isolation (the legacy
+ * ResearchFinding.normalizedScore). Null for gates, unrecognized values, and axes the model
+ * doesn't score; 0 when the value alone hard-rejects.
+ */
+export function axisPoints(
+  firmType: string | null | undefined,
+  axis: { axis: string; firmField: string },
+  value: string | number | boolean | null,
+): number | null {
+  const model = resolveModel(firmType);
+  const label = RUBRIC_AXIS[axis.axis]?.[model] ?? null;
+  if (label === null || value === null) {
+    return null;
+  }
+  const r = mirrorScore({ firmType: model, [axis.firmField]: value });
+  if (r.hardRejected) {
+    return 0;
+  }
+  const hit = r.axisScores.find((a) => a.axis === label);
+  return hit !== undefined && hit.known ? hit.score : null;
 }
