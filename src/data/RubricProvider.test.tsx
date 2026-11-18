@@ -29,6 +29,7 @@ const TRAIT_ROWS = ADVISORY.traits.map((t, position) => ({
   optionsJson: t.options === null ? undefined : JSON.stringify(t.options),
   passWhen: t.passWhen ?? undefined,
   thesesJson: t.theses === null ? undefined : JSON.stringify(t.theses),
+  wholeNumber: t.wholeNumber,
   position,
 }));
 

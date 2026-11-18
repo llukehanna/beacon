@@ -90,10 +90,10 @@ describe("resetFromSnapshot", () => {
     const db = await createTestDb();
     await resetDemo(db, takenAt, { newId: sequentialIds() });
     await saveSnapshot(db, takenAt);
-    await db.exec(`ALTER TABLE snapshot_firm DROP COLUMN "successionRisk"`);
+    await db.exec(`ALTER TABLE snapshot_firm DROP COLUMN "employeeGroup"`);
     await expect(resetFromSnapshot(db, takenAt)).resolves.toEqual({ firms: 700 });
     const [{ n }] = await db.query<{ n: number }>(
-      `SELECT count(*)::int AS n FROM firm WHERE "successionRisk" IS NOT NULL`,
+      `SELECT count(*)::int AS n FROM firm WHERE "employeeGroup" IS NOT NULL`,
     );
     expect(n).toBe(0);
   }, 300_000);

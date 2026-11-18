@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { columnTraits } from "./rubric/__fixtures__/advisoryRubric.js";
 import { parseTraitValue } from "./rubric/traitValue.js";
-import { legacyTraits } from "./rubric/workspace.js";
 import { scoreFirm } from "./scoring.js";
 import { ADVISORY_ACQUISITIONS as WS } from "./workspaces/advisoryAcquisitions.js";
 
 /** Score a firm written with column names, the way the server sees it. */
 const score = (f: Record<string, unknown>) =>
-  scoreFirm(WS.rubric, { ...f, traits: legacyTraits(WS, f) });
+  scoreFirm(WS.rubric, { ...f, traits: columnTraits(f) });
 
 const STRONG_CF = {
   thesis: "CF",

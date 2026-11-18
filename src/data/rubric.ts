@@ -52,6 +52,7 @@ export function useActiveRubric(): RubricLoad {
         options: t.optionsJson === undefined ? null : (JSON.parse(t.optionsJson) as string[]),
         passWhen: t.passWhen ?? null,
         theses: t.thesesJson === undefined ? null : (JSON.parse(t.thesesJson) as string[]),
+        wholeNumber: t.wholeNumber ?? false,
       }));
     return { rubricId: row.rubricId, definition, traits: catalog };
   }, [row, traitRows]);

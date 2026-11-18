@@ -382,7 +382,7 @@ export function profileFor(
   const r = rng(`${seed}:profile:${key}`);
   const revenueM = employees * 0.45 * Math.exp(0.35 * gaussian(r));
   const band = BAND_CEILINGS.findIndex((ceiling) => revenueM < ceiling);
-  const revenueBand = REVENUE_BANDS[band === -1 ? REVENUE_BANDS.length - 1 : band];
+  const revenue = REVENUE_BANDS[band === -1 ? REVENUE_BANDS.length - 1 : band];
   // Bigger firms are likelier to have outside capital or a parent.
   const size = Math.min(1, employees / 200);
   const ownership = pick(r, OWNERSHIP_TYPES, [
@@ -391,7 +391,7 @@ export function profileFor(
     0.1 + 0.3 * size,
     0.05,
   ]);
-  const successionRisk = pick(
+  const succession = pick(
     r,
     SUCCESSION_RISKS,
     ownership === "Founder-owned"
@@ -400,7 +400,7 @@ export function profileFor(
         ? [0.4, 0.4, 0.2]
         : [0.7, 0.25, 0.05],
   );
-  return { revenue_band: revenueBand, ownership, succession_risk: successionRisk };
+  return { revenue_band: revenue, ownership, succession_risk: succession };
 }
 
 /** A generated firm: its record, and the trait values the seed stores for it. */
@@ -447,7 +447,7 @@ export function generateUniverse(size = UNIVERSE_SIZE, seed = UNIVERSE_SEED): Un
       lifecycleState: "Discovered",
       currentStage: "Discovered",
       traits: {
-        geo_score: geo.geoScore,
+        geo_score: geo.fit,
         employees,
         ...profileFor(seed, key, employees),
         coverage_model: coverage,

@@ -200,14 +200,7 @@ describe("resetDemo", () => {
     const n = async (sql: string) => (await db.query<{ n: number }>(sql))[0].n;
 
     expect(await n(`SELECT count(*)::int AS n FROM firm`)).toBe(700);
-    // Every firm keeps its traits as trait values and its thesis in `thesis`: the seed writes none
-    // of the legacy trait columns, nor firmType.
-    const legacy = [...Object.keys(ADVISORY_ACQUISITIONS.legacyFields), "firmType"].map(
-      (c) => `"${c}"`,
-    );
-    expect(
-      await n(`SELECT count(*)::int AS n FROM firm WHERE num_nonnulls(${legacy.join(", ")}) > 0`),
-    ).toBe(0);
+    // Every firm keeps its traits as trait values and its thesis in `thesis`.
     expect(await n(`SELECT count(*)::int AS n FROM firm WHERE "thesis" IS NULL`)).toBe(0);
     expect(await n(`SELECT count(DISTINCT "firmId")::int AS n FROM firm_trait_value`)).toBe(700);
     expect(
@@ -386,7 +379,10 @@ describe("showcase seed", () => {
     // Still in the live queue: not screened out, untouched by the earlier steps.
     const [{ n }] = await db.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM firm
-        WHERE "firmId" = ANY($1) AND ("lifecycleState" <> 'Screening' OR employees < 10)`,
+        WHERE "firmId" = ANY($1)
+          AND ("lifecycleState" <> 'Screening'
+               OR "firmId" IN (SELECT "firmId" FROM firm_trait_current
+                                WHERE "traitKey" = 'employees' AND "valueNumber" < 10))`,
       [[...byFirm.keys()]],
     );
     expect(n).toBe(0);

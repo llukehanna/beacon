@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ADVISORY_ACQUISITIONS } from "../workspaces/advisoryAcquisitions.js";
 import type { WorkspaceDefinition } from "../workspaces/types.js";
 import { RubricError } from "./definition.js";
-import { legacyTraits, validateWorkspace } from "./workspace.js";
+import { validateWorkspace } from "./workspace.js";
 
 const clone = (): WorkspaceDefinition =>
   JSON.parse(JSON.stringify(ADVISORY_ACQUISITIONS)) as WorkspaceDefinition;
@@ -94,17 +94,20 @@ describe("the advisory-acquisitions catalog", () => {
     ]);
   });
 
-  it("maps every legacy firm column, and reads a row as traits", () => {
-    expect(Object.keys(ADVISORY_ACQUISITIONS.legacyFields)).toHaveLength(17);
-    expect(
-      legacyTraits(ADVISORY_ACQUISITIONS, {
-        firmType: "CF",
-        dealSizeMUsd: 200,
-        hasSTOrBalanceSheet: false,
-        revenueBand: "$25–50M",
-        servicesFit: null,
-      }),
-    ).toEqual({ deal_size_usd_m: 200, has_st_or_balance_sheet: false, revenue_band: "$25–50M" });
+  it("names a catalog trait for every old firm column", () => {
+    const keys = new Set(ADVISORY_ACQUISITIONS.traits.map((t) => t.traitKey));
+    const aliased = new Set(Object.values(ADVISORY_ACQUISITIONS.legacyFieldAliases));
+    expect(aliased.size).toBe(17);
+    expect([...aliased].filter((k) => !keys.has(k))).toEqual([]);
+  });
+
+  it("refuses a whole-number flag on a trait that is not a number", () => {
+    const traits = ADVISORY_ACQUISITIONS.traits.map((t) =>
+      t.traitKey === "solvent" ? { ...t, wholeNumber: true } : t,
+    );
+    expect(() => validateWorkspace({ ...ADVISORY_ACQUISITIONS, traits })).toThrow(
+      /solvent.*whole numbers/,
+    );
   });
 
   it("aliases the action spelling of the S&T gate", () => {

@@ -151,7 +151,7 @@ function ruleMatches(firmValue: unknown, operator: string, threshold: string): b
     }
   }
 
-  // Boolean firm fields — advisoryConflict etc. — arrive as true/false.
+  // Boolean firm fields arrive as true/false.
   if (typeof firmValue === "boolean") {
     const lit = t.toLowerCase();
     const asBool = lit === "true" ? true : lit === "false" ? false : null;

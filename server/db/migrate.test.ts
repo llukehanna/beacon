@@ -146,20 +146,14 @@ describe("migrate", () => {
     expect(await migrate(db)).toEqual({ applied: MIGRATIONS.map((m) => m.version) });
 
     expect(await schemaVersion(db)).toBe(LATEST_MIGRATION);
-    // The rows are intact, and the columns the old database lacked are there, empty.
-    expect(
-      await db.query(
-        `SELECT "firmId", "firmName", "successionRisk", "revenueBand", "ownership" FROM firm`,
-      ),
-    ).toEqual([
-      {
-        firmId: "f1",
-        firmName: "Alpha Advisors",
-        successionRisk: "high",
-        revenueBand: null,
-        ownership: null,
-      },
+    // The rows are intact, the firm's trait column became its trait value, and the columns the
+    // old database lacked are there, empty.
+    expect(await db.query(`SELECT "firmId", "firmName" FROM firm`)).toEqual([
+      { firmId: "f1", firmName: "Alpha Advisors" },
     ]);
+    expect(
+      await db.query(`SELECT "firmId", "traitKey", "valueString" FROM firm_trait_current`),
+    ).toEqual([{ firmId: "f1", traitKey: "succession_risk", valueString: "high" }]);
     expect(await db.query(`SELECT "ruleStatus", "mandateScope" FROM proposed_rule`)).toEqual([
       { ruleStatus: "pending", mandateScope: null },
     ]);
@@ -255,23 +249,23 @@ describe("migrate", () => {
   }, 300_000);
 });
 
-describe("migration 0005: firm trait values", () => {
-  /** A database with every migration before `version` applied, none after. */
-  async function migratedBefore(version: number): Promise<Db> {
-    const db = await createPgliteDb();
-    await db.exec(
-      `CREATE TABLE schema_migrations (version integer PRIMARY KEY, name text NOT NULL, "appliedAt" timestamptz NOT NULL DEFAULT now())`,
-    );
-    for (const m of MIGRATIONS.filter((x) => x.version < version)) {
-      await db.exec(m.sql);
-      await db.query(`INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, [
-        m.version,
-        m.name,
-      ]);
-    }
-    return db;
+/** A database with every migration before `version` applied, none after. */
+async function migratedBefore(version: number): Promise<Db> {
+  const db = await createPgliteDb();
+  await db.exec(
+    `CREATE TABLE schema_migrations (version integer PRIMARY KEY, name text NOT NULL, "appliedAt" timestamptz NOT NULL DEFAULT now())`,
+  );
+  for (const m of MIGRATIONS.filter((x) => x.version < version)) {
+    await db.exec(m.sql);
+    await db.query(`INSERT INTO schema_migrations (version, name) VALUES ($1, $2)`, [
+      m.version,
+      m.name,
+    ]);
   }
+  return db;
+}
 
+describe("migration 0005: firm trait values", () => {
   /** Each firm's current traits as one map per firm, read from `table` (latest revision wins). */
   const currentTraits = async (db: Db, table = "firm_trait_value") =>
     Object.fromEntries(
@@ -383,5 +377,96 @@ describe("migration 0005: firm trait values", () => {
     expect(await db.query(`SELECT "thesis" FROM firm WHERE "firmId" = 'full'`)).toEqual([
       { thesis: "CS" },
     ]);
+  });
+});
+
+describe("migration 0006: the legacy trait columns go", () => {
+  const LEGACY = [
+    "firmType",
+    "servicesFit",
+    "mdPedigree",
+    "balanceSheetPrincipal",
+    "dealSizeMUsd",
+    "dealsPerMdL3y",
+    "firmAge",
+    "feeGeneratingCount",
+    "advisoryConflict",
+    "hasSTOrBalanceSheet",
+    "webActivity",
+    "solvent",
+    "coverageModel",
+    "geoScore",
+    "employees",
+    "revenueBand",
+    "ownership",
+    "successionRisk",
+  ];
+
+  const columnsOf = async (db: Db, table: string) =>
+    (
+      await db.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_schema = current_schema() AND table_name = $1`,
+        [table],
+      )
+    ).map((r) => r.column_name);
+
+  it("drops them from firm and its snapshot, keeping each firm's traits and thesis", async () => {
+    const db = await migratedBefore(5);
+    await db.query(
+      `INSERT INTO firm ("firmId", "firmType", "employees", "coverageModel") VALUES ('f1', 'CS', 12, 'Generalist')`,
+    );
+    await db.exec(`CREATE TABLE snapshot_firm AS TABLE firm`);
+    await db.query(
+      `INSERT INTO meta (key, value) VALUES ('snapshotAt', '2026-09-01T12:00:00.000Z')`,
+    );
+    await migrate(db);
+    for (const table of ["firm", "snapshot_firm"]) {
+      const columns = await columnsOf(db, table);
+      expect(columns).toContain("thesis");
+      expect(LEGACY.filter((c) => columns.includes(c))).toEqual([]);
+    }
+    await resetFromSnapshot(db, new Date("2026-09-02T12:00:00.000Z"));
+    expect(await db.query(`SELECT "firmId", "thesis" FROM firm`)).toEqual([
+      { firmId: "f1", thesis: "CS" },
+    ]);
+    expect(
+      await db.query(
+        `SELECT "traitKey", "valueString", "valueNumber" FROM firm_trait_current ORDER BY 1`,
+      ),
+    ).toEqual([
+      { traitKey: "coverage_model", valueString: "Generalist", valueNumber: null },
+      { traitKey: "employees", valueString: null, valueNumber: 12 },
+    ]);
+  });
+
+  it("refuses to drop a column value that has no trait value, and changes nothing", async () => {
+    const db = await migratedBefore(6);
+    await db.query(`INSERT INTO firm ("firmId", "employees") VALUES ('f1', 12)`);
+    await expect(migrate(db)).rejects.toThrow(/f1.*employees/);
+    expect(await schemaVersion(db)).toBe(5);
+    expect(await columnsOf(db, "firm")).toContain("employees");
+  });
+
+  it("refuses to drop a firm type that never became a thesis", async () => {
+    const db = await migratedBefore(6);
+    await db.query(`INSERT INTO firm ("firmId", "firmType") VALUES ('f1', 'CS')`);
+    await expect(migrate(db)).rejects.toThrow(/f1.*firmType/);
+  });
+
+  it("marks the whole-number traits in the catalog and its snapshot", async () => {
+    const db = await migratedBefore(6);
+    await db.exec(`CREATE TABLE snapshot_trait AS TABLE trait`);
+    await migrate(db);
+    for (const table of ["trait", "snapshot_trait"]) {
+      expect(
+        await db.query(`SELECT "traitKey" FROM ${table} WHERE "wholeNumber" ORDER BY "position"`),
+      ).toEqual([
+        { traitKey: "firm_age" },
+        { traitKey: "fee_generating_count" },
+        { traitKey: "geo_score" },
+        { traitKey: "employees" },
+      ]);
+    }
   });
 });

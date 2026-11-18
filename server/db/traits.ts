@@ -5,8 +5,6 @@
  * them with `traitsSql`, and every writer goes through `appendTraitValues`.
  */
 import type { TraitDef, TraitValue } from "../../shared/rubric/types.js";
-import { OBJECT_TYPES } from "../../shared/schema.js";
-import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
 import { ActionError } from "../errors.js";
 import { loadTraits } from "../rubric/load.js";
 import type { Queryable } from "./client.js";
@@ -85,6 +83,9 @@ function checked(
         `${key} must be a ${trait.kind === "yesno" ? "yes/no" : trait.kind} value`,
       );
     }
+    if (trait.wholeNumber && typeof value === "number" && !Number.isInteger(value)) {
+      throw new ActionError(`${key} must be a whole number, got ${value}`);
+    }
     return [trait, value as TraitValue | null];
   });
 }
@@ -147,22 +148,4 @@ export async function appendFirmsTraitValues(
     `INSERT INTO firm_trait_value SELECT * FROM json_populate_recordset(NULL::firm_trait_value, $1::json)`,
     [JSON.stringify(records)],
   );
-}
-
-const WHOLE_NUMBER_TRAITS: ReadonlySet<string> = new Set(
-  Object.entries(ADVISORY_ACQUISITIONS.legacyFields)
-    .filter(
-      ([column]) =>
-        (OBJECT_TYPES.Firm.properties as Readonly<Record<string, string>>)[column] === "integer",
-    )
-    .map(([, key]) => key),
-);
-
-/**
- * Whether a number trait counts whole things (years, people), so a fraction is refused. Read from
- * the integer columns that stored these traits before migration 0005, until the catalog says so
- * itself.
- */
-export function isWholeNumberTrait(traitKey: string): boolean {
-  return WHOLE_NUMBER_TRAITS.has(traitKey);
 }

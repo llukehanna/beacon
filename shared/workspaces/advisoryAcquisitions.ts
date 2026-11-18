@@ -21,7 +21,14 @@ export const RUBRIC_ID = "advisory-acquisitions@1";
 
 const trait = (
   t: Pick<TraitDef, "traitKey" | "label" | "description" | "kind" | "role"> & Partial<TraitDef>,
-): TraitDef => ({ unit: null, options: null, passWhen: null, theses: null, ...t });
+): TraitDef => ({
+  unit: null,
+  options: null,
+  passWhen: null,
+  theses: null,
+  wholeNumber: false,
+  ...t,
+});
 
 const TRAITS: TraitDef[] = [
   trait({
@@ -71,6 +78,7 @@ const TRAITS: TraitDef[] = [
     description: "Firm age, in years",
     unit: "yrs",
     kind: "number",
+    wholeNumber: true,
     role: "evidence",
   }),
   trait({
@@ -79,6 +87,7 @@ const TRAITS: TraitDef[] = [
     description: "Number of fee-generating professionals",
     unit: "fee-earning heads",
     kind: "number",
+    wholeNumber: true,
     role: "evidence",
   }),
   trait({
@@ -126,6 +135,7 @@ const TRAITS: TraitDef[] = [
     label: "Geographic fit",
     description: "Fit of the firm's headquarters geography, 0 to 2",
     kind: "number",
+    wholeNumber: true,
     role: "fact",
   }),
   trait({
@@ -134,6 +144,7 @@ const TRAITS: TraitDef[] = [
     description: "Total employees",
     unit: "employees",
     kind: "number",
+    wholeNumber: true,
     role: "fact",
   }),
   trait({
@@ -320,25 +331,6 @@ export const ADVISORY_ACQUISITIONS: WorkspaceDefinition = {
         summary: "Generalist coverage models are rejected for lacking sector depth.",
       },
     ],
-  },
-  legacyFields: {
-    servicesFit: "services_fit",
-    mdPedigree: "md_pedigree",
-    balanceSheetPrincipal: "balance_sheet_principal",
-    dealSizeMUsd: "deal_size_usd_m",
-    dealsPerMdL3y: "deals_per_md_l3y",
-    firmAge: "firm_age",
-    feeGeneratingCount: "fee_generating_count",
-    advisoryConflict: "advisory_conflict",
-    hasSTOrBalanceSheet: "has_st_or_balance_sheet",
-    webActivity: "web_activity",
-    solvent: "solvent",
-    coverageModel: "coverage_model",
-    geoScore: "geo_score",
-    employees: "employees",
-    revenueBand: "revenue_band",
-    ownership: "ownership",
-    successionRisk: "succession_risk",
   },
   legacyFieldAliases: {
     servicesFit: "services_fit",

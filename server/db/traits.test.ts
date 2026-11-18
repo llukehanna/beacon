@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { loadTraits } from "../rubric/load.js";
 import { createTestDb } from "../testing.js";
 import type { Db } from "./client.js";
 import { getObject, insertObject, listObjects } from "./repo.js";
@@ -80,6 +81,19 @@ describe("appendTraitValues", () => {
     expect(await db.query(`SELECT * FROM firm_trait_value`)).toEqual([]);
   });
 
+  it("refuses a fraction for a trait the catalog counts in whole numbers, and writes nothing", async () => {
+    const db = await bareFirm();
+    const opts = { setBy: "seed", setAt: AT };
+    await expect(
+      appendTraitValues(db, "f1", { deal_size_usd_m: 40.5, employees: 9.5 }, opts),
+    ).rejects.toThrow(/employees/);
+    expect(await db.query(`SELECT * FROM firm_trait_value`)).toEqual([]);
+    await appendTraitValues(db, "f1", { deal_size_usd_m: 40.5, employees: 9 }, opts);
+    expect(await revisions(db, "employees")).toEqual([
+      { revision: 1, valueNumber: 9, sourceFindingId: null },
+    ]);
+  });
+
   it("is append-only: a stored value is never updated or deleted", async () => {
     const db = await bareFirm();
     await appendTraitValues(db, "f1", { employees: 12 }, { setBy: "seed", setAt: AT });
@@ -93,10 +107,9 @@ describe("appendTraitValues", () => {
 });
 
 describe("reading firms", () => {
-  it("takes each firm's traits from its latest trait values, never from the old columns", async () => {
+  it("takes each firm's traits from its latest trait values", async () => {
     const db = await createTestDb();
-    // A stale legacy column must not leak into the traits map.
-    await insertObject(db, "Firm", { firmId: "f1", firmName: "Stale Advisors", employees: 5 });
+    await insertObject(db, "Firm", { firmId: "f1", firmName: "Stale Advisors" });
     await appendTraitValues(
       db,
       "f1",
@@ -149,5 +162,19 @@ describe("locking a firm", () => {
     expect(lock).toBeGreaterThanOrEqual(0);
     expect(sql[lock]).not.toMatch(/firm_trait_current/);
     expect(sql.findIndex((s, i) => i > lock && /firm_trait_current/.test(s))).toBeGreaterThan(lock);
+  });
+});
+
+describe("the trait catalog", () => {
+  it("says which number traits count whole things", async () => {
+    const db = await createTestDb();
+    const traits = await loadTraits(db);
+    expect(traits.filter((t) => t.wholeNumber).map((t) => t.traitKey)).toEqual([
+      "firm_age",
+      "fee_generating_count",
+      "geo_score",
+      "employees",
+    ]);
+    expect(traits.every((t) => !t.wholeNumber || t.kind === "number")).toBe(true);
   });
 });

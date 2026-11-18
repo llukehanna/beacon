@@ -29,6 +29,8 @@ export interface TraitDef {
   passWhen: boolean | null;
   /** The theses whose firms this trait is researched for; null for every thesis. */
   theses: string[] | null;
+  /** For a number trait: it counts whole things (years, people), so a fraction is refused. */
+  wholeNumber: boolean;
 }
 
 export interface Band {

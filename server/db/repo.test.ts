@@ -275,15 +275,15 @@ describe("insertObjects", () => {
   it("inserts many rows in one statement with their types intact", async () => {
     const db = await createTestDb();
     await insertObjects(db, "Firm", [
-      { firmId: "a", firmName: "A", employees: 12, geoScore: 2 },
+      { firmId: "a", firmName: "A", thesis: "CS", scoreAtQualification: 12.5 },
       { firmId: "b", firmName: "B" },
     ]);
     expect(await getObject(db, "Firm", "a")).toMatchObject({
       firmName: "A",
-      employees: 12,
-      geoScore: 2,
+      thesis: "CS",
+      scoreAtQualification: 12.5,
     });
-    expect((await getObject(db, "Firm", "b"))?.employees).toBeUndefined();
+    expect((await getObject(db, "Firm", "b"))?.scoreAtQualification).toBeUndefined();
     await expect(insertObjects(db, "Firm", [{ firmName: "no pk" }])).rejects.toThrow(/missing/);
   });
 });

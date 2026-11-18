@@ -10,6 +10,6 @@ export function traitsOf(firm: FirmLike): Traits {
 
 /** The thesis key a firm is scored under, or null to use the rubric's default. */
 export function thesisOf(firm: FirmLike): string | null {
-  const v = firm.thesis ?? firm.firmType;
+  const v = firm.thesis;
   return typeof v === "string" && v.trim() !== "" ? v : null;
 }

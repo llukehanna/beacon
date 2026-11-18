@@ -25,6 +25,7 @@ export async function seedWorkspace(
       optionsJson: t.options === null ? null : JSON.stringify(t.options),
       passWhen: t.passWhen,
       thesesJson: t.theses === null ? null : JSON.stringify(t.theses),
+      wholeNumber: t.wholeNumber,
       position,
     })),
   );

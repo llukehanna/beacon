@@ -2,14 +2,14 @@ import { describe, expect, it } from "vitest";
 import { withTraits } from "../../shared/rubric/__fixtures__/advisoryRubric.js";
 import { scoreFirm } from "../../shared/scoring.js";
 import { ADVISORY_ACQUISITIONS } from "../../shared/workspaces/advisoryAcquisitions.js";
-import { STRONG_CF } from "../testing.js";
+import { STRONG_CF, type TestFirm } from "../testing.js";
 import { type FirmState, type SignalRow, dueSignals, planSignals } from "./apply.js";
 
 const AT = "2026-09-01T12:00:00.000Z";
 const at = (): string => AT;
 
 /** A firm that scores exactly 14 (the floor of tier A): one fee-earner band lower is tier B. */
-const FOURTEEN: FirmState = {
+const FOURTEEN: TestFirm = {
   ...STRONG_CF,
   firmId: "f1",
   lifecycleState: "Qualified",
@@ -20,7 +20,7 @@ const FOURTEEN: FirmState = {
   feeGeneratingCount: 4, // 2 points
 };
 
-const firms = (f: FirmState = FOURTEEN) => new Map([["f1", withTraits(f)]]);
+const firms = (f: TestFirm = FOURTEEN): Map<string, FirmState> => new Map([["f1", withTraits(f)]]);
 
 const signal = (over: Partial<SignalRow> & { signalId: string }): SignalRow => ({
   firmId: "f1",

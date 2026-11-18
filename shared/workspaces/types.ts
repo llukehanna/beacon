@@ -7,8 +7,9 @@ export interface WorkspaceDefinition {
   /** In catalog order: evidence, then facts, then profile fields. */
   traits: TraitDef[];
   rubric: RubricDefinition;
-  /** Firm column → trait key while firms still store traits as columns. */
-  legacyFields: Readonly<Record<string, string>>;
-  /** Every historic field name → trait key, for reading old decision records. */
+  /**
+   * Every historic field name → trait key: the firm columns migration 0006 dropped and the action
+   * parameters that named them, for reading old decision records.
+   */
   legacyFieldAliases: Readonly<Record<string, string>>;
 }

@@ -15,7 +15,7 @@ import { insertFirms } from "./seed/firms.js";
 export const T0 = new Date("2026-09-01T12:00:00.000Z");
 
 /** A CF firm that scores 18/18, tier A, under rubric v2. */
-export const STRONG_CF: Props<"Firm"> = {
+export const STRONG_CF: TestFirm = {
   thesis: "CF",
   coverageModel: "Single-sector focus",
   servicesFit: "Full advisory suite",
@@ -41,15 +41,38 @@ export async function createTestDb(): Promise<Db> {
   return db;
 }
 
-/** Test firm fields, which may name traits by today's column names (as STRONG_CF does). */
-export type TestFirm = Props<"Firm"> & { traits?: Record<string, unknown> };
+/** The firm columns traits had before migration 0006, which a test may still spell a trait with. */
+type ColumnName =
+  | "servicesFit"
+  | "mdPedigree"
+  | "balanceSheetPrincipal"
+  | "dealSizeMUsd"
+  | "dealsPerMdL3y"
+  | "firmAge"
+  | "feeGeneratingCount"
+  | "advisoryConflict"
+  | "hasSTOrBalanceSheet"
+  | "webActivity"
+  | "solvent"
+  | "coverageModel"
+  | "geoScore"
+  | "employees"
+  | "revenueBand"
+  | "ownership"
+  | "successionRisk";
+
+/** Test firm fields: the record, plus traits by old column name (as STRONG_CF does) or by key. */
+export type TestFirm = Props<"Firm"> &
+  Partial<Record<ColumnName, string | number | boolean | null>> & {
+    traits?: Record<string, unknown>;
+  };
 
 /** A test firm as the record to insert and its traits, read from column names and `traits`. */
 function splitTestFirm(fields: TestFirm): { row: Props<"Firm">; traits: Record<string, unknown> } {
   const row: Record<string, unknown> = {};
   const traits: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(fields)) {
-    const key = ADVISORY_ACQUISITIONS.legacyFields[name];
+    const key = ADVISORY_ACQUISITIONS.legacyFieldAliases[name];
     if (name === "traits") {
       continue;
     } else if (key !== undefined) {
@@ -77,7 +100,7 @@ export async function insertTestFirms(db: Db, firms: readonly TestFirm[]): Promi
 
 /**
  * A firm for a test: the record, with its traits stored as trait values. `overrides` may name traits
- * by today's column names (`employees`, `dealSizeMUsd`, as STRONG_CF does) or pass `traits` by key.
+ * by their old column names (`employees`, `dealSizeMUsd`, as STRONG_CF does) or pass `traits` by key.
  */
 export async function seedFirm(db: Db, overrides: TestFirm = {}): Promise<ObjectOf<"Firm">> {
   const firmId = overrides.firmId ?? `firm-${randomUUID().slice(0, 8)}`;
